@@ -2,13 +2,18 @@
 
 import unittest
 
-from openbagus.analysis.engine import run_real_analysis
+from openbagus.analysis.engine import DataQualityAgent, run_real_analysis
 from openbagus.core.env import get_repo_root
 from openbagus.data.ingestion import run_runtime_ingestion
 from openbagus.delivery.runner import run_final_delivery
 
 
 class TestCryptoPipeline(unittest.TestCase):
+    def test_missing_market_data_is_blocked(self):
+        quality = DataQualityAgent({}, "2026-10-01T00:00:00Z").evaluate_market_row("BTC/USD", None)
+        self.assertEqual(quality["analysis_status"], "STALE_DATA_BLOCKED")
+        self.assertEqual(quality["freshness_status"], "SOURCE_NOT_AVAILABLE")
+
     def test_dry_run_ingestion(self):
         root = get_repo_root()
         res = run_runtime_ingestion(mode="dry-run", all_core=True, repo_root=root)

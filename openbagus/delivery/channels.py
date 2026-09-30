@@ -41,8 +41,8 @@ class DeliveryChannels:
         return {
             "mode": "NO_SEND_FILE_ONLY",
             "channels": {
-                "WA_02_AUTO_CRYPTO_DAILY": {"enabled": True, "type": "outbox_file"},
+                "CRYPTO_DAILY_BRIEF": {"enabled": True, "type": "outbox_file"},
+                "MANUAL_CRYPTO_RESPONSE": {"enabled": True, "type": "outbox_file"},
                 "EMAIL_MACRO_DAILY": {"enabled": True, "type": "outbox_file"},
-                "APP_ALERT": {"enabled": True, "type": "outbox_file"},
             }
         }

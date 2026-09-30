@@ -1,7 +1,4 @@
-"""OpenBagus Delivery Adapters.
-
-Safe transport adapters for local file staging, OpenClaw bridge, and mock sends.
-"""
+"""Local file delivery and inert legacy adapters."""
 
 from __future__ import annotations
 
@@ -31,14 +28,11 @@ class LocalFileOutboxAdapter:
 
 
 class OpenClawBridgeAdapter:
-    """Gateway interface for OpenClaw orchestration and scheduler triggers."""
-
-    def __init__(self) -> None:
-        pass
+    """Inert compatibility adapter retained for legacy imports."""
 
     def check_connection(self) -> dict[str, Any]:
         return {
-            "status": "BRIDGE_READY",
-            "mode": "LOCAL_SOCKET_OR_FILE",
-            "connected": True,
+            "status": "WHATSAPP_DISABLED",
+            "connected": False,
+            "network_attempted": False,
         }

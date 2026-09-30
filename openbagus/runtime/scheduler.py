@@ -16,9 +16,7 @@ from openbagus.core.env import get_repo_root
 DEFAULT_AUTO_FLAGS: dict[str, Any] = {
     "auto_scheduler_enabled": True,
     "auto_email_live_enabled": False,
-    "auto_whatsapp_live_enabled": False,
     "news_live_refresh_enabled": True,
-    "dashboard_refresh_enabled": True,
     "crypto_interval_hours": 2,
     "active_domains": ["crypto"],
     "disabled_domains": ["equities"],
@@ -58,7 +56,7 @@ class SchedulerRuntime:
         return {
             "timestamp_utc": now_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z"),
             "scheduler_enabled": flags.get("auto_scheduler_enabled", True),
-            "due_tasks": ["crypto_2h_refresh", "news_intelligence_refresh", "dashboard_update"],
+            "due_tasks": ["crypto_2h_refresh", "news_intelligence_refresh", "email_report"],
             "disabled_domains": flags.get("disabled_domains", ["equities"]),
             "status": "TICK_READY",
         }

@@ -12,7 +12,6 @@
   "delivery": {
     "default_mode": "NO_SEND_FILE_ONLY",
     "email_live_enabled": false,
-    "whatsapp_live_enabled": false,
     "ntfy_live_enabled": false
   },
   "dashboard": {

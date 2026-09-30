@@ -1,7 +1,6 @@
 {
   "auto_scheduler_enabled": false,
   "auto_email_live_enabled": false,
-  "auto_whatsapp_live_enabled": false,
   "auto_ntfy_live_enabled": false,
   "news_live_refresh_enabled": true,
   "dashboard_refresh_enabled": true,

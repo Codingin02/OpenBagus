@@ -8,11 +8,8 @@
   ],
   "architecture_contract": {
     "numeric_decision_core": "Python Quant Engine",
-    "openclaw_role": "orchestration_scheduler_delivery_only",
     "llm_role": "critic_summarizer_report_generator_only",
     "research_only_until_explicit_approval": true,
-    "live_whatsapp_send_enabled": false,
-    "whatsapp_pairing_enabled": false,
     "live_scheduler_enabled": false,
     "broker_exchange_order_enabled": false,
     "broker_exchange_trading_api_connection_enabled": false

@@ -27,13 +27,6 @@ LOCAL_JSON_FILES: tuple[Path, ...] = (
     Path("config/openbagus_local_flags.json"),
 )
 
-CACHED_JID_FILES: tuple[Path, ...] = (
-    Path("reports/runtime/private/whatsapp_jid_map.json"),
-    Path("local_runtime/secrets/openbagus_whatsapp_jid_map.json"),
-    Path("config/openbagus_whatsapp_jid_map.local.secret.json"),
-)
-
-JID_PATTERN = re.compile(r"^\d{8,}(-\d+)?@g\.us$")
 SECRET_HINT = re.compile(r"(?i)(key|token|secret|password|jid|phone|credential|topic)")
 
 
@@ -172,66 +165,6 @@ class RuntimeEnv:
                 "value": _mask(value) if SECRET_HINT.search(key) else value,
             }
         return {"engine_version": ENGINE_VERSION, "sources": self.source_status, "resolved": resolved}
-
-    def resolve_whatsapp_jid(self, channel_id: str, env_key: str) -> dict[str, Any]:
-        value, source = self.get_with_source(env_key)
-        if value:
-            return self._jid_result(channel_id, env_key, value, source)
-
-        for rel_path in CACHED_JID_FILES:
-            path = self.repo_root / rel_path
-            if not path.exists():
-                continue
-            data = _read_json(path)
-            candidate = self._jid_from_cache(data, channel_id, env_key)
-            if candidate:
-                return self._jid_result(channel_id, env_key, candidate, str(rel_path))
-
-        return {
-            "status": "MISSING",
-            "channel_id": channel_id,
-            "env_key": env_key,
-            "source": "missing",
-            "jid": None,
-            "jid_masked": None,
-            "jid_value_logged": False,
-        }
-
-    @staticmethod
-    def _jid_from_cache(data: Mapping[str, Any], channel_id: str, env_key: str) -> str | None:
-        for key in (env_key, channel_id):
-            value = data.get(key)
-            if isinstance(value, str):
-                return value
-            if isinstance(value, Mapping):
-                nested = value.get("jid") or value.get("target") or value.get("value")
-                if isinstance(nested, str):
-                    return nested
-        channels = data.get("channels")
-        if isinstance(channels, Mapping):
-            value = channels.get(channel_id)
-            if isinstance(value, str):
-                return value
-            if isinstance(value, Mapping):
-                nested = value.get("jid") or value.get("target") or value.get("value")
-                if isinstance(nested, str):
-                    return nested
-        return None
-
-    @staticmethod
-    def _jid_result(channel_id: str, env_key: str, jid: str, source: str) -> dict[str, Any]:
-        valid = bool(JID_PATTERN.match(jid))
-        return {
-            "status": "OK" if valid else "INVALID",
-            "channel_id": channel_id,
-            "env_key": env_key,
-            "source": source,
-            "jid": jid if valid else None,
-            "jid_masked": _mask(jid),
-            "jid_value_logged": False,
-            "invalid_reason": None if valid else "JID must look like a WhatsApp group JID and end with @g.us.",
-        }
-
 
 def load_runtime_env(repo_root: Path) -> RuntimeEnv:
     return RuntimeEnv(repo_root)

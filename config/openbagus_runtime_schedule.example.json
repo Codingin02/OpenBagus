@@ -8,19 +8,19 @@
       "local_time": "07:30",
       "mode": "crypto-daily",
       "label": "Crypto Morning Brief",
-      "default_command": "python scripts/openbagus_run_final.py --mode crypto-daily"
+      "default_command": "python -m openbagus crypto-daily"
     },
     {
       "local_time": "18:00",
       "mode": "crypto-daily",
       "label": "Crypto Close-Aligned Recap",
-      "default_command": "python scripts/openbagus_run_final.py --mode crypto-daily"
+      "default_command": "python -m openbagus crypto-daily"
     },
     {
       "local_time": "20:00",
       "mode": "macro-email",
       "label": "Global Macro Evening Digest",
-      "default_command": "python scripts/openbagus_run_final.py --mode macro-email"
+      "default_command": "python -m openbagus email --email-action draft"
     }
   ]
 }

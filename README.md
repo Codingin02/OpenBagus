@@ -32,7 +32,7 @@ graph TD
 
 1. **Umbrella Platform:** `OpenBagus` is not locked into any single asset class. Future domains (equities, commodities, forex, rates) can plug into the existing architecture without refactoring the core.
 2. **Python Quant Core:** Numerical decisions, market regimes, conviction scores, invalidation levels, and portfolio stances are strictly computed in Python. LLMs **never** act as the numerical decision core.
-3. **OpenClaw & Orchestration:** OpenClaw functions strictly as an orchestrator, scheduler, and interface gateway.
+3. **CLI + Email:** The supported operational interfaces are the Python CLI and provider-neutral SMTP email.
 4. **Safety & Zero-Execution:** The platform executes **zero** live exchange or broker orders. Default communication mode is `NO_SEND_FILE_ONLY` (all reports are staged to local files).
 5. **Exact Manual Trigger:** Interactive requests must use the exact trigger `OpenBagus`. Spaced variants (`Open Bagus`) or aliases are strictly rejected.
 
@@ -56,7 +56,7 @@ OpenBagus/
 │   ├── data/               # Public ingestion engine (Binance, CoinGecko, Yahoo, DefiLlama, DuckDB)
 │   ├── analysis/           # Quantitative research decision core & quality agent
 │   ├── reporting/          # Briefs, Gmail HTML reports, printable views, PWA dashboard
-│   ├── delivery/           # Safety guards, local outbox staging, channel trackers
+│   ├── delivery/           # Safety guards, local outbox, MIME, and SMTP transport
 │   ├── storage/            # Historical CSV/JSON logging & spreadsheet exporters
 │   └── runtime/            # Pipeline orchestrator and scheduler governance
 ├── openbagus_finance/      # Backward-compatibility shims for legacy callers
@@ -88,34 +88,36 @@ pip install -r requirements.txt
 
 ## 4. Running the Platform
 
-### A. Run Runtime Validation Suite
-Verifies static compilation, import graph integrity, domain neutrality, and secret scanning:
+### A. Check Local Configuration
+Runs network-independent checks for Python, imports, domains, data sources, email configuration, and runtime output access:
 ```bash
-python scripts/validate_openbagus_runtime.py
+python -m openbagus doctor
 ```
 
 ### B. Run End-to-End Crypto Research Pipeline
 Executes public data ingestion, quantitative analysis, local history persistence, and outbox staging:
 ```bash
-python scripts/openbagus_run_final.py --mode crypto-daily
+python -m openbagus crypto-daily
 ```
 
-### C. Build and Serve the Interactive PWA Dashboard
-Compile static dashboard assets and launch local server:
+### C. Generate an Email Draft
+Creates text, HTML, EML, and a print-ready HTML attachment without sending:
 ```bash
-# Compile latest dashboard assets
-python scripts/build_openbagus_static_app.py
+python -m openbagus email --email-action draft
+```
 
-# Launch local server (PowerShell)
-powershell -File scripts/openbagus_serve_dashboard.ps1
-# Open http://localhost:8080 in your browser
+Validate SMTP configuration without network access:
+```bash
+python -m openbagus email --email-action check
 ```
 
 ### D. Manual Research Query
 Execute a manual query using the mandatory `OpenBagus` trigger:
 ```bash
-python scripts/openbagus_run_final.py --mode manual-desk --query "OpenBagus review BTC and ETH"
+python -m openbagus manual-desk --query "OpenBagus review BTC and ETH"
 ```
+
+See [docs/email.md](docs/email.md) for SMTP configuration, network checks, and the explicitly guarded live-send command.
 
 ---
 
@@ -133,7 +135,7 @@ python scripts/openbagus_run_final.py --mode manual-desk --query "OpenBagus revi
 
 ## 6. Safety & Disclaimers
 
-> **RESEARCH ONLY:** OpenBagus is an automated quantitative intelligence engine. It does not provide financial advice, place trades, custody assets, or execute transactions. All outbound reports are staged to local disk (`NO_SEND_FILE_ONLY`) unless configured otherwise by an authenticated operator.
+> **RESEARCH ONLY:** OpenBagus does not provide financial advice, place trades, custody assets, or execute transactions. Email defaults to local draft generation (`NO_SEND_FILE_ONLY`). WhatsApp is disabled and OpenClaw is not required for CLI or email operation.
 
 ---
 &copy; 2026 OpenBagus Platform. Developed by Ahmad Bagus Idkholus Surur.

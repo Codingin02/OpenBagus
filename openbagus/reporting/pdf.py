@@ -5,6 +5,7 @@ Creates standalone HTML documents styled for print or headless PDF conversion.
 
 from __future__ import annotations
 
+from html import escape
 from pathlib import Path
 from typing import Any, Mapping
 
@@ -22,18 +23,17 @@ def render_pdf_report(analysis_payload: Mapping[str, Any], output_path: Path | N
 
     rows_html = ""
     for sym, view in asset_views.items():
-        ms = view.get("market_structure", {})
-        price = ms.get("current_price", "N/A")
+        price = view.get("current_price", "N/A")
         price_str = f"${price:,.2f}" if isinstance(price, (int, float)) else str(price)
         rows_html += f"""
         <tr>
-            <td><strong>{sym}</strong></td>
-            <td>{price_str}</td>
-            <td>{view.get('portfolio_stance')}</td>
-            <td>{view.get('conviction_score')}/100</td>
-            <td>{view.get('actionability_score')}/100</td>
-            <td>{view.get('invalidation_level') or 'N/A'}</td>
-            <td>{view.get('risk_note')}</td>
+            <td><strong>{escape(str(sym))}</strong></td>
+            <td>{escape(price_str)}</td>
+            <td>{escape(str(view.get('portfolio_stance', 'Watchlist')))}</td>
+            <td>{escape(str(view.get('conviction_score', 'N/A')))}/100</td>
+            <td>{escape(str(view.get('actionability_score', 'N/A')))}/100</td>
+            <td>{escape(str(view.get('invalidation_level') or 'N/A'))}</td>
+            <td>{escape(str(view.get('risk_note', 'DATA GAP')))}</td>
         </tr>
         """
 
@@ -57,7 +57,7 @@ th {{ background-color: #f1f5f9; }}
 <body>
 <div class="header">
     <div class="title">OpenBagus Platform &bull; Quantitative Intelligence Report</div>
-    <div class="meta">Generated: {gen_time} | Domain: Crypto (Active) | Engine: Standalone Python Quant Core</div>
+    <div class="meta">Generated: {escape(str(gen_time))} | Domain: Crypto (Active) | Engine: Standalone Python Quant Core</div>
 </div>
 <h3>Executive Asset Overview</h3>
 <table>

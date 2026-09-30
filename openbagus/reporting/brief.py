@@ -1,7 +1,7 @@
 """OpenBagus Professional Brief Renderer.
 
 Formats research outputs into clean, high-signal briefs for terminal,
-OpenClaw gateway, and notification delivery.
+CLI output and local report delivery.
 """
 
 from __future__ import annotations

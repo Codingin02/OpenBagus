@@ -8,20 +8,29 @@ from __future__ import annotations
 
 import json
 import re
+import smtplib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from openbagus.core.env import get_repo_root
+from openbagus.core.env import RuntimeEnv, get_repo_root
 from openbagus.delivery.adapters import LocalFileOutboxAdapter
 from openbagus.delivery.channels import write_delivery_status
+from openbagus.delivery.mailbox import (
+    EMAIL_CONFIRMATION_PHRASE,
+    SmtpConfig,
+    SmtpTransport,
+    build_email_message,
+    write_eml,
+)
 from openbagus.delivery.safety import scan_payload, scan_text
-from openbagus.reporting.brief import render_crypto_brief, render_macro_brief
+from openbagus.reporting.brief import render_crypto_brief
 from openbagus.reporting.dashboard import PwaDashboardRenderer
 from openbagus.reporting.email import render_email_report
+from openbagus.reporting.pdf import render_pdf_report
 
 ENGINE_VERSION = "openbagus.final_delivery_runtime.v2"
-CONFIRMATION_PHRASE = "I_UNDERSTAND_THIS_SENDS_REAL_MESSAGES"
+CONFIRMATION_PHRASE = EMAIL_CONFIRMATION_PHRASE
 
 
 def _utc_now() -> str:
@@ -36,9 +45,9 @@ class ManualQueryParser:
 
     def parse(self, text: str) -> dict[str, Any]:
         blocked_reasons: list[str] = []
-        if "OpenBagus" not in text:
+        if not re.search(r"(?<!\w)OpenBagus(?!\w)", text):
             blocked_reasons.append("Manual query must contain exact trigger 'OpenBagus'.")
-        if "Open Bagus" in text and "OpenBagus" not in text:
+        if "Open Bagus" in text and not re.search(r"(?<!\w)OpenBagus(?!\w)", text):
             blocked_reasons.append("Spaced trigger variant 'Open Bagus' is not permitted. Use 'OpenBagus'.")
 
         upper = text.upper()
@@ -66,6 +75,8 @@ class FinalDeliveryRuntime:
         query: str | None = None,
         dry_run: bool = True,
         confirmation: str | None = None,
+        email_action: str = "draft",
+        network_check: bool = False,
     ) -> dict[str, Any]:
         gen_time = _utc_now()
         analysis_path = self.root / "reports/runtime/openbagus_real_analysis_latest.json"
@@ -78,7 +89,7 @@ class FinalDeliveryRuntime:
                 "generated_at_utc": gen_time,
                 "error": f"Required analysis file not found: {analysis_path}",
             }
-            write_delivery_status(status)
+            write_delivery_status(status, self.root / "reports/runtime/delivery/delivery_status_latest.json")
             return status
 
         with analysis_path.open("r", encoding="utf-8") as f:
@@ -92,17 +103,18 @@ class FinalDeliveryRuntime:
             if not safety["passed"]:
                 raise RuntimeError(f"Safety violations detected in crypto brief: {safety['findings']}")
 
-            stage_res = self.outbox.stage("WA_02_AUTO_CRYPTO_DAILY", crypto_brief, extension="md")
+            stage_res = self.outbox.stage("CRYPTO_DAILY_BRIEF", crypto_brief, extension="md")
             steps.append(stage_res)
 
-        elif mode == "macro-email":
-            email_payload = render_email_report(analysis_payload)
-            safety = scan_text(email_payload["html"])
-            if not safety["passed"]:
-                raise RuntimeError(f"Safety violations in email HTML: {safety['findings']}")
-
-            stage_res = self.outbox.stage("EMAIL_MACRO_DAILY", email_payload["html"], extension="html")
-            steps.append(stage_res)
+        elif mode in {"macro-email", "email"}:
+            return self._run_email(
+                analysis_payload,
+                action=email_action,
+                confirmation=confirmation,
+                network_check=network_check,
+                dry_run=dry_run,
+                generated_at=gen_time,
+            )
 
         elif mode == "app-alert":
             alert_data = {
@@ -133,13 +145,23 @@ class FinalDeliveryRuntime:
                     "blocked_reasons": parse_res["blocked_reasons"],
                     "generated_at_utc": gen_time,
                 }
-                write_delivery_status(status)
+                write_delivery_status(status, self.root / "reports/runtime/delivery/delivery_status_latest.json")
                 return status
 
             # Generate responsive crypto manual brief
             brief = render_crypto_brief(analysis_payload)
             stage_res = self.outbox.stage("MANUAL_CRYPTO_RESPONSE", brief, extension="md")
             steps.append(stage_res)
+
+        else:
+            status = {
+                "engine_version": ENGINE_VERSION,
+                "status": "UNSUPPORTED_MODE",
+                "mode": mode,
+                "generated_at_utc": gen_time,
+            }
+            write_delivery_status(status, self.root / "reports/runtime/delivery/delivery_status_latest.json")
+            return status
 
         status_payload = {
             "engine_version": ENGINE_VERSION,
@@ -150,8 +172,137 @@ class FinalDeliveryRuntime:
             "generated_at_utc": gen_time,
             "steps": steps,
         }
-        write_delivery_status(status_payload)
+        write_delivery_status(status_payload, self.root / "reports/runtime/delivery/delivery_status_latest.json")
         return status_payload
+
+    def _run_email(
+        self,
+        analysis_payload: Mapping[str, Any],
+        *,
+        action: str,
+        confirmation: str | None,
+        network_check: bool,
+        dry_run: bool,
+        generated_at: str,
+    ) -> dict[str, Any]:
+        if action not in {"draft", "check", "send"}:
+            return self._write_email_status("EMAIL_ACTION_INVALID", action, generated_at)
+
+        rendered = render_email_report(analysis_payload)
+        safety = scan_payload(rendered)
+        if not safety["passed"]:
+            return self._write_email_status("BLOCKED_COMPLIANCE", action, generated_at, findings=safety["findings"])
+
+        attachment = render_pdf_report(
+            analysis_payload,
+            self.outbox.outbox_dir / "EMAIL_MACRO_DAILY_report_latest.html",
+        )
+        runtime_env = RuntimeEnv(self.root)
+        config = SmtpConfig.from_runtime_env(runtime_env)
+        message = build_email_message(
+            subject=rendered["subject"],
+            text=rendered["text"],
+            html=rendered["html"],
+            config=config,
+            attachments=(attachment,),
+        )
+
+        text_result = self.outbox.stage("EMAIL_MACRO_DAILY", rendered["text"], extension="txt")
+        html_result = self.outbox.stage("EMAIL_MACRO_DAILY", rendered["html"], extension="html")
+        eml_path = write_eml(message, self.outbox.outbox_dir / "EMAIL_MACRO_DAILY_latest.eml")
+        artifacts = {
+            "text": text_result["path"],
+            "html": html_result["path"],
+            "eml": str(eml_path),
+            "attachment": str(attachment),
+            "attachment_type": "text/html",
+        }
+
+        if action == "draft":
+            return self._write_email_status(
+                "EMAIL_DRAFT_READY",
+                action,
+                generated_at,
+                config=config.status(),
+                artifacts=artifacts,
+            )
+
+        if action == "send" and dry_run:
+            return self._write_email_status(
+                "BLOCKED_DRY_RUN", action, generated_at, config=config.status(), artifacts=artifacts
+            )
+
+        if not config.ready:
+            return self._write_email_status(
+                "EMAIL_CONFIG_MISSING",
+                action,
+                generated_at,
+                config=config.status(),
+                artifacts=artifacts,
+            )
+
+        if action == "check" and not network_check:
+            return self._write_email_status(
+                "EMAIL_CONFIG_READY",
+                action,
+                generated_at,
+                config=config.status(),
+                artifacts=artifacts,
+                message_sent=False,
+            )
+
+        try:
+            transport = SmtpTransport(config)
+            if action == "check":
+                result = transport.check()
+            else:
+                live_enabled = (runtime_env.get("OPENBAGUS_EMAIL_LIVE_ENABLED", "false") or "false").lower() in {
+                    "1", "true", "yes", "on"
+                }
+                if not live_enabled:
+                    return self._write_email_status(
+                        "BLOCKED_LIVE_EMAIL_NOT_ENABLED", action, generated_at, config=config.status(), artifacts=artifacts
+                    )
+                if confirmation != EMAIL_CONFIRMATION_PHRASE:
+                    return self._write_email_status(
+                        "BLOCKED_MISSING_CONFIRMATION", action, generated_at, config=config.status(), artifacts=artifacts
+                    )
+                result = transport.send(message)
+        except smtplib.SMTPAuthenticationError:
+            return self._write_email_status(
+                "SEND_FAILED_EMAIL_AUTH", action, generated_at, config=config.status(), artifacts=artifacts
+            )
+        except (OSError, smtplib.SMTPException) as exc:
+            return self._write_email_status(
+                "SEND_FAILED_EMAIL_NETWORK",
+                action,
+                generated_at,
+                config=config.status(),
+                artifacts=artifacts,
+                error_type=type(exc).__name__,
+            )
+
+        return self._write_email_status(
+            result["status"],
+            action,
+            generated_at,
+            config=config.status(),
+            artifacts=artifacts,
+            message_sent=result["message_sent"],
+        )
+
+    def _write_email_status(self, status: str, action: str, generated_at: str, **details: Any) -> dict[str, Any]:
+        payload = {
+            "engine_version": ENGINE_VERSION,
+            "status": status,
+            "mode": "email",
+            "action": action,
+            "send_mode": "LIVE_EMAIL" if status == "EMAIL_SENT" else "NO_SEND_FILE_ONLY",
+            "generated_at_utc": generated_at,
+            **details,
+        }
+        write_delivery_status(payload, self.root / "reports/runtime/delivery/delivery_status_latest.json")
+        return payload
 
 
 def run_final_delivery(
@@ -160,8 +311,17 @@ def run_final_delivery(
     query: str | None = None,
     dry_run: bool = True,
     confirmation: str | None = None,
+    email_action: str = "draft",
+    network_check: bool = False,
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     """Convenience functional wrapper for FinalDeliveryRuntime."""
     runner = FinalDeliveryRuntime(repo_root=repo_root)
-    return runner.run(mode=mode, query=query, dry_run=dry_run, confirmation=confirmation)
+    return runner.run(
+        mode=mode,
+        query=query,
+        dry_run=dry_run,
+        confirmation=confirmation,
+        email_action=email_action,
+        network_check=network_check,
+    )

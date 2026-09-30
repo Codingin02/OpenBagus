@@ -1,23 +1,15 @@
 {
   "version": "openbagus_delivery_example_v1",
   "purpose": "Template for local delivery configuration. Keep real secrets in environment variables only.",
-  "whatsapp": {
-    "jid_env": {
-      "WA_01_AUTO_CRYPTO_DAILY": "OPENBAGUS_WA_CRYPTO_DAILY_JID",
-      "WA_02_MANUAL_DESK": "OPENBAGUS_WA_MANUAL_DESK_JID"
-    },
-    "openclaw_bin_env": "OPENBAGUS_OPENCLAW_BIN",
-    "openclaw_state_env": "OPENCLAW_STATE_DIR"
-  },
   "email_smtp": {
     "host_env": "OPENBAGUS_EMAIL_SMTP_HOST",
     "port_env": "OPENBAGUS_EMAIL_SMTP_PORT",
     "username_env": "OPENBAGUS_EMAIL_SMTP_USERNAME",
     "password_env": "OPENBAGUS_EMAIL_SMTP_PASSWORD",
     "from_env": "OPENBAGUS_EMAIL_FROM",
-    "to_macro_env": "OPENBAGUS_EMAIL_TO_MACRO",
-    "to_operator_env": "OPENBAGUS_EMAIL_TO_OPERATOR",
-    "use_tls_env": "OPENBAGUS_EMAIL_USE_TLS"
+    "to_env": "OPENBAGUS_EMAIL_TO",
+    "security_env": "OPENBAGUS_EMAIL_SECURITY",
+    "live_enabled_env": "OPENBAGUS_EMAIL_LIVE_ENABLED"
   },
   "ntfy": {
     "server_env": "OPENBAGUS_NTFY_SERVER",
@@ -45,6 +37,6 @@
   "safety": {
     "external_delivery_default": "OFF",
     "manual_trigger": "OpenBagus",
-    "do_not_store_real_jid_phone_password_token_or_private_topic_here": true
+    "do_not_store_real_password_token_or_private_topic_here": true
   }
 }
