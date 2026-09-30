@@ -1,0 +1,12 @@
+{
+  "auto_scheduler_enabled": false,
+  "auto_email_live_enabled": false,
+  "auto_whatsapp_live_enabled": false,
+  "auto_ntfy_live_enabled": false,
+  "news_live_refresh_enabled": true,
+  "dashboard_refresh_enabled": true,
+  "crypto_cadence_enabled": true,
+  "email_body_mode": "brief_with_pdf_attachment",
+  "catch_up_policy": "latest_only_no_spam",
+  "research_only": true
+}

@@ -1,0 +1,51 @@
+{
+  "version": "openbagus_llm_jury_free_example_v1",
+  "provider": "openrouter",
+  "api_key_env": "OPENROUTER_API_KEY",
+  "enabled_env": "OPENBAGUS_LLM_JURY_ENABLED",
+  "enabled_when_api_key_present": false,
+  "send_external_request_only_when_enabled_env_true": true,
+  "decision_core": "Python Quant Engine",
+  "allowed_llm_role": "critic_summarizer_contradiction_checker_editor_only",
+  "model_policy": {
+    "free_only": true,
+    "model_id_must_contain": ":free",
+    "max_models_per_run": 5,
+    "min_models_when_available": 3,
+    "timeout_seconds": 12,
+    "max_retries": 1,
+    "do_not_store_api_key": true
+  },
+  "roles": {
+    "chief_editor_model": {
+      "model": "openai/gpt-oss-120b:free",
+      "free": true,
+      "role": "final prose critic; may not change quant facts"
+    },
+    "market_critic_model": {
+      "model": "meta-llama/llama-3.3-70b-instruct:free",
+      "free": true,
+      "role": "market structure consistency critic using provided facts only"
+    },
+    "news_sentiment_model": {
+      "model": "qwen/qwen3-235b-a22b:free",
+      "free": true,
+      "role": "summarize only provided source facts; no fabricated news"
+    },
+    "risk_compliance_model": {
+      "model": "deepseek/deepseek-r1-0528:free",
+      "free": true,
+      "role": "forbidden phrase and research-only critic"
+    },
+    "macro_context_model": {
+      "model": "google/gemini-2.0-flash-exp:free",
+      "free": true,
+      "role": "macro contradiction checker using runtime facts only"
+    }
+  },
+  "hard_limits": [
+    "LLM must not create or change stance, conviction, actionability, invalidation, or numerical risk metrics.",
+    "LLM output must pass delivery safety guard before use.",
+    "If OpenRouter key is missing, deterministic renderer remains authoritative."
+  ]
+}

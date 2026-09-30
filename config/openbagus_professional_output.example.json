@@ -1,0 +1,39 @@
+{
+  "version": "openbagus_professional_output_example_v1",
+  "brand": "OpenBagus",
+  "platform": "OpenBagus Research & Intelligence Platform",
+  "manual_trigger": "OpenBagus",
+  "default_mode": "no-send/file-only",
+  "decision_core": "Python Quant Engine",
+  "llm_role": "critic/summarizer/contradiction checker/editor only",
+  "channels": {
+    "whatsapp": {
+      "max_chars": 3500,
+      "compact_only": true,
+      "no_markdown_hash_header": true,
+      "no_pipe_table": true,
+      "footer": "Research-only. Validasi data, likuiditas, dan risk plan sebelum keputusan."
+    },
+    "gmail": {
+      "long_form": true,
+      "draft_artifacts": [".md", ".html", ".eml"],
+      "subject_prefix": "OpenBagus Research"
+    },
+    "ntfy": {
+      "short_alert_only": true,
+      "send_requires_confirmation": true
+    },
+    "pwa": {
+      "local_first": true,
+      "external_env_required": false
+    }
+  },
+  "forbidden_phrases": [
+    "BELI SEKARANG",
+    "JUAL SEKARANG",
+    "PASTI NAIK",
+    "PASTI TURUN",
+    "GUARANTEED PROFIT",
+    "PROFIT PASTI"
+  ]
+}

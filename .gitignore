@@ -1,0 +1,114 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyd
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+env.bak/
+venv.bak/
+
+# Testing & Linting
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+.coverage.*
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# IDE & OS
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Logs & Diagnostics
+logs/*.log
+logs/*.json
+logs/*.jsonl
+*.log
+!logs/.gitkeep
+
+# Secrets, API Keys & Private Configurations - NEVER COMMIT
+.env
+.env.*
+*.env
+*.env.local
+*.env.secrets
+*.local.env
+*.secret.json
+*.local.secret.json
+*.dpapi.txt
+*API_KEY*.txt
+*api_key*.txt
+*.api_key.txt
+*.apikey.txt
+*smtp*password*.txt
+*gmail*password*.txt
+*google*credential*.local.json
+*.google-credentials.json
+*.service-account.local.json
+secrets/
+credentials/
+local_runtime/
+local_backups/
+reports/runtime/private/
+
+# Local OpenBagus runtime overrides
+config/*.local.json
+config/*_local_flags.json
+config/local_flags.json
+config/*.local.env
+config/secrets/
+
+# Data artifacts & SQLite/DuckDB databases
+data/raw/**
+data/processed/**
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+db/*.duckdb
+db/*.duckdb.wal
+db/*.duckdb.tmp
+db/*.sqlite3
+db/*.db
+!db/.gitkeep
+
+# Runtime generated reports & builds
+reports/runtime/**
+!reports/runtime/.gitkeep
+reports/runtime/app_dist/**

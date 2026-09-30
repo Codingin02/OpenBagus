@@ -1,0 +1,160 @@
+{
+  "version": "openbagus_runtime_sources_v1",
+  "brand": "OpenBagus",
+  "platform": "OpenBagus Research & Intelligence Platform",
+  "manual_trigger": "OpenBagus",
+  "active_domains": [
+    "crypto"
+  ],
+  "architecture_contract": {
+    "numeric_decision_core": "Python Quant Engine",
+    "openclaw_role": "orchestration_scheduler_delivery_only",
+    "llm_role": "critic_summarizer_report_generator_only",
+    "research_only_until_explicit_approval": true,
+    "live_whatsapp_send_enabled": false,
+    "whatsapp_pairing_enabled": false,
+    "live_scheduler_enabled": false,
+    "broker_exchange_order_enabled": false,
+    "broker_exchange_trading_api_connection_enabled": false
+  },
+  "request_policy": {
+    "timeout_seconds": 10,
+    "max_retries": 2,
+    "user_agent": "OpenBagusResearchRuntime/1.0"
+  },
+  "duckdb": {
+    "default_path_env": "OPENBAGUS_RUNTIME_DUCKDB_PATH",
+    "default_relative_path": "data/runtime/openbagus_runtime.duckdb",
+    "tables": {
+      "market_snapshot": "openbagus_runtime_market_snapshot",
+      "macro_snapshot": "openbagus_runtime_macro_snapshot",
+      "source_health": "openbagus_runtime_source_health"
+    }
+  },
+  "runtime_outputs": {
+    "json": "reports/runtime/openbagus_real_data_snapshot_latest.json",
+    "markdown": "reports/runtime/openbagus_real_data_snapshot_latest.md"
+  },
+  "environment_variables": {
+    "optional_market_data_keys": [
+      "COINGECKO_API_KEY",
+      "FRED_API_KEY",
+      "COINMARKETCAP_API_KEY",
+      "CRYPTOCOMPARE_API_KEY",
+      "COINALYZE_API_KEY"
+    ],
+    "required_private_values_in_git": "none"
+  },
+  "core_assets": {
+    "crypto": {
+      "BTC/USD": {
+        "binance_symbol": "BTCUSDT",
+        "coingecko_id": "bitcoin",
+        "country": "GLOBAL"
+      },
+      "ETH/USD": {
+        "binance_symbol": "ETHUSDT",
+        "coingecko_id": "ethereum",
+        "country": "GLOBAL"
+      },
+      "SOL/USD": {
+        "binance_symbol": "SOLUSDT",
+        "coingecko_id": "solana",
+        "country": "GLOBAL"
+      }
+    },
+    "macro_market": {
+      "DXY": {
+        "provider_symbol": "DX-Y.NYB",
+        "country": "US",
+        "unit": "index"
+      },
+      "VIX": {
+        "provider_symbol": "^VIX",
+        "country": "US",
+        "unit": "index"
+      },
+      "US10Y": {
+        "provider_symbol": "^TNX",
+        "country": "US",
+        "unit": "percent_x10_yahoo"
+      },
+      "gold": {
+        "provider_symbol": "GC=F",
+        "country": "GLOBAL",
+        "unit": "usd_per_ounce_futures"
+      },
+      "oil": {
+        "provider_symbol": "CL=F",
+        "country": "GLOBAL",
+        "unit": "usd_per_barrel_futures"
+      }
+    },
+    "country_overlay": {
+      "US": {
+        "world_bank_country": "US",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "label": "GDP growth annual percent"
+      },
+      "China": {
+        "world_bank_country": "CN",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "label": "GDP growth annual percent"
+      },
+      "Japan": {
+        "world_bank_country": "JP",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "label": "GDP growth annual percent"
+      },
+      "Russia": {
+        "world_bank_country": "RU",
+        "indicator": "NY.GDP.MKTP.KD.ZG",
+        "label": "GDP growth annual percent"
+      }
+    }
+  },
+  "source_templates": {
+    "binance_24hr": {
+      "provider": "Binance public market data",
+      "url": "https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}",
+      "fallback_urls": [
+        "https://data-api.binance.vision/api/v3/ticker/24hr?symbol={symbol}",
+        "https://api-gcp.binance.com/api/v3/ticker/24hr?symbol={symbol}"
+      ],
+      "asset_class": "crypto_market",
+      "source_quality": 0.86
+    },
+    "coingecko_simple_price": {
+      "provider": "CoinGecko public API",
+      "url": "https://api.coingecko.com/api/v3/simple/price?ids={ids}&vs_currencies=usd&include_last_updated_at=true&include_24hr_vol=true&include_24hr_change=true",
+      "asset_class": "crypto_market",
+      "optional_api_key_env": "COINGECKO_API_KEY",
+      "source_quality": 0.82
+    },
+    "yahoo_chart": {
+      "provider": "Yahoo Finance public chart endpoint",
+      "url": "https://query1.finance.yahoo.com/v8/finance/chart/{symbol}?range=5d&interval=1d",
+      "asset_class": "market_or_macro_proxy",
+      "source_quality": 0.78
+    },
+    "world_bank_latest": {
+      "provider": "World Bank public API",
+      "url": "https://api.worldbank.org/v2/country/{country}/indicator/{indicator}?format=json&MRV=1",
+      "asset_class": "official_macro",
+      "source_quality": 0.9
+    },
+    "fred_latest": {
+      "provider": "FRED official API",
+      "url_ref": "https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key=ENV:FRED_API_KEY&file_type=json&sort_order=desc&limit=1",
+      "optional_api_key_env": "FRED_API_KEY",
+      "asset_class": "official_macro",
+      "source_quality": 0.9
+    },
+    "defillama_stablecoins": {
+      "provider": "DefiLlama public API",
+      "url": "https://stablecoins.llama.fi/stablecoins?includePrices=true",
+      "asset_class": "crypto_liquidity",
+      "source_quality": 0.74
+    }
+  }
+}

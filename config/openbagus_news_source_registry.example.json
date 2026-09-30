@@ -1,0 +1,38 @@
+{
+  "version": "openbagus_news_source_registry_example_v1",
+  "source_universe_capacity": 10000,
+  "fetch_limits": {
+    "crypto_daily_brief": 100,
+    "macro_report": 150,
+    "hard_cap_default": 500
+  },
+  "policy": {
+    "do_not_invent_urls": true,
+    "verified_only_for_runtime_fetch": true,
+    "candidate_unverified_not_displayed": true,
+    "no_paywall_bypass": true,
+    "no_login": true,
+    "no_full_article_copy": true,
+    "rss_first": true
+  },
+  "required_categories": [
+    "global_macro_official",
+    "global_macro_news",
+    "crypto_news",
+    "crypto_market_data"
+  ],
+  "candidate_schema": {
+    "source_id": "real_unique_source_id",
+    "source_name": "Real Source Name",
+    "source_url": "https://real-source.example",
+    "feed_url": "https://real-source.example/rss",
+    "country": "GLOBAL/US",
+    "language": "en/id",
+    "category": "crypto_news",
+    "credibility_tier": "tier_1",
+    "credibility_score": 0.85,
+    "verified": false,
+    "source_status": "candidate_unverified"
+  },
+  "sources": []
+}

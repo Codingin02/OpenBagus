@@ -1,0 +1,23 @@
+{
+  "platform_name": "OpenBagus",
+  "active_domains": [
+    "crypto"
+  ],
+  "disabled_domains": [
+    "equities"
+  ],
+  "research_only": true,
+  "numeric_decision_core": "Python Quant Engine",
+  "manual_trigger": "OpenBagus",
+  "delivery": {
+    "default_mode": "NO_SEND_FILE_ONLY",
+    "email_live_enabled": false,
+    "whatsapp_live_enabled": false,
+    "ntfy_live_enabled": false
+  },
+  "dashboard": {
+    "enabled": true,
+    "theme": "dark",
+    "offline_pwa": true
+  }
+}

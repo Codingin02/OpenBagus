@@ -1,0 +1,29 @@
+{
+  "version": "openbagus_freshness_policy_v1",
+  "timezone": "UTC",
+  "status_definitions": {
+    "FRESH": "Observed timestamp is within target freshness.",
+    "LAGGING_WITHIN_MAX": "Observed timestamp missed target freshness but remains within maximum allowed age.",
+    "DELAYED_SOURCE": "Free or public source is known to be delayed or daily, but still inside the allowed maximum age.",
+    "LATEST_OFFICIAL_RELEASE": "Official macro source is evaluated against release cadence, not real-time market freshness.",
+    "STALE": "Observed timestamp exceeds maximum allowed freshness and must carry a warning.",
+    "SOURCE_GAP": "No usable source row was obtained; do not infer a value."
+  },
+  "policies": {
+    "crypto_market": {
+      "target_minutes": 360,
+      "max_minutes": 720,
+      "stale_blocks_final_output_without_warning": true
+    },
+    "macro_market_daily_proxy": {
+      "target_minutes": 1440,
+      "max_minutes": 2880,
+      "stale_blocks_final_output_without_warning": true
+    },
+    "official_macro_release": {
+      "freshness_status": "LATEST_OFFICIAL_RELEASE",
+      "release_calendar_driven": true,
+      "stale_blocks_final_output_without_warning": false
+    }
+  }
+}

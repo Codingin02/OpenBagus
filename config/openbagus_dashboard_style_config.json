@@ -1,0 +1,37 @@
+{
+  "version": "openbagus_dashboard_style_config_v1",
+  "dashboard": {
+    "surface": "static_pwa",
+    "native_apk_created": false,
+    "frontend_build_tool_required": false,
+    "default_theme": "dark_market_intelligence",
+    "output_dir": "reports/runtime/app"
+  },
+  "visual_style": {
+    "keywords": [
+      "dark glassmorphism",
+      "market wave animation",
+      "animated gradient background",
+      "glowing cards",
+      "percentage gauges",
+      "crypto flow tiles",
+      "sentiment visual tiles"
+    ],
+    "palette": {
+      "background": "#05070f",
+      "panel": "rgba(12, 18, 32, 0.72)",
+      "accent": "#00d4a6",
+      "accent_2": "#45a7ff",
+      "warning": "#ffc857",
+      "risk": "#ff5f7a"
+    }
+  },
+  "safety": {
+    "research_only": true,
+    "numeric_decision_core": "Python Quant Engine",
+    "llm_decision_core": false,
+    "no_broker_or_exchange_order": true,
+    "manual_trigger": "OpenBagus",
+    "strategy_desk_manual_only": true
+  }
+}

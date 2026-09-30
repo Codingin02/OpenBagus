@@ -1,0 +1,24 @@
+{
+  "version": "openbagus_historical_storage_example_v1",
+  "default_mode": "local_csv_json_first",
+  "output_dir": "reports/runtime/sheets",
+  "local_outputs": [
+    "openbagus_quant_parameters_latest.csv",
+    "openbagus_quant_parameters_latest.json",
+    "openbagus_delivery_history_latest.csv",
+    "openbagus_delivery_history_latest.json",
+    "openbagus_research_history_latest.csv",
+    "openbagus_research_history_latest.json"
+  ],
+  "xlsx_policy": {
+    "write_if_openpyxl_available": true,
+    "missing_status": "XLSX_SKIPPED_OPENPYXL_NOT_AVAILABLE"
+  },
+  "google_sheets_readiness": {
+    "enabled_env": "OPENBAGUS_GOOGLE_SHEETS_ENABLED",
+    "spreadsheet_id_env": "OPENBAGUS_GOOGLE_SHEETS_SPREADSHEET_ID",
+    "credential_path_env": "OPENBAGUS_GOOGLE_SERVICE_ACCOUNT_JSON_PATH",
+    "do_not_commit_credentials": true,
+    "mode": "append/update one master spreadsheet"
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "version": "openbagus_public_source_quality_v1",
+  "purpose": "Legal/free/public source registry and trust/freshness scoring hints for runtime display. Do not store credentials here.",
+  "sources": [
+    {
+      "source_name": "Binance public endpoints",
+      "domain": "crypto_market",
+      "access": "public REST market data",
+      "trust_score": 88,
+      "freshness_target_minutes": 60,
+      "notes": "Public market data endpoint only; no private/trading API."
+    },
+    {
+      "source_name": "CoinGecko API",
+      "domain": "crypto_market",
+      "access": "public/API-key optional",
+      "trust_score": 82,
+      "freshness_target_minutes": 360,
+      "notes": "Use free/public or env-key mode; do not store key in Git."
+    },
+    {
+      "source_name": "Alternative.me Fear and Greed",
+      "domain": "crypto_sentiment",
+      "access": "public API with attribution",
+      "trust_score": 75,
+      "freshness_target_minutes": 1440,
+      "notes": "Sentiment helper only, not numerical decision core."
+    },
+    {
+      "source_name": "DefiLlama Stablecoins API",
+      "domain": "crypto_liquidity",
+      "access": "public API endpoint",
+      "trust_score": 80,
+      "freshness_target_minutes": 720,
+      "notes": "Stablecoin aggregate supply & liquidity proxy."
+    },
+    {
+      "source_name": "Yahoo Finance chart",
+      "domain": "shared_macro_market",
+      "access": "public/free endpoint used via runtime fetcher",
+      "trust_score": 78,
+      "freshness_target_minutes": 1440,
+      "notes": "Explanatory cross-asset macro proxies: DXY, VIX, US10Y, Gold, Oil."
+    },
+    {
+      "source_name": "World Bank Indicators API",
+      "domain": "global_macro",
+      "access": "official public API",
+      "trust_score": 92,
+      "freshness_target_minutes": 43200,
+      "notes": "Official annual/quarterly country overlay release cadence."
+    },
+    {
+      "source_name": "FRED",
+      "domain": "us_macro",
+      "access": "official API key via env if available",
+      "trust_score": 92,
+      "freshness_target_minutes": 10080,
+      "notes": "Use only if FRED_API_KEY is provided via env."
+    }
+  ]
+}

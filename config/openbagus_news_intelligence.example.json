@@ -1,0 +1,30 @@
+{
+  "version": "openbagus_news_intelligence_example_v1",
+  "default_live_fetch": false,
+  "live_fetch_flag": "--refresh-news-live",
+  "default_limit_per_run": 100,
+  "hard_cap_per_run": 1000,
+  "source_universe_capacity": 10000,
+  "runtime_outputs": {
+    "latest_json": "reports/runtime/news/openbagus_news_intelligence_latest.json",
+    "latest_markdown": "reports/runtime/news/openbagus_news_intelligence_latest.md",
+    "items_jsonl": "reports/runtime/news/openbagus_news_items_latest.jsonl",
+    "source_status": "reports/runtime/news/openbagus_news_sources_status_latest.json",
+    "errors_json": "reports/runtime/news/openbagus_news_errors_latest.json"
+  },
+  "summary_policy": {
+    "llm_optional": true,
+    "deterministic_fallback": true,
+    "no_full_article_copy": true,
+    "display_title_summary_attribution_link_only": true,
+    "llm_may_not_create_trading_decisions": true
+  },
+  "network_policy": {
+    "rss_first": true,
+    "rate_limit_seconds_per_source": 0.2,
+    "timeout_seconds": 12,
+    "no_paywall_bypass": true,
+    "no_login": true,
+    "use_cache_when_offline": true
+  }
+}
