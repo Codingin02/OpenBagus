@@ -1,40 +1,51 @@
 # Configuration
 
-OpenBagus loads values in this order:
+OpenBagus resolves configuration in the following order:
 
-1. Process environment
+1. Process environment variables (`os.environ`)
 2. `config/openbagus_runtime_local.env`
 3. `.env`
 4. `.env.local`
-5. Ignored local JSON configuration
+5. Ignored local JSON files (`config/openbagus_runtime_local.json`, etc.)
 
-Use `config/openbagus_runtime_local.env.example` as the local template. Local files and secrets are ignored by Git.
+Copy `.env.example` to `.env` (or `config/openbagus_runtime_local.env.example` to `config/openbagus_runtime_local.env`) to configure local overrides. Local override files and private secrets are ignored by Git.
 
-## Data Providers
+## Requirements Breakdown
 
-| Provider | Credential | Status |
-| --- | --- | --- |
-| Binance public market data | None | Active primary crypto source |
-| CoinGecko public API | None | Active crypto fallback |
-| Yahoo Finance public chart | None | Active macro proxy |
-| DefiLlama public API | None | Active stablecoin liquidity source |
-| FRED | `FRED_API_KEY` | Optional official US macro source |
+### Required for Basic CLI
+- Python 3.11 or newer
+- Outbound network connectivity for public market APIs
+- **Zero API keys or credentials required** for core crypto research.
 
-No key is required for the default public-data pipeline. Provider failures remain explicit as source gaps or degraded data; OpenBagus does not fabricate replacements.
+### Optional
+- **FRED API Key (`FRED_API_KEY`)**: Enables official Federal Reserve Economic Data series. If omitted, Yahoo Finance public proxies provide macro context.
+- **SMTP Email (`OPENBAGUS_EMAIL_*`)**: Enables outbound email delivery. If omitted, reports are saved locally to disk as text, HTML, and EML files without error. See [email.md](email.md).
+- **LLM Critic (`OPENROUTER_API_KEY`, `OPENBAGUS_LLM_JURY_ENABLED=true`)**: Optional qualitative narrative summarizer/critic. Numerical scores and risk metrics remain strictly deterministic in Python.
 
-## Optional LLM Critic
+### Disabled Subsystems
+- **Equities (`idx-daily`)**: Disabled. OpenBagus active domain is crypto.
+- **WhatsApp / OpenClaw**: Disabled.
+- **Live Trading**: Not implemented. OpenBagus is strictly research-only and has no broker or exchange order execution capabilities.
 
-`OPENROUTER_API_KEY` and `OPENBAGUS_LLM_JURY_ENABLED=true` enable the existing optional critic/summarizer. It does not own quantitative scores or trading decisions.
+## Data Providers Summary
 
-## Email
+| Provider | Credential | Status | Role |
+| --- | --- | --- | --- |
+| Binance | None | Active | Primary crypto price and volume data |
+| CoinGecko | None | Active | Fallback crypto market data |
+| Yahoo Finance | None | Active | Public macro proxy chart data |
+| DefiLlama | None | Active | Stablecoin liquidity metrics |
+| FRED | `FRED_API_KEY` | Optional | Official US macro interest and inflation series |
 
-Email variables are documented in [email.md](email.md). SMTP is optional and does not affect the health of the core CLI.
+Provider failures or data gaps remain explicit; OpenBagus never fabricates missing market data.
 
-## Verification
+## Configuration Inspection
+
+Check configuration and provider readiness at any time without exposing sensitive secrets:
 
 ```powershell
 openbagus doctor
 openbagus config
 ```
 
-These commands report only `configured`, `not configured`, `optional`, or `disabled`; secret values and prefixes are not displayed.
+These commands display only status indicators (`configured`, `not configured`, `optional`, or `disabled`). Secret values, prefixes, and lengths are never displayed.

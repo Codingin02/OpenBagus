@@ -61,7 +61,8 @@ Public Binance, CoinGecko, Yahoo Finance, and DefiLlama paths require no API key
 Copy the safe example to an ignored local file:
 
 ```powershell
-Copy-Item config/openbagus_runtime_local.env.example config/openbagus_runtime_local.env
+Copy-Item .env.example .env
+# or: Copy-Item config/openbagus_runtime_local.env.example config/openbagus_runtime_local.env
 openbagus doctor
 openbagus config
 ```

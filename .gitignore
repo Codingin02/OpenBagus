@@ -67,6 +67,7 @@ logs/*.jsonl
 # Secrets, API Keys & Private Configurations - NEVER COMMIT
 .env
 .env.*
+!.env.example
 *.env
 *.env.local
 *.env.secrets
