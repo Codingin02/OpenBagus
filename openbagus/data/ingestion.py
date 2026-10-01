@@ -10,7 +10,6 @@ Research-only execution: does not execute trades or call private execution APIs.
 from __future__ import annotations
 
 import json
-import os
 import ssl
 import time
 import urllib.error
@@ -20,7 +19,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Mapping
 
-from openbagus.core.env import get_repo_root
+from openbagus.core.env import RuntimeEnv, get_repo_root
 
 
 def _utc_now() -> datetime:
@@ -78,6 +77,7 @@ class RuntimeDataIngestion:
 
     def __init__(self, repo_root: Path | None = None) -> None:
         self.root = repo_root or get_repo_root()
+        self.runtime_env = RuntimeEnv(self.root)
         self.source_config = self._load_config("config/openbagus_data_sources.json")
         self.freshness_config = self._load_config("config/openbagus_freshness_policy.json")
         self.request_policy = self.source_config.get("request_policy", {
@@ -93,10 +93,7 @@ class RuntimeDataIngestion:
         self.source_health: list[dict[str, Any]] = []
         self.warnings: list[str] = []
 
-        # Windows SSL context fallback
         self.ssl_context = ssl.create_default_context()
-        self.ssl_context.check_hostname = False
-        self.ssl_context.verify_mode = ssl.CERT_NONE
 
     def _load_config(self, relative_path: str) -> dict[str, Any]:
         p = self.root / relative_path
@@ -116,7 +113,6 @@ class RuntimeDataIngestion:
     ) -> dict[str, Any]:
         selected_assets = self._select_crypto_assets(assets, all_core)
 
-        # Equity domain is strictly disabled
         if idx_symbols:
             self.warnings.append("Equities domain is currently disabled. Requested IDX symbols were not fetched.")
 
@@ -142,7 +138,6 @@ class RuntimeDataIngestion:
         selected = list(assets or [])
         if all_core or not assets:
             selected.extend(configured.keys())
-        # Deduplicate while preserving order
         seen: set[str] = set()
         deduped = []
         for a in selected:
@@ -254,7 +249,6 @@ class RuntimeDataIngestion:
                     })
                     return
 
-        # Binance failed, try CoinGecko fallback
         self._fetch_crypto_from_coingecko(asset, asset_cfg)
 
     def _crypto_row_from_binance(
@@ -304,7 +298,7 @@ class RuntimeDataIngestion:
         }
 
     def _fetch_crypto_from_coingecko(self, asset: str, asset_cfg: dict[str, Any]) -> None:
-        template = self.source_config.get("source_templates", {}).get("coingecko_simple", {})
+        template = self.source_config.get("source_templates", {}).get("coingecko_simple_price", {})
         coin_id = asset_cfg.get("coingecko_id")
         if not coin_id:
             self.source_health.append({
@@ -320,7 +314,7 @@ class RuntimeDataIngestion:
             })
             return
 
-        source_url = template.get("url", "").format(id=urllib.parse.quote(coin_id, safe=""))
+        source_url = template.get("url", "").format(ids=urllib.parse.quote(coin_id, safe=""))
         fetch = self._fetch_json(
             source_name=f"coingecko_{coin_id}",
             provider=template.get("provider", "coingecko_public"),
@@ -390,7 +384,7 @@ class RuntimeDataIngestion:
         template = self.source_config.get("source_templates", {}).get("yahoo_chart", {})
 
         for name, cfg in macros.items():
-            symbol = cfg.get("yahoo_symbol")
+            symbol = cfg.get("provider_symbol")
             if not symbol:
                 continue
 
@@ -521,15 +515,19 @@ class RuntimeDataIngestion:
             })
 
     def _fetch_fred_if_available(self) -> None:
-        api_key = os.environ.get("FRED_API_KEY")
+        api_key = self.runtime_env.get("FRED_API_KEY")
         if not api_key:
-            return  # optional key, skip silently
+            return
 
-        template = self.source_config.get("source_templates", {}).get("fred_series", {})
+        template = self.source_config.get("source_templates", {}).get("fred_latest", {})
         series_map = {"DGS10": "US10Y_FRED", "DTWEXBGS": "USD_NOMINAL_INDEX"}
 
         for series_id, indicator_code in series_map.items():
-            source_url = template.get("url", "").format(series_id=series_id, api_key=api_key)
+            source_url = template.get("url", "").format(
+                series_id=urllib.parse.quote(series_id, safe=""),
+                api_key=urllib.parse.quote(api_key, safe=""),
+            )
+            public_url = f"https://fred.stlouisfed.org/series/{series_id}"
             fetch = self._fetch_json(
                 source_name=f"fred_{series_id}",
                 provider="fred_stlouisfed",
@@ -553,7 +551,7 @@ class RuntimeDataIngestion:
                             "asset_class": "macro_official",
                             "provider": "fred_stlouisfed",
                             "source_name": f"fred_{series_id}",
-                            "source_url": source_url,
+                            "source_url": public_url,
                             "fetched_at_utc": self.fetched_at_utc,
                             "observed_at_utc": f"{date_str}T00:00:00Z" if date_str else self.fetched_at_utc,
                             "freshness_minutes": 0.0,
@@ -694,12 +692,10 @@ class RuntimeDataIngestion:
         with latest_json.open("w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        # Raw backup with run_id
         run_json = raw_dir / f"ingestion_snapshot_{self.run_id}.json"
         with run_json.open("w", encoding="utf-8") as f:
             json.dump(payload, f, indent=2)
 
-        # Markdown report
         latest_md = runtime_dir / "openbagus_real_data_snapshot_latest.md"
         with latest_md.open("w", encoding="utf-8") as f:
             f.write(self._generate_markdown_report(payload))

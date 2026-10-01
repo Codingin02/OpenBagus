@@ -10,10 +10,11 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from openbagus.core.env import RuntimeEnv
+from openbagus.cli import main as cli_main
 from openbagus.delivery.adapters import OpenClawBridgeAdapter
 from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport
 from openbagus.delivery.runner import ManualQueryParser, run_final_delivery
-from scripts.openbagus_run_final import _delivery_exit_code
+from scripts.openbagus_run_final import _delivery_exit_code, main as compatibility_main
 
 
 ANALYSIS = {
@@ -60,6 +61,9 @@ class TestCliEmail(unittest.TestCase):
         )
         self.assertNotEqual(invalid_result.returncode, 0)
 
+    def test_compatibility_script_uses_canonical_cli(self):
+        self.assertIs(compatibility_main, cli_main)
+
     def test_manual_trigger_is_exact(self):
         parser = ManualQueryParser()
         self.assertTrue(parser.parse("OpenBagus review BTC")["trigger_ok"])
@@ -82,6 +86,24 @@ class TestCliEmail(unittest.TestCase):
             self.assertEqual(len(attachments), 1)
             self.assertEqual(attachments[0].get_content_type(), "text/html")
             self.assertEqual(attachments[0].get_filename(), "EMAIL_MACRO_DAILY_report_latest.html")
+            self.assertIsNotNone(message["Date"])
+            self.assertIsNotNone(message["Message-ID"])
+
+    def test_authenticated_smtp_rejects_plaintext_transport(self):
+        env = {
+            "OPENBAGUS_EMAIL_SMTP_HOST": "smtp.example.test",
+            "OPENBAGUS_EMAIL_SMTP_PORT": "25",
+            "OPENBAGUS_EMAIL_SECURITY": "none",
+            "OPENBAGUS_EMAIL_SMTP_USERNAME": "user@example.test",
+            "OPENBAGUS_EMAIL_SMTP_PASSWORD": "x",
+            "OPENBAGUS_EMAIL_FROM": "sender@example.test",
+            "OPENBAGUS_EMAIL_TO": "recipient@example.test",
+        }
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(os.environ, env, clear=False):
+            config = SmtpConfig.from_runtime_env(RuntimeEnv(Path(temp_dir)))
+
+        self.assertFalse(config.ready)
+        self.assertIn("Authenticated SMTP requires starttls or ssl", config.errors)
 
     def test_starttls_check_authenticates_without_sending(self):
         env = {

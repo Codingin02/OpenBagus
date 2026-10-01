@@ -34,11 +34,7 @@
   },
   "environment_variables": {
     "optional_market_data_keys": [
-      "COINGECKO_API_KEY",
-      "FRED_API_KEY",
-      "COINMARKETCAP_API_KEY",
-      "CRYPTOCOMPARE_API_KEY",
-      "COINALYZE_API_KEY"
+      "FRED_API_KEY"
     ],
     "required_private_values_in_git": "none"
   },
@@ -142,7 +138,7 @@
     },
     "fred_latest": {
       "provider": "FRED official API",
-      "url_ref": "https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key=ENV:FRED_API_KEY&file_type=json&sort_order=desc&limit=1",
+      "url": "https://api.stlouisfed.org/fred/series/observations?series_id={series_id}&api_key={api_key}&file_type=json&sort_order=desc&limit=1",
       "optional_api_key_env": "FRED_API_KEY",
       "asset_class": "official_macro",
       "source_quality": 0.9

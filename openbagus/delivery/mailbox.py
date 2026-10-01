@@ -8,7 +8,7 @@ import ssl
 from dataclasses import dataclass
 from email.message import EmailMessage
 from email.policy import SMTP
-from email.utils import getaddresses, parseaddr
+from email.utils import formatdate, getaddresses, make_msgid, parseaddr
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -48,11 +48,12 @@ class SmtpConfig:
         username = runtime_env.get("OPENBAGUS_EMAIL_SMTP_USERNAME")
         password = runtime_env.get("OPENBAGUS_EMAIL_SMTP_PASSWORD")
         sender = runtime_env.get("OPENBAGUS_EMAIL_FROM")
-        recipients = _parse_recipients(
+        recipient_text = (
             runtime_env.get("OPENBAGUS_EMAIL_TO")
             or runtime_env.get("OPENBAGUS_EMAIL_TO_MACRO")
             or runtime_env.get("OPENBAGUS_EMAIL_TO_OPERATOR")
         )
+        recipients = _parse_recipients(recipient_text)
 
         security = (runtime_env.get("OPENBAGUS_EMAIL_SECURITY") or "").strip().lower()
         if not security:
@@ -74,6 +75,10 @@ class SmtpConfig:
             errors.append("SMTP username and password must be configured together")
         if sender and ("\r" in sender or "\n" in sender or "@" not in parseaddr(sender)[1]):
             errors.append("OPENBAGUS_EMAIL_FROM must be a valid email address")
+        if recipient_text and ("\r" in recipient_text or "\n" in recipient_text):
+            errors.append("OPENBAGUS_EMAIL_TO must not contain line breaks")
+        if username and security == "none":
+            errors.append("Authenticated SMTP requires starttls or ssl")
 
         return cls(host, port, security, username, password, sender, recipients, tuple(errors))
 
@@ -122,6 +127,8 @@ def build_email_message(
     message["Subject"] = subject.replace("\r", " ").replace("\n", " ").strip()
     message["From"] = config.sender or "noreply@openbagus.local"
     message["To"] = ", ".join(config.recipients or ("operator@openbagus.local",))
+    message["Date"] = formatdate(localtime=False, usegmt=True)
+    message["Message-ID"] = make_msgid(domain="openbagus.local")
     message.set_content(text)
     message.add_alternative(html, subtype="html")
 

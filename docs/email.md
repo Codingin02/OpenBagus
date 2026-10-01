@@ -1,48 +1,70 @@
 # Email Operations
 
-OpenBagus uses Python's standard SMTP and MIME libraries. Draft generation is the default and does not contact an SMTP server.
+Email is optional. The core CLI and crypto pipeline work without SMTP configuration. OpenBagus uses Python's provider-neutral SMTP and MIME support; Gmail is one possible provider, not a separate transport.
+
+## Actions
+
+Draft generates local text, HTML, EML, and print-ready attachment files without contacting a server:
+
+```powershell
+openbagus email --email-action draft
+```
+
+Check validates configuration without network access:
+
+```powershell
+openbagus email --email-action check
+```
+
+An explicit network check connects and authenticates but never sends a message:
+
+```powershell
+openbagus email --email-action check --network
+```
 
 ## Configuration
 
-Set private values in the process environment or an ignored local environment file. Never commit SMTP credentials.
+Set values in the process environment or the ignored `config/openbagus_runtime_local.env`.
 
 | Variable | Purpose |
 | --- | --- |
-| `OPENBAGUS_EMAIL_SMTP_HOST` | SMTP server hostname |
-| `OPENBAGUS_EMAIL_SMTP_PORT` | SMTP port, usually `587` for STARTTLS or `465` for implicit TLS |
+| `OPENBAGUS_EMAIL_SMTP_HOST` | SMTP hostname |
+| `OPENBAGUS_EMAIL_SMTP_PORT` | SMTP port |
 | `OPENBAGUS_EMAIL_SECURITY` | `starttls`, `ssl`, or `none` |
-| `OPENBAGUS_EMAIL_SMTP_USERNAME` | Optional SMTP username |
-| `OPENBAGUS_EMAIL_SMTP_PASSWORD` | Password or provider app password; required when username is set |
+| `OPENBAGUS_EMAIL_SMTP_USERNAME` | Optional username |
+| `OPENBAGUS_EMAIL_SMTP_PASSWORD` | Password or application password when username is set |
 | `OPENBAGUS_EMAIL_FROM` | Sender address |
-| `OPENBAGUS_EMAIL_TO` | Comma-separated recipient addresses |
-| `OPENBAGUS_EMAIL_LIVE_ENABLED` | Must be `true` before real sending is allowed |
+| `OPENBAGUS_EMAIL_TO` | Comma-separated recipients |
+| `OPENBAGUS_EMAIL_LIVE_ENABLED` | Must be `true` for live sending |
 
-`OPENBAGUS_EMAIL_USE_TLS` and the older recipient variables remain accepted for compatibility, but new installations should use `OPENBAGUS_EMAIL_SECURITY` and `OPENBAGUS_EMAIL_TO`.
+Authenticated SMTP requires `starttls` or `ssl`. Compatibility variables `OPENBAGUS_EMAIL_USE_TLS`, `OPENBAGUS_EMAIL_TO_MACRO`, and `OPENBAGUS_EMAIL_TO_OPERATOR` remain accepted.
 
-## Workflow
+## Live Send Safety
 
-Generate local `.txt`, `.html`, `.eml`, and print-ready HTML attachment files:
+Live sending requires all of the following:
 
-```powershell
-python -m openbagus email --email-action draft
-```
-
-Validate configuration without using the network:
-
-```powershell
-python -m openbagus email --email-action check
-```
-
-Explicitly test SMTP connectivity and authentication without sending a message:
+- Complete valid SMTP configuration
+- `OPENBAGUS_EMAIL_LIVE_ENABLED=true`
+- Explicit `send` action
+- Exact confirmation phrase
+- Non-dry-run execution
 
 ```powershell
-python -m openbagus email --email-action check --network
+openbagus email --email-action send --confirm-live-send I_UNDERSTAND_THIS_SENDS_REAL_EMAIL
 ```
 
-Real delivery requires complete configuration, `OPENBAGUS_EMAIL_LIVE_ENABLED=true`, the `send` action, and the exact confirmation phrase:
+Doctor, draft generation, local checks, and normal tests never send email.
 
-```powershell
-python -m openbagus email --email-action send --confirm-live-send I_UNDERSTAND_THIS_SENDS_REAL_EMAIL
+## Optional Daily Scheduling
+
+OpenBagus does not run a scheduler daemon. Use the operating system scheduler only after email is configured and tested.
+
+Example Windows Task Scheduler action:
+
+```text
+Program: C:\path\to\openbagus\.venv\Scripts\openbagus.exe
+Arguments: email --email-action send --confirm-live-send I_UNDERSTAND_THIS_SENDS_REAL_EMAIL
+Start in: C:\path\to\openbagus
 ```
 
-No live delivery should be used in automated tests. Authentication errors normally indicate invalid provider credentials or an application-password requirement. Network errors are reported without logging credentials.
+Scheduling is disabled by default. Keep credentials in the user environment or ignored local configuration, never in the scheduled command or Git.
