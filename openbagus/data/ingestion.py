@@ -10,6 +10,7 @@ Research-only execution: does not execute trades or call private execution APIs.
 from __future__ import annotations
 
 import json
+import socket
 import ssl
 import time
 import urllib.error
@@ -20,6 +21,7 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from openbagus.core.env import RuntimeEnv, get_repo_root
+from openbagus.domains.crypto.catalog import CryptoAssetCatalog
 
 
 def _utc_now() -> datetime:
@@ -63,6 +65,34 @@ def _safe_float(value: Any) -> float | None:
         return None
 
 
+def classify_provider_error(exc: BaseException | str) -> str:
+    if isinstance(exc, (TimeoutError, socket.timeout)):
+        return "TIMEOUT"
+    if isinstance(exc, urllib.error.HTTPError):
+        if exc.code == 429:
+            return "RATE_LIMITED"
+        if exc.code in {401, 403}:
+            return "UNAVAILABLE"
+        if exc.code >= 500:
+            return "UNAVAILABLE"
+        return f"HTTP_{exc.code}"
+    if isinstance(exc, urllib.error.URLError):
+        reason = str(exc.reason).lower()
+        if "timed out" in reason or "timeout" in reason:
+            return "TIMEOUT"
+        if "getaddrinfo" in reason or "name resolution" in reason:
+            return "UNAVAILABLE"
+        return "UNAVAILABLE"
+    if isinstance(exc, (ConnectionError, ConnectionResetError, ConnectionRefusedError)):
+        return "UNAVAILABLE"
+    if isinstance(exc, (json.JSONDecodeError, ValueError)):
+        return "INVALID_RESPONSE"
+    text = str(exc).lower()
+    if "timeout" in text or "timed out" in text:
+        return "TIMEOUT"
+    return "DEGRADED"
+
+
 def _short_error(exc: BaseException | str) -> str:
     text = str(exc)
     if isinstance(exc, urllib.error.HTTPError):
@@ -78,12 +108,13 @@ class RuntimeDataIngestion:
     def __init__(self, repo_root: Path | None = None) -> None:
         self.root = repo_root or get_repo_root()
         self.runtime_env = RuntimeEnv(self.root)
+        self.catalog = CryptoAssetCatalog(self.root)
         self.source_config = self._load_config("config/openbagus_data_sources.json")
         self.freshness_config = self._load_config("config/openbagus_freshness_policy.json")
         self.request_policy = self.source_config.get("request_policy", {
-            "timeout_seconds": 12,
-            "max_retries": 2,
-            "backoff_seconds": 1.0,
+            "timeout_seconds": 5,
+            "max_retries": 1,
+            "backoff_seconds": 0.5,
             "user_agent": "OpenBagus-Research/2.0",
         })
         self.run_id = _utc_now().strftime("%Y%m%dT%H%M%SZ")
@@ -141,7 +172,7 @@ class RuntimeDataIngestion:
         seen: set[str] = set()
         deduped = []
         for a in selected:
-            if a in configured and a not in seen:
+            if a not in seen:
                 seen.add(a)
                 deduped.append(a)
         return deduped
@@ -172,9 +203,9 @@ class RuntimeDataIngestion:
         source_url: str,
         headers: dict[str, str] | None = None,
     ) -> dict[str, Any]:
-        timeout = float(self.request_policy.get("timeout_seconds", 12))
-        max_retries = int(self.request_policy.get("max_retries", 2))
-        backoff = float(self.request_policy.get("backoff_seconds", 1.0))
+        timeout = float(self.request_policy.get("timeout_seconds", 5))
+        max_retries = int(self.request_policy.get("max_retries", 1))
+        backoff = float(self.request_policy.get("backoff_seconds", 0.5))
         user_agent = str(self.request_policy.get("user_agent", "OpenBagus-Research/2.0"))
 
         req_headers = {"User-Agent": user_agent, "Accept": "application/json"}
@@ -182,6 +213,7 @@ class RuntimeDataIngestion:
             req_headers.update(headers)
 
         last_error = ""
+        status_code = "DEGRADED"
         for attempt in range(max_retries + 1):
             try:
                 req = urllib.request.Request(source_url, headers=req_headers)
@@ -195,10 +227,12 @@ class RuntimeDataIngestion:
                         "asset_class": asset_class,
                         "country": country,
                         "source_url": source_url,
+                        "status": "OK",
                         "error": None,
                     }
             except Exception as e:
                 last_error = _short_error(e)
+                status_code = classify_provider_error(e)
                 if attempt < max_retries:
                     time.sleep(backoff * (attempt + 1))
 
@@ -210,46 +244,95 @@ class RuntimeDataIngestion:
             "asset_class": asset_class,
             "country": country,
             "source_url": source_url,
+            "status": status_code,
             "error": last_error,
         }
 
     def _fetch_crypto_asset(self, asset: str) -> None:
         asset_cfg = self.source_config.get("core_assets", {}).get("crypto", {}).get(asset)
         if not asset_cfg:
-            return
+            resolved, _ = self.catalog.resolve_asset(asset)
+            if resolved:
+                asset_cfg = {
+                    "binance_symbol": resolved.binance_symbol,
+                    "coingecko_id": resolved.coingecko_id,
+                    "yahoo_symbol": resolved.yahoo_symbol,
+                    "country": "GLOBAL",
+                }
+                asset = resolved.market_pair or f"{resolved.symbol}/USD"
+            else:
+                sym_clean = asset.replace("/USD", "").replace("-USD", "").upper()
+                asset_cfg = {
+                    "binance_symbol": f"{sym_clean}USDT",
+                    "coingecko_id": sym_clean.lower(),
+                    "yahoo_symbol": f"{sym_clean}-USD",
+                    "country": "GLOBAL",
+                }
 
         template = self.source_config.get("source_templates", {}).get("binance_24hr", {})
-        urls = [template.get("url", "https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}")]
+        urls = [template.get("url", "https://data-api.binance.vision/api/v3/ticker/24hr?symbol={symbol}")]
         urls.extend(template.get("fallback_urls", []))
-        symbol = asset_cfg["binance_symbol"]
+        symbol = asset_cfg.get("binance_symbol")
 
-        for url_tmpl in urls:
-            source_url = url_tmpl.format(symbol=urllib.parse.quote(symbol, safe=""))
-            fetch = self._fetch_json(
-                source_name=f"binance_24hr_{symbol}",
-                provider=template.get("provider", "binance_public"),
-                asset_class="crypto_market",
-                country=asset_cfg.get("country", "GLOBAL"),
-                source_url=source_url,
-            )
-            if fetch["ok"] and isinstance(fetch["payload"], dict):
-                row = self._crypto_row_from_binance(asset, asset_cfg, template, source_url, fetch["payload"])
-                if row:
-                    self.market_rows.append(row)
+        if symbol:
+            for url_tmpl in urls:
+                source_url = url_tmpl.format(symbol=urllib.parse.quote(symbol, safe=""))
+                fetch = self._fetch_json(
+                    source_name=f"binance_24hr_{symbol}",
+                    provider=template.get("provider", "binance_public"),
+                    asset_class="crypto_market",
+                    country=asset_cfg.get("country", "GLOBAL"),
+                    source_url=source_url,
+                )
+                if fetch["ok"] and isinstance(fetch["payload"], dict):
+                    row = self._crypto_row_from_binance(asset, asset_cfg, template, source_url, fetch["payload"])
+                    if row:
+                        self.market_rows.append(row)
+                        self.source_health.append({
+                            "source_name": row["source_name"],
+                            "provider": row["provider"],
+                            "asset_class": "crypto_market",
+                            "country": row["country"],
+                            "status": row["status"],
+                            "reason": f"freshness: {row['freshness_status']}",
+                            "source_url": source_url,
+                            "rows_returned": 1,
+                            "checked_at_utc": self.fetched_at_utc,
+                        })
+                        return
+                else:
                     self.source_health.append({
-                        "source_name": row["source_name"],
-                        "provider": row["provider"],
+                        "source_name": f"binance_24hr_{symbol}",
+                        "provider": "binance_public",
                         "asset_class": "crypto_market",
-                        "country": row["country"],
-                        "status": row["status"],
-                        "reason": f"freshness: {row['freshness_status']}",
+                        "country": asset_cfg.get("country", "GLOBAL"),
+                        "status": fetch.get("status", "UNAVAILABLE"),
+                        "reason": fetch.get("error") or "Binance ticker unavailable",
                         "source_url": source_url,
-                        "rows_returned": 1,
+                        "rows_returned": 0,
                         "checked_at_utc": self.fetched_at_utc,
                     })
-                    return
 
-        self._fetch_crypto_from_coingecko(asset, asset_cfg)
+        # Fallback 1: CoinGecko
+        if self._fetch_crypto_from_coingecko(asset, asset_cfg):
+            return
+
+        # Fallback 2: Yahoo Finance
+        if self._fetch_crypto_from_yahoo(asset, asset_cfg):
+            return
+
+        # Fallback 3: Record failure cleanly without raising
+        self.source_health.append({
+            "source_name": f"crypto_{asset}",
+            "provider": "crypto_fallback",
+            "asset_class": "crypto_market",
+            "country": "GLOBAL",
+            "status": "FAIL",
+            "reason": "All public sources (Binance, CoinGecko, Yahoo Finance) exhausted or timed out",
+            "source_url": "",
+            "rows_returned": 0,
+            "checked_at_utc": self.fetched_at_utc,
+        })
 
     def _crypto_row_from_binance(
         self,
@@ -297,22 +380,11 @@ class RuntimeDataIngestion:
             },
         }
 
-    def _fetch_crypto_from_coingecko(self, asset: str, asset_cfg: dict[str, Any]) -> None:
+    def _fetch_crypto_from_coingecko(self, asset: str, asset_cfg: dict[str, Any]) -> bool:
         template = self.source_config.get("source_templates", {}).get("coingecko_simple_price", {})
         coin_id = asset_cfg.get("coingecko_id")
         if not coin_id:
-            self.source_health.append({
-                "source_name": f"coingecko_{asset}",
-                "provider": "coingecko_public",
-                "asset_class": "crypto_market",
-                "country": "GLOBAL",
-                "status": "FAIL",
-                "reason": "Missing coingecko_id mapping",
-                "source_url": "",
-                "rows_returned": 0,
-                "checked_at_utc": self.fetched_at_utc,
-            })
-            return
+            return False
 
         source_url = template.get("url", "").format(ids=urllib.parse.quote(coin_id, safe=""))
         fetch = self._fetch_json(
@@ -365,19 +437,97 @@ class RuntimeDataIngestion:
                     "rows_returned": 1,
                     "checked_at_utc": self.fetched_at_utc,
                 })
-                return
+                return True
 
         self.source_health.append({
-            "source_name": f"crypto_{asset}",
-            "provider": "crypto_fallback",
+            "source_name": f"coingecko_{coin_id}",
+            "provider": "coingecko_public",
             "asset_class": "crypto_market",
-            "country": "GLOBAL",
+            "country": asset_cfg.get("country", "GLOBAL"),
             "status": "FAIL",
-            "reason": fetch.get("error") or "All crypto sources exhausted",
+            "reason": fetch.get("error") or "CoinGecko simple price unavailable",
             "source_url": source_url,
             "rows_returned": 0,
             "checked_at_utc": self.fetched_at_utc,
         })
+        return False
+
+    def _fetch_crypto_from_yahoo(self, asset: str, asset_cfg: dict[str, Any]) -> bool:
+        yahoo_sym = asset_cfg.get("yahoo_symbol")
+        if not yahoo_sym:
+            clean_sym = asset.split("/")[0].upper()
+            yahoo_sym = f"{clean_sym}-USD"
+
+        source_url = f"https://query1.finance.yahoo.com/v8/finance/chart/{urllib.parse.quote(yahoo_sym, safe='')}?range=1d&interval=1d"
+        fetch = self._fetch_json(
+            source_name=f"yahoo_{yahoo_sym}",
+            provider="yahoo_finance_proxy",
+            asset_class="crypto_market",
+            country=asset_cfg.get("country", "GLOBAL"),
+            source_url=source_url,
+        )
+
+        if fetch["ok"] and isinstance(fetch["payload"], dict):
+            chart = fetch["payload"].get("chart", {})
+            results = chart.get("result", [])
+            if results and isinstance(results, list):
+                meta = results[0].get("meta", {})
+                price = _safe_float(meta.get("regularMarketPrice"))
+                if price is not None:
+                    observed_at = self.fetched_at_utc
+                    freshness = self._freshness("crypto_market", observed_at)
+                    row = {
+                        "run_id": self.run_id,
+                        "symbol": asset,
+                        "provider_symbol": yahoo_sym,
+                        "asset_class": "crypto_market",
+                        "country": asset_cfg.get("country", "GLOBAL"),
+                        "currency": "USD",
+                        "provider": "yahoo_finance_proxy",
+                        "source_name": f"yahoo_{yahoo_sym}",
+                        "source_url": source_url,
+                        "source_ref": "Yahoo Finance public chart proxy",
+                        "fetched_at_utc": self.fetched_at_utc,
+                        "observed_at_utc": observed_at,
+                        "freshness_minutes": freshness["minutes"],
+                        "freshness_status": freshness["status"],
+                        "confidence": 0.75,
+                        "source_quality": 0.75,
+                        "price": price,
+                        "high": _safe_float(meta.get("regularMarketDayHigh")),
+                        "low": _safe_float(meta.get("regularMarketDayLow")),
+                        "volume": _safe_float(meta.get("regularMarketVolume")),
+                        "status": "OK" if freshness["status"] != "STALE" else "WARNING",
+                        "extra": {
+                            "chart_previous_close": _safe_float(meta.get("chartPreviousClose")),
+                        },
+                    }
+                    self.market_rows.append(row)
+                    self.source_health.append({
+                        "source_name": row["source_name"],
+                        "provider": row["provider"],
+                        "asset_class": "crypto_market",
+                        "country": row["country"],
+                        "status": row["status"],
+                        "reason": f"freshness: {row['freshness_status']}",
+                        "source_url": source_url,
+                        "rows_returned": 1,
+                        "checked_at_utc": self.fetched_at_utc,
+                    })
+                    return True
+
+        self.source_health.append({
+            "source_name": f"yahoo_{yahoo_sym}",
+            "provider": "yahoo_finance_proxy",
+            "asset_class": "crypto_market",
+            "country": asset_cfg.get("country", "GLOBAL"),
+            "status": fetch.get("status", "UNAVAILABLE"),
+            "reason": fetch.get("error") or "Yahoo Finance chart unavailable",
+            "source_url": source_url,
+            "rows_returned": 0,
+            "checked_at_utc": self.fetched_at_utc,
+        })
+        return False
 
     def _fetch_core_macro_market(self) -> None:
         macros = self.source_config.get("core_assets", {}).get("macro_market", {})

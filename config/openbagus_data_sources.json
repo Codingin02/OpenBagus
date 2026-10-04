@@ -15,9 +15,9 @@
     "broker_exchange_trading_api_connection_enabled": false
   },
   "request_policy": {
-    "timeout_seconds": 10,
-    "max_retries": 2,
-    "user_agent": "OpenBagusResearchRuntime/1.0"
+    "timeout_seconds": 5,
+    "max_retries": 1,
+    "user_agent": "OpenBagusResearchRuntime/2.0"
   },
   "duckdb": {
     "default_path_env": "OPENBAGUS_RUNTIME_DUCKDB_PATH",
@@ -109,9 +109,9 @@
   "source_templates": {
     "binance_24hr": {
       "provider": "Binance public market data",
-      "url": "https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}",
+      "url": "https://data-api.binance.vision/api/v3/ticker/24hr?symbol={symbol}",
       "fallback_urls": [
-        "https://data-api.binance.vision/api/v3/ticker/24hr?symbol={symbol}",
+        "https://api.binance.com/api/v3/ticker/24hr?symbol={symbol}",
         "https://api-gcp.binance.com/api/v3/ticker/24hr?symbol={symbol}"
       ],
       "asset_class": "crypto_market",

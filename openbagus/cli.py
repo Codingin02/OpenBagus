@@ -21,8 +21,12 @@ from openbagus import __version__
 from openbagus.analysis.engine import run_real_analysis
 from openbagus.core.env import RuntimeEnv, get_repo_root
 from openbagus.data.ingestion import run_runtime_ingestion
+from openbagus.data.providers import ProviderRegistry, ENHANCED_PROVIDER_TARGET
 from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport
 from openbagus.delivery.runner import run_final_delivery
+from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
+from openbagus.domains.crypto.research import CryptoResearchRunner
+from openbagus.intelligence.intent import IntentRouter
 from openbagus.storage.historical import HistoricalStorageRuntime
 from openbagus.storage.spreadsheet import SpreadsheetExporter
 
@@ -37,6 +41,9 @@ MODES = (
     "macro-email",
     "doctor",
     "status",
+    "providers",
+    "assets",
+    "categories",
     "config",
     "setup",
     "version",
@@ -129,6 +136,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("command", nargs="?", choices=MODES, metavar="COMMAND", help="operation to run")
+    parser.add_argument("extra", nargs="*", help=argparse.SUPPRESS)
     parser.add_argument("--mode", choices=MODES, help=argparse.SUPPRESS)
     parser.add_argument("--query", help="manual-desk query containing exact trigger 'OpenBagus'")
     parser.add_argument("--email-action", choices=("draft", "check", "send"), default="draft")
@@ -178,7 +186,7 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
     source_config = _read_json(REPO_ROOT / "config/openbagus_data_sources.json")
     assets = sorted(source_config.get("core_assets", {}).get("crypto", {}))
     add("PASS" if assets == ["BTC/USD", "ETH/USD", "SOL/USD"] else "FAIL", "Crypto assets", ", ".join(assets) or "missing")
-    add("PASS", "Public providers", "Binance, CoinGecko, Yahoo Finance, DefiLlama")
+    add("CONFIGURED", "Public providers", "Binance, CoinGecko, Yahoo Finance, DefiLlama (available in code)")
     fred_configured = bool(RuntimeEnv(REPO_ROOT).get("FRED_API_KEY"))
     add("PASS" if fred_configured else "OPTIONAL", "FRED API key", "configured" if fred_configured else "not configured")
 
@@ -195,14 +203,20 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
         add("FAIL", "Runtime output", str(exc))
 
     if network:
-        if not email_config.ready:
-            add("FAIL", "SMTP network", "email configuration is incomplete")
-        else:
+        registry = ProviderRegistry(REPO_ROOT)
+        for res in registry.check_all_public(timeout=3.5):
+            lat = f" ({res['latency_ms']}ms)" if res.get("latency_ms") else ""
+            stat = "PASS" if res["status"] == "REACHABLE" else "WARN"
+            add(stat, f"Provider {res['provider']}", f"{res['status']}{lat}")
+
+        if email_config.ready:
             try:
                 result = SmtpTransport(email_config).check()
                 add("PASS", "SMTP network", result["status"])
             except Exception as exc:
                 add("FAIL", "SMTP network", type(exc).__name__)
+        else:
+            add("OPTIONAL", "SMTP network", "not configured (email is optional)")
 
     final = "FAIL" if any(item["status"] == "FAIL" for item in checks) else (
         "WARN" if any(item["status"] == "OPTIONAL" for item in checks) else "PASS"
@@ -217,16 +231,68 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
 
 
 def _run_status() -> int:
-    latest = _read_json(STATUS_PATH)
+    registry = ProviderRegistry(REPO_ROOT)
     email = _email_config()
-    print("OpenBagus")
-    print("  Domain       crypto")
-    print("  Mode         research-only")
-    print("  Email        configured" if email.ready else "  Email        optional / not configured")
-    print("  Equities     disabled")
-    print("  WhatsApp     disabled")
-    print(f"  Last run     {latest.get('generated_at_utc', 'not available')}")
-    print(f"  Last status  {latest.get('send_mode', 'NO_SEND_FILE_ONLY')}")
+    latest = _read_json(STATUS_PATH)
+    print("OpenBagus Status")
+    print("================")
+    print("")
+    print("Runtime")
+    print(f"  Version           {__version__}")
+    print("  Active Domain     crypto (equities disabled)")
+    print("  Mode              research-only (no live trading)")
+    print(f"  Last Run          {latest.get('generated_at_utc', 'no runs yet')}")
+    print("")
+    print("Providers")
+    print(f"  Public Sources    {len(registry.list_public())} active (no keys required)")
+    print(f"  API Keys          {registry.configured_count()}/{len(registry.list_missing_apis()) + registry.configured_count()} configured")
+    print(f"  Enhanced Target   {registry.enhanced_target} ({'active' if registry.configured_count() >= registry.enhanced_target else 'public fallback'})")
+    print("")
+    print("Features")
+    print("  Crypto Research   enabled")
+    print(f"  Email Delivery    {'configured' if email.ready else 'optional / not configured'}")
+    print("  Daily Email       off")
+    print("  WhatsApp          disabled")
+    print("  Equities          disabled")
+    return 0
+
+
+def _run_providers(check_network: bool = False) -> int:
+    registry = ProviderRegistry(REPO_ROOT)
+    print(registry.format_providers_view(run_live_check=check_network))
+    return 0
+
+
+def _run_assets(query: str = "") -> int:
+    catalog = CryptoAssetCatalog(REPO_ROOT)
+    query_clean = query.strip()
+    if query_clean and any(query_clean.lower() in c.lower() for c in TAXONOMY_CATEGORIES):
+        cat_name, assets = catalog.get_category_assets(query_clean, limit=15)
+        print(f"Assets in Category: {cat_name} ({len(assets)})")
+    else:
+        assets = catalog.search_assets(query_clean, limit=10)
+        title = f'Assets matching "{query_clean}"' if query_clean else "Top Crypto Assets"
+        print(f"{title} ({len(assets)})")
+    print("-" * 65)
+    print(f"{'#':<4} {'Symbol':<8} {'Name':<26} {'Rank':<8} {'Category':<15}")
+    print("-" * 65)
+    for idx, a in enumerate(assets, 1):
+        rank = f"#{a.rank}" if a.rank < 9000 else "N/A"
+        cat = a.categories[0] if a.categories else "General"
+        print(f"{idx:<4} {a.symbol:<8} {a.name:<26} {rank:<8} {cat:<15}")
+    print("-" * 65)
+    print("Type any coin symbol directly to analyze (e.g. 'ETH').")
+    return 0
+
+
+def _run_categories() -> int:
+    catalog = CryptoAssetCatalog(REPO_ROOT)
+    counts = catalog.get_all_categories()
+    print("OpenBagus Crypto Taxonomy Categories")
+    print("====================================")
+    for cat, count in sorted(counts.items(), key=lambda x: -x[1]):
+        print(f"  {cat:<24} ({count} assets in catalog)")
+    print("\nUse '/assets <category>' to view assets (e.g. '/assets defi', '/assets layer2').")
     return 0
 
 
@@ -262,6 +328,7 @@ def _run_setup() -> int:
     else:
         print("[PASS] Existing local .env preserved")
 
+    registry = ProviderRegistry(REPO_ROOT)
     content = env_path.read_text(encoding="utf-8", errors="replace")
     current_values: dict[str, str] = {}
     for raw_line in content.splitlines():
@@ -278,27 +345,55 @@ def _run_setup() -> int:
         current_values[k] = v
 
     updates: dict[str, str] = {}
-    print("\n--- OpenBagus Optional Configuration Wizard ---")
+    print("\n--- OpenBagus Configuration Wizard ---")
     print("All settings are optional. Press Enter to leave unchanged.\n")
 
-    fred_current = bool(current_values.get("FRED_API_KEY"))
-    prompt_fred = "FRED API key is already configured. Replace it? [y/N]: " if fred_current else "Configure optional FRED API key? [y/N]: "
+    # 1. API Providers
+    print("API Providers")
+    print("-------------")
+    missing_apis = registry.list_missing_apis()
+    configured_apis = registry.list_configured_apis()
+    for p in configured_apis:
+        print(f"  [configured] {p.display_name}")
+    for p in missing_apis:
+        print(f"  [missing]    {p.display_name}")
+    print(f"\n{registry.coverage_summary()}\n")
+
     try:
-        ans = input(prompt_fred).strip().lower()
+        ans = input("Configure API provider keys? [y/N]: ").strip().lower()
     except (EOFError, KeyboardInterrupt):
-        print("\nSetup cancelled.")
-        return 0
+        ans = "n"
 
     if ans in {"y", "yes"}:
-        try:
-            val = getpass.getpass("Enter FRED API key (input hidden): ").strip()
-            if val:
-                updates["FRED_API_KEY"] = val
-        except (EOFError, KeyboardInterrupt):
-            pass
+        print("\nSelect a provider to configure:")
+        configurable = [p for p in registry.list_all() if not p.public_access]
+        for idx, p in enumerate(configurable, 1):
+            status = "configured" if p.is_configured(current_values) else "missing"
+            print(f"  {idx:<2}. [{status:<10}] {p.display_name}")
+        print("  0. Done configuring API providers")
 
+        while True:
+            try:
+                choice = input("\nEnter provider number to configure (0 to finish): ").strip()
+                if not choice or choice == "0":
+                    break
+                c_idx = int(choice) - 1
+                if 0 <= c_idx < len(configurable):
+                    target_p = configurable[c_idx]
+                    env_name = target_p.credential_env_names[0] if target_p.credential_env_names else f"{target_p.id.upper()}_API_KEY"
+                    val = getpass.getpass(f"Enter API key for {target_p.display_name} (input hidden): ").strip()
+                    if val:
+                        updates[env_name] = val
+                        current_values[env_name] = val
+                        print(f"[PASS] Key recorded for {target_p.display_name}")
+                else:
+                    print("Invalid selection.")
+            except (ValueError, EOFError, KeyboardInterrupt):
+                break
+
+    # 2. Email Delivery Configuration
     email_current = bool(current_values.get("OPENBAGUS_EMAIL_SMTP_HOST"))
-    prompt_email = "Email SMTP settings are already configured. Replace them? [y/N]: " if email_current else "Configure optional email delivery? [y/N]: "
+    prompt_email = "Email SMTP is already configured. Reconfigure? [y/N]: " if email_current else "Configure optional email delivery? [y/N]: "
     try:
         ans = input(prompt_email).strip().lower()
     except (EOFError, KeyboardInterrupt):
@@ -328,6 +423,25 @@ def _run_setup() -> int:
                 updates["OPENBAGUS_EMAIL_LIVE_ENABLED"] = "false"
         except (EOFError, KeyboardInterrupt):
             pass
+
+    # 3. Optional Local Intent Model
+    models_dir = REPO_ROOT / "runtime/models"
+    models_dir.mkdir(parents=True, exist_ok=True)
+    has_model = any(models_dir.glob("*.gguf"))
+    prompt_model = "Local intent model is already installed. Re-check? [y/N]: " if has_model else "Install optional local intent model? [y/N]: "
+    try:
+        ans = input(prompt_model).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        ans = "n"
+
+    if ans in {"y", "yes"}:
+        print("\nOptional Local Intent Model Information:")
+        print("  Model class: Sub-1B quantized GGUF (e.g. Qwen 0.8B / 0.5B Instruct)")
+        print("  Approximate download size: ~400MB - 600MB")
+        print("  Destination folder: runtime/models/ (ignored by Git)")
+        print("  Note: Deterministic rule-based parsing is already active and fast.")
+        print("  To use a local model, place any GGUF file in 'runtime/models/'.")
+        print("  No download initiated at this time; deterministic parser active.")
 
     if updates:
         lines = content.splitlines()
@@ -451,39 +565,92 @@ def _namespace(mode: str, **values: Any) -> argparse.Namespace:
 class OpenBagusShell(cmd.Cmd):
     prompt = "openbagus > "
 
+    def __init__(self) -> None:
+        super().__init__()
+        self.router = IntentRouter(repo_root=REPO_ROOT)
+        self.researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
+
     def preloop(self) -> None:
         color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
         banner = f"\033[36m{BANNER}\033[0m" if color else BANNER
         print(banner)
-        print("OpenBagus")
-        print("Quantitative Research & Market Intelligence\n")
-        print("Domain     crypto")
-        print("Interface  CLI")
-        print(f"Email      {'configured' if _email_config().ready else 'optional / not configured'}")
-        print("Mode       research-only\n")
-        print("Type 'help' for commands.")
+        print("Ask anything about a crypto asset.")
+        print("Type a coin, symbol, or question. /help for commands.\n")
 
     def emptyline(self) -> None:
         return None
 
+    def onecmd(self, line: str) -> bool:
+        try:
+            line_str = line.strip()
+            if line_str.startswith("/"):
+                cmd_line = line_str[1:].strip()
+                return super().onecmd(cmd_line)
+            return super().onecmd(line)
+        except KeyboardInterrupt:
+            print("\n[Analysis cancelled]")
+            return False
+
     def do_help(self, _arg: str) -> None:
-        print("help                show commands")
-        print("status              show runtime status")
-        print("doctor              run local diagnostics")
-        print("crypto              run the crypto research pipeline")
-        print("review BTC ETH      run a manual crypto research review")
-        print("email draft|check   manage optional email output")
-        print("config              show redacted configuration status")
-        print("setup               configure optional API and email settings")
-        print("version             show OpenBagus version")
-        print("clear               clear the terminal")
-        print("exit                close OpenBagus")
+        print("OpenBagus Commands:")
+        print("  /help             show this help screen")
+        print("  /status           show platform runtime and provider status")
+        print("  /providers        show data providers and coverage (or /providers --check)")
+        print("  /assets [query]   search crypto asset universe (e.g. /assets eth, /assets defi)")
+        print("  /categories       list crypto taxonomy categories")
+        print("  /setup            configure optional API keys, email, or local intent model")
+        print("  /doctor [network] run local diagnostics (use /doctor network for live ping)")
+        print("  /email            manage optional email draft/check")
+        print("  /version          show OpenBagus version")
+        print("  /clear            clear the terminal screen")
+        print("  /exit             close OpenBagus\n")
+        print("Research Queries:")
+        print("  Type any coin, symbol, or question directly:")
+        print("    ETH")
+        print("    open position ETH")
+        print("    risk DOGE")
+        print("    support resistance AVAX")
+        print("    is ARB attractive now")
+        print("    BTC vs ETH")
 
     def do_status(self, _arg: str) -> None:
         _run_status()
 
-    def do_doctor(self, _arg: str) -> None:
-        _run_doctor(network=False, as_json=False)
+    def do_providers(self, arg: str) -> None:
+        check = "--check" in arg or "check" in arg
+        _run_providers(check_network=check)
+
+    def do_assets(self, arg: str) -> None:
+        _run_assets(arg)
+
+    def do_categories(self, _arg: str) -> None:
+        _run_categories()
+
+    def do_doctor(self, arg: str) -> None:
+        net = "network" in arg
+        _run_doctor(network=net, as_json=False)
+
+    def do_setup(self, _arg: str) -> None:
+        _run_setup()
+
+    def do_config(self, _arg: str) -> None:
+        _run_config()
+
+    def do_version(self, _arg: str) -> None:
+        print(f"OpenBagus {__version__}")
+
+    def do_clear(self, _arg: str) -> None:
+        os.system("cls" if os.name == "nt" else "clear")
+
+    def do_exit(self, _arg: str) -> bool:
+        return True
+
+    def do_quit(self, _arg: str) -> bool:
+        return True
+
+    def do_EOF(self, _arg: str) -> bool:
+        print()
+        return True
 
     def do_crypto(self, _arg: str) -> None:
         _run_pipeline(_namespace("crypto-daily"))
@@ -499,7 +666,7 @@ class OpenBagusShell(cmd.Cmd):
         parts = shlex.split(arg)
         action = parts[0] if parts else "draft"
         if action not in {"draft", "check", "send"}:
-            print("Usage: email draft|check|send")
+            print("Usage: /email draft|check|send")
             return
         confirmation = parts[1] if len(parts) > 1 else None
         if action == "send" and confirmation != EMAIL_CONFIRMATION_PHRASE:
@@ -507,27 +674,18 @@ class OpenBagusShell(cmd.Cmd):
             return
         _run_pipeline(_namespace("email", email_action=action, confirm_live_send=confirmation))
 
-    def do_config(self, _arg: str) -> None:
-        _run_config()
-
-    def do_setup(self, _arg: str) -> None:
-        _run_setup()
-
-    def do_version(self, _arg: str) -> None:
-        print(f"OpenBagus {__version__}")
-
-    def do_clear(self, _arg: str) -> None:
-        os.system("cls" if os.name == "nt" else "clear")
-
-    def do_exit(self, _arg: str) -> bool:
-        return True
-
-    def do_EOF(self, _arg: str) -> bool:
-        print()
-        return True
-
     def default(self, line: str) -> None:
-        print(f"Unknown command: {line.split()[0]}. Type 'help'.")
+        cleaned = line.strip()
+        if not cleaned:
+            return
+        req = self.router.parse(cleaned)
+        if req.intent != "unknown" or req.asset or req.candidates:
+            result = self.researcher.execute(req)
+            print(result)
+            print()
+            return
+        print(f"Unknown coin or command: '{cleaned}'.")
+        print("Type a coin symbol (e.g. 'ETH', 'SOL') or '/help' for commands.")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -539,19 +697,41 @@ def main(argv: list[str] | None = None) -> int:
         build_parser().print_help()
         return 2
 
-    args = parse_args(arguments)
-    if args.mode == "doctor":
-        return _run_doctor(network=args.network, as_json=args.json)
-    if args.mode == "status":
-        return _run_status()
-    if args.mode == "config":
-        return _run_config()
-    if args.mode == "setup":
-        return _run_setup()
-    if args.mode == "version":
-        print(f"OpenBagus {__version__}")
+    first_arg = arguments[0]
+    if first_arg in MODES or first_arg.startswith("-"):
+        args = parse_args(arguments)
+        if args.mode == "doctor":
+            return _run_doctor(network=args.network, as_json=args.json)
+        if args.mode == "status":
+            return _run_status()
+        if args.mode == "providers":
+            return _run_providers(check_network=args.network)
+        if args.mode == "assets":
+            query = " ".join(args.extra) if getattr(args, "extra", None) else (" ".join(arguments[1:]) if len(arguments) > 1 else "")
+            return _run_assets(query)
+        if args.mode == "categories":
+            return _run_categories()
+        if args.mode == "config":
+            return _run_config()
+        if args.mode == "setup":
+            return _run_setup()
+        if args.mode == "version":
+            print(f"OpenBagus {__version__}")
+            return 0
+        return _run_pipeline(args)
+
+    query_text = " ".join(arguments)
+    router = IntentRouter(repo_root=REPO_ROOT)
+    researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
+    req = router.parse(query_text)
+    if req.intent != "unknown" and (req.asset or req.candidates):
+        result = researcher.execute(req)
+        print(result)
         return 0
-    return _run_pipeline(args)
+
+    print(f"Unknown coin or command: '{query_text}'.")
+    print("Type a coin symbol (e.g. 'ETH', 'SOL') or '/help' for commands.")
+    return 1
 
 
 if __name__ == "__main__":

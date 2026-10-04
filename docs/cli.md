@@ -1,33 +1,66 @@
 # CLI Reference
 
-OpenBagus exposes one CLI implementation through both `openbagus` and `python -m openbagus`.
+OpenBagus exposes one unified CLI implementation through both `openbagus` and `python -m openbagus`.
 
-## Interactive Mode
+## Prompt-First Interactive Research Terminal
 
-Run `openbagus` in a terminal. The shell provides:
+Run `openbagus` in an interactive terminal to enter the coin-centric research shell.
+
+Users can directly enter natural coin queries without needing commands:
+
+| Query Example | Quantitative Research Intent |
+| --- | --- |
+| `ETH` or `SOL` | Comprehensive market snapshot, levels, pivots, and provider evidence |
+| `open position ARB` | Trade setup view: directional bias, candidate zone, invalidation level, scenarios |
+| `risk DOGE` | Risk profile: volatility regime, drawdown, distance to invalidation, liquidity proxy |
+| `support resistance AVAX` | Market structure map: Floor Trader Pivots (P, R1/R2, S1/S2) |
+| `BTC vs ETH` | Side-by-side comparative quantitative snapshot |
+
+### Shell Slash Commands
 
 | Command | Purpose |
 | --- | --- |
-| `help` | Show commands |
-| `status` | Show compact runtime status |
-| `doctor` | Run local diagnostics |
-| `crypto` | Run the public-data crypto pipeline |
-| `review BTC ETH` | Run a manual research review |
-| `email draft` | Generate local email artifacts |
-| `email check` | Validate email configuration locally |
-| `config` | Show configuration status without values |
-| `version` | Show the package version |
-| `clear` | Clear the terminal |
-| `exit` | Exit the shell |
+| `/help` or `help` | Show supported slash commands and query patterns |
+| `/status` or `status` | Show runtime status, active domains, provider counts, and target |
+| `/providers` | View all public providers and API keys coverage status |
+| `/providers --check` | Run live reachability and latency ping tests on public providers |
+| `/assets [query]` | Search dynamic asset universe or filter by sector (e.g. `/assets defi`) |
+| `/categories` | List all taxonomy sectors and asset counts (DeFi, Layer 1, AI, Memecoin, etc.) |
+| `/doctor [network]` | Run environment diagnostics; add `network` for live provider latency checks |
+| `/setup` | Launch interactive wizard to configure API keys, email, and intent models |
+| `/config` | Show safe redacted configuration status |
+| `/email draft\|check\|send` | Local delivery artifact generation or safe check |
+| `/crypto` | Run standard core crypto pipeline (BTC/USD, ETH/USD, SOL/USD) |
+| `/version` | Show OpenBagus package version |
+| `/clear` | Clear the terminal screen |
+| `/exit` or `exit` | Exit the shell safely |
 
-Set `NO_COLOR=1` for plain output.
+Set `NO_COLOR=1` for plain monochrome output.
 
-## Non-Interactive Commands
+## Direct Command-Line Execution
+
+Run ad-hoc queries directly from the command line:
 
 ```powershell
-openbagus doctor
+# Direct coin research
+openbagus ETH
+openbagus "open position ETH"
+openbagus "risk DOGE"
+openbagus "support resistance AVAX"
+openbagus "BTC vs ETH"
+
+# Catalog & discovery
+openbagus assets
+openbagus assets defi
+openbagus categories
+
+# Diagnostics & providers
 openbagus status
-openbagus config
+openbagus providers
+openbagus doctor
+openbagus doctor --network
+
+# Pipeline & delivery
 openbagus crypto-daily
 openbagus manual-desk --query "OpenBagus review BTC ETH"
 openbagus email --email-action draft

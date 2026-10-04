@@ -1,22 +1,23 @@
 # OpenBagus
 
-OpenBagus is a CLI-first quantitative research and market-intelligence platform designed for modular, research-only market analysis.
+OpenBagus is a CLI-first quantitative crypto research terminal and market-intelligence platform designed for modular, research-only market analysis.
 
-Current active domain: Crypto.
+Current active domain: **Crypto**.
 
 | Capability | Status |
 | --- | --- |
-| CLI | Active |
-| Crypto research | Active: BTC/USD, ETH/USD, SOL/USD |
-| Public market data | Active |
-| FRED | Optional |
-| Email | Optional |
-| Daily email scheduling | Optional and disabled by default |
+| Terminal UX | Active: Prompt-first interactive coin terminal & slash commands |
+| Crypto Research | Active: Dynamic universe (Layer 1, Layer 2, DeFi, Memecoin, AI, RWA, etc.) |
+| Public Market Data | Active: Multi-tier fallback (Binance Vision -> Binance Public -> CoinGecko -> Yahoo Finance) |
+| Provider Architecture | Active: 23 declared providers, 4 zero-key public sources (Coverage Target: 12) |
+| Intent Routing | Active: Sub-millisecond deterministic intent parser + optional local GGUF |
+| FRED | Optional (Federal Reserve Economic Data macro indicators) |
+| Email Delivery | Optional (Local staging default; SMTP delivery requires explicit confirmation) |
 | Equities | Disabled |
 | WhatsApp / OpenClaw | Disabled |
-| Live trading | Not implemented |
+| Live Trading | Not implemented (Strictly quantitative research only) |
 
-OpenBagus is research-only. Python owns all numerical analysis and risk outputs; optional language-model components may summarize or critique but do not set quantitative decisions.
+OpenBagus is research-only. Python owns all numerical analysis, pivot levels, and risk calculations; language-model components never calculate financial math or execute trades.
 
 ## Quick Start
 
@@ -25,7 +26,7 @@ OpenBagus is research-only. Python owns all numerical analysis and risk outputs;
 1. Clone or download the repository.
 2. Double-click `setup.bat`.
 3. Follow the setup prompts.
-4. The OpenBagus CLI starts automatically.
+4. The OpenBagus research terminal launches automatically.
 
 ### Manual Installation (Windows, Linux, macOS)
 
@@ -46,25 +47,36 @@ openbagus doctor
 openbagus
 ```
 
-### Core Commands
+### Prompt-First Research Terminal
 
-- `openbagus`: Launch the interactive CLI shell.
-- `openbagus doctor`: Run environment, provider, and runtime diagnostics.
-- `openbagus setup`: Interactive wizard to configure optional local API and email settings.
-- `openbagus config`: View redacted configuration and provider status without revealing secrets.
-- `openbagus crypto-daily`: Run daily crypto pipeline (BTC/USD, ETH/USD, SOL/USD).
-- `openbagus manual-desk --query "OpenBagus review BTC ETH"`: Ad-hoc quantitative review.
-- `openbagus email --email-action draft`: Generate local delivery draft (no send).
-- `openbagus email --email-action check`: Validate email configuration format (no send).
+Once inside the `openbagus` interactive shell, query any coin directly:
 
-### Key Notes
+- `ETH` or `SOL`: Comprehensive market snapshot, levels, pivots, and provider evidence.
+- `open position ARB`: Trade-setup research view (directional bias, candidate zone, invalidation level).
+- `risk DOGE`: Volatility regime, drawdown, distance to invalidation, and liquidity proxy.
+- `support resistance AVAX`: Floor Trader Pivots (P, R1/R2, S1/S2) and structural reaction zones.
+- `BTC vs ETH`: Side-by-side comparative quantitative snapshot.
 
-- **Public Data**: Basic market intelligence works immediately without any private API keys (Binance, CoinGecko, Yahoo Finance proxy, DefiLlama).
-- **FRED**: Optional Federal Reserve Economic Data series can be configured via `openbagus setup` or `FRED_API_KEY` in `.env`.
-- **Email**: Optional SMTP delivery. Stays disabled by default; reports are generated locally on disk without error.
-- **Equities**: Disabled (active domain is crypto).
-- **WhatsApp / OpenClaw**: Disabled.
-- **Safety**: Research-only. OpenBagus does not execute trades, broker orders, exchange orders, or fund transfers.
+### Management & Slash Commands
+
+Inside the shell or directly from the CLI:
+
+- `/status` or `openbagus status`: Runtime status, active domains, provider counts, and target.
+- `/providers` or `openbagus providers`: View public providers and configured API coverage.
+- `/providers --check`: Run live reachability and latency ping tests across public sources.
+- `/assets [query]` or `openbagus assets [query]`: Search assets or filter by sector (`/assets defi`).
+- `/categories` or `openbagus categories`: List taxonomy groups and coin counts.
+- `/doctor [network]` or `openbagus doctor [--network]`: Environment diagnostics & live reachability.
+- `/setup` or `openbagus setup`: Interactive wizard to configure provider API keys, email, or local AI.
+- `/crypto` or `openbagus crypto-daily`: Core crypto pipeline (BTC/USD, ETH/USD, SOL/USD).
+- `/email draft`: Generate local delivery draft (no send).
+
+### Key Architectural Notes
+
+- **Zero-Key Public Mode**: Works out of the box without any private API keys using public Binance, CoinGecko, Yahoo Finance proxy, and DefiLlama.
+- **Provider Resilience**: Network timeouts on any single source trigger instantaneous sub-5s fallback to alternative providers, guaranteeing uninterrupted terminal sessions.
+- **Coverage Target**: Tracks configured coverage toward `ENHANCED_PROVIDER_TARGET = 12` across 23 enterprise and macro providers.
+- **Research Only**: "Open position" queries strictly produce research hypotheses with structural invalidations; OpenBagus has no live broker, wallet, or trading connectivity.
 
 ## Configuration
 
