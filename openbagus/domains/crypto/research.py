@@ -13,6 +13,7 @@ from openbagus.data.zerokey import ZeroKeyMarketData
 from openbagus.domains.crypto.catalog import CryptoAsset, CryptoAssetCatalog
 from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngine
 from openbagus.intelligence.intent import IntentRequest, SessionState
+from openbagus.intelligence.local_language import LocalLanguageEngine
 
 
 def _fmt_price(val: float | None) -> str:
@@ -53,6 +54,7 @@ class CryptoResearchRunner:
         self.registry = ProviderRegistry(self.root)
         self.zerokey = ZeroKeyMarketData(timeout=3.5)
         self.quant = QuantEngine()
+        self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def execute(self, req: IntentRequest, session: SessionState | None = None) -> str:
         # 1. Preferences
@@ -65,6 +67,8 @@ class CryptoResearchRunner:
                 if session:
                     session.show_sources = True
                 return "[PASS] Sources diaktifkan untuk setiap analisis."
+            elif req.preference_action == "no_ollama":
+                return "[PASS] Preferensi disimpan: OpenBagus beroperasi tanpa Ollama menggunakan llama.cpp lokal / deterministik."
 
         # 2. Feedback handling (Section 2)
         if req.request_type == "FEEDBACK":
@@ -98,7 +102,25 @@ class CryptoResearchRunner:
                 return "[PASS] Harness session memory cleared."
             return session.status_display() if session else "OpenBagus Harness\n\nStatus          ACTIVE\nSession Memory  LOCAL / EPHEMERAL\nClear on Exit   YES"
 
-        # 4. System Information
+        # 4. System Information & Setup Config
+        if req.request_type == "SETUP_CONFIG":
+            st = self.local_llm.get_status_info()
+            status_label = "TERPASANG / AKTIF" if st.get("available") else "BELUM TERPASANG (Fallback Deterministik Aktif)"
+            lines = [
+                "OpenBagus Local Language Engine (Qwen 0.6B)",
+                "===========================================",
+                "Model:          Qwen3-0.6B-Q8_0.gguf (~639 MB)",
+                "Inference:      Direct llama.cpp CLI Subprocess (Zero-Ollama, Zero-Server)",
+                f"Lokasi Runtime: {st.get('model_path')}",
+                f"Status:         {status_label}",
+                "",
+                "Catatan:",
+                "OpenBagus menggunakan mesin kuantitatif deterministik secara default.",
+                "Model lokal berukuran < 1 GB ini hanya berperan untuk pemahaman bahasa alami",
+                "dan narasi trader, tanpa mengubah keputusan maupun kalkulasi risiko kuantitatif.",
+            ]
+            return "\n".join(lines)
+
         if req.request_type == "SYSTEM_INFO":
             return self._render_system_info()
 
@@ -322,7 +344,8 @@ class CryptoResearchRunner:
 
         lines.append("")
         lines.append("Summary")
-        lines.append(f"  {q.narrative}")
+        narrative = self.local_llm.generate_narrative(q, language="id") if self.local_llm.is_available() else None
+        lines.append(f"  {narrative or q.narrative}")
 
         lines.append("")
         lines.append("Why")
@@ -481,17 +504,7 @@ class CryptoResearchRunner:
         return "\n".join(lines)
 
     def _render_system_info(self) -> str:
-        lines = [
-            "OpenBagus Runtime & Architecture",
-            "================================",
-            "Lingkungan:     Lokal di komputer pengguna (Windows / Native Python runtime)",
-            "Model AI:       Zero-Model Core (Bebas dari LLM lokal maupun Cloud LLM)",
-            "Mesin Quant:    Canonical Deterministik Python QuantEngine (Risk & Microstructure)",
-            "Penyedia Data:  Zero-Key Core (16 penyedia data publik aktif tanpa API key)",
-            "Domain Aktif:   Crypto Intelligence & Microstructure (Equities dinonaktifkan)",
-            "Jaringan:       HTTPS/TLS terenkripsi dengan host allowlist ketat",
-        ]
-        return "\n".join(lines)
+        return self.local_llm.answer_system_question(language="id")
 
     def _render_market_outlook(self) -> str:
         sent = self.zerokey.get_sentiment()

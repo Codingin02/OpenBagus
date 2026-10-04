@@ -116,18 +116,49 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "[PASS] Doctor completed" -ForegroundColor Green
 
-# 7. Non-interactive bypass
+# 7. Local Language Model status (Qwen3-0.6B-Q8_0.gguf)
+$appDataOpenBagus = Join-Path $env:LOCALAPPDATA "OpenBagus"
+$modelsDir = Join-Path $appDataOpenBagus "models"
+$binDir = Join-Path $appDataOpenBagus "bin"
+$modelFile = Join-Path $modelsDir "Qwen3-0.6B-Q8_0.gguf"
+$llamaExe = Join-Path $binDir "llama-cli.exe"
+
+if ((Test-Path $modelFile) -and (Test-Path $llamaExe)) {
+    Write-Host ""
+    Write-Host "[PASS] Local Language Model ready (Qwen3-0.6B-Q8_0.gguf)" -ForegroundColor Green
+} else {
+    Write-Host ""
+    Write-Host "[INFO] Local Language Model: optional (~639MB); deterministic engine active."
+}
+
+# 8. Non-interactive bypass
 if ($NonInteractive -or $SkipWizard) {
     Write-Host ""
     Write-Host "Setup completed successfully." -ForegroundColor Green
     exit 0
 }
 
-# 8. Interactive configuration & launch
+# 9. Interactive configuration & launch
+if (-not ((Test-Path $modelFile) -and (Test-Path $llamaExe))) {
+    Write-Host ""
+    $dlModel = Read-Host "Download local language model (Qwen 0.6B, ~639MB)? (Y/N):"
+    $dlLower = if ($dlModel) { $dlModel.Trim().ToLower() } else { "n" }
+    if ($dlLower -eq "y") {
+        Write-Host ""
+        Write-Host "[....] Provisioning Local Language Engine"
+        & $venvPython -c "from openbagus.intelligence.local_language import provision_local_runtime; provision_local_runtime()"
+        if ($LASTEXITCODE -eq 0) {
+            Write-Host "[PASS] Local Language Engine provisioned" -ForegroundColor Green
+        } else {
+            Write-Host "[WARN] Local Language Engine download incomplete. Continuing with deterministic fallback." -ForegroundColor Yellow
+        }
+    }
+}
+
 Write-Host ""
-$configure = Read-Host "Configure optional settings? (yes/no, default: no)"
-$confLower = if ($configure) { $configure.Trim().ToLower() } else { "no" }
-if ($confLower -eq "y" -or $confLower -eq "yes") {
+$configure = Read-Host "Configure optional settings? (Y/N):"
+$confLower = if ($configure) { $configure.Trim().ToLower() } else { "n" }
+if ($confLower -eq "y") {
     & $openbagusExe setup
     if ($LASTEXITCODE -ne 0) {
         Write-Host ""
@@ -140,9 +171,9 @@ Write-Host ""
 Write-Host "Setup completed successfully." -ForegroundColor Green
 Write-Host ""
 
-$launch = Read-Host "Launch OpenBagus now? (yes/no, default: yes)"
-$launchLower = if ($launch) { $launch.Trim().ToLower() } else { "yes" }
-if ($launchLower -eq "" -or $launchLower -eq "y" -or $launchLower -eq "yes") {
+$launch = Read-Host "Launch OpenBagus now? (Y/N):"
+$launchLower = if ($launch) { $launch.Trim().ToLower() } else { "y" }
+if ($launchLower -eq "y" -or $launchLower -eq "") {
     Write-Host "Starting OpenBagus..." -ForegroundColor Cyan
     & $openbagusExe
     if ($LASTEXITCODE -ne 0) {

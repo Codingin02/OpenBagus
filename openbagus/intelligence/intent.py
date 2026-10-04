@@ -32,6 +32,7 @@ from openbagus.domains.crypto.catalog import (
     DEX_SLANG_EXCLUSIONS,
     TAXONOMY_CATEGORIES,
 )
+from openbagus.intelligence.local_language import LocalLanguageEngine
 
 ALLOWED_INTENTS = (
     "ANALYZE",
@@ -55,6 +56,7 @@ ALLOWED_INTENTS = (
     "FOLLOW_UP",
     "FEEDBACK",
     "HARNESS",
+    "SETUP_CONFIG",
 )
 
 REQUEST_TYPES = (
@@ -71,6 +73,7 @@ REQUEST_TYPES = (
     "FOLLOW_UP",
     "FEEDBACK",
     "HARNESS",
+    "SETUP_CONFIG",
     "UNKNOWN",
 )
 
@@ -108,6 +111,7 @@ COMPREHENSIVE_STOP_WORDS = {
     "trus", "terus", "lanjut", "lanjutkan", "rekomendasi", "sinyal", "entrynya", "slnya", "tpnya", "risknya",
     "posisinya", "setupnya", "targetnya", "alasannya", "kenapanya", "bang", "bro", "gan", "kak", "om", "pak",
     "ingin", "mau", "tahu", "tau", "menggunakan", "guna", "apapun", "model", "cloud", "lokal", "tanya",
+    "semua", "parameter", "spek", "speknya", "dibawah", "ollama", "llm", "ohh", "iya", "harness", "herness", "hernes", "sistem", "system",
     # English grammatical and conversational words
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "in", "on", "at", "to", "for", "with",
     "about", "against", "between", "into", "through", "during", "before", "after", "above", "below", "from",
@@ -239,6 +243,7 @@ class IntentRouter:
     def __init__(self, catalog: CryptoAssetCatalog | None = None, repo_root: Path | None = None) -> None:
         self.root = repo_root or get_repo_root()
         self.catalog = catalog or CryptoAssetCatalog(self.root)
+        self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def parse(self, text: str, session: SessionState | None = None) -> IntentRequest:
         cleaned = text.strip()
@@ -250,6 +255,30 @@ class IntentRouter:
         detected_tf, query_no_tf = _parse_timeframe(cleaned, default_tf=default_tf)
         lower_no_tf = query_no_tf.lower()
         words = re.findall(r"\b[A-Za-z0-9/]+\b", query_no_tf)
+
+        # -------------------------------------------------------------
+        # 0. Fast Path for pure exact known asset symbols (BTC, ETH, SOL, NEAR, ZEC, etc.)
+        # Prevents unnecessary LLM invocation for straightforward queries
+        # -------------------------------------------------------------
+        if len(words) == 1 and not cleaned.startswith("/"):
+            pure_cand = words[0].upper()
+            if pure_cand not in COMPREHENSIVE_STOP_WORDS and pure_cand.lower() not in DEX_SLANG_EXCLUSIONS:
+                top_symbols = {
+                    "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "SUI", "SHIB",
+                    "LINK", "PEPE", "NEAR", "APT", "POL", "ARB", "OP", "STRK", "TAO", "RENDER",
+                    "FET", "AAVE", "UNI", "MKR", "PENDLE", "ENA", "ONDO", "LDO", "KAS", "SEI",
+                    "INJ", "TIA", "WIF", "BONK", "FLOKI", "WLD", "JUP", "XMR", "ZEC", "ATOM",
+                    "DOT", "RUNE", "FIL", "IMX",
+                }
+                if pure_cand in top_symbols:
+                    return IntentRequest(
+                        intent="ANALYZE",
+                        request_type="ASSET_ANALYSIS",
+                        asset=pure_cand,
+                        target_assets=[pure_cand],
+                        timeframe=detected_tf,
+                        raw_query=text,
+                    )
 
         # -------------------------------------------------------------
         # 1. Slash commands (when executed in shell or CLI)
@@ -265,7 +294,52 @@ class IntentRouter:
                 return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", preference_action=act, timeframe=detected_tf, raw_query=text)
 
         # -------------------------------------------------------------
-        # 2. Feedback / Preference Classification (Higher priority than asset resolution)
+        # 2. Local Language Model Interpretation (Free-form / Ambiguous queries)
+        # -------------------------------------------------------------
+        if self.local_llm.is_available() and len(words) > 1 and not cleaned.startswith("/"):
+            session_ctx = {
+                "last_asset": session.last_asset if session else None,
+                "last_market": session.market_type if session else "PERPETUAL",
+                "last_timeframe": detected_tf,
+                "last_request_type": getattr(session, "last_intent", "ANALYZE") if session else None,
+            }
+            llm_res = self.local_llm.interpret_intent(cleaned, session_context=session_ctx)
+            if llm_res and llm_res.get("request_type") and llm_res["request_type"] != "UNKNOWN":
+                req_t = llm_res["request_type"]
+                cand_asset = llm_res.get("asset")
+                verified_asset = None
+                if cand_asset and req_t in ("ANALYZE", "POSITION", "RISK", "COMPARE"):
+                    a_obj, _ = self.catalog.resolve_asset(str(cand_asset))
+                    if a_obj:
+                        verified_asset = a_obj.symbol
+
+                tf = llm_res.get("timeframe") or detected_tf
+                mkt = llm_res.get("market") or "all"
+
+                if req_t == "HARNESS":
+                    return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", timeframe=tf, raw_query=text)
+                elif req_t == "FEEDBACK":
+                    return IntentRequest(intent="FEEDBACK", request_type="FEEDBACK", asset=session.last_asset if session else None, timeframe=tf, raw_query=text)
+                elif req_t == "SYSTEM_INFO":
+                    return IntentRequest(intent="SYSTEM_INFO", request_type="SYSTEM_INFO", timeframe=tf, raw_query=text, system_query=cleaned)
+                elif req_t == "SETUP_CONFIG":
+                    return IntentRequest(intent="SYSTEM_INFO", request_type="SETUP_CONFIG", timeframe=tf, raw_query=text)
+                elif req_t == "PREFERENCE":
+                    return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", timeframe=tf, raw_query=text)
+                elif req_t in ("ANALYZE", "POSITION", "RISK") and verified_asset:
+                    intent_code = "POSITION" if req_t == "POSITION" else ("RISK" if req_t == "RISK" else "ANALYZE")
+                    return IntentRequest(
+                        intent=intent_code,
+                        request_type="POSITION" if req_t == "POSITION" else "ASSET_ANALYSIS",
+                        asset=verified_asset,
+                        target_assets=[verified_asset],
+                        market=mkt,
+                        timeframe=tf,
+                        raw_query=text,
+                    )
+
+        # -------------------------------------------------------------
+        # 3. Deterministic Fallback: Feedback / Preference Classification
         # -------------------------------------------------------------
         feedback_triggers = [
             r"\bwkwk+\b",
@@ -327,15 +401,31 @@ class IntentRouter:
                 raw_query=text,
             )
 
+        pref_ollama_triggers = [
+            r"\b(?:jangan\s+pakai|no|tanpa|bukan)\s+ollama\b",
+            r"\bjangan\s+(?:pake|gunakan)\s+ollama\b",
+            r"\bga\s+usah\s+ollama\b",
+        ]
+        if any(re.search(trig, lower) for trig in pref_ollama_triggers):
+            return IntentRequest(
+                intent="PREFERENCE",
+                request_type="PREFERENCE",
+                preference_action="no_ollama",
+                timeframe=detected_tf,
+                raw_query=text,
+            )
+
         # -------------------------------------------------------------
-        # 3. System Information & Harness Questions
+        # 4. Deterministic Fallback: System Information & Harness Questions
         # -------------------------------------------------------------
         harness_triggers = [
-            r"\b(?:harness|hernes|hernesnya+|harnessnya)\b",
+            r"\b(?:harness|hernes|herness|hernesnya+|harnessnya)\b",
+            r"\bhern[es]+(?:nya+)?\b",
+            r"\bharn[es]+(?:nya+)?\b",
             r"\bsession\s*memory\b",
             r"\bmemorynya\s*(?:disimpan|dimana|aktif)?\b",
             r"\bharness\s*aktif\b",
-            r"\bmana\s*(?:harness|hernes)",
+            r"\bmana\s+(?:harness|hernes|herness)",
         ]
         if any(re.search(trig, lower) for trig in harness_triggers):
             return IntentRequest(
@@ -345,16 +435,54 @@ class IntentRouter:
                 raw_query=text,
             )
 
-        sys_triggers = [
-            "anda dijalankan di mana", "kamu jalan dimana", "dijalankan di mana",
-            "kamu ini apa", "siapa kamu", "siapa anda", "anda siapa",
-            "provider apa yang dipakai", "sumber data apa", "data source apa",
-            "status openbagus", "what is openbagus", "where are you running",
-            "what providers do you use", "system info", "runtime info",
-            "kamu pakai model apa", "model ai apa", "arsitektur openbagus",
-            "ai lokal", "model ai", "cloud provider", "apakah sistem", "sistem ini",
+        setup_triggers = [
+            r"\b(?:kasih|pakai|download|install|pasang)\s+(?:model\s+)?llm\b",
+            r"\bllm\s+lokal\b",
+            r"\bspek(?:nya)?\s+dibawah\b",
+            r"\bsetup\s+model\b",
+            r"\bsetup\s+llm\b",
+            r"\bqwen\b",
         ]
-        if any(trig in lower for trig in sys_triggers):
+        if any(re.search(trig, lower) for trig in setup_triggers):
+            return IntentRequest(
+                intent="SYSTEM_INFO",
+                request_type="SETUP_CONFIG",
+                timeframe=detected_tf,
+                raw_query=text,
+            )
+
+        sys_triggers = [
+            r"\babout\s+(?:sistem|system)\b",
+            r"\btentang\s+(?:sistem|system|openbagus)\b",
+            r"\bsiapa\s+pembuat\s+openbagus\b",
+            r"\bsiapa\s+(?:yang\s+)?(?:buat|bikin|ciptakan)\s+openbagus\b",
+            r"\bwho\s+made\s+openbagus\b",
+            r"\bcreator\s+openbagus\b",
+            r"\banda\s+dijalankan\s+di\s+mana\b",
+            r"\bkamu\s+jalan\s+dimana\b",
+            r"\bdijalankan\s+di\s+mana\b",
+            r"\bkamu\s+ini\s+apa\b",
+            r"\bsiapa\s+kamu\b",
+            r"\bsiapa\s+anda\b",
+            r"\banda\s+siapa\b",
+            r"\bprovider\s+apa\b",
+            r"\bsumber\s+data\b",
+            r"\bstatus\s+openbagus\b",
+            r"\bwhat\s+is\s+openbagus\b",
+            r"\bwhere\s+are\s+you\s+running\b",
+            r"\bwhat\s+providers\s+do\s+you\s+use\b",
+            r"\bsystem\s+info\b",
+            r"\bruntime\s+info\b",
+            r"\bkamu\s+pakai\s+model\s+apa\b",
+            r"\bmodel\s+ai\b",
+            r"\barsitektur\s+openbagus\b",
+            r"\bai\s+lokal\b",
+            r"\bapakah\s+sistem\b",
+            r"\bsistem\s+ini\b",
+            r"\b(?:pilih|jawaban|opsi)?\s*[yY]\s*/\s*[nN]\b",
+            r"\b(?:pilih|jawab)\s+[yY]\s+atau\s+[nN]\b",
+        ]
+        if any(re.search(trig, lower) for trig in sys_triggers):
             return IntentRequest(
                 intent="SYSTEM_INFO",
                 request_type="SYSTEM_INFO",

@@ -113,6 +113,7 @@ CORE_CATALOG: list[CryptoAsset] = [
     CryptoAsset("worldcoin-wld", "WLD", "Worldcoin", ["wld", "worldcoin"], "WLDUSDT", "worldcoin-wld", "WLD-USD", ["AI", "Identity"], 38, "WLD/USD"),
     CryptoAsset("jupiter-exchange-solana", "JUP", "Jupiter", ["jup", "jupiter"], "JUPUSDT", "jupiter-exchange-solana", "JUP-USD", ["DeFi"], 39, "JUP/USD"),
     CryptoAsset("monero", "XMR", "Monero", ["xmr", "monero"], "XMRUSDT", "monero", "XMR-USD", ["Privacy", "Payments"], 40, "XMR/USD"),
+    CryptoAsset("zcash", "ZEC", "Zcash", ["zec", "zcash"], "ZECUSDT", "zcash", "ZEC-USD", ["Privacy", "Payments"], 60, "ZEC/USD"),
     CryptoAsset("cosmos", "ATOM", "Cosmos", ["atom", "cosmos"], "ATOMUSDT", "cosmos", "ATOM-USD", ["Interoperability", "Layer 1"], 41, "ATOM/USD"),
     CryptoAsset("polkadot", "DOT", "Polkadot", ["dot", "polkadot"], "DOTUSDT", "polkadot", "DOT-USD", ["Interoperability", "Layer 1"], 42, "DOT/USD"),
     CryptoAsset("thorchain", "RUNE", "THORChain", ["rune", "thorchain"], "RUNEUSDT", "thorchain", "RUNE-USD", ["Interoperability", "DeFi"], 43, "RUNE/USD"),
@@ -130,7 +131,8 @@ DEX_SLANG_EXCLUSIONS = {
     "sih", "gitu", "gini", "bego", "bodoh", "anjing", "bangsat", "pantek", "kontol", "memek", "tai", "asu",
     "anjir", "anjrit", "kacau", "rusak", "parah", "jelek", "sampah", "busuk", "generik", "robot", "apa",
     "siapa", "dimana", "mana", "kapan", "bagaimana", "yah", "loh", "dong", "deh", "kan", "tuh", "lah",
-    "harness", "hernes", "memory", "state", "jawabannya", "jawaban", "summarynya", "summary",
+    "harness", "hernes", "herness", "memory", "state", "jawabannya", "jawaban", "summarynya", "summary",
+    "semua", "parameter", "ohh", "iya", "sistem", "system", "spek", "speknya", "dibawah", "ollama",
     # English conversational words
     "stupid", "idiot", "nonsense", "garbage", "trash", "terrible", "bad", "generic", "bot", "ai", "llm",
 }

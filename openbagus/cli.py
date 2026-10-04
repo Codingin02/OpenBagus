@@ -27,6 +27,7 @@ from openbagus.delivery.runner import run_final_delivery
 from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
 from openbagus.domains.crypto.research import CryptoResearchRunner
 from openbagus.intelligence.intent import IntentRouter, SessionState
+from openbagus.intelligence.local_language import LocalLanguageEngine
 from openbagus.storage.historical import HistoricalStorageRuntime
 from openbagus.storage.spreadsheet import SpreadsheetExporter
 
@@ -205,6 +206,13 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
     except OSError as exc:
         add("FAIL", "Runtime output", str(exc))
 
+    llm = LocalLanguageEngine(repo_root=REPO_ROOT)
+    if llm.is_available():
+        info = llm.get_status_info()
+        add("PASS", "Local Language Model", f"{info.get('model_name')} active ({info.get('model_size_mb')}MB)")
+    else:
+        add("OPTIONAL", "Local Language Model", "offline / using canonical deterministic engine")
+
     if network:
         registry = ProviderRegistry(REPO_ROOT)
         for res in registry.check_all_public(timeout=3.5):
@@ -363,11 +371,11 @@ def _run_setup() -> int:
     print(f"\n{registry.coverage_summary()}\n")
 
     try:
-        ans = input("Configure API provider keys? [y/N]: ").strip().lower()
+        ans = input("Configure API provider keys? (Y/N): ").strip().lower()
     except (EOFError, KeyboardInterrupt):
         ans = "n"
 
-    if ans in {"y", "yes"}:
+    if ans == "y":
         print("\nSelect a provider to configure:")
         configurable = [p for p in registry.list_all() if not p.public_access]
         for idx, p in enumerate(configurable, 1):
@@ -398,13 +406,13 @@ def _run_setup() -> int:
 
     # 2. Email Delivery Configuration
     email_current = bool(current_values.get("OPENBAGUS_EMAIL_SMTP_HOST"))
-    prompt_email = "Email SMTP is already configured. Reconfigure? [y/N]: " if email_current else "Configure optional email delivery? [y/N]: "
+    prompt_email = "Email SMTP is already configured. Reconfigure? (Y/N): " if email_current else "Configure optional email delivery? (Y/N): "
     try:
         ans = input(prompt_email).strip().lower()
     except (EOFError, KeyboardInterrupt):
         ans = "n"
 
-    if ans in {"y", "yes"}:
+    if ans == "y":
         try:
             host = input("SMTP Host (e.g. smtp.example.com): ").strip()
             port = input("SMTP Port [587]: ").strip() or "587"
@@ -696,7 +704,7 @@ class OpenBagusShell(cmd.Cmd):
             print()
             return
         if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS"
+            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG"
         ):
             result = self.researcher.execute(req, session=self.session)
             print(result)
@@ -756,7 +764,7 @@ def main(argv: list[str] | None = None) -> int:
         print(req.clarification_prompt or "Which asset do you want to analyze?")
         return 0
     if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS"
+        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG"
     ):
         result = researcher.execute(req, session=session)
         print(result)
