@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import cmd
+import getpass
 import importlib
 import json
 import os
 import re
 import shlex
+import shutil
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -36,6 +38,7 @@ MODES = (
     "doctor",
     "status",
     "config",
+    "setup",
     "version",
     "idx-daily",
 )
@@ -118,6 +121,7 @@ def build_parser() -> argparse.ArgumentParser:
         epilog=(
             "Examples:\n"
             "  openbagus doctor\n"
+            "  openbagus setup\n"
             "  openbagus crypto-daily\n"
             "  openbagus manual-desk --query \"OpenBagus review BTC ETH\"\n"
             "  openbagus email --email-action draft"
@@ -245,6 +249,113 @@ def _run_config() -> int:
     return 0
 
 
+def _run_setup() -> int:
+    env_path = REPO_ROOT / ".env"
+    example_path = REPO_ROOT / ".env.example"
+    if not env_path.exists():
+        if example_path.exists():
+            shutil.copy(example_path, env_path)
+            print("[PASS] Created local .env from .env.example")
+        else:
+            env_path.write_text("", encoding="utf-8")
+            print("[PASS] Created empty local .env")
+    else:
+        print("[PASS] Existing local .env preserved")
+
+    content = env_path.read_text(encoding="utf-8", errors="replace")
+    current_values: dict[str, str] = {}
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        k, v = line.split("=", 1)
+        k = k.strip()
+        if k.startswith("export "):
+            k = k[7:].strip()
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in {"'", '"'}:
+            v = v[1:-1]
+        current_values[k] = v
+
+    updates: dict[str, str] = {}
+    print("\n--- OpenBagus Optional Configuration Wizard ---")
+    print("All settings are optional. Press Enter to leave unchanged.\n")
+
+    fred_current = bool(current_values.get("FRED_API_KEY"))
+    prompt_fred = "FRED API key is already configured. Replace it? [y/N]: " if fred_current else "Configure optional FRED API key? [y/N]: "
+    try:
+        ans = input(prompt_fred).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        print("\nSetup cancelled.")
+        return 0
+
+    if ans in {"y", "yes"}:
+        try:
+            val = getpass.getpass("Enter FRED API key (input hidden): ").strip()
+            if val:
+                updates["FRED_API_KEY"] = val
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+    email_current = bool(current_values.get("OPENBAGUS_EMAIL_SMTP_HOST"))
+    prompt_email = "Email SMTP settings are already configured. Replace them? [y/N]: " if email_current else "Configure optional email delivery? [y/N]: "
+    try:
+        ans = input(prompt_email).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        ans = "n"
+
+    if ans in {"y", "yes"}:
+        try:
+            host = input("SMTP Host (e.g. smtp.example.com): ").strip()
+            port = input("SMTP Port [587]: ").strip() or "587"
+            sec = input("Security mode (starttls/ssl/none) [starttls]: ").strip().lower() or "starttls"
+            if sec not in {"starttls", "ssl", "none"}:
+                sec = "starttls"
+            user = input("SMTP Username (optional): ").strip()
+            pwd = getpass.getpass("SMTP Password (input hidden): ").strip()
+            sender = input("Sender Email Address: ").strip()
+            recip = input("Recipient Email Address: ").strip()
+
+            if host:
+                updates["OPENBAGUS_EMAIL_SMTP_HOST"] = host
+                updates["OPENBAGUS_EMAIL_SMTP_PORT"] = port
+                updates["OPENBAGUS_EMAIL_SECURITY"] = sec
+                updates["OPENBAGUS_EMAIL_SMTP_USERNAME"] = user
+                if pwd:
+                    updates["OPENBAGUS_EMAIL_SMTP_PASSWORD"] = pwd
+                updates["OPENBAGUS_EMAIL_FROM"] = sender
+                updates["OPENBAGUS_EMAIL_TO"] = recip
+                updates["OPENBAGUS_EMAIL_LIVE_ENABLED"] = "false"
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+    if updates:
+        lines = content.splitlines()
+        updated_keys = set()
+        new_lines = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                raw_k, _ = stripped.split("=", 1)
+                k = raw_k.strip()
+                if k.startswith("export "):
+                    k = k[7:].strip()
+                if k in updates:
+                    new_lines.append(f"{k}={updates[k]}")
+                    updated_keys.add(k)
+                    continue
+            new_lines.append(line)
+        for k, v in updates.items():
+            if k not in updated_keys:
+                new_lines.append(f"{k}={v}")
+        env_path.write_text("\n".join(new_lines) + "\n", encoding="utf-8")
+        print("[PASS] Configuration saved to .env")
+    else:
+        print("[PASS] No configuration changes made")
+
+    return 0
+
+
 def _delivery_exit_code(steps: list[dict[str, Any]]) -> int:
     statuses = {str(step.get("status", "")) for step in steps}
     if any(status.startswith(("FAILED", "RUNTIME_FAILED", "SEND_FAILED")) or status in {"ANALYSIS_MISSING", "UNSUPPORTED_MODE"} for status in statuses):
@@ -363,6 +474,7 @@ class OpenBagusShell(cmd.Cmd):
         print("review BTC ETH      run a manual crypto research review")
         print("email draft|check   manage optional email output")
         print("config              show redacted configuration status")
+        print("setup               configure optional API and email settings")
         print("version             show OpenBagus version")
         print("clear               clear the terminal")
         print("exit                close OpenBagus")
@@ -398,6 +510,9 @@ class OpenBagusShell(cmd.Cmd):
     def do_config(self, _arg: str) -> None:
         _run_config()
 
+    def do_setup(self, _arg: str) -> None:
+        _run_setup()
+
     def do_version(self, _arg: str) -> None:
         print(f"OpenBagus {__version__}")
 
@@ -431,6 +546,8 @@ def main(argv: list[str] | None = None) -> int:
         return _run_status()
     if args.mode == "config":
         return _run_config()
+    if args.mode == "setup":
+        return _run_setup()
     if args.mode == "version":
         print(f"OpenBagus {__version__}")
         return 0
