@@ -337,6 +337,107 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         self.assertIn("Position Notional", output)
         self.assertIn("Margin Required", output)
 
+    def test_session_followup_and_stop_words(self):
+        from openbagus.intelligence.intent import IntentRouter, SessionState
+
+        router = IntentRouter()
+        session = SessionState()
+
+        # 1. Five ini apa?
+        r1 = router.parse("Five ini apa?", session)
+        self.assertEqual(r1.asset, "FIVE")
+        self.assertEqual(r1.request_type, "ASSET_ANALYSIS")
+        session.last_asset = r1.asset
+
+        # 2. Follow-up: kok risk dan TPnya nggk ada sih
+        r2 = router.parse("kok risk dan TPnya nggk ada sih", session)
+        self.assertEqual(r2.asset, "FIVE")
+        self.assertEqual(r2.request_type, "EXPLAIN_LEVELS")
+
+        # 3. Preference: jangan kasih sources
+        r3 = router.parse("jangan kasih sources", session)
+        self.assertEqual(r3.request_type, "PREFERENCE")
+        self.assertEqual(r3.preference_action, "hide_sources")
+
+        # 4. System Info: anda dijalankan di mana?
+        r4 = router.parse("anda dijalankan di mana?", session)
+        self.assertEqual(r4.request_type, "SYSTEM_INFO")
+
+        # 5. Market Outlook: gimana prospek crypto
+        r5 = router.parse("gimana prospek crypto", session)
+        self.assertEqual(r5.request_type, "MARKET_OUTLOOK")
+
+        # 6. Stop words protection: koin yang high 1 kuartal terakhir
+        r6 = router.parse("koin yang high 1 kuartal terakhir", session)
+        self.assertEqual(r6.request_type, "SCREEN")
+        self.assertIsNone(r6.asset)  # Must NOT resolve "yang" or "high" to coin
+
+        # 7. BUY btc?
+        r7 = router.parse("BUY btc?", session)
+        self.assertEqual(r7.asset, "BTC")
+        self.assertEqual(r7.request_type, "POSITION")
+
+    def test_candidate_long_short_and_quality_separation(self):
+        spot_ticker = {
+            "symbol": "BTC",
+            "price": 85000.0,
+            "high": 86000.0,
+            "low": 84000.0,
+            "volume": 60000000.0,
+            "pct_change": 0.5,
+            "provider": "Binance Vision",
+            "is_cross_confirmed": True,
+            "cross_exchange_sources": ["Binance Vision", "Gate.io"],
+        }
+        res = self.engine.evaluate("BTC", spot_ticker, market_type="perpetual")
+
+        # Must have candidate long and candidate short evaluated
+        self.assertIsNotNone(res.candidate_long)
+        self.assertIsNotNone(res.candidate_short)
+        self.assertEqual(res.candidate_long.direction, "LONG")
+        self.assertEqual(res.candidate_short.direction, "SHORT")
+
+        # Must separate Data Quality from Setup Quality
+        self.assertIn(res.data_quality, ("HIGH", "MODERATE", "LOW"))
+        self.assertIn(res.setup_quality, ("STRONG", "MODERATE", "INSUFFICIENT"))
+
+        # Narrative must be a coherent multi-sentence string
+        self.assertIsInstance(res.narrative, str)
+        self.assertIn("BTC", res.narrative)
+        self.assertGreater(len(res.narrative), 30)
+
+    def test_no_trade_formatting_omits_empty_levels(self):
+        spot_ticker = {
+            "symbol": "BTC",
+            "price": 85000.0,
+            "high": 85500.0,
+            "low": 84500.0,
+            "volume": 200000.0,
+            "pct_change": 0.05,
+            "provider": "Binance Vision",
+        }
+        res = self.engine.evaluate("BTC", spot_ticker, market_type="perpetual")
+        self.assertEqual(res.decision, "NO_TRADE")
+
+        runner = CryptoResearchRunner()
+        view = runner._render_section_25_view(res, market_type="perpetual", show_sources=False)
+
+        # Must NOT contain empty level lines
+        self.assertNotIn("Entry          -", view)
+        self.assertNotIn("Stop           -", view)
+        self.assertNotIn("TP1            -", view)
+        self.assertNotIn("Reward:Risk    -", view)
+        self.assertNotIn("Leverage       -", view)
+
+        # Must contain Reason and Watch
+        self.assertIn("Reason", view)
+        self.assertIn("Watch", view)
+        self.assertIn("Data Quality", view)
+        self.assertIn("Setup Quality", view)
+
+        # Sources must be omitted when show_sources is False
+        self.assertNotIn("Sources", view)
+
 
 if __name__ == "__main__":
     unittest.main()

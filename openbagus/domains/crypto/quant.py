@@ -19,6 +19,21 @@ class EvidenceBlockResult:
 
 
 @dataclass
+class CandidateSetup:
+    direction: str  # "LONG" or "SHORT"
+    entry_zone: str
+    stop_price: float
+    tp1: float
+    tp2: float
+    reward_risk: float
+    reward_risk_str: str
+    setup_quality: str  # "STRONG", "MODERATE", "INSUFFICIENT"
+    rr_gate_passed: bool
+    reason: str = ""
+    watch_trigger: str = ""
+
+
+@dataclass
 class QuantDecisionResult:
     asset: str
     market: str
@@ -41,6 +56,13 @@ class QuantDecisionResult:
     composite_quality: float
     rr_gate_passed: bool
     quality_gate_passed: bool
+    data_quality: str = "MODERATE"
+    setup_quality: str = "INSUFFICIENT"
+    decision_reason: str = ""
+    watch_trigger: str = ""
+    candidate_long: CandidateSetup | None = None
+    candidate_short: CandidateSetup | None = None
+    narrative: str = ""
     microstructure: dict[str, Any] = field(default_factory=dict)
 
 
@@ -139,12 +161,13 @@ class QuantEngine:
             and composite_quality >= self.MIN_COMPOSITE_QUALITY
         )
 
-        if composite_quality >= 0.75 and active_count >= 4:
-            confidence = "HIGH"
-        elif composite_quality >= 0.50 and active_count >= 3:
-            confidence = "MODERATE"
+        if composite_quality >= 0.70 and active_count >= 4:
+            data_quality = "HIGH"
+        elif composite_quality >= 0.45 and active_count >= 3:
+            data_quality = "MODERATE"
         else:
-            confidence = "LOW"
+            data_quality = "LOW"
+        confidence = data_quality
 
         pivot = (high + low + price) / 3.0
         r1 = (2.0 * pivot) - low
@@ -156,64 +179,130 @@ class QuantEngine:
 
         regime = ev_vol.details.get("regime", "CHOPPY")
 
-        # Directional threshold
-        is_bullish = composite_score >= 0.22
-        is_bearish = composite_score <= -0.22
+        # --- Evaluate Candidate LONG ---
+        long_stop = round(s1 - atr_buffer, 4 if price < 10 else 2)
+        long_tp1 = round(r1, 4 if price < 10 else 2)
+        long_tp2 = round(r2, 4 if price < 10 else 2)
+        long_risk_span = price - long_stop
+        long_reward_span = long_tp1 - price
+        long_rr = round(long_reward_span / long_risk_span, 2) if long_risk_span > 0 and long_reward_span > 0 else 0.0
+        long_rr_passed = long_rr >= self.MINIMUM_REWARD_RISK
+        ideal_long_pullback = round((long_tp1 + (self.MINIMUM_REWARD_RISK * long_stop)) / (1.0 + self.MINIMUM_REWARD_RISK), 4 if price < 10 else 2)
 
+        if composite_score >= 0.20 and long_rr_passed and quality_gate_passed:
+            long_setup_quality = "STRONG"
+        elif composite_score >= 0.05 or long_rr >= 1.2:
+            long_setup_quality = "MODERATE"
+        else:
+            long_setup_quality = "INSUFFICIENT"
+
+        cand_long = CandidateSetup(
+            direction="LONG",
+            entry_zone=f"{self._fmt_px(min(price, pivot))} - {self._fmt_px(price)}" if long_rr_passed else f"Pullback limit: {self._fmt_px(ideal_long_pullback)}",
+            stop_price=long_stop,
+            tp1=long_tp1,
+            tp2=long_tp2,
+            reward_risk=long_rr,
+            reward_risk_str=f"1:{long_rr:.2f}" + ("" if long_rr_passed else " (< 1.5 gate)"),
+            setup_quality=long_setup_quality,
+            rr_gate_passed=long_rr_passed,
+            reason="Reward-to-risk below 1.5" if not long_rr_passed else "",
+            watch_trigger=f"Pullback to {self._fmt_px(ideal_long_pullback)} for R:R >= 1.5" if not long_rr_passed else "",
+        )
+
+        # --- Evaluate Candidate SHORT ---
+        short_stop = round(r1 + atr_buffer, 4 if price < 10 else 2)
+        short_tp1 = round(s1, 4 if price < 10 else 2)
+        short_tp2 = round(s2, 4 if price < 10 else 2)
+        short_risk_span = short_stop - price
+        short_reward_span = price - short_tp1
+        short_rr = round(short_reward_span / short_risk_span, 2) if short_risk_span > 0 and short_reward_span > 0 else 0.0
+        short_rr_passed = short_rr >= self.MINIMUM_REWARD_RISK
+        ideal_short_bounce = round((short_tp1 + (self.MINIMUM_REWARD_RISK * short_stop)) / (1.0 + self.MINIMUM_REWARD_RISK), 4 if price < 10 else 2)
+
+        if composite_score <= -0.20 and short_rr_passed and quality_gate_passed:
+            short_setup_quality = "STRONG"
+        elif composite_score <= -0.05 or short_rr >= 1.2:
+            short_setup_quality = "MODERATE"
+        else:
+            short_setup_quality = "INSUFFICIENT"
+
+        cand_short = CandidateSetup(
+            direction="SHORT",
+            entry_zone=f"{self._fmt_px(price)} - {self._fmt_px(max(price, pivot))}" if short_rr_passed else f"Bounce limit: {self._fmt_px(ideal_short_bounce)}",
+            stop_price=short_stop,
+            tp1=short_tp1,
+            tp2=short_tp2,
+            reward_risk=short_rr,
+            reward_risk_str=f"1:{short_rr:.2f}" + ("" if short_rr_passed else " (< 1.5 gate)"),
+            setup_quality=short_setup_quality,
+            rr_gate_passed=short_rr_passed,
+            reason="Reward-to-risk below 1.5" if not short_rr_passed else "",
+            watch_trigger=f"Rejection at {self._fmt_px(short_stop)} for R:R >= 1.5" if not short_rr_passed else "",
+        )
+
+        chosen: CandidateSetup | None = None
         decision = "WAIT" if market_type == "spot" else "NO_TRADE"
-        stop_price: float | None = None
-        tp1: float | None = None
-        tp2: float | None = None
-        reward_risk: float | None = None
-        rr_gate_passed = False
-        entry_zone = "-"
-        leverage_ceiling = "-"
-        leverage_num = 0
+        setup_quality = "INSUFFICIENT"
+        decision_reason = ""
+        watch_trigger = ""
 
-        if quality_gate_passed and is_bullish:
-            stop_price = round(s1 - atr_buffer, 4 if price < 10 else 2)
-            tp1 = round(r1, 4 if price < 10 else 2)
-            tp2 = round(r2, 4 if price < 10 else 2)
-
-            risk_span = price - stop_price
-            reward_span = tp1 - price
-
-            if risk_span > 0 and reward_span > 0:
-                reward_risk = round(reward_span / risk_span, 2)
+        if market_type == "spot":
+            if cand_long.setup_quality == "STRONG":
+                decision = "BUY"
+                chosen = cand_long
+                setup_quality = "STRONG"
+            elif composite_score <= -0.25:
+                decision = "REDUCE"
+                chosen = cand_short if cand_short.setup_quality == "STRONG" else None
+                setup_quality = cand_short.setup_quality if chosen else "MODERATE"
             else:
-                reward_risk = 0.10
-
-            rr_gate_passed = reward_risk >= self.MINIMUM_REWARD_RISK
-
-            if rr_gate_passed:
-                decision = "BUY" if market_type == "spot" else "LONG"
-                entry_zone = f"{self._fmt_px(min(price, pivot))} - {self._fmt_px(price)}"
+                decision = "WAIT"
+                setup_quality = cand_long.setup_quality if cand_long.setup_quality != "INSUFFICIENT" else "INSUFFICIENT"
+        else:
+            if cand_long.setup_quality == "STRONG":
+                decision = "LONG"
+                chosen = cand_long
+                setup_quality = "STRONG"
+            elif cand_short.setup_quality == "STRONG":
+                decision = "SHORT"
+                chosen = cand_short
+                setup_quality = "STRONG"
             else:
-                ideal_pullback = round((tp1 + (self.MINIMUM_REWARD_RISK * stop_price)) / (1.0 + self.MINIMUM_REWARD_RISK), 2)
-                decision = "WAIT" if market_type == "spot" else "NO_TRADE"
-                entry_zone = f"Pullback limit: {self._fmt_px(ideal_pullback)} (for RR >= 1.5)"
+                decision = "NO_TRADE"
+                setup_quality = "MODERATE" if (cand_long.setup_quality == "MODERATE" or cand_short.setup_quality == "MODERATE") else "INSUFFICIENT"
 
-        elif quality_gate_passed and is_bearish:
-            stop_price = round(r1 + atr_buffer, 4 if price < 10 else 2)
-            tp1 = round(s1, 4 if price < 10 else 2)
-            tp2 = round(s2, 4 if price < 10 else 2)
+        if chosen:
+            entry_zone = chosen.entry_zone
+            stop_price = chosen.stop_price
+            tp1 = chosen.tp1
+            tp2 = chosen.tp2
+            reward_risk = chosen.reward_risk
+            rr_gate_passed = True
+            rr_str = f"1:{chosen.reward_risk:.2f}"
+            decision_reason = f"Confirmed {chosen.direction} setup with favorable R:R ({rr_str}) and aligned market microstructure."
+            watch_trigger = f"Invalidation below {self._fmt_px(stop_price)} or take profit at {self._fmt_px(tp1)}."
+        else:
+            entry_zone = "-"
+            stop_price = None
+            tp1 = None
+            tp2 = None
+            reward_risk = None
+            rr_gate_passed = False
+            rr_str = "-"
 
-            risk_span = stop_price - price
-            reward_span = price - tp1
-
-            if risk_span > 0 and reward_span > 0:
-                reward_risk = round(reward_span / risk_span, 2)
+            if not quality_gate_passed:
+                decision_reason = "Data consensus across public providers is insufficient for live risk allocation."
+                watch_trigger = "Wait for additional independent exchange feeds to establish price consensus."
+            elif not long_rr_passed and not short_rr_passed:
+                decision_reason = f"Reward-to-risk at current price (Long 1:{long_rr:.2f}, Short 1:{short_rr:.2f}) does not meet 1:1.50 minimum gate."
+                watch_trigger = f"Pullback limit to {self._fmt_px(ideal_long_pullback)} for Long R:R >= 1.5, or resistance reaction at {self._fmt_px(r1)} for Short."
+            elif abs(composite_score) < 0.20:
+                decision_reason = f"Market is in a neutral/choppy regime (composite score {composite_score:+.2f}) without directional momentum."
+                watch_trigger = f"Wait for confirmed breakout above {self._fmt_px(r1)} or breakdown below {self._fmt_px(s1)} on rising volume."
             else:
-                reward_risk = 0.10
-
-            rr_gate_passed = reward_risk >= self.MINIMUM_REWARD_RISK
-
-            if rr_gate_passed:
-                decision = "REDUCE" if market_type == "spot" else "SHORT"
-                entry_zone = f"{self._fmt_px(price)} - {self._fmt_px(max(price, pivot))}"
-            else:
-                decision = "WAIT" if market_type == "spot" else "NO_TRADE"
-                entry_zone = f"Wait for reaction at {self._fmt_px(r1)}"
+                decision_reason = "Setup conditions do not provide a favorable asymmetric risk/reward edge."
+                watch_trigger = f"Monitor price reaction near key pivot level {self._fmt_px(pivot)}."
 
         if market_type == "perpetual" and decision in ("LONG", "SHORT") and stop_price:
             stop_dist_pct = abs(price - stop_price) / price
@@ -222,9 +311,8 @@ class QuantEngine:
                 base_lev = max(1, base_lev - 1)
             if quote_vol < 50_000_000:
                 base_lev = 1
-            if confidence == "LOW":
+            if data_quality == "LOW":
                 base_lev = 1
-
             leverage_num = base_lev
             leverage_ceiling = f"{base_lev}x (conservative ceiling; max {self.hard_leverage_max}x policy)"
         else:
@@ -245,9 +333,20 @@ class QuantEngine:
             "Context": ev_context.summary,
         }
 
-        rr_str = f"1:{reward_risk:.2f}" if reward_risk is not None else "-"
-        if reward_risk is not None and not rr_gate_passed:
-            rr_str = f"1:{reward_risk:.2f} (< 1.5 gate)"
+        # Deterministic 2-5 sentence narrative
+        narrative_parts = [
+            f"{symbol.upper()} diperdagangkan di {self._fmt_px(price)} dalam rezim {regime.lower()} dengan skor komposit {composite_score:+.2f}.",
+            f"Kualitas data {data_quality.lower()} didorong sinyal {ev_micro.summary.lower()} dan {ev_trend.summary.lower()}.",
+        ]
+        if decision in ("BUY", "LONG", "SHORT", "REDUCE"):
+            narrative_parts.append(
+                f"Sinyal aktif menghasilkan keputusan {decision} (setup {setup_quality.lower()}) dengan target {self._fmt_px(tp1)} dan stop {self._fmt_px(stop_price)} (R:R {rr_str})."
+            )
+        else:
+            narrative_parts.append(
+                f"Keputusan saat ini adalah {decision} karena {decision_reason} Pantau: {watch_trigger}"
+            )
+        narrative = " ".join(narrative_parts)
 
         return QuantDecisionResult(
             asset=symbol.upper(),
@@ -271,6 +370,13 @@ class QuantEngine:
             composite_quality=round(composite_quality, 2),
             rr_gate_passed=rr_gate_passed,
             quality_gate_passed=quality_gate_passed,
+            data_quality=data_quality,
+            setup_quality=setup_quality,
+            decision_reason=decision_reason,
+            watch_trigger=watch_trigger,
+            candidate_long=cand_long,
+            candidate_short=cand_short,
+            narrative=narrative,
             microstructure=ev_micro.details,
         )
 

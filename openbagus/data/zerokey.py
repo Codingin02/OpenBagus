@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import time
 import urllib.parse
 from typing import Any
@@ -13,6 +14,7 @@ class ZeroKeyMarketData:
     def __init__(self, timeout: float = 3.5) -> None:
         self.timeout = timeout
         self._cache: dict[str, tuple[float, Any]] = {}
+        self._dead_hosts: dict[str, float] = {}
         self.http = SecureHttpClient(timeout=timeout)
 
     def _get_json(self, url: str, ttl_seconds: float = 15.0) -> Any | None:
@@ -22,10 +24,25 @@ class ZeroKeyMarketData:
             if now - ts < ttl_seconds:
                 return cached_data
 
-        data = self.http.get_json(url)
-        if data is not None:
+        netloc = urllib.parse.urlparse(url).netloc
+        fail_ts = self._dead_hosts.get(netloc)
+        if fail_ts and (now - fail_ts < 60.0):
+            return None
+
+        raw, status, _ = self.http.fetch_raw(url)
+        if status in ("TIMEOUT", "UNREACHABLE", "SECURITY_REJECTED", "DISALLOWED_HOST"):
+            self._dead_hosts[netloc] = now
+            return None
+
+        if not raw or status != "REACHABLE":
+            return None
+
+        try:
+            data = json.loads(raw)
             self._cache[url] = (now, data)
-        return data
+            return data
+        except (json.JSONDecodeError, ValueError):
+            return None
 
     def get_spot_ticker(self, symbol: str) -> dict[str, Any] | None:
         sym = symbol.upper().replace("/USD", "").replace("-USD", "").replace("USDT", "")
@@ -485,3 +502,60 @@ class ZeroKeyMarketData:
                 if ql == sym or ql == name or ql in sym or ql in name:
                     results.append(c)
         return results
+
+    def get_all_evidence(self, symbol: str, is_dex: bool = False) -> dict[str, Any]:
+        """Concurrently fetches independent market evidence blocks for an asset."""
+        import concurrent.futures
+
+        evidence: dict[str, Any] = {
+            "spot_ticker": None,
+            "klines": None,
+            "derivatives": None,
+            "orderbook": None,
+            "trades": None,
+            "sentiment": None,
+            "stablecoins": None,
+        }
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
+            f_ticker = ex.submit(self.get_spot_ticker, symbol)
+            f_klines = ex.submit(self.get_klines, symbol)
+            f_sent = ex.submit(self.get_sentiment)
+            f_stab = ex.submit(self.get_stablecoin_tvl)
+            f_deriv = None if is_dex else ex.submit(self.get_derivatives, symbol)
+            f_ob = None if is_dex else ex.submit(self.get_orderbook, symbol)
+            f_tr = None if is_dex else ex.submit(self.get_recent_trades, symbol)
+
+            try:
+                evidence["spot_ticker"] = f_ticker.result()
+            except Exception:
+                pass
+            try:
+                evidence["klines"] = f_klines.result()
+            except Exception:
+                pass
+            try:
+                evidence["sentiment"] = f_sent.result()
+            except Exception:
+                pass
+            try:
+                evidence["stablecoins"] = f_stab.result()
+            except Exception:
+                pass
+            if f_deriv:
+                try:
+                    evidence["derivatives"] = f_deriv.result()
+                except Exception:
+                    pass
+            if f_ob:
+                try:
+                    evidence["orderbook"] = f_ob.result()
+                except Exception:
+                    pass
+            if f_tr:
+                try:
+                    evidence["trades"] = f_tr.result()
+                except Exception:
+                    pass
+
+        return evidence

@@ -168,6 +168,9 @@ class CryptoAssetCatalog:
         if len(exact_symbol) == 1:
             return exact_symbol[0], []
         if len(exact_symbol) > 1:
+            exact_symbol.sort(key=lambda x: x.rank)
+            if all(a.symbol.upper() == exact_symbol[0].symbol.upper() for a in exact_symbol):
+                return exact_symbol[0], []
             return None, exact_symbol
 
         # Try exact name / id / alias
@@ -175,7 +178,8 @@ class CryptoAssetCatalog:
         if len(exact_name) == 1:
             return exact_name[0], []
         if len(exact_name) > 1:
-            return None, exact_name
+            exact_name.sort(key=lambda x: x.rank)
+            return exact_name[0], []
 
         # Try alias
         alias_matches = [a for a in self.assets if clean_lower in [al.lower() for al in a.aliases]]

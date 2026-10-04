@@ -26,7 +26,7 @@ from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, Sm
 from openbagus.delivery.runner import run_final_delivery
 from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
 from openbagus.domains.crypto.research import CryptoResearchRunner
-from openbagus.intelligence.intent import IntentRouter
+from openbagus.intelligence.intent import IntentRouter, SessionState
 from openbagus.storage.historical import HistoricalStorageRuntime
 from openbagus.storage.spreadsheet import SpreadsheetExporter
 
@@ -183,10 +183,12 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
     disabled = platform_config.get("disabled_domains", [])
     add("PASS" if active == ["crypto"] and "equities" in disabled else "FAIL", "Domains", "crypto active; equities disabled")
 
-    source_config = _read_json(REPO_ROOT / "config/openbagus_data_sources.json")
-    assets = sorted(source_config.get("core_assets", {}).get("crypto", {}))
-    add("PASS" if assets == ["BTC/USD", "ETH/USD", "SOL/USD"] else "FAIL", "Crypto assets", ", ".join(assets) or "missing")
-    add("CONFIGURED", "Public providers", "Binance, CoinGecko, Yahoo Finance, DefiLlama (available in code)")
+    catalog = CryptoAssetCatalog(REPO_ROOT)
+    catalog_count = len(catalog.assets)
+    add("PASS" if catalog_count > 0 else "FAIL", "Crypto universe", f"dynamic catalog active ({catalog_count} assets discovered)")
+    registry = ProviderRegistry(REPO_ROOT)
+    pub_count = len(registry.list_public())
+    add("PASS" if pub_count > 0 else "FAIL", "Zero-Key Core", f"{pub_count} public providers available (no keys required)")
     fred_configured = bool(RuntimeEnv(REPO_ROOT).get("FRED_API_KEY"))
     add("PASS" if fred_configured else "OPTIONAL", "FRED API key", "configured" if fred_configured else "not configured")
 
@@ -552,6 +554,7 @@ class OpenBagusShell(cmd.Cmd):
         super().__init__()
         self.router = IntentRouter(repo_root=REPO_ROOT)
         self.researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
+        self.session = SessionState()
 
     def preloop(self) -> None:
         color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
@@ -577,6 +580,7 @@ class OpenBagusShell(cmd.Cmd):
     def do_help(self, _arg: str) -> None:
         print("OpenBagus Commands:")
         print("  /help             show this help screen")
+        print("  /sources [on|off] toggle display of data sources in research outputs")
         print("  /status           show platform runtime and provider status")
         print("  /providers        show data providers and coverage (or /providers --check)")
         print("  /assets [query]   search crypto asset universe (e.g. /assets eth, /assets defi)")
@@ -595,6 +599,18 @@ class OpenBagusShell(cmd.Cmd):
         print("    support resistance AVAX")
         print("    is ARB attractive now")
         print("    BTC vs ETH")
+
+    def do_sources(self, arg: str) -> None:
+        cmd_str = arg.strip().lower()
+        if cmd_str in ("on", "true", "1", "show"):
+            self.session.show_sources = True
+            print("[PASS] Sources display enabled for research outputs.")
+        elif cmd_str in ("off", "false", "0", "hide"):
+            self.session.show_sources = False
+            print("[PASS] Sources display disabled for research outputs.")
+        else:
+            status = "enabled" if self.session.show_sources else "disabled"
+            print(f"Sources are currently {status}. Use '/sources on' or '/sources off' to toggle.")
 
     def do_status(self, _arg: str) -> None:
         _run_status()
@@ -661,13 +677,13 @@ class OpenBagusShell(cmd.Cmd):
         cleaned = line.strip()
         if not cleaned:
             return
-        req = self.router.parse(cleaned)
+        req = self.router.parse(cleaned, session=self.session)
         if req.needs_asset:
             print(req.clarification_prompt or "Which asset do you want to analyze?")
             print()
             return
-        if req.intent.upper() != "UNKNOWN" or req.asset or req.candidates:
-            result = self.researcher.execute(req)
+        if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in ("SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE"):
+            result = self.researcher.execute(req, session=self.session)
             print(result)
             print()
             return
@@ -710,12 +726,13 @@ def main(argv: list[str] | None = None) -> int:
     query_text = " ".join(arguments)
     router = IntentRouter(repo_root=REPO_ROOT)
     researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
-    req = router.parse(query_text)
+    session = SessionState()
+    req = router.parse(query_text, session=session)
     if req.needs_asset:
         print(req.clarification_prompt or "Which asset do you want to analyze?")
         return 0
-    if req.intent.upper() != "UNKNOWN" and (req.asset or req.candidates):
-        result = researcher.execute(req)
+    if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in ("SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE"):
+        result = researcher.execute(req, session=session)
         print(result)
         return 0
 

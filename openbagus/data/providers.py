@@ -759,3 +759,9 @@ class ProviderRegistry:
         lines.append("Use '/providers --check' to run live reachability and credential checks.")
         lines.append("Use '/setup' to configure optional provider API keys.")
         return "\n".join(lines)
+
+    def coverage_summary(self) -> str:
+        pub_count = len(self.list_public())
+        cfg_count = len(self.list_configured_apis())
+        miss_count = len(self.list_missing_apis())
+        return f"Zero-Key Core: {pub_count} public providers active | Optional Keyed: {cfg_count} configured, {miss_count} unconfigured"

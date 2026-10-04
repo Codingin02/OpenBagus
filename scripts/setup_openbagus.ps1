@@ -125,19 +125,29 @@ if ($NonInteractive -or $SkipWizard) {
 
 # 8. Interactive configuration & launch
 Write-Host ""
-$configure = Read-Host "Configure optional settings now? [y/N]"
-if ($configure -and ($configure.Trim().ToLower() -eq "y" -or $configure.Trim().ToLower() -eq "yes")) {
+$configure = Read-Host "Configure optional settings? (yes/no, default: no)"
+$confLower = if ($configure) { $configure.Trim().ToLower() } else { "no" }
+if ($confLower -eq "y" -or $confLower -eq "yes") {
     & $openbagusExe setup
+    if ($LASTEXITCODE -ne 0) {
+        Write-Host ""
+        Write-Host "[FAIL] Setup wizard encountered an issue (exit code $LASTEXITCODE)." -ForegroundColor Red
+        exit $LASTEXITCODE
+    }
 }
 
 Write-Host ""
 Write-Host "Setup completed successfully." -ForegroundColor Green
 Write-Host ""
 
-$launch = Read-Host "Launch OpenBagus now? [Y/n]"
-if ([string]::IsNullOrWhiteSpace($launch) -or $launch.Trim().ToLower().StartsWith("y")) {
+$launch = Read-Host "Launch OpenBagus now? (yes/no, default: yes)"
+$launchLower = if ($launch) { $launch.Trim().ToLower() } else { "yes" }
+if ($launchLower -eq "" -or $launchLower -eq "y" -or $launchLower -eq "yes") {
     Write-Host "Starting OpenBagus..." -ForegroundColor Cyan
     & $openbagusExe
+    if ($LASTEXITCODE -ne 0) {
+        exit $LASTEXITCODE
+    }
 } else {
     Write-Host "You can launch OpenBagus anytime by running:"
     Write-Host "  .\.venv\Scripts\openbagus" -ForegroundColor Cyan
