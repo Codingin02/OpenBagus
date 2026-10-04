@@ -9,15 +9,15 @@ Current active domain: **Crypto**.
 | Terminal UX | Active: Prompt-first interactive coin terminal & slash commands |
 | Crypto Research | Active: Dynamic universe (Layer 1, Layer 2, DeFi, Memecoin, AI, RWA, etc.) |
 | Public Market Data | Active: Multi-tier fallback (Binance Vision -> Binance Public -> CoinGecko -> Yahoo Finance) |
-| Provider Architecture | Active: 23 declared providers, 4 zero-key public sources (Coverage Target: 12) |
-| Intent Routing | Active: Sub-millisecond deterministic intent parser + optional local GGUF |
+| Decision Engine | Active: Local Python Quant Engine for Spot (BUY/WAIT/REDUCE) and Perpetual (LONG/SHORT/NO_TRADE) |
+| Intent Routing | Active: Deterministic bilingual (ID/EN) typo-tolerant intent parser |
 | FRED | Optional (Federal Reserve Economic Data macro indicators) |
 | Email Delivery | Optional (Local staging default; SMTP delivery requires explicit confirmation) |
 | Equities | Disabled |
 | WhatsApp / OpenClaw | Disabled |
 | Live Trading | Not implemented (Strictly quantitative research only) |
 
-OpenBagus is research-only. Python owns all numerical analysis, pivot levels, and risk calculations; language-model components never calculate financial math or execute trades.
+OpenBagus is research-only. Python owns all numerical analysis, decision rules, pivot levels, and risk calculations; no cloud LLMs or local neural weights calculate financial math or execute trades.
 
 ## Quick Start
 
@@ -49,10 +49,14 @@ openbagus
 
 ### Prompt-First Research Terminal
 
-Once inside the `openbagus` interactive shell, query any coin directly:
+Once inside the `openbagus` interactive shell, query any coin directly in Indonesian or English:
 
-- `ETH` or `SOL`: Comprehensive market snapshot, levels, pivots, and provider evidence.
-- `open position ARB`: Trade-setup research view (directional bias, candidate zone, invalidation level).
+- `ETH` or `SOL`: Comprehensive quantitative decision support, pivots, levels, and provider evidence.
+- `BUY btc?`: Spot decision support (`BUY` | `WAIT` | `REDUCE`) with candidate entry zone and invalidation stop.
+- `bagusnya BTC long atau short?`: Perpetual decision support (`LONG` | `SHORT` | `NO_TRADE`) with conservative leverage ceiling.
+- `ETH entry dimana?`: Trade position decision with Entry Zone, Invalidation / Stop, TP1, TP2, and Risk:Reward.
+- `ada divergence di ADA?`: Divergence & momentum structure analysis (avoids false-positive detection).
+- `margin BTC equity 1000 risk 2%`: Capital risk budgeting and margin position sizing calculator.
 - `risk DOGE`: Volatility regime, drawdown, distance to invalidation, and liquidity proxy.
 - `support resistance AVAX`: Floor Trader Pivots (P, R1/R2, S1/S2) and structural reaction zones.
 - `BTC vs ETH`: Side-by-side comparative quantitative snapshot.
@@ -61,13 +65,13 @@ Once inside the `openbagus` interactive shell, query any coin directly:
 
 Inside the shell or directly from the CLI:
 
-- `/status` or `openbagus status`: Runtime status, active domains, provider counts, and target.
-- `/providers` or `openbagus providers`: View public providers and configured API coverage.
-- `/providers --check`: Run live reachability and latency ping tests across public sources.
+- `/status` or `openbagus status`: Runtime status, active domains, capability groups, and active keys.
+- `/providers` or `openbagus providers`: View providers grouped by capability (`MARKET`, `DERIVATIVES`, `ONCHAIN`, `MACRO`).
+- `/providers --check`: Run live reachability and credential checks across public and keyed providers.
 - `/assets [query]` or `openbagus assets [query]`: Search assets or filter by sector (`/assets defi`).
 - `/categories` or `openbagus categories`: List taxonomy groups and coin counts.
 - `/doctor [network]` or `openbagus doctor [--network]`: Environment diagnostics & live reachability.
-- `/setup` or `openbagus setup`: Interactive wizard to configure provider API keys, email, or local AI.
+- `/setup` or `openbagus setup`: Interactive wizard to configure and live-validate provider API keys and email.
 - `/crypto` or `openbagus crypto-daily`: Core crypto pipeline (BTC/USD, ETH/USD, SOL/USD).
 - `/email draft`: Generate local delivery draft (no send).
 
@@ -75,8 +79,8 @@ Inside the shell or directly from the CLI:
 
 - **Zero-Key Public Mode**: Works out of the box without any private API keys using public Binance, CoinGecko, Yahoo Finance proxy, and DefiLlama.
 - **Provider Resilience**: Network timeouts on any single source trigger instantaneous sub-5s fallback to alternative providers, guaranteeing uninterrupted terminal sessions.
-- **Coverage Target**: Tracks configured coverage toward `ENHANCED_PROVIDER_TARGET = 12` across 23 enterprise and macro providers.
-- **Research Only**: "Open position" queries strictly produce research hypotheses with structural invalidations; OpenBagus has no live broker, wallet, or trading connectivity.
+- **Capability Coverage**: Tracks real provider validation across MARKET, METADATA, DERIVATIVES, ONCHAIN, DEFI, and MACRO capabilities.
+- **Research Only**: Trade-setup and position queries strictly produce quantitative research hypotheses with structural invalidations; OpenBagus has no live broker, wallet, or trading connectivity.
 
 ## Configuration
 

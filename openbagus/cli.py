@@ -21,7 +21,7 @@ from openbagus import __version__
 from openbagus.analysis.engine import run_real_analysis
 from openbagus.core.env import RuntimeEnv, get_repo_root
 from openbagus.data.ingestion import run_runtime_ingestion
-from openbagus.data.providers import ProviderRegistry, ENHANCED_PROVIDER_TARGET
+from openbagus.data.providers import ProviderRegistry
 from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport
 from openbagus.delivery.runner import run_final_delivery
 from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
@@ -245,8 +245,8 @@ def _run_status() -> int:
     print("")
     print("Providers")
     print(f"  Public Sources    {len(registry.list_public())} active (no keys required)")
-    print(f"  API Keys          {registry.configured_count()}/{len(registry.list_missing_apis()) + registry.configured_count()} configured")
-    print(f"  Enhanced Target   {registry.enhanced_target} ({'active' if registry.configured_count() >= registry.enhanced_target else 'public fallback'})")
+    print(f"  Capabilities      MARKET, METADATA, DERIVATIVES, ONCHAIN, DEFI, MACRO")
+    print(f"  API Keys          {len(registry.list_configured_apis())} configured in .env")
     print("")
     print("Features")
     print("  Crypto Research   enabled")
@@ -385,7 +385,9 @@ def _run_setup() -> int:
                     if val:
                         updates[env_name] = val
                         current_values[env_name] = val
-                        print(f"[PASS] Key recorded for {target_p.display_name}")
+                        print(f"Testing {target_p.display_name}...")
+                        result_status = registry.validate_key(target_p.id, val)
+                        print(f"{target_p.display_name} ........ {result_status}")
                 else:
                     print("Invalid selection.")
             except (ValueError, EOFError, KeyboardInterrupt):
@@ -423,25 +425,6 @@ def _run_setup() -> int:
                 updates["OPENBAGUS_EMAIL_LIVE_ENABLED"] = "false"
         except (EOFError, KeyboardInterrupt):
             pass
-
-    # 3. Optional Local Intent Model
-    models_dir = REPO_ROOT / "runtime/models"
-    models_dir.mkdir(parents=True, exist_ok=True)
-    has_model = any(models_dir.glob("*.gguf"))
-    prompt_model = "Local intent model is already installed. Re-check? [y/N]: " if has_model else "Install optional local intent model? [y/N]: "
-    try:
-        ans = input(prompt_model).strip().lower()
-    except (EOFError, KeyboardInterrupt):
-        ans = "n"
-
-    if ans in {"y", "yes"}:
-        print("\nOptional Local Intent Model Information:")
-        print("  Model class: Sub-1B quantized GGUF (e.g. Qwen 0.8B / 0.5B Instruct)")
-        print("  Approximate download size: ~400MB - 600MB")
-        print("  Destination folder: runtime/models/ (ignored by Git)")
-        print("  Note: Deterministic rule-based parsing is already active and fast.")
-        print("  To use a local model, place any GGUF file in 'runtime/models/'.")
-        print("  No download initiated at this time; deterministic parser active.")
 
     if updates:
         lines = content.splitlines()
@@ -598,7 +581,7 @@ class OpenBagusShell(cmd.Cmd):
         print("  /providers        show data providers and coverage (or /providers --check)")
         print("  /assets [query]   search crypto asset universe (e.g. /assets eth, /assets defi)")
         print("  /categories       list crypto taxonomy categories")
-        print("  /setup            configure optional API keys, email, or local intent model")
+        print("  /setup            configure optional API keys or email")
         print("  /doctor [network] run local diagnostics (use /doctor network for live ping)")
         print("  /email            manage optional email draft/check")
         print("  /version          show OpenBagus version")
@@ -679,7 +662,11 @@ class OpenBagusShell(cmd.Cmd):
         if not cleaned:
             return
         req = self.router.parse(cleaned)
-        if req.intent != "unknown" or req.asset or req.candidates:
+        if req.needs_asset:
+            print(req.clarification_prompt or "Which asset do you want to analyze?")
+            print()
+            return
+        if req.intent.upper() != "UNKNOWN" or req.asset or req.candidates:
             result = self.researcher.execute(req)
             print(result)
             print()
@@ -724,7 +711,10 @@ def main(argv: list[str] | None = None) -> int:
     router = IntentRouter(repo_root=REPO_ROOT)
     researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
     req = router.parse(query_text)
-    if req.intent != "unknown" and (req.asset or req.candidates):
+    if req.needs_asset:
+        print(req.clarification_prompt or "Which asset do you want to analyze?")
+        return 0
+    if req.intent.upper() != "UNKNOWN" and (req.asset or req.candidates):
         result = researcher.execute(req)
         print(result)
         return 0

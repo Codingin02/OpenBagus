@@ -9,6 +9,10 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
+import urllib.error
+import urllib.parse
+import urllib.request
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any
@@ -193,7 +197,72 @@ class CryptoAssetCatalog:
                 prefix_matches.sort(key=lambda x: x.rank)
                 return None, prefix_matches[:5]
 
+        # Online Discovery fallback (e.g. Manta, Kaspa, newly listed tokens)
+        if len(clean_lower) >= 2:
+            discovered = self.discover_online(clean)
+            if discovered:
+                # Check exact symbol in discovered
+                exact_sym = [a for a in discovered if a.symbol.lower() == clean_lower]
+                if len(exact_sym) == 1:
+                    return exact_sym[0], []
+                # Check exact name / alias in discovered
+                exact_nm = [a for a in discovered if a.name.lower() == clean_lower or clean_lower in [al.lower() for al in a.aliases]]
+                if len(exact_nm) == 1:
+                    return exact_nm[0], []
+                if len(discovered) == 1:
+                    return discovered[0], []
+                discovered.sort(key=lambda x: x.rank)
+                return None, discovered[:5]
+
         return None, []
+
+    def discover_online(self, term: str) -> list[CryptoAsset]:
+        """Dynamically queries online metadata sources (CoinGecko / Binance) to resolve unknown assets."""
+        clean = term.strip()
+        if len(clean) < 2:
+            return []
+
+        url = f"https://api.coingecko.com/api/v3/search?query={urllib.parse.quote(clean)}"
+        headers = {"User-Agent": "OpenBagus-AssetDiscovery/2.0", "Accept": "application/json"}
+        req = urllib.request.Request(url, headers=headers)
+        ctx = ssl.create_default_context()
+        new_assets: list[CryptoAsset] = []
+        try:
+            with urllib.request.urlopen(req, timeout=4.0, context=ctx) as resp:
+                data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                coins = data.get("coins", [])
+                for c in coins[:5]:
+                    cid = c.get("id")
+                    sym = (c.get("symbol") or "").upper()
+                    name = c.get("name") or sym
+                    rank = c.get("market_cap_rank") or 9999
+                    if not sym or not cid:
+                        continue
+                    # Check if already in catalog
+                    existing = next((a for a in self.assets if a.symbol == sym and a.coingecko_id == cid), None)
+                    if existing:
+                        new_assets.append(existing)
+                    else:
+                        new_asset = CryptoAsset(
+                            id=cid,
+                            symbol=sym,
+                            name=name,
+                            aliases=[sym.lower(), name.lower(), cid],
+                            binance_symbol=f"{sym}USDT",
+                            coingecko_id=cid,
+                            yahoo_symbol=f"{sym}-USD",
+                            categories=["Other / Unknown"],
+                            rank=rank,
+                            market_pair=f"{sym}/USD",
+                            chain="Native",
+                        )
+                        new_assets.append(new_asset)
+                        self.assets.append(new_asset)
+            if new_assets:
+                self.save_cache()
+        except Exception:
+            pass
+        return new_assets
 
     def search_assets(self, query: str, limit: int = 10) -> list[CryptoAsset]:
         clean = query.strip().lower()
