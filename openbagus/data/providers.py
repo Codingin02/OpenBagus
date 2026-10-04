@@ -60,7 +60,7 @@ class ProviderSpec:
 
 # Canonical Provider Definitions
 PROVIDERS: list[ProviderSpec] = [
-    # Built-in Public Providers
+    # Zero-Key Centralized Spot Market Providers
     ProviderSpec(
         id="binance",
         display_name="Binance Public Market Data",
@@ -72,24 +72,106 @@ PROVIDERS: list[ProviderSpec] = [
         notes="Primary public crypto exchange source (no key required for public ticker/orderbook).",
     ),
     ProviderSpec(
-        id="coingecko",
-        display_name="CoinGecko",
-        capabilities=["crypto_price", "crypto_market", "crypto_metadata", "crypto_history"],
-        credential_env_names=["COINGECKO_API_KEY"],
-        credential_required=False,
-        public_access=True,
-        ping_url="https://api.coingecko.com/api/v3/ping",
-        notes="Comprehensive crypto metadata and fallback pricing (free public tier supported).",
-    ),
-    ProviderSpec(
-        id="yahoo_finance",
-        display_name="Yahoo Finance Public Proxy",
-        capabilities=["macro", "crypto_proxy", "market_or_macro_proxy"],
+        id="gate",
+        display_name="Gate.io Public Market Data",
+        capabilities=["crypto_price", "crypto_market", "crypto_orderbook", "crypto_history"],
         credential_env_names=[],
         credential_required=False,
         public_access=True,
-        ping_url="https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?range=1d&interval=1d",
-        notes="Public macro proxy for yields, VIX, commodities, and index charts.",
+        ping_url="https://api.gateio.ws/api/v4/spot/time",
+        notes="Zero-key spot market ticker, order book, and candlestick feed.",
+    ),
+    ProviderSpec(
+        id="okx",
+        display_name="OKX Public Market Data",
+        capabilities=["crypto_price", "crypto_market"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://www.okx.com/api/v5/public/time",
+        notes="Zero-key public ticker and market data.",
+    ),
+    ProviderSpec(
+        id="bybit",
+        display_name="Bybit Public Market Data",
+        capabilities=["crypto_price", "crypto_market"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.bybit.com/v5/market/time",
+        notes="Zero-key spot and linear market ticker feed.",
+    ),
+    ProviderSpec(
+        id="kucoin",
+        display_name="KuCoin Public Market Data",
+        capabilities=["crypto_price", "crypto_market"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.kucoin.com/api/v1/timestamp",
+        notes="Zero-key spot orderbook and ticker feed.",
+    ),
+    ProviderSpec(
+        id="kraken",
+        display_name="Kraken Public Market Data",
+        capabilities=["crypto_price", "crypto_market"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.kraken.com/0/public/Time",
+        notes="Zero-key public ticker feed.",
+    ),
+    # Zero-Key Derivatives Providers
+    ProviderSpec(
+        id="gate_futures",
+        display_name="Gate.io Public Derivatives",
+        capabilities=["crypto_derivatives", "funding", "open_interest"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.gateio.ws/api/v4/futures/usdt/contracts/BTC_USDT",
+        notes="Zero-key perpetual contracts, mark price, funding rates, and open interest.",
+    ),
+    ProviderSpec(
+        id="okx_futures",
+        display_name="OKX Public Derivatives",
+        capabilities=["crypto_derivatives", "funding", "open_interest"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://www.okx.com/api/v5/public/funding-rate?instId=BTC-USDT-SWAP",
+        notes="Zero-key swap funding rates and open interest.",
+    ),
+    ProviderSpec(
+        id="bybit_futures",
+        display_name="Bybit Public Derivatives",
+        capabilities=["crypto_derivatives", "funding", "open_interest"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.bybit.com/v5/market/tickers?category=linear&symbol=BTCUSDT",
+        notes="Zero-key linear perpetual tickers, funding, and open interest.",
+    ),
+    ProviderSpec(
+        id="kucoin_futures",
+        display_name="KuCoin Public Derivatives",
+        capabilities=["crypto_derivatives", "funding", "open_interest"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api-futures.kucoin.com/api/v1/contracts/active",
+        notes="Zero-key futures contracts and funding rates.",
+    ),
+    # Zero-Key DEX, DeFi, Sentiment, Discovery & Aggregators
+    ProviderSpec(
+        id="geckoterminal",
+        display_name="GeckoTerminal DEX Discovery",
+        capabilities=["dex_discovery", "dex_liquidity", "crypto_price"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.geckoterminal.com/api/v2/networks",
+        notes="Zero-key on-chain DEX pool discovery, liquidity reserves, and pool volume.",
     ),
     ProviderSpec(
         id="defillama",
@@ -100,6 +182,46 @@ PROVIDERS: list[ProviderSpec] = [
         public_access=True,
         ping_url="https://stablecoins.llama.fi/stablecoins",
         notes="DeFi liquidity, stablecoin market cap, and TVL metrics.",
+    ),
+    ProviderSpec(
+        id="alternative_me",
+        display_name="Alternative.me Fear & Greed",
+        capabilities=["sentiment", "market_sentiment"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.alternative.me/fng/?limit=1",
+        notes="Zero-key crypto market sentiment and fear/greed regime indicator.",
+    ),
+    ProviderSpec(
+        id="coinlore",
+        display_name="CoinLore Asset Discovery",
+        capabilities=["crypto_discovery", "crypto_metadata"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.coinlore.net/api/global/",
+        notes="Zero-key global crypto asset universe and broad discovery metadata.",
+    ),
+    ProviderSpec(
+        id="coingecko",
+        display_name="CoinGecko",
+        capabilities=["crypto_price", "crypto_market", "crypto_metadata", "crypto_history", "crypto_derivatives"],
+        credential_env_names=["COINGECKO_API_KEY"],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.coingecko.com/api/v3/ping",
+        notes="Comprehensive crypto metadata, public derivatives, and fallback pricing.",
+    ),
+    ProviderSpec(
+        id="yahoo_finance",
+        display_name="Yahoo Finance Public Proxy",
+        capabilities=["macro", "crypto_proxy", "market_or_macro_proxy"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://query1.finance.yahoo.com/v8/finance/chart/%5EVIX?range=1d&interval=1d",
+        notes="Public macro proxy for yields, VIX, commodities, and index charts.",
     ),
     # User-Declared & Supported Optional Providers
     ProviderSpec(
@@ -474,12 +596,18 @@ CAPABILITY_CATEGORIES = ("MARKET", "METADATA", "DERIVATIVES", "ONCHAIN", "DEFI",
 
 def classify_provider_capability(p: ProviderSpec) -> str:
     caps = set(p.capabilities)
+    if "dex_discovery" in caps or "dex_liquidity" in caps:
+        return "DEX"
+    if "sentiment" in caps or "market_sentiment" in caps:
+        return "SENTIMENT"
+    if "crypto_discovery" in caps:
+        return "DISCOVERY"
     if "crypto_derivatives" in caps or "funding" in caps or "open_interest" in caps:
         return "DERIVATIVES"
+    if "crypto_liquidity" in caps or "stablecoin_tvl" in caps or p.id == "defillama":
+        return "DEFI"
     if "crypto_onchain" in caps or "dex_trades" in caps or "subgraphs" in caps:
         return "ONCHAIN"
-    if "crypto_liquidity" in caps or "stablecoin_tvl" in caps:
-        return "DEFI"
     if any(c in caps for c in ("macro", "economic", "energy", "trade", "demographics")):
         return "MACRO"
     if "crypto_metadata" in caps and "crypto_price" not in caps:
@@ -535,12 +663,15 @@ class ProviderRegistry:
             return "UNSUPPORTED"
         return validator(val)
 
-    def check_reachability(self, provider_id: str, timeout: float = 3.5) -> dict[str, Any]:
+    def check_reachability(self, provider_id: str, timeout: float = 2.5) -> dict[str, Any]:
         p = self.get(provider_id)
         if not p or not p.ping_url:
             return {"provider": provider_id, "status": "NO_PING_URL", "latency_ms": None}
 
-        headers = {"User-Agent": "OpenBagus-HealthCheck/2.0", "Accept": "application/json"}
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) OpenBagus/2.0",
+            "Accept": "application/json, */*",
+        }
         req = urllib.request.Request(p.ping_url, headers=headers)
         ctx = ssl.create_default_context()
         t0 = time.time()
@@ -548,6 +679,14 @@ class ProviderRegistry:
             with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
                 elapsed_ms = round((time.time() - t0) * 1000, 1)
                 return {"provider": p.id, "display_name": p.display_name, "status": "REACHABLE", "latency_ms": elapsed_ms}
+        except ssl.SSLError:
+            try:
+                unv_ctx = ssl._create_unverified_context()
+                with urllib.request.urlopen(req, timeout=timeout, context=unv_ctx) as resp:
+                    elapsed_ms = round((time.time() - t0) * 1000, 1)
+                    return {"provider": p.id, "display_name": p.display_name, "status": "REACHABLE", "latency_ms": elapsed_ms}
+            except Exception:
+                return {"provider": p.id, "display_name": p.display_name, "status": "UNAVAILABLE", "latency_ms": None}
         except (TimeoutError, socket.timeout):
             return {"provider": p.id, "display_name": p.display_name, "status": "TIMEOUT", "latency_ms": None}
         except urllib.error.HTTPError as exc:
@@ -565,7 +704,7 @@ class ProviderRegistry:
         except Exception:
             return {"provider": p.id, "display_name": p.display_name, "status": "DEGRADED", "latency_ms": None}
 
-    def check_all_public(self, timeout: float = 3.5) -> list[dict[str, Any]]:
+    def check_all_public(self, timeout: float = 2.5) -> list[dict[str, Any]]:
         results = []
         for p in self.list_public():
             res = self.check_reachability(p.id, timeout=timeout)
@@ -577,31 +716,71 @@ class ProviderRegistry:
         lines.append("OpenBagus Data Providers")
         lines.append("========================")
         lines.append("")
+        lines.append("ZERO-KEY CORE (No API Key Required)")
+        lines.append("-----------------------------------")
 
-        for cat in CAPABILITY_CATEGORIES:
-            cat_providers = [p for p in self.providers.values() if classify_provider_capability(p) == cat]
+        live_health: dict[str, dict[str, Any]] = {}
+        live_status: dict[str, str] = {}
+        if run_live_check:
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
+                pub_futs = {ex.submit(self.check_reachability, p.id, 2.0): p.id for p in self.list_public() if p.ping_url}
+                key_futs = {
+                    ex.submit(self.validate_key, p.id, self.get_key(p.id)): p.id
+                    for p in self.providers.values()
+                    if not p.public_access and self.get_key(p.id)
+                }
+                for f in concurrent.futures.as_completed(pub_futs):
+                    pid = pub_futs[f]
+                    try:
+                        live_health[pid] = f.result()
+                    except Exception:
+                        live_health[pid] = {"provider": pid, "status": "UNAVAILABLE", "latency_ms": None}
+                for f in concurrent.futures.as_completed(key_futs):
+                    pid = key_futs[f]
+                    try:
+                        live_status[pid] = f.result()
+                    except Exception:
+                        live_status[pid] = "INVALID"
+
+        zero_key_order = ("MARKET", "DERIVATIVES", "DEX", "DEFI", "SENTIMENT", "DISCOVERY")
+        public_providers = [p for p in self.providers.values() if p.public_access]
+
+        for cat in zero_key_order:
+            cat_providers = [p for p in public_providers if classify_provider_capability(p) == cat]
             if not cat_providers:
                 continue
             lines.append(f"{cat}")
             for p in cat_providers:
-                if p.public_access:
-                    if run_live_check and p.ping_url:
-                        health = self.check_reachability(p.id)
-                        lat = f" ({health['latency_ms']}ms)" if health.get("latency_ms") else ""
-                        lines.append(f"  {p.display_name:<30} {health['status']}{lat}")
-                    else:
-                        lines.append(f"  {p.display_name:<30} PUBLIC")
+                if run_live_check and p.ping_url:
+                    health = live_health.get(p.id, {"status": "UNAVAILABLE", "latency_ms": None})
+                    lat = f" ({health['latency_ms']}ms)" if health.get("latency_ms") else ""
+                    lines.append(f"  {p.display_name:<30} {health['status']}{lat}")
                 else:
-                    k = self.get_key(p.id)
-                    if not k:
-                        status = "MISSING"
-                    elif run_live_check:
-                        status = self.validate_key(p.id, k)
-                    else:
-                        status = "UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED"
-                    lines.append(f"  {p.display_name:<30} {status}")
+                    lines.append(f"  {p.display_name:<30} PUBLIC")
+            lines.append("")
+
+        lines.append("OPTIONAL KEYED (Enhancement Providers)")
+        lines.append("--------------------------------------")
+        keyed_providers = [p for p in self.providers.values() if not p.public_access]
+        keyed_order = ("DERIVATIVES", "ONCHAIN", "MACRO", "MARKET")
+
+        for cat in keyed_order:
+            cat_providers = [p for p in keyed_providers if classify_provider_capability(p) == cat]
+            if not cat_providers:
+                continue
+            lines.append(f"{cat}")
+            for p in cat_providers:
+                k = self.get_key(p.id)
+                if not k:
+                    status = "MISSING"
+                elif run_live_check:
+                    status = live_status.get(p.id, "INVALID")
+                else:
+                    status = "UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED"
+                lines.append(f"  {p.display_name:<30} {status}")
             lines.append("")
 
         lines.append("Use '/providers --check' to run live reachability and credential checks.")
-        lines.append("Use '/setup' to configure provider API keys.")
+        lines.append("Use '/setup' to configure optional provider API keys.")
         return "\n".join(lines)

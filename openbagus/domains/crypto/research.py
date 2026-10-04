@@ -3,16 +3,23 @@
 Executes tailored single-asset quantitative analysis and decision support based on intent:
 - SPOT: BUY | WAIT | REDUCE
 - PERPETUAL/FUTURES: LONG | SHORT | NO_TRADE
-- Decision fields: Asset, Market, Decision, Confidence, Current Price, Entry Zone,
-  Invalidation / Stop, TP1, TP2, TP3 (when justified), Risk:Reward, Volatility,
-  Evidence Quality, Suggested Leverage Ceiling (perpetuals, calculated conservatively).
-- Capital & position sizing calculator (equity, risk percentage, margin).
-- Resilient multi-provider fallback.
+- Ensemble of 5 independent evidence families:
+  A. Trend / Momentum (multi-timeframe returns, EMA alignment, range location)
+  B. Volatility / Regime (ATR, realized volatility, deterministic regime classification)
+  C. Price-Volume / Liquidity (24h volume, volume confirmation, order book depth)
+  D. Derivatives / Basis / Positioning (funding rate, z-score, OI, basis, crowded-long penalty)
+  E. Context / On-Chain / Sentiment (Fear & Greed, DefiLlama stablecoins, DEX liquidity)
+- Strict Reward:Risk Gate (minimum_reward_risk = 1.5; never issues BUY/LONG/SHORT if RR < 1.5)
+- Data Quality Gate (minimum 3 independent evidence families + quality >= 0.45)
+- Conservative leverage policy (default ceiling <= 3x, reduced in volatile/low liquidity conditions)
+- Categorical confidence (LOW, MODERATE, HIGH; no fake percentage precision)
+- Section 25 concise terminal output
 """
 
 from __future__ import annotations
 
 import json
+import time
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -20,7 +27,9 @@ from typing import Any
 from openbagus.core.env import get_repo_root
 from openbagus.data.ingestion import RuntimeDataIngestion
 from openbagus.data.providers import ProviderRegistry
+from openbagus.data.zerokey import ZeroKeyMarketData
 from openbagus.domains.crypto.catalog import CryptoAsset, CryptoAssetCatalog
+from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngineV2
 from openbagus.intelligence.intent import IntentRequest
 
 
@@ -62,6 +71,8 @@ class CryptoResearchRunner:
         self.root = repo_root or get_repo_root()
         self.catalog = CryptoAssetCatalog(self.root)
         self.registry = ProviderRegistry(self.root)
+        self.zerokey = ZeroKeyMarketData(timeout=3.0)
+        self.quant = QuantEngineV2()
 
     def execute(self, req: IntentRequest) -> str:
         # 1. Handle clarification request
@@ -98,369 +109,161 @@ class CryptoResearchRunner:
         symbol = asset_obj.symbol if asset_obj else target.upper()
         name = asset_obj.name if asset_obj else symbol
         category = asset_obj.categories[0] if asset_obj and asset_obj.categories else "Crypto"
-        rank_str = f"#{asset_obj.rank}" if asset_obj and asset_obj.rank < 9000 else ""
 
-        # 6. Fetch market data via resilient ingestion
-        ingestion = RuntimeDataIngestion(self.root)
-        pair = asset_obj.market_pair if asset_obj and asset_obj.market_pair else f"{symbol}/USD"
-        res = ingestion.run(mode="real", assets=[pair])
+        # 6. Fetch Zero-Key Market Data
+        ticker = self.zerokey.get_spot_ticker(symbol)
+        is_dex = False
+        if not ticker:
+            pool = self.zerokey.get_dex_pool(symbol)
+            if pool:
+                is_dex = True
+                price_usd = float(pool.get("price_usd") or 0.0)
+                vol_usd = float(pool.get("volume_24h") or 0.0)
+                ticker = {
+                    "symbol": symbol,
+                    "price": price_usd,
+                    "open": None,
+                    "high": price_usd * 1.02,
+                    "low": price_usd * 0.98,
+                    "volume": vol_usd,
+                    "quote_volume": vol_usd,
+                    "pct_change": 0.0,
+                    "bid": None,
+                    "ask": None,
+                    "provider": pool.get("provider", "GeckoTerminal DEX"),
+                    "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                }
+            else:
+                # Fallback to runtime ingestion
+                pair = asset_obj.market_pair if asset_obj and asset_obj.market_pair else f"{symbol}/USD"
+                res = RuntimeDataIngestion(self.root).run(mode="real", assets=[pair])
+                rows = res.get("market_rows", [])
+                if rows and rows[0].get("price"):
+                    r = rows[0]
+                    p = float(r.get("price") or 0.0)
+                    ticker = {
+                        "symbol": symbol,
+                        "price": p,
+                        "open": r.get("open"),
+                        "high": r.get("high") or (p * 1.02),
+                        "low": r.get("low") or (p * 0.98),
+                        "volume": r.get("volume") or 0.0,
+                        "quote_volume": r.get("volume") or 0.0,
+                        "pct_change": 0.0,
+                        "bid": None,
+                        "ask": None,
+                        "provider": r.get("provider", "RuntimeDataIngestion"),
+                        "observed_at": r.get("observed_at_utc", time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())),
+                    }
 
-        market_rows = res.get("market_rows", [])
-        row = next((r for r in market_rows if r.get("symbol") == pair or r.get("symbol") == symbol), None)
-        if not row and market_rows:
-            row = market_rows[0]
-
-        if not row or row.get("price") is None:
-            health = res.get("source_health", [])
-            last_err = health[-1].get("reason", "Sources unreachable or timed out") if health else "DATA_UNAVAILABLE"
+        if not ticker or ticker.get("price") is None:
             return (
-                f"\n[DATA_UNAVAILABLE] Could not retrieve live price for {name} ({symbol}).\n"
-                f"Status: {last_err}\n"
-                f"Fallback sources attempted: Binance -> CoinGecko -> Yahoo Finance.\n"
+                f"\n[DATA_UNAVAILABLE] Could not retrieve live market data for {name} ({symbol}).\n"
+                f"Status: Zero-key public providers (Binance, Gate.io, Bybit, OKX, GeckoTerminal, CoinLore) did not return quotes.\n"
                 f"Type '/providers --check' to verify network reachability."
             )
 
-        # 7. Compute deterministic quantitative metrics and decisions
-        metrics = self._compute_metrics(row)
+        # 7. Fetch Auxiliary Evidence (Klines, Derivatives, Depth, Sentiment, Stablecoins)
+        klines = self.zerokey.get_klines(symbol)
+        derivatives = None if is_dex else self.zerokey.get_derivatives(symbol)
+        orderbook = None if is_dex else self.zerokey.get_orderbook(symbol)
+        sentiment = self.zerokey.get_sentiment()
+        stablecoins = self.zerokey.get_stablecoin_tvl()
 
-        # 8. Render tailored decision support view based on intent / focus
+        # 8. Determine Market Type
         intent_up = req.intent.upper()
-        if req.focus == "capital":
-            return self._render_capital_view(asset_obj, symbol, name, category, rank_str, row, metrics, req.equity, req.risk_pct)
+        if intent_up in ("LONG_SHORT", "FUNDING", "OPEN_INTEREST") or req.focus in ("leverage", "long_short", "perpetual"):
+            market_type = "perpetual"
         elif intent_up in ("BUY_SPOT", "SELL_SPOT") or req.focus == "spot":
-            return self._render_spot_view(asset_obj, symbol, name, category, rank_str, row, metrics)
-        elif intent_up == "LONG_SHORT" or req.focus in ("leverage", "long_short", "perpetual"):
-            return self._render_perpetual_view(asset_obj, symbol, name, category, rank_str, row, metrics)
-        elif intent_up == "POSITION" or req.focus == "setup":
-            return self._render_position_view(asset_obj, symbol, name, category, rank_str, row, metrics)
-        elif intent_up == "DIVERGENCE" or req.focus == "divergence":
-            return self._render_divergence_view(asset_obj, symbol, name, category, rank_str, row, metrics)
-        elif intent_up == "RISK" or req.focus == "risk":
-            return self._render_risk_view(asset_obj, symbol, name, category, rank_str, row, metrics)
+            market_type = "spot"
+        else:
+            # General query: if derivatives contract exists, default to perpetual, otherwise spot
+            market_type = "perpetual" if derivatives is not None else "spot"
+
+        # 9. Evaluate using Quant Engine V2
+        q = self.quant.evaluate(
+            symbol=symbol,
+            spot_ticker=ticker,
+            klines=klines,
+            derivatives=derivatives,
+            orderbook=orderbook,
+            sentiment=sentiment,
+            stablecoins=stablecoins,
+            market_type=market_type,
+        )
+
+        # 10. Render Output based on focus / intent
+        if req.focus == "capital":
+            return self._render_capital_view(symbol, name, q, req.equity, req.risk_pct)
         elif intent_up == "STRUCTURE" or req.focus == "structure":
-            return self._render_structure_view(asset_obj, symbol, name, category, rank_str, row, metrics)
+            return self._render_structure_view(q)
+        elif intent_up == "RISK" or req.focus == "risk":
+            return self._render_risk_view(q)
         else:
-            return self._render_general_view(asset_obj, symbol, name, category, rank_str, row, metrics)
+            return self._render_section_25_view(q, market_type=market_type, dex=is_dex, focus=req.focus)
 
-    def _compute_metrics(self, row: dict[str, Any]) -> dict[str, Any]:
-        price = float(row.get("price") or 0.0)
-        high = float(row.get("high") or price * 1.02)
-        low = float(row.get("low") or price * 0.98)
-        open_px = float(row.get("open") or price)
-        volume = float(row.get("volume") or 0.0)
-
-        extra = row.get("extra", {})
-        pct_change = extra.get("price_change_percent") or extra.get("price_change_24h")
-        if pct_change is None and open_px > 0:
-            pct_change = ((price - open_px) / open_px) * 100.0
-        pct_change = float(pct_change or 0.0)
-
-        # Floor Trader Pivots
-        pivot = (high + low + price) / 3.0
-        r1 = (2.0 * pivot) - low
-        s1 = (2.0 * pivot) - high
-        r2 = pivot + (high - low)
-        s2 = pivot - (high - low)
-        r3 = high + 2.0 * (pivot - low)
-        s3 = low - 2.0 * (high - pivot)
-
-        # 24h Volatility & Range
-        range_pct = ((high - low) / low * 100.0) if low > 0 else 0.0
-        if range_pct > 8.0:
-            vol_regime = f"High (24h span: {range_pct:.2f}%)"
-            vol_label = f"Elevated (ATR/range: {range_pct:.2f}%)"
-        elif range_pct > 3.0:
-            vol_regime = f"Moderate (24h span: {range_pct:.2f}%)"
-            vol_label = f"Moderate (ATR/range: {range_pct:.2f}%)"
-        else:
-            vol_regime = f"Compressed / Low (24h span: {range_pct:.2f}%)"
-            vol_label = f"Compressed (ATR/range: {range_pct:.2f}%)"
-
-        # Directional Bias
-        if pct_change >= 1.5 and price >= pivot:
-            bias = "Bullish Expansion"
-        elif pct_change <= -1.5 and price <= pivot:
-            bias = "Bearish Contraction"
-        else:
-            bias = "Consolidating / Neutral"
-
-        # ---------------------------------------------------------
-        # SPOT DECISION ENGINE (BUY | WAIT | REDUCE)
-        # ---------------------------------------------------------
-        if price >= pivot and pct_change >= 0.5:
-            spot_decision = "BUY"
-            spot_confidence = "High (82%)" if pct_change >= 2.0 else "Moderate (68%)"
-            spot_entry = f"{_fmt_price(pivot)} - {_fmt_price(price)}"
-            spot_stop = s1 * 0.985
-            spot_tp1 = r1
-            spot_tp2 = r2
-            spot_tp3 = r3 if pct_change >= 4.0 else None
-            spot_stop_dist = max(0.001, (price - spot_stop) / price)
-            spot_tp1_dist = max(0.001, (spot_tp1 - price) / price)
-            spot_rr = spot_tp1_dist / spot_stop_dist
-            spot_rationale = f"Price holds above fair-value pivot ({_fmt_price(pivot)}) with positive momentum ({_fmt_pct(pct_change)}). Accumulation favorable."
-        elif price < s1 and pct_change <= -2.5:
-            spot_decision = "REDUCE"
-            spot_confidence = "High (80%)" if pct_change <= -5.0 else "Moderate (65%)"
-            spot_entry = f"Market Exit / Cut at {_fmt_price(price)}"
-            spot_stop = r1 * 1.01
-            spot_tp1 = s2
-            spot_tp2 = s3
-            spot_tp3 = None
-            spot_stop_dist = max(0.001, (spot_stop - price) / price)
-            spot_tp1_dist = max(0.001, (price - spot_tp1) / price)
-            spot_rr = spot_tp1_dist / spot_stop_dist
-            spot_rationale = f"Structural breakdown below primary support S1 ({_fmt_price(s1)}) with downward acceleration. Defense prioritized."
-        else:
-            spot_decision = "WAIT"
-            spot_confidence = "Moderate (60%)"
-            spot_entry = f"Wait for pullback to {_fmt_price(s1)} or confirmed breakout above {_fmt_price(r1)}"
-            spot_stop = s2
-            spot_tp1 = r1
-            spot_tp2 = r2
-            spot_tp3 = None
-            spot_stop_dist = max(0.001, (price - spot_stop) / price)
-            spot_tp1_dist = max(0.001, (spot_tp1 - price) / price)
-            spot_rr = spot_tp1_dist / spot_stop_dist
-            spot_rationale = f"Price oscillating within intraday fair-value balance ({_fmt_price(s1)} - {_fmt_price(r1)}). No clear asymmetry yet."
-
-        # ---------------------------------------------------------
-        # PERPETUAL / FUTURES DECISION ENGINE (LONG | SHORT | NO_TRADE)
-        # ---------------------------------------------------------
-        if range_pct > 14.0 or (-0.4 <= pct_change <= 0.4 and abs(price - pivot) / price < 0.004):
-            perp_decision = "NO_TRADE"
-            perp_confidence = "High (75%)"
-            perp_entry = "Stand aside - choppy compressed balance or dangerous volatility spike"
-            perp_stop = s2
-            perp_tp1 = r1
-            perp_tp2 = r2
-            perp_tp3 = None
-            perp_stop_dist = 0.05
-            perp_rr = 1.0
-            leverage_ceiling = "0x (Stand aside - capital preservation)"
-            leverage_num = 1
-            perp_rationale = "Market structure lacks directional conviction or displays excessive tail risk. Preserving margin."
-        elif price >= pivot and pct_change >= 0.0:
-            perp_decision = "LONG"
-            perp_confidence = "High (80%)" if pct_change >= 2.0 else "Moderate (65%)"
-            perp_entry = f"{_fmt_price(pivot)} - {_fmt_price((pivot + price) / 2.0)}"
-            perp_stop = s1 * 0.99
-            perp_tp1 = r1
-            perp_tp2 = r2
-            perp_tp3 = r3 if pct_change >= 4.5 else None
-            perp_stop_dist = max(0.005, (price - perp_stop) / price)
-            tp1_dist = max(0.005, (perp_tp1 - price) / price)
-            perp_rr = tp1_dist / perp_stop_dist
-            lev = max(1, min(10, int(0.12 / perp_stop_dist)))
-            leverage_num = lev
-            leverage_ceiling = f"{lev}x (conservative ceiling based on {perp_stop_dist * 100:.1f}% stop distance)"
-            perp_rationale = f"Bullish positioning favored above pivot. Long pullbacks with invalidation strictly at {_fmt_price(perp_stop)}."
-        else:
-            perp_decision = "SHORT"
-            perp_confidence = "High (78%)" if pct_change <= -2.5 else "Moderate (65%)"
-            perp_entry = f"{_fmt_price(pivot)} - {_fmt_price((pivot + price) / 2.0)}"
-            perp_stop = r1 * 1.01
-            perp_tp1 = s1
-            perp_tp2 = s2
-            perp_tp3 = s3 if pct_change <= -5.0 else None
-            perp_stop_dist = max(0.005, (perp_stop - price) / price)
-            tp1_dist = max(0.005, (price - perp_tp1) / price)
-            perp_rr = tp1_dist / perp_stop_dist
-            lev = max(1, min(10, int(0.12 / perp_stop_dist)))
-            leverage_num = lev
-            leverage_ceiling = f"{lev}x (conservative ceiling based on {perp_stop_dist * 100:.1f}% stop distance)"
-            perp_rationale = f"Downside pressure active below pivot. Short retests towards {_fmt_price(pivot)} with invalidation at {_fmt_price(perp_stop)}."
-
-        provider = row.get("provider", "Public provider")
-        observed = row.get("observed_at_utc", "latest")
-        evidence_quality = f"High ({provider} real-time feed, 24h vol: {_fmt_vol(volume)})" if volume > 10_000_000 else f"Moderate ({provider} feed, 24h vol: {_fmt_vol(volume)})"
-
-        return {
-            "price": price,
-            "high": high,
-            "low": low,
-            "open": open_px,
-            "volume": volume,
-            "pct_change": pct_change,
-            "pivot": pivot,
-            "r1": r1,
-            "r2": r2,
-            "r3": r3,
-            "s1": s1,
-            "s2": s2,
-            "s3": s3,
-            "range_pct": range_pct,
-            "vol_regime": vol_regime,
-            "vol_label": vol_label,
-            "bias": bias,
-            "invalidation": perp_stop,
-            # Spot Decision Fields
-            "spot_decision": spot_decision,
-            "spot_confidence": spot_confidence,
-            "spot_entry": spot_entry,
-            "spot_stop": spot_stop,
-            "spot_tp1": spot_tp1,
-            "spot_tp2": spot_tp2,
-            "spot_tp3": spot_tp3,
-            "spot_rr_str": f"1:{spot_rr:.2f}",
-            "spot_rationale": spot_rationale,
-            # Perpetual Decision Fields
-            "perp_decision": perp_decision,
-            "perp_confidence": perp_confidence,
-            "perp_entry": perp_entry,
-            "perp_stop": perp_stop,
-            "perp_stop_dist": perp_stop_dist,
-            "perp_tp1": perp_tp1,
-            "perp_tp2": perp_tp2,
-            "perp_tp3": perp_tp3,
-            "perp_rr_str": f"1:{perp_rr:.2f}",
-            "perp_rationale": perp_rationale,
-            "leverage_ceiling": leverage_ceiling,
-            "leverage_num": leverage_num,
-            # Meta
-            "provider": provider,
-            "observed": observed,
-            "evidence_quality": evidence_quality,
-        }
-
-    def _render_general_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
+    def _render_section_25_view(
+        self, q: QuantDecisionResult, market_type: str, dex: bool = False, focus: str = "general"
     ) -> str:
-        lines = [
-            f"=== {name.upper()} ({symbol}) - QUANTITATIVE DECISION SUPPORT ===",
-            f"Sector: {category:<20} Market Cap Rank: {rank or 'N/A'}",
-            "",
-            "Quantitative Decisions",
-            f"  Spot Market Decision      {m['spot_decision']:<10} Confidence: {m['spot_confidence']}",
-            f"  Perpetual Decision        {m['perp_decision']:<10} Confidence: {m['perp_confidence']}",
-            "",
-            "Trade Execution Parameters",
-            f"  Current Price             {_fmt_price(m['price']):<18} 24h Move: {_fmt_pct(m['pct_change'])}",
-            f"  Entry Zone                {m['spot_entry']}",
-            f"  Invalidation / Stop       {_fmt_price(m['spot_stop'])} (structural floor S1)",
-            f"  Target 1 (TP1)            {_fmt_price(m['spot_tp1']):<18} Target 2 (TP2): {_fmt_price(m['spot_tp2'])}",
-        ]
-        if m["spot_tp3"]:
-            lines.append(f"  Target 3 (TP3)            {_fmt_price(m['spot_tp3'])} (extended momentum expansion)")
-        lines.extend([
-            f"  Risk:Reward Ratio         {m['spot_rr_str']}",
-            f"  Volatility                {m['vol_label']}",
-            f"  Suggested Leverage        {m['leverage_ceiling']}",
-            "",
-            "Market Structure & Levels",
-            f"  Technical Bias            {m['bias']}",
-            f"  Pivot Level               {_fmt_price(m['pivot'])}",
-            f"  Resistance (R1 / R2)      {_fmt_price(m['r1'])}  /  {_fmt_price(m['r2'])}",
-            f"  Support (S1 / S2)         {_fmt_price(m['s1'])}  /  {_fmt_price(m['s2'])}",
-            "",
-            "Evidence & Coverage",
-            f"  Primary Feed              {m['provider']} (live observation: {m['observed']})",
-            f"  Evidence Quality          {m['evidence_quality']}",
-            f"  Provider Coverage         {len(self.registry.list_public())} public providers active, {len(self.registry.list_configured_apis())} API keys verified",
-        ])
-        return "\n".join(lines)
+        mkt_label = "DEX SPOT" if dex else market_type.upper()
+        if q.decision in ("BUY", "LONG", "SHORT", "REDUCE"):
+            entry_str = q.entry_zone
+            stop_str = _fmt_price(q.stop_price)
+            tp1_str = _fmt_price(q.tp1)
+            rr_str = q.reward_risk_str
+            lev_str = q.leverage_ceiling
+        elif focus == "setup":
+            entry_str = q.entry_zone
+            stop_str = _fmt_price(q.stop_price) if q.stop_price else "-"
+            tp1_str = _fmt_price(q.tp1) if q.tp1 else "-"
+            rr_str = q.reward_risk_str if q.reward_risk else "-"
+            lev_str = "-"
+        else:
+            entry_str = "-"
+            stop_str = "-"
+            tp1_str = "-"
+            rr_str = "-"
+            lev_str = "-"
 
-    def _render_spot_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
-    ) -> str:
         lines = [
-            f"=== {name.upper()} ({symbol}) - SPOT DECISION SUPPORT ===",
-            f"Asset:                  {name} ({symbol})",
-            f"Market:                 Spot",
-            f"Decision:               {m['spot_decision']}",
-            f"Confidence:             {m['spot_confidence']}",
-            f"Current Price:          {_fmt_price(m['price'])} ({_fmt_pct(m['pct_change'])})",
-            f"Entry Zone:             {m['spot_entry']}",
-            f"Invalidation / Stop:    {_fmt_price(m['spot_stop'])}",
-            f"TP1:                    {_fmt_price(m['spot_tp1'])}",
-            f"TP2:                    {_fmt_price(m['spot_tp2'])}",
-        ]
-        if m["spot_tp3"]:
-            lines.append(f"TP3:                    {_fmt_price(m['spot_tp3'])} (justified by strong trend expansion)")
-        lines.extend([
-            f"Risk:Reward:            {m['spot_rr_str']}",
-            f"Volatility:             {m['vol_label']}",
-            f"Evidence Quality:       {m['evidence_quality']}",
+            f"{q.asset} / {mkt_label}",
             "",
-            "Spot Strategy Rationale:",
-            f"  {m['spot_rationale']}",
-        ])
-        return "\n".join(lines)
+            f"Decision       {q.decision}",
+            f"Regime         {q.regime.capitalize()}",
+            f"Evidence       {q.confidence.capitalize()}",
+            f"Price          {_fmt_price(q.price)}",
+            f"Entry          {entry_str}",
+            f"Stop           {stop_str}",
+            f"TP1            {tp1_str}",
+            f"Reward:Risk    {rr_str}",
+        ]
+        if market_type.lower() == "perpetual":
+            lines.append(f"Leverage       {lev_str}")
 
-    def _render_perpetual_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
-    ) -> str:
-        lines = [
-            f"=== {name.upper()} ({symbol}) - PERPETUAL DECISION SUPPORT ===",
-            f"Asset:                      {name} ({symbol})",
-            f"Market:                     Perpetual / Futures",
-            f"Decision:                   {m['perp_decision']}",
-            f"Confidence:                 {m['perp_confidence']}",
-            f"Current Price:              {_fmt_price(m['price'])} ({_fmt_pct(m['pct_change'])})",
-            f"Entry Zone:                 {m['perp_entry']}",
-            f"Invalidation / Stop:        {_fmt_price(m['perp_stop'])}",
-            f"TP1:                        {_fmt_price(m['perp_tp1'])}",
-            f"TP2:                        {_fmt_price(m['perp_tp2'])}",
-        ]
-        if m["perp_tp3"]:
-            lines.append(f"TP3:                        {_fmt_price(m['perp_tp3'])} (justified by strong momentum)")
-        lines.extend([
-            f"Risk:Reward:                {m['perp_rr_str']}",
-            f"Volatility:                 {m['vol_label']}",
-            f"Evidence Quality:           {m['evidence_quality']}",
-            f"Suggested Leverage Ceiling: {m['leverage_ceiling']}",
-            "",
-            "Perpetual Strategy & Risk Policy:",
-            f"  {m['perp_rationale']}",
-            f"  Leverage is capped strictly at {m['leverage_num']}x based on {m['perp_stop_dist'] * 100:.1f}% stop distance and volatility.",
-        ])
-        return "\n".join(lines)
+        lines.append("")
+        lines.append("Why")
+        for k, v in q.why.items():
+            if market_type.lower() == "spot" and k == "Derivatives" and "No derivatives" in v:
+                continue
+            lines.append(f"  {k:<12} {v}")
 
-    def _render_position_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
-    ) -> str:
-        lines = [
-            f"=== {name.upper()} ({symbol}) - TRADE POSITION DECISION SUPPORT ===",
-            f"Asset:                      {name} ({symbol})",
-            f"Market:                     Spot & Perpetual",
-            f"Decision:                   Spot: {m['spot_decision']} | Perpetual: {m['perp_decision']}",
-            f"Confidence:                 {m['spot_confidence']}",
-            f"Current Price:              {_fmt_price(m['price'])} ({_fmt_pct(m['pct_change'])})",
-            f"Entry Zone:                 {m['spot_entry']}",
-            f"Invalidation / Stop:        {_fmt_price(m['spot_stop'])} (structural invalidation)",
-            f"TP1:                        {_fmt_price(m['spot_tp1'])}",
-            f"TP2:                        {_fmt_price(m['spot_tp2'])}",
-        ]
-        if m["spot_tp3"]:
-            lines.append(f"TP3:                        {_fmt_price(m['spot_tp3'])} (extended target)")
-        lines.extend([
-            f"Risk:Reward:                {m['spot_rr_str']}",
-            f"Volatility:                 {m['vol_label']}",
-            f"Evidence Quality:           {m['evidence_quality']}",
-            f"Suggested Leverage Ceiling: {m['leverage_ceiling']}",
-            "",
-            "Position Execution Summary:",
-            f"  Spot: {_fmt_price(m['pivot'])} fair value pivot. {m['spot_rationale']}",
-            f"  Perpetual: Ceiling {m['leverage_num']}x. {m['perp_rationale']}",
-        ])
+        lines.append("")
+        lines.append("Sources")
+        lines.append(f"  {', '.join(q.sources)}")
         return "\n".join(lines)
 
     def _render_capital_view(
         self,
-        asset: CryptoAsset | None,
         symbol: str,
         name: str,
-        category: str,
-        rank: str,
-        row: dict[str, Any],
-        m: dict[str, Any],
+        q: QuantDecisionResult,
         equity: float | None,
         risk_pct: float | None,
     ) -> str:
-        price = m["price"]
-        invalidation = m["perp_stop"]
-        stop_dist_pct = m["perp_stop_dist"]
-        lev = m["leverage_num"]
+        price = q.price
+        stop_price = q.stop_price or (price * 0.95)
+        stop_dist_pct = abs(price - stop_price) / price if price > 0 else 0.05
+        lev = q.leverage_num if q.leverage_num > 0 else 1
         eq = equity or 1000.0
         rp = risk_pct or 2.0
         risk_budget = eq * (rp / 100.0)
@@ -473,8 +276,8 @@ class CryptoResearchRunner:
             "",
             "Market & Invalidation Context",
             f"  Current Spot Price     {_fmt_price(price)}",
-            f"  Invalidation / Stop    {_fmt_price(invalidation)} (distance: {stop_dist_pct * 100:.2f}%)",
-            f"  Suggested Leverage     {lev}x (conservative volatility ceiling)",
+            f"  Invalidation / Stop    {_fmt_price(stop_price)} (distance: {stop_dist_pct * 100:.2f}%)",
+            f"  Suggested Leverage     {lev}x (conservative ceiling; max {self.quant.hard_leverage_max}x policy)",
             "",
             "User Risk Budget",
             f"  Account Equity         ${eq:,.2f}",
@@ -486,101 +289,88 @@ class CryptoResearchRunner:
             f"  Asset Quantity         {asset_qty:.4f} {symbol}",
             f"  Margin Required        ${margin_req:,.2f} (position_notional / leverage)",
             "",
-            f"Evidence Quality: {m['evidence_quality']}",
+            f"Evidence Quality: {q.confidence.capitalize()} ({q.evidence_count} independent sources, quality: {q.composite_quality:.2f})",
         ]
         return "\n".join(lines)
 
-    def _render_divergence_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
-    ) -> str:
-        bias_state = "Bullish divergence / momentum rebound" if m["pct_change"] > 1.5 and m["price"] >= m["pivot"] else (
-            "Bearish divergence / downward momentum" if m["pct_change"] < -2.0 else "No divergence detected / Neutral consolidation"
-        )
+    def _render_structure_view(self, q: QuantDecisionResult) -> str:
         lines = [
-            f"=== {name.upper()} ({symbol}) - DIVERGENCE & MOMENTUM STRUCTURE ===",
-            f"Asset:                      {name} ({symbol})",
-            f"Spot Price:                 {_fmt_price(m['price'])} ({_fmt_pct(m['pct_change'])})",
-            f"Technical Bias:             {m['bias']}",
-            f"Divergence Assessment:      {bias_state}",
-            f"Momentum vs Structure:      Price at {_fmt_price(m['price'])} relative to central pivot {_fmt_price(m['pivot'])}.",
-            f"Key Reaction Thresholds:    Resistance R1: {_fmt_price(m['r1'])}  |  Support S1: {_fmt_price(m['s1'])}",
-            f"Invalidation Level:         {_fmt_price(m['invalidation'])}",
-            f"Evidence Quality:           {m['evidence_quality']}",
+            f"{q.asset} / MARKET STRUCTURE",
+            "",
+            f"Spot Price     {_fmt_price(q.price)}",
+            f"Regime         {q.regime.capitalize()}",
+            f"Evidence       {q.confidence.capitalize()}",
+            "",
+            "Structural Levels",
+            f"  Target 1     {_fmt_price(q.tp1) if q.tp1 else '-'}",
+            f"  Target 2     {_fmt_price(q.tp2) if q.tp2 else '-'}",
+            f"  Invalidation {_fmt_price(q.stop_price) if q.stop_price else '-'}",
+            "",
+            "Why",
         ]
+        for k, v in q.why.items():
+            lines.append(f"  {k:<12} {v}")
+        lines.append("")
+        lines.append("Sources")
+        lines.append(f"  {', '.join(q.sources)}")
         return "\n".join(lines)
 
-    def _render_risk_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
-    ) -> str:
-        distance_to_inv = abs(m["price"] - m["invalidation"]) / m["price"] * 100.0 if m["price"] > 0 else 0.0
+    def _render_risk_view(self, q: QuantDecisionResult) -> str:
         lines = [
-            f"=== {name.upper()} ({symbol}) - RISK & VOLATILITY PROFILE ===",
+            f"{q.asset} / RISK PROFILE",
             "",
-            "Risk Diagnostics",
-            f"  Volatility Regime   {m['vol_regime']}",
-            f"  24h Intraday Range  {m['range_pct']:.2f}%",
-            f"  24h Drawdown/Move   {_fmt_pct(m['pct_change'])}",
-            f"  Invalidation Level  {_fmt_price(m['invalidation'])} ({distance_to_inv:.2f}% from spot)",
-            f"  Major Support       S1: {_fmt_price(m['s1'])}  |  S2: {_fmt_price(m['s2'])}",
+            f"Decision       {q.decision}",
+            f"Regime         {q.regime.capitalize()}",
+            f"Evidence       {q.confidence.capitalize()}",
+            f"Price          {_fmt_price(q.price)}",
+            f"Invalidation   {_fmt_price(q.stop_price) if q.stop_price else '-'}",
+            f"Leverage Limit {q.leverage_ceiling}",
             "",
-            "Risk Evaluation",
-            f"  Liquidity Proxy     {_fmt_vol(m['volume'])} 24h volume",
-            f"  Regime Warning      {'Elevated drawdown risk. Wider stops recommended.' if m['range_pct'] > 6.0 else 'Normal market volatility regime.'}",
-            f"  Data Source         {m['provider']}",
+            "Risk Factors",
         ]
-        return "\n".join(lines)
-
-    def _render_structure_view(
-        self, asset: CryptoAsset | None, symbol: str, name: str, category: str, rank: str, row: dict[str, Any], m: dict[str, Any]
-    ) -> str:
-        lines = [
-            f"=== {name.upper()} ({symbol}) - MARKET STRUCTURE & PIVOT LEVELS ===",
-            "",
-            f"Spot: {_fmt_price(m['price'])}  |  24h Move: {_fmt_pct(m['pct_change'])}  |  Regime: {m['bias']}",
-            "",
-            "Pivot Level Map",
-            f"  Resistance 2 (R2)   {_fmt_price(m['r2']):<14} (Major breakout ceiling)",
-            f"  Resistance 1 (R1)   {_fmt_price(m['r1']):<14} (First upside resistance barrier)",
-            f"  Pivot Point (P)     {_fmt_price(m['pivot']):<14} (Central fair-value balance line)",
-            f"  Support 1 (S1)      {_fmt_price(m['s1']):<14} (First buyer reaction zone)",
-            f"  Support 2 (S2)      {_fmt_price(m['s2']):<14} (Structural support floor)",
-            "",
-            f"Invalidation Threshold: {_fmt_price(m['invalidation'])}",
-            f"Provider Evidence: {m['provider']}",
-        ]
+        for k, v in q.why.items():
+            lines.append(f"  {k:<12} {v}")
+        lines.append("")
+        lines.append("Sources")
+        lines.append(f"  {', '.join(q.sources)}")
         return "\n".join(lines)
 
     def _run_comparison(self, s1: str, s2: str) -> str:
-        ing = RuntimeDataIngestion(self.root)
         a1, _ = self.catalog.resolve_asset(s1)
         a2, _ = self.catalog.resolve_asset(s2)
         sym1 = a1.symbol if a1 else s1.upper()
         sym2 = a2.symbol if a2 else s2.upper()
 
-        p1 = a1.market_pair if a1 and a1.market_pair else f"{sym1}/USD"
-        p2 = a2.market_pair if a2 and a2.market_pair else f"{sym2}/USD"
+        t1 = self.zerokey.get_spot_ticker(sym1) or {}
+        t2 = self.zerokey.get_spot_ticker(sym2) or {}
+        k1 = self.zerokey.get_klines(sym1)
+        k2 = self.zerokey.get_klines(sym2)
+        d1 = self.zerokey.get_derivatives(sym1)
+        d2 = self.zerokey.get_derivatives(sym2)
+        sent = self.zerokey.get_sentiment()
 
-        res = ing.run(mode="real", assets=[p1, p2])
-        rows = {r.get("symbol"): r for r in res.get("market_rows", [])}
-        r1 = rows.get(p1) or rows.get(sym1)
-        r2 = rows.get(p2) or rows.get(sym2)
-
-        m1 = self._compute_metrics(r1) if r1 else None
-        m2 = self._compute_metrics(r2) if r2 else None
+        q1 = (
+            self.quant.evaluate(sym1, t1, klines=k1, derivatives=d1, sentiment=sent, market_type="perpetual" if d1 else "spot")
+            if t1.get("price")
+            else None
+        )
+        q2 = (
+            self.quant.evaluate(sym2, t2, klines=k2, derivatives=d2, sentiment=sent, market_type="perpetual" if d2 else "spot")
+            if t2.get("price")
+            else None
+        )
 
         lines = [
             f"=== ASSET COMPARISON: {sym1} vs {sym2} ===",
             "",
             f"{'Metric':<22} {sym1:<20} {sym2:<20}",
             "-" * 62,
-            f"{'Spot Price':<22} {(_fmt_price(m1['price']) if m1 else 'N/A'):<20} {(_fmt_price(m2['price']) if m2 else 'N/A'):<20}",
-            f"{'24h Change':<22} {(_fmt_pct(m1['pct_change']) if m1 else 'N/A'):<20} {(_fmt_pct(m2['pct_change']) if m2 else 'N/A'):<20}",
-            f"{'Spot Decision':<22} {(m1['spot_decision'] if m1 else 'N/A'):<20} {(m2['spot_decision'] if m2 else 'N/A'):<20}",
-            f"{'Perp Decision':<22} {(m1['perp_decision'] if m1 else 'N/A'):<20} {(m2['perp_decision'] if m2 else 'N/A'):<20}",
-            f"{'Technical Bias':<22} {(m1['bias'] if m1 else 'N/A'):<20} {(m2['bias'] if m2 else 'N/A'):<20}",
-            f"{'Volatility':<22} {(m1['vol_label'].split()[0] if m1 else 'N/A'):<20} {(m2['vol_label'].split()[0] if m2 else 'N/A'):<20}",
-            f"{'Key Pivot':<22} {(_fmt_price(m1['pivot']) if m1 else 'N/A'):<20} {(_fmt_price(m2['pivot']) if m2 else 'N/A'):<20}",
+            f"{'Spot Price':<22} {(_fmt_price(q1.price) if q1 else 'N/A'):<20} {(_fmt_price(q2.price) if q2 else 'N/A'):<20}",
+            f"{'Decision':<22} {(q1.decision if q1 else 'N/A'):<20} {(q2.decision if q2 else 'N/A'):<20}",
+            f"{'Regime':<22} {(q1.regime.capitalize() if q1 else 'N/A'):<20} {(q2.regime.capitalize() if q2 else 'N/A'):<20}",
+            f"{'Evidence':<22} {(q1.confidence.capitalize() if q1 else 'N/A'):<20} {(q2.confidence.capitalize() if q2 else 'N/A'):<20}",
+            f"{'Composite Score':<22} {((f'{q1.composite_score:+.2f}') if q1 else 'N/A'):<20} {((f'{q2.composite_score:+.2f}') if q2 else 'N/A'):<20}",
             "",
-            f"Sources: {m1['provider'] if m1 else 'N/A'} / {m2['provider'] if m2 else 'N/A'}",
+            f"Sources: {', '.join(q1.sources) if q1 else 'N/A'} / {', '.join(q2.sources) if q2 else 'N/A'}",
         ]
         return "\n".join(lines)

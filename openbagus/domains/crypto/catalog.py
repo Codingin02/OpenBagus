@@ -217,51 +217,127 @@ class CryptoAssetCatalog:
         return None, []
 
     def discover_online(self, term: str) -> list[CryptoAsset]:
-        """Dynamically queries online metadata sources (CoinGecko / Binance) to resolve unknown assets."""
+        """Dynamically queries online metadata sources (CoinGecko / CoinLore / GeckoTerminal) to resolve unknown assets."""
         clean = term.strip()
         if len(clean) < 2:
             return []
 
+        new_assets: list[CryptoAsset] = []
+
+        # 1. Try CoinGecko search API
         url = f"https://api.coingecko.com/api/v3/search?query={urllib.parse.quote(clean)}"
         headers = {"User-Agent": "OpenBagus-AssetDiscovery/2.0", "Accept": "application/json"}
         req = urllib.request.Request(url, headers=headers)
-        ctx = ssl.create_default_context()
-        new_assets: list[CryptoAsset] = []
+        for ctx in (ssl.create_default_context(), ssl._create_unverified_context()):
+            try:
+                with urllib.request.urlopen(req, timeout=3.5, context=ctx) as resp:
+                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
+                    coins = data.get("coins", [])
+                    for c in coins[:5]:
+                        cid = c.get("id")
+                        sym = (c.get("symbol") or "").upper()
+                        name = c.get("name") or sym
+                        rank = c.get("market_cap_rank") or 9999
+                        if not sym or not cid:
+                            continue
+                        # Check if already in catalog
+                        existing = next((a for a in self.assets if a.symbol == sym and a.coingecko_id == cid), None)
+                        if existing:
+                            new_assets.append(existing)
+                        else:
+                            new_asset = CryptoAsset(
+                                id=cid,
+                                symbol=sym,
+                                name=name,
+                                aliases=[sym.lower(), name.lower(), cid],
+                                binance_symbol=f"{sym}USDT",
+                                coingecko_id=cid,
+                                yahoo_symbol=f"{sym}-USD",
+                                categories=["Other / Unknown"],
+                                rank=rank,
+                                market_pair=f"{sym}/USD",
+                                chain="Native",
+                            )
+                            new_assets.append(new_asset)
+                            self.assets.append(new_asset)
+                    if new_assets:
+                        self.save_cache()
+                        return new_assets
+                break
+            except Exception:
+                continue
+
+        # 2. Try CoinLore Search fallback
         try:
-            with urllib.request.urlopen(req, timeout=4.0, context=ctx) as resp:
-                data = json.loads(resp.read().decode("utf-8", errors="replace"))
-                coins = data.get("coins", [])
-                for c in coins[:5]:
-                    cid = c.get("id")
-                    sym = (c.get("symbol") or "").upper()
-                    name = c.get("name") or sym
-                    rank = c.get("market_cap_rank") or 9999
-                    if not sym or not cid:
-                        continue
-                    # Check if already in catalog
-                    existing = next((a for a in self.assets if a.symbol == sym and a.coingecko_id == cid), None)
-                    if existing:
-                        new_assets.append(existing)
-                    else:
-                        new_asset = CryptoAsset(
-                            id=cid,
-                            symbol=sym,
-                            name=name,
-                            aliases=[sym.lower(), name.lower(), cid],
-                            binance_symbol=f"{sym}USDT",
-                            coingecko_id=cid,
-                            yahoo_symbol=f"{sym}-USD",
-                            categories=["Other / Unknown"],
-                            rank=rank,
-                            market_pair=f"{sym}/USD",
-                            chain="Native",
-                        )
-                        new_assets.append(new_asset)
-                        self.assets.append(new_asset)
+            from openbagus.data.zerokey import ZeroKeyMarketData
+
+            zk = ZeroKeyMarketData(timeout=3.0)
+            cl_results = zk.search_coinlore(clean)
+            for c in cl_results[:5]:
+                sym = str(c.get("symbol", "")).upper()
+                name = str(c.get("name", sym))
+                cid = str(c.get("nameid") or c.get("id") or sym.lower())
+                rank = int(c.get("rank") or 9999)
+                if not sym:
+                    continue
+                existing = next((a for a in self.assets if a.symbol == sym), None)
+                if existing:
+                    new_assets.append(existing)
+                else:
+                    new_asset = CryptoAsset(
+                        id=cid,
+                        symbol=sym,
+                        name=name,
+                        aliases=[sym.lower(), name.lower(), cid],
+                        binance_symbol=f"{sym}USDT",
+                        coingecko_id=cid,
+                        yahoo_symbol=f"{sym}-USD",
+                        categories=["Other / Unknown"],
+                        rank=rank,
+                        market_pair=f"{sym}/USD",
+                        chain="Native",
+                    )
+                    new_assets.append(new_asset)
+                    self.assets.append(new_asset)
             if new_assets:
                 self.save_cache()
+                return new_assets
         except Exception:
             pass
+
+        # 3. Try GeckoTerminal DEX Pool fallback (for DEX-only tokens)
+        try:
+            from openbagus.data.zerokey import ZeroKeyMarketData
+
+            zk = ZeroKeyMarketData(timeout=3.0)
+            pool = zk.get_dex_pool(clean)
+            if pool:
+                pool_name = pool.get("name", clean.upper())
+                sym = clean.upper()
+                existing = next((a for a in self.assets if a.symbol == sym), None)
+                if existing:
+                    new_assets.append(existing)
+                else:
+                    new_asset = CryptoAsset(
+                        id=clean.lower(),
+                        symbol=sym,
+                        name=pool_name,
+                        aliases=[clean.lower(), pool_name.lower()],
+                        binance_symbol=f"{sym}USDT",
+                        coingecko_id=clean.lower(),
+                        yahoo_symbol=f"{sym}-USD",
+                        categories=["DEX Token"],
+                        rank=9999,
+                        market_pair=pool_name,
+                        chain="DEX",
+                    )
+                    new_assets.append(new_asset)
+                    self.assets.append(new_asset)
+                    self.save_cache()
+                    return new_assets
+        except Exception:
+            pass
+
         return new_assets
 
     def search_assets(self, query: str, limit: int = 10) -> list[CryptoAsset]:

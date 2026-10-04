@@ -140,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--mode", choices=MODES, help=argparse.SUPPRESS)
     parser.add_argument("--query", help="manual-desk query containing exact trigger 'OpenBagus'")
     parser.add_argument("--email-action", choices=("draft", "check", "send"), default="draft")
-    parser.add_argument("--network", action="store_true", help="allow an explicit connectivity check; never sends email")
+    parser.add_argument("--network", "--check", dest="network", action="store_true", help="allow an explicit connectivity check; never sends email")
     parser.add_argument("--confirm-live-send", help=argparse.SUPPRESS)
     parser.add_argument("--json", action="store_true", help="print machine-readable JSON where supported")
     parser.add_argument("--version", action="version", version=f"OpenBagus {__version__}")

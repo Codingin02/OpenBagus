@@ -7,17 +7,65 @@ Current active domain: **Crypto**.
 | Capability | Status |
 | --- | --- |
 | Terminal UX | Active: Prompt-first interactive coin terminal & slash commands |
-| Crypto Research | Active: Dynamic universe (Layer 1, Layer 2, DeFi, Memecoin, AI, RWA, etc.) |
-| Public Market Data | Active: Multi-tier fallback (Binance Vision -> Binance Public -> CoinGecko -> Yahoo Finance) |
-| Decision Engine | Active: Local Python Quant Engine for Spot (BUY/WAIT/REDUCE) and Perpetual (LONG/SHORT/NO_TRADE) |
+| Data Core | **ZERO-KEY CORE**: No API keys required for full crypto research |
+| Crypto Research | Active: Dynamic universe (Layer 1, Layer 2, DeFi, Memecoin, AI, RWA, DEX tokens) |
+| Public Market Data | Active: Binance Vision, Gate.io, Bybit, OKX, CoinGecko, GeckoTerminal, DefiLlama, Alternative.me, CoinLore |
+| Decision Engine | Active: Local Python Quant Engine V2 (5 independent evidence families, strict RR >= 1.5 gate) |
 | Intent Routing | Active: Deterministic bilingual (ID/EN) typo-tolerant intent parser |
-| FRED | Optional (Federal Reserve Economic Data macro indicators) |
+| Optional APIs | Optional: FRED, CoinMarketCap, CryptoCompare, Coinalyze, Alpha Vantage (enhancements only) |
 | Email Delivery | Optional (Local staging default; SMTP delivery requires explicit confirmation) |
 | Equities | Disabled |
-| WhatsApp / OpenClaw | Disabled |
-| Live Trading | Not implemented (Strictly quantitative research only) |
+| WhatsApp / OpenClaw | Disabled by default |
+| Live Trading | Not implemented (Strictly quantitative decision-support research only) |
 
-OpenBagus is research-only. Python owns all numerical analysis, decision rules, pivot levels, and risk calculations; no cloud LLMs or local neural weights calculate financial math or execute trades.
+OpenBagus is research-only. Python owns all numerical analysis, decision rules, structural levels, and risk calculations; no cloud LLMs or local neural weights calculate financial math or execute trades.
+
+---
+
+## Zero-Key Core
+
+**No API key is required for standard crypto research.**
+
+OpenBagus runs out of the box with zero configuration:
+- **Centralized Spot**: Binance Vision, Gate.io, Bybit, OKX, KuCoin, Kraken, CoinGecko, CoinLore.
+- **Derivatives & Perps**: Gate.io Futures, OKX, Bybit, KuCoin, CoinGecko Derivatives (mark price, funding rate, z-score, OI, basis, spread).
+- **DEX & On-Chain Pools**: GeckoTerminal (search DEX pairs, price USD, reserves, 24h volume).
+- **Sentiment & Macro**: Alternative.me Fear & Greed, DefiLlama stablecoin market cap.
+
+Optional private API keys are **enhancements only** and improve:
+- Specialized proprietary data
+- Granular on-chain metrics (Bitquery, The Graph)
+- Macroeconomic series (FRED, Alpha Vantage)
+- Additional data redundancy
+
+Do not advertise or treat optional credentials as requirements.
+
+---
+
+## Quant Engine V2
+
+OpenBagus upgrades technical analysis into a deterministic multi-evidence decision engine:
+
+1. **5 Independent Evidence Families**:
+   - **A. Trend / Momentum**: Multi-timeframe returns (1h, 4h), EMA 8/21 alignment, and intraday range location.
+   - **B. Volatility / Regime**: ATR, realized volatility, and deterministic regime classification (`TRENDING`, `CHOPPY`, `VOLATILE`, `COMPRESSED`).
+   - **C. Price-Volume / Liquidity**: 24h volume confirmation, turnover tiers, and order book bid/ask depth imbalance.
+   - **D. Derivatives / Basis / Positioning**: Funding rate, funding z-score, open interest, basis, and non-naive crowded-long logic (extreme funding $>0.04\%$ penalizes longs).
+   - **E. Context / On-Chain / Sentiment**: Alternative.me Fear & Greed sentiment and DefiLlama stablecoin TVL.
+2. **Strict Risk:Reward Gate (`minimum_reward_risk = 1.5`)**:
+   - Directional trades (`BUY`, `LONG`, `SHORT`) are **never** issued if the nearest realistic target offers $RR < 1.5$.
+   - Poor asymmetry automatically returns `WAIT` (spot) or `NO_TRADE` (perpetual) and calculates the ideal pullback limit price.
+3. **Data Quality Gate**:
+   - Requires at least 3 independent active evidence families and composite quality $\ge 0.45$.
+4. **Conservative Leverage Policy**:
+   - Hard maximum ceiling $\le 3x$ for general users.
+   - Reduced automatically in `VOLATILE`, low-liquidity, or low-confidence conditions.
+5. **Categorical Confidence**:
+   - Emits calibrated qualitative confidence categories: `LOW`, `MODERATE`, `HIGH` (no fake percentage precision like 68%).
+6. **Concise Terminal Output**:
+   - Clean, human-readable terminal output without AI disclaimers or repetitive prose.
+
+---
 
 ## Quick Start
 
@@ -51,14 +99,14 @@ openbagus
 
 Once inside the `openbagus` interactive shell, query any coin directly in Indonesian or English:
 
-- `ETH` or `SOL`: Comprehensive quantitative decision support, pivots, levels, and provider evidence.
-- `BUY btc?`: Spot decision support (`BUY` | `WAIT` | `REDUCE`) with candidate entry zone and invalidation stop.
+- `BTC`: Concise perpetual/spot quantitative decision snapshot.
+- `BUY btc?`: Spot decision support (`BUY` | `WAIT` | `REDUCE`) with entry zone and structural stop.
 - `bagusnya BTC long atau short?`: Perpetual decision support (`LONG` | `SHORT` | `NO_TRADE`) with conservative leverage ceiling.
-- `ETH entry dimana?`: Trade position decision with Entry Zone, Invalidation / Stop, TP1, TP2, and Risk:Reward.
-- `ada divergence di ADA?`: Divergence & momentum structure analysis (avoids false-positive detection).
+- `ETH entry dimana?`: Pullback limit required for $RR \ge 1.5$ gate.
+- `Manta`: Dynamic online asset discovery and derivatives funding evaluation.
+- `AERO` or `PEPE`: DEX pool and on-chain liquidity discovery.
 - `margin BTC equity 1000 risk 2%`: Capital risk budgeting and margin position sizing calculator.
 - `risk DOGE`: Volatility regime, drawdown, distance to invalidation, and liquidity proxy.
-- `support resistance AVAX`: Floor Trader Pivots (P, R1/R2, S1/S2) and structural reaction zones.
 - `BTC vs ETH`: Side-by-side comparative quantitative snapshot.
 
 ### Management & Slash Commands
@@ -66,21 +114,16 @@ Once inside the `openbagus` interactive shell, query any coin directly in Indone
 Inside the shell or directly from the CLI:
 
 - `/status` or `openbagus status`: Runtime status, active domains, capability groups, and active keys.
-- `/providers` or `openbagus providers`: View providers grouped by capability (`MARKET`, `DERIVATIVES`, `ONCHAIN`, `MACRO`).
-- `/providers --check`: Run live reachability and credential checks across public and keyed providers.
+- `/providers` or `openbagus providers`: View providers grouped into `ZERO-KEY CORE` and `OPTIONAL KEYED`.
+- `/providers --check`: Run live reachability and credential checks across all providers.
 - `/assets [query]` or `openbagus assets [query]`: Search assets or filter by sector (`/assets defi`).
 - `/categories` or `openbagus categories`: List taxonomy groups and coin counts.
 - `/doctor [network]` or `openbagus doctor [--network]`: Environment diagnostics & live reachability.
-- `/setup` or `openbagus setup`: Interactive wizard to configure and live-validate provider API keys and email.
+- `/setup` or `openbagus setup`: Interactive wizard to configure optional provider API keys and email.
 - `/crypto` or `openbagus crypto-daily`: Core crypto pipeline (BTC/USD, ETH/USD, SOL/USD).
 - `/email draft`: Generate local delivery draft (no send).
 
-### Key Architectural Notes
-
-- **Zero-Key Public Mode**: Works out of the box without any private API keys using public Binance, CoinGecko, Yahoo Finance proxy, and DefiLlama.
-- **Provider Resilience**: Network timeouts on any single source trigger instantaneous sub-5s fallback to alternative providers, guaranteeing uninterrupted terminal sessions.
-- **Capability Coverage**: Tracks real provider validation across MARKET, METADATA, DERIVATIVES, ONCHAIN, DEFI, and MACRO capabilities.
-- **Research Only**: Trade-setup and position queries strictly produce quantitative research hypotheses with structural invalidations; OpenBagus has no live broker, wallet, or trading connectivity.
+---
 
 ## Configuration
 
@@ -102,32 +145,13 @@ openbagus config
 
 See [configuration guide](docs/configuration.md) and [email operations](docs/email.md).
 
-## Architecture
-
-```text
-openbagus/
-├── openbagus/          Python package and canonical CLI
-├── config/             Safe configuration templates
-├── docs/               Documentation
-├── scripts/            Operational tooling and setup scripts
-├── tests/              Supported-surface tests
-├── pyproject.toml      Packaging configuration
-├── setup.bat           Windows one-click setup
-└── README.md
-```
-
-The active pipeline flow is:
-
-```text
-public providers -> ingestion -> freshness -> analysis -> risk
-                 -> intelligence -> reports -> storage -> optional email
-```
-
-See [architecture](docs/architecture.md).
+---
 
 ## Safety
 
 OpenBagus does not execute broker orders, exchange orders, wallet transactions, or fund transfers. Missing and stale inputs remain explicit as data gaps; they are never replaced with fabricated market values. Default delivery is `NO_SEND_FILE_ONLY`.
+
+---
 
 ## Documentation
 
@@ -135,6 +159,8 @@ OpenBagus does not execute broker orders, exchange orders, wallet transactions, 
 - [Configuration](docs/configuration.md)
 - [Email Operations](docs/email.md)
 - [Architecture](docs/architecture.md)
+
+---
 
 ## Author
 
