@@ -431,7 +431,7 @@ def validate_fred(key: str) -> str:
     if not k:
         return "MISSING"
     url = f"https://api.stlouisfed.org/fred/series?series_id=GNPCA&api_key={urllib.parse.quote(k)}&file_type=json"
-    headers = {"User-Agent": "OpenBagus-Validator/2.0", "Accept": "application/json"}
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
     req = urllib.request.Request(url, headers=headers)
     ctx = ssl.create_default_context()
     try:
@@ -457,7 +457,7 @@ def validate_alpha_vantage(key: str) -> str:
     if not re.fullmatch(r"[A-Za-z0-9]{8,32}", k) or k.lower() == "demo":
         return "INVALID"
     url = f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=NVDA&apikey={urllib.parse.quote(k)}"
-    headers = {"User-Agent": "OpenBagus-Validator/2.0", "Accept": "application/json"}
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
     req = urllib.request.Request(url, headers=headers)
     ctx = ssl.create_default_context()
     try:
@@ -498,7 +498,7 @@ def validate_coinmarketcap(key: str) -> str:
     headers = {
         "X-CMC_PRO_API_KEY": k,
         "Accept": "application/json",
-        "User-Agent": "OpenBagus-Validator/2.0",
+        "User-Agent": "OpenBagus-Research",
     }
     req = urllib.request.Request(url, headers=headers)
     ctx = ssl.create_default_context()
@@ -531,7 +531,7 @@ def validate_cryptocompare(key: str) -> str:
     if not k:
         return "MISSING"
     url = f"https://min-api.cryptocompare.com/data/price?fsym=BTC&tsyms=USD&api_key={urllib.parse.quote(k)}"
-    headers = {"User-Agent": "OpenBagus-Validator/2.0", "Accept": "application/json"}
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
     req = urllib.request.Request(url, headers=headers)
     ctx = ssl.create_default_context()
     try:
@@ -563,7 +563,7 @@ def validate_coinalyze(key: str) -> str:
     if not k:
         return "MISSING"
     url = f"https://api.coinalyze.net/v1/future-markets?api_key={urllib.parse.quote(k)}"
-    headers = {"User-Agent": "OpenBagus-Validator/2.0", "Accept": "application/json"}
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
     req = urllib.request.Request(url, headers=headers)
     ctx = ssl.create_default_context()
     try:
@@ -622,6 +622,8 @@ class ProviderRegistry:
         self.root = repo_root or get_repo_root()
         self.env = RuntimeEnv(self.root)
         self.providers: dict[str, ProviderSpec] = {p.id: p for p in PROVIDERS}
+        from openbagus.data.http import SecureHttpClient
+        self.http = SecureHttpClient(timeout=2.5)
 
     def get(self, provider_id: str) -> ProviderSpec | None:
         return self.providers.get(provider_id)
@@ -668,41 +670,14 @@ class ProviderRegistry:
         if not p or not p.ping_url:
             return {"provider": provider_id, "status": "NO_PING_URL", "latency_ms": None}
 
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) OpenBagus/2.0",
-            "Accept": "application/json, */*",
+        _, status, elapsed_ms = self.http.fetch_raw(p.ping_url, timeout=timeout)
+        lat = elapsed_ms if status == "REACHABLE" else None
+        return {
+            "provider": p.id,
+            "display_name": p.display_name,
+            "status": status,
+            "latency_ms": lat,
         }
-        req = urllib.request.Request(p.ping_url, headers=headers)
-        ctx = ssl.create_default_context()
-        t0 = time.time()
-        try:
-            with urllib.request.urlopen(req, timeout=timeout, context=ctx) as resp:
-                elapsed_ms = round((time.time() - t0) * 1000, 1)
-                return {"provider": p.id, "display_name": p.display_name, "status": "REACHABLE", "latency_ms": elapsed_ms}
-        except ssl.SSLError:
-            try:
-                unv_ctx = ssl._create_unverified_context()
-                with urllib.request.urlopen(req, timeout=timeout, context=unv_ctx) as resp:
-                    elapsed_ms = round((time.time() - t0) * 1000, 1)
-                    return {"provider": p.id, "display_name": p.display_name, "status": "REACHABLE", "latency_ms": elapsed_ms}
-            except Exception:
-                return {"provider": p.id, "display_name": p.display_name, "status": "UNAVAILABLE", "latency_ms": None}
-        except (TimeoutError, socket.timeout):
-            return {"provider": p.id, "display_name": p.display_name, "status": "TIMEOUT", "latency_ms": None}
-        except urllib.error.HTTPError as exc:
-            elapsed_ms = round((time.time() - t0) * 1000, 1)
-            if exc.code == 429:
-                return {"provider": p.id, "display_name": p.display_name, "status": "RATE_LIMITED", "latency_ms": elapsed_ms}
-            if exc.code in {401, 403}:
-                return {"provider": p.id, "display_name": p.display_name, "status": "REACHABLE", "latency_ms": elapsed_ms}
-            return {"provider": p.id, "display_name": p.display_name, "status": f"HTTP_{exc.code}", "latency_ms": elapsed_ms}
-        except urllib.error.URLError as exc:
-            reason = str(exc.reason).lower()
-            if "timeout" in reason or "timed out" in reason:
-                return {"provider": p.id, "display_name": p.display_name, "status": "TIMEOUT", "latency_ms": None}
-            return {"provider": p.id, "display_name": p.display_name, "status": "UNAVAILABLE", "latency_ms": None}
-        except Exception:
-            return {"provider": p.id, "display_name": p.display_name, "status": "DEGRADED", "latency_ms": None}
 
     def check_all_public(self, timeout: float = 2.5) -> list[dict[str, Any]]:
         results = []

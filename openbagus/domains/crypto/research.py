@@ -1,26 +1,8 @@
-"""OpenBagus Coin-Centric Quantitative Crypto Research & Decision Engine.
-
-Executes tailored single-asset quantitative analysis and decision support based on intent:
-- SPOT: BUY | WAIT | REDUCE
-- PERPETUAL/FUTURES: LONG | SHORT | NO_TRADE
-- Ensemble of 5 independent evidence families:
-  A. Trend / Momentum (multi-timeframe returns, EMA alignment, range location)
-  B. Volatility / Regime (ATR, realized volatility, deterministic regime classification)
-  C. Price-Volume / Liquidity (24h volume, volume confirmation, order book depth)
-  D. Derivatives / Basis / Positioning (funding rate, z-score, OI, basis, crowded-long penalty)
-  E. Context / On-Chain / Sentiment (Fear & Greed, DefiLlama stablecoins, DEX liquidity)
-- Strict Reward:Risk Gate (minimum_reward_risk = 1.5; never issues BUY/LONG/SHORT if RR < 1.5)
-- Data Quality Gate (minimum 3 independent evidence families + quality >= 0.45)
-- Conservative leverage policy (default ceiling <= 3x, reduced in volatile/low liquidity conditions)
-- Categorical confidence (LOW, MODERATE, HIGH; no fake percentage precision)
-- Section 25 concise terminal output
-"""
+"""OpenBagus Coin-Centric Quantitative Crypto Research & Decision Engine."""
 
 from __future__ import annotations
 
-import json
 import time
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -29,7 +11,7 @@ from openbagus.data.ingestion import RuntimeDataIngestion
 from openbagus.data.providers import ProviderRegistry
 from openbagus.data.zerokey import ZeroKeyMarketData
 from openbagus.domains.crypto.catalog import CryptoAsset, CryptoAssetCatalog
-from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngineV2
+from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngine
 from openbagus.intelligence.intent import IntentRequest
 
 
@@ -65,21 +47,17 @@ def _fmt_vol(val: float | None) -> str:
 
 
 class CryptoResearchRunner:
-    """Executes single-asset quantitative research pipelines and decision support."""
-
     def __init__(self, repo_root: Path | None = None) -> None:
         self.root = repo_root or get_repo_root()
         self.catalog = CryptoAssetCatalog(self.root)
         self.registry = ProviderRegistry(self.root)
-        self.zerokey = ZeroKeyMarketData(timeout=3.0)
-        self.quant = QuantEngineV2()
+        self.zerokey = ZeroKeyMarketData(timeout=3.5)
+        self.quant = QuantEngine()
 
     def execute(self, req: IntentRequest) -> str:
-        # 1. Handle clarification request
         if req.needs_asset:
             return req.clarification_prompt or "Which asset do you want to analyze?"
 
-        # 2. Handle ambiguity
         if req.is_ambiguous and req.candidates:
             lines = ["Multiple assets matched your query:", ""]
             for idx, sym in enumerate(req.candidates[:5], 1):
@@ -92,25 +70,20 @@ class CryptoResearchRunner:
             lines.append(f"Please specify exact symbol, e.g. '{req.candidates[0]}'.")
             return "\n".join(lines)
 
-        # 3. Handle comparison
         if req.intent.upper() == "COMPARE" and len(req.target_assets) >= 2:
             return self._run_comparison(req.target_assets[0], req.target_assets[1])
 
-        # 4. Resolve target asset
         target = req.asset or (req.target_assets[0] if req.target_assets else None)
         if not target:
             return "No crypto asset identified. Type a coin symbol or name, e.g. 'ETH' or 'SOL'."
 
-        # 5. Handle missing capital inputs before fetching data
         if req.focus == "capital" and req.needs_capital_inputs:
             return "Please specify account equity and risk percentage (e.g. equity $1000, risk 2%)."
 
         asset_obj, _ = self.catalog.resolve_asset(target)
         symbol = asset_obj.symbol if asset_obj else target.upper()
         name = asset_obj.name if asset_obj else symbol
-        category = asset_obj.categories[0] if asset_obj and asset_obj.categories else "Crypto"
 
-        # 6. Fetch Zero-Key Market Data
         ticker = self.zerokey.get_spot_ticker(symbol)
         is_dex = False
         if not ticker:
@@ -134,7 +107,6 @@ class CryptoResearchRunner:
                     "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 }
             else:
-                # Fallback to runtime ingestion
                 pair = asset_obj.market_pair if asset_obj and asset_obj.market_pair else f"{symbol}/USD"
                 res = RuntimeDataIngestion(self.root).run(mode="real", assets=[pair])
                 rows = res.get("market_rows", [])
@@ -163,36 +135,33 @@ class CryptoResearchRunner:
                 f"Type '/providers --check' to verify network reachability."
             )
 
-        # 7. Fetch Auxiliary Evidence (Klines, Derivatives, Depth, Sentiment, Stablecoins)
         klines = self.zerokey.get_klines(symbol)
         derivatives = None if is_dex else self.zerokey.get_derivatives(symbol)
         orderbook = None if is_dex else self.zerokey.get_orderbook(symbol)
+        trades = None if is_dex else self.zerokey.get_recent_trades(symbol)
         sentiment = self.zerokey.get_sentiment()
         stablecoins = self.zerokey.get_stablecoin_tvl()
 
-        # 8. Determine Market Type
         intent_up = req.intent.upper()
         if intent_up in ("LONG_SHORT", "FUNDING", "OPEN_INTEREST") or req.focus in ("leverage", "long_short", "perpetual"):
             market_type = "perpetual"
         elif intent_up in ("BUY_SPOT", "SELL_SPOT") or req.focus == "spot":
             market_type = "spot"
         else:
-            # General query: if derivatives contract exists, default to perpetual, otherwise spot
             market_type = "perpetual" if derivatives is not None else "spot"
 
-        # 9. Evaluate using Quant Engine V2
         q = self.quant.evaluate(
             symbol=symbol,
             spot_ticker=ticker,
             klines=klines,
             derivatives=derivatives,
             orderbook=orderbook,
+            trades=trades,
             sentiment=sentiment,
             stablecoins=stablecoins,
             market_type=market_type,
         )
 
-        # 10. Render Output based on focus / intent
         if req.focus == "capital":
             return self._render_capital_view(symbol, name, q, req.equity, req.risk_pct)
         elif intent_up == "STRUCTURE" or req.focus == "structure":
@@ -245,7 +214,7 @@ class CryptoResearchRunner:
         for k, v in q.why.items():
             if market_type.lower() == "spot" and k == "Derivatives" and "No derivatives" in v:
                 continue
-            lines.append(f"  {k:<12} {v}")
+            lines.append(f"  {k:<14} {v}")
 
         lines.append("")
         lines.append("Sources")
@@ -309,7 +278,7 @@ class CryptoResearchRunner:
             "Why",
         ]
         for k, v in q.why.items():
-            lines.append(f"  {k:<12} {v}")
+            lines.append(f"  {k:<14} {v}")
         lines.append("")
         lines.append("Sources")
         lines.append(f"  {', '.join(q.sources)}")
@@ -329,7 +298,7 @@ class CryptoResearchRunner:
             "Risk Factors",
         ]
         for k, v in q.why.items():
-            lines.append(f"  {k:<12} {v}")
+            lines.append(f"  {k:<14} {v}")
         lines.append("")
         lines.append("Sources")
         lines.append(f"  {', '.join(q.sources)}")

@@ -10,8 +10,9 @@ Current active domain: **Crypto**.
 | Data Core | **ZERO-KEY CORE**: No API keys required for full crypto research |
 | Crypto Research | Active: Dynamic universe (Layer 1, Layer 2, DeFi, Memecoin, AI, RWA, DEX tokens) |
 | Public Market Data | Active: Binance Vision, Gate.io, Bybit, OKX, CoinGecko, GeckoTerminal, DefiLlama, Alternative.me, CoinLore |
-| Decision Engine | Active: Local Python Quant Engine V2 (5 independent evidence families, strict RR >= 1.5 gate) |
+| Decision Engine | Active: Canonical Python Quant Engine (5 independent evidence families, strict RR >= 1.5 gate) |
 | Intent Routing | Active: Deterministic bilingual (ID/EN) typo-tolerant intent parser |
+| Security Policy | Active: Strict HTTPS, host allowlist, verified TLS only ([SECURITY.md](SECURITY.md)) |
 | Optional APIs | Optional: FRED, CoinMarketCap, CryptoCompare, Coinalyze, Alpha Vantage (enhancements only) |
 | Email Delivery | Optional (Local staging default; SMTP delivery requires explicit confirmation) |
 | Equities | Disabled |
@@ -22,7 +23,7 @@ OpenBagus is research-only. Python owns all numerical analysis, decision rules, 
 
 ---
 
-## Zero-Key Core
+## Zero-Key Core & Network Security
 
 **No API key is required for standard crypto research.**
 
@@ -32,25 +33,25 @@ OpenBagus runs out of the box with zero configuration:
 - **DEX & On-Chain Pools**: GeckoTerminal (search DEX pairs, price USD, reserves, 24h volume).
 - **Sentiment & Macro**: Alternative.me Fear & Greed, DefiLlama stablecoin market cap.
 
-Optional private API keys are **enhancements only** and improve:
-- Specialized proprietary data
-- Granular on-chain metrics (Bitquery, The Graph)
-- Macroeconomic series (FRED, Alpha Vantage)
-- Additional data redundancy
+### Network Boundaries & Firewall Friendliness
 
-Do not advertise or treat optional credentials as requirements.
+- OpenBagus contacts only approved public HTTPS endpoints documented in [SECURITY.md](SECURITY.md).
+- OpenBagus **never** requires users to disable antivirus, Windows Defender, McAfee, or local firewalls.
+- If a specific provider is blocked or filtered by a local firewall or ISP, OpenBagus automatically and gracefully falls back to alternative reachable providers without interruption.
+- All connections strictly enforce verified TLS (`ssl.create_default_context()`). Insecure contexts or certificate bypasses are prohibited.
+- Optional API keys live exclusively in your local `.env` file and are never committed or logged.
 
 ---
 
-## Quant Engine V2
+## Canonical Quant Engine
 
-OpenBagus upgrades technical analysis into a deterministic multi-evidence decision engine:
+OpenBagus operates a single canonical deterministic multi-evidence decision engine:
 
 1. **5 Independent Evidence Families**:
    - **A. Trend / Momentum**: Multi-timeframe returns (1h, 4h), EMA 8/21 alignment, and intraday range location.
    - **B. Volatility / Regime**: ATR, realized volatility, and deterministic regime classification (`TRENDING`, `CHOPPY`, `VOLATILE`, `COMPRESSED`).
-   - **C. Price-Volume / Liquidity**: 24h volume confirmation, turnover tiers, and order book bid/ask depth imbalance.
-   - **D. Derivatives / Basis / Positioning**: Funding rate, funding z-score, open interest, basis, and non-naive crowded-long logic (extreme funding $>0.04\%$ penalizes longs).
+   - **C. Microstructure / Liquidity**: Order book depth imbalance, microprice deviation, trade flow imbalance (aggressor taker volume), and cross-exchange consensus.
+   - **D. Derivatives / Basis / Positioning**: Spot-perpetual basis bps, funding rate, funding z-score, open interest, and crowded-long/short risk penalties.
    - **E. Context / On-Chain / Sentiment**: Alternative.me Fear & Greed sentiment and DefiLlama stablecoin TVL.
 2. **Strict Risk:Reward Gate (`minimum_reward_risk = 1.5`)**:
    - Directional trades (`BUY`, `LONG`, `SHORT`) are **never** issued if the nearest realistic target offers $RR < 1.5$.
@@ -155,6 +156,7 @@ OpenBagus does not execute broker orders, exchange orders, wallet transactions, 
 
 ## Documentation
 
+- [Security Policy](SECURITY.md)
 - [CLI Reference](docs/cli.md)
 - [Configuration](docs/configuration.md)
 - [Email Operations](docs/email.md)

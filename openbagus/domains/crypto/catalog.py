@@ -224,48 +224,41 @@ class CryptoAssetCatalog:
 
         new_assets: list[CryptoAsset] = []
 
-        # 1. Try CoinGecko search API
         url = f"https://api.coingecko.com/api/v3/search?query={urllib.parse.quote(clean)}"
-        headers = {"User-Agent": "OpenBagus-AssetDiscovery/2.0", "Accept": "application/json"}
-        req = urllib.request.Request(url, headers=headers)
-        for ctx in (ssl.create_default_context(), ssl._create_unverified_context()):
-            try:
-                with urllib.request.urlopen(req, timeout=3.5, context=ctx) as resp:
-                    data = json.loads(resp.read().decode("utf-8", errors="replace"))
-                    coins = data.get("coins", [])
-                    for c in coins[:5]:
-                        cid = c.get("id")
-                        sym = (c.get("symbol") or "").upper()
-                        name = c.get("name") or sym
-                        rank = c.get("market_cap_rank") or 9999
-                        if not sym or not cid:
-                            continue
-                        # Check if already in catalog
-                        existing = next((a for a in self.assets if a.symbol == sym and a.coingecko_id == cid), None)
-                        if existing:
-                            new_assets.append(existing)
-                        else:
-                            new_asset = CryptoAsset(
-                                id=cid,
-                                symbol=sym,
-                                name=name,
-                                aliases=[sym.lower(), name.lower(), cid],
-                                binance_symbol=f"{sym}USDT",
-                                coingecko_id=cid,
-                                yahoo_symbol=f"{sym}-USD",
-                                categories=["Other / Unknown"],
-                                rank=rank,
-                                market_pair=f"{sym}/USD",
-                                chain="Native",
-                            )
-                            new_assets.append(new_asset)
-                            self.assets.append(new_asset)
-                    if new_assets:
-                        self.save_cache()
-                        return new_assets
-                break
-            except Exception:
-                continue
+        from openbagus.data.http import SecureHttpClient
+        http = SecureHttpClient(timeout=3.5)
+        data = http.get_json(url)
+        if isinstance(data, dict):
+            coins = data.get("coins", [])
+            for c in coins[:5]:
+                cid = c.get("id")
+                sym = (c.get("symbol") or "").upper()
+                name = c.get("name") or sym
+                rank = c.get("market_cap_rank") or 9999
+                if not sym or not cid:
+                    continue
+                existing = next((a for a in self.assets if a.symbol == sym and a.coingecko_id == cid), None)
+                if existing:
+                    new_assets.append(existing)
+                else:
+                    new_asset = CryptoAsset(
+                        id=cid,
+                        symbol=sym,
+                        name=name,
+                        aliases=[sym.lower(), name.lower(), cid],
+                        binance_symbol=f"{sym}USDT",
+                        coingecko_id=cid,
+                        yahoo_symbol=f"{sym}-USD",
+                        categories=["Other / Unknown"],
+                        rank=rank,
+                        market_pair=f"{sym}/USD",
+                        chain="Native",
+                    )
+                    new_assets.append(new_asset)
+                    self.assets.append(new_asset)
+            if new_assets:
+                self.save_cache()
+                return new_assets
 
         # 2. Try CoinLore Search fallback
         try:
