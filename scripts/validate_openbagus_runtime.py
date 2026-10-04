@@ -126,6 +126,16 @@ def test_secrets_scan() -> dict[str, Any]:
     return {"passed": len(findings) == 0, "findings": findings}
 
 
+def test_repo_safety() -> dict[str, Any]:
+    """Ensures no local secrets, database, or archive files are tracked or staged."""
+    from scripts.check_repo_safety import _run_git, _check_forbidden_path
+    tracked = _run_git(["ls-files"], REPO_ROOT)
+    staged = _run_git(["diff", "--name-only", "--cached"], REPO_ROOT)
+    all_files = sorted(set(tracked + staged))
+    violations = [err for f in all_files if (err := _check_forbidden_path(f))]
+    return {"passed": len(violations) == 0, "violations": violations}
+
+
 def main() -> int:
     print("=" * 60)
     print("OPENBAGUS PLATFORM VALIDATION SUITE")
@@ -137,6 +147,7 @@ def main() -> int:
         "Manual Trigger Contract": test_manual_trigger(),
         "Domain Neutrality": test_domain_neutrality(),
         "Secrets Scanning": test_secrets_scan(),
+        "Repository Safety": test_repo_safety(),
     }
 
     all_passed = True

@@ -64,6 +64,14 @@ logs/*.jsonl
 *.log
 !logs/.gitkeep
 
+# Machine-specific & local archives
+.local-archive/
+
+# Caches & Runtime State
+.cache/
+runtime/
+runtime/cache/
+
 # Secrets, API Keys & Private Configurations - NEVER COMMIT
 .env
 .env.*
@@ -85,10 +93,19 @@ logs/*.jsonl
 *.google-credentials.json
 *.service-account.local.json
 secrets/
+secrets*
 credentials/
+credentials*
+tokens*
 local_runtime/
 local_backups/
 reports/runtime/private/
+
+# Certificates, private keys & auth tokens
+*.pem
+*.key
+*.p12
+*.pfx
 
 # Local OpenBagus runtime overrides
 config/*.local.json
@@ -104,14 +121,21 @@ data/crypto_asset_catalog.json
 data/*.json
 !data/raw/.gitkeep
 !data/processed/.gitkeep
-db/*.duckdb
-db/*.duckdb.wal
-db/*.duckdb.tmp
-db/*.sqlite3
-db/*.db
+*.db
+*.sqlite
+*.sqlite3
+*.duckdb
+*.duckdb.wal
+*.duckdb.tmp
 !db/.gitkeep
+
+# Model weights & runtime artifacts
+models/
+*.gguf
+*.safetensors
 
 # Runtime generated reports & builds
 reports/runtime/**
 !reports/runtime/.gitkeep
 reports/runtime/app_dist/**
+

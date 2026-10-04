@@ -55,6 +55,11 @@ OpenBagus **never** requires users to disable antivirus, Windows Defender, McAfe
 - **Zero-Key Core**: Core crypto analysis functions fully without any private API keys.
 - **Local-Only Storage**: Optional API keys live exclusively in your local `.env` file, which is excluded from Git via `.gitignore` and never committed or uploaded.
 - **Secret Sanitization**: OpenBagus never logs private API keys, authorization tokens, or query strings containing credentials. All credential query parameters are masked (e.g. `api_key=***`).
+- **Pre-Push Safety Verification**: Contributors and users can verify that no local configuration, `.env` file, databases, or secrets are staged or tracked by running:
+  ```powershell
+  python scripts/check_repo_safety.py
+  ```
+
 
 ---
 
