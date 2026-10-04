@@ -210,6 +210,15 @@ class ZeroKeyMarketData:
         selected["price_dispersion_bps"] = round(dispersion_bps, 2)
         selected["is_cross_confirmed"] = len(sources) >= 2
         selected["consensus_median_price"] = round(median_price, 4)
+
+        cross_venue_quotes: dict[str, dict[str, Any]] = {}
+        for c in (filtered if filtered else candidates):
+            cross_venue_quotes[c["provider"]] = {
+                "price": c["price"],
+                "bid": c.get("bid"),
+                "ask": c.get("ask"),
+            }
+        selected["cross_venue_quotes"] = cross_venue_quotes
         return selected
 
     def get_klines(self, symbol: str, interval: str = "1h", limit: int = 50) -> list[dict[str, Any]]:
@@ -503,7 +512,7 @@ class ZeroKeyMarketData:
                     results.append(c)
         return results
 
-    def get_all_evidence(self, symbol: str, is_dex: bool = False) -> dict[str, Any]:
+    def get_all_evidence(self, symbol: str, is_dex: bool = False, interval: str = "1h") -> dict[str, Any]:
         """Concurrently fetches independent market evidence blocks for an asset."""
         import concurrent.futures
 
@@ -519,7 +528,7 @@ class ZeroKeyMarketData:
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=5) as ex:
             f_ticker = ex.submit(self.get_spot_ticker, symbol)
-            f_klines = ex.submit(self.get_klines, symbol)
+            f_klines = ex.submit(self.get_klines, symbol, interval=interval)
             f_sent = ex.submit(self.get_sentiment)
             f_stab = ex.submit(self.get_stablecoin_tvl)
             f_deriv = None if is_dex else ex.submit(self.get_derivatives, symbol)

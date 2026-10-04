@@ -66,19 +66,51 @@ class CryptoResearchRunner:
                     session.show_sources = True
                 return "[PASS] Sources diaktifkan untuk setiap analisis."
 
-        # 2. System Information
+        # 2. Feedback handling (Section 2)
+        if req.request_type == "FEEDBACK":
+            if session and session.last_asset and session.last_quant_result:
+                q = session.last_quant_result
+                lines = [
+                    f"Catatan feedback untuk {q.asset} ({q.market} / {q.timeframe}):",
+                    "",
+                    f"Keputusan Quant : {q.decision}",
+                    f"Alasan          : {q.decision_reason}",
+                    "",
+                    "OpenBagus beroperasi secara deterministik dan hanya menerbitkan sinyal aktif ketika:",
+                    "  1. Rasio Reward:Risk >= 1:1.50 (Risk Gate)",
+                    "  2. Microstructure dan aliran order searah tanpa crowding",
+                    "",
+                    f"Kondisi validasi berikutnya untuk {q.asset}:",
+                    f"  Bullish Long  : {q.bullish_validation.trigger_condition if q.bullish_validation else 'Breakout'}",
+                    f"  Bearish Short : {q.bearish_validation.trigger_condition if q.bearish_validation else 'Breakdown'}",
+                ]
+                return "\n".join(lines)
+            return (
+                "Catatan feedback diterima. OpenBagus memprioritaskan proteksi modal dengan mewajibkan "
+                "gerbang konsensus data dan rasio Reward:Risk >= 1:1.50 sebelum memicu sinyal."
+            )
+
+        # 3. Harness / Session memory handling (Section 18, 19)
+        if req.request_type == "HARNESS":
+            if req.preference_action == "clear_harness":
+                if session:
+                    session.clear()
+                return "[PASS] Harness session memory cleared."
+            return session.status_display() if session else "OpenBagus Harness\n\nStatus          ACTIVE\nSession Memory  LOCAL / EPHEMERAL\nClear on Exit   YES"
+
+        # 4. System Information
         if req.request_type == "SYSTEM_INFO":
             return self._render_system_info()
 
-        # 3. Market-wide Outlook
+        # 5. Market-wide Outlook
         if req.request_type == "MARKET_OUTLOOK":
             return self._render_market_outlook()
 
-        # 4. Screening and Taxonomy Category View
+        # 6. Screening and Taxonomy Category View
         if req.request_type in ("CATEGORY", "SCREEN"):
             return self._render_category_or_screen(req)
 
-        # 5. Conversational Follow-up on Previous Levels / Trade Setup
+        # 7. Conversational Follow-up on Previous Levels / Trade Setup
         if req.request_type in ("FOLLOW_UP", "EXPLAIN_LEVELS"):
             if session and session.last_quant_result and session.last_asset == req.asset:
                 return self._render_followup_levels_explanation(session.last_quant_result, req.raw_query)
@@ -101,7 +133,7 @@ class CryptoResearchRunner:
         show_sources = session.show_sources if session else False
 
         if req.intent.upper() == "COMPARE" and len(req.target_assets) >= 2:
-            return self._run_comparison(req.target_assets[0], req.target_assets[1], show_sources=show_sources)
+            return self._run_comparison(req.target_assets[0], req.target_assets[1], timeframe=req.timeframe, show_sources=show_sources)
 
         target = req.asset or (req.target_assets[0] if req.target_assets else None)
         if not target:
@@ -135,6 +167,7 @@ class CryptoResearchRunner:
                     "ask": None,
                     "provider": pool.get("provider", "GeckoTerminal DEX"),
                     "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    "is_dex": True,
                 }
             else:
                 pair = asset_obj.market_pair if asset_obj and asset_obj.market_pair else f"{symbol}/USD"
@@ -165,9 +198,17 @@ class CryptoResearchRunner:
                 f"Type '/providers --check' to verify network reachability."
             )
 
+        # Timeframe mapping to provider interval
+        tf_to_interval = {
+            "M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m",
+            "H1": "1h", "H4": "4h", "H6": "6h", "H12": "12h",
+            "D1": "1d", "W1": "1w",
+        }
+        interval = tf_to_interval.get(req.timeframe, "1h")
+
         # Concurrently fetch remaining independent market evidence
-        ev = self.zerokey.get_all_evidence(symbol, is_dex=is_dex)
-        klines = ev.get("klines") or self.zerokey.get_klines(symbol)
+        ev = self.zerokey.get_all_evidence(symbol, is_dex=is_dex, interval=interval)
+        klines = ev.get("klines") or self.zerokey.get_klines(symbol, interval=interval)
         derivatives = ev.get("derivatives") if not is_dex else None
         orderbook = ev.get("orderbook") if not is_dex else None
         trades = ev.get("trades") if not is_dex else None
@@ -192,12 +233,17 @@ class CryptoResearchRunner:
             sentiment=sentiment,
             stablecoins=stablecoins,
             market_type=market_type,
+            timeframe=req.timeframe,
         )
 
         # Update session memory
         if session:
             session.last_asset = symbol
+            session.timeframe = req.timeframe
+            session.market_type = market_type.upper()
             session.last_quant_result = q
+            session.last_candidate_long = q.candidate_long
+            session.last_candidate_short = q.candidate_short
             session.last_query = req.raw_query
 
         if req.focus == "capital":
@@ -219,7 +265,7 @@ class CryptoResearchRunner:
     ) -> str:
         mkt_label = "DEX SPOT" if dex else market_type.upper()
         lines = [
-            f"{q.asset} / {mkt_label}",
+            f"{q.asset} / {mkt_label} / {q.timeframe}",
             "",
             f"Decision       {q.decision}",
             f"Regime         {q.regime.capitalize()}",
@@ -236,9 +282,43 @@ class CryptoResearchRunner:
             if market_type.lower() == "perpetual":
                 lines.append(f"Leverage       {q.leverage_ceiling}")
         else:
-            lines.append("")
             lines.append(f"Reason         {q.decision_reason}")
-            lines.append(f"Watch          {q.watch_trigger}")
+            if q.watch_trigger:
+                lines.append(f"Watch          {q.watch_trigger}")
+            if q.why_now:
+                lines.append(f"Why Now        {q.why_now}")
+
+        # Future Validation Scenarios (Section 6, 7)
+        if q.bullish_validation and q.bearish_validation:
+            lines.append("")
+            lines.append("Bullish Validation (LONG)")
+            lines.append(f"  Trigger        {q.bullish_validation.trigger_condition}")
+            lines.append(f"  Confirmation   {q.bullish_validation.volume_condition}, {q.bullish_validation.order_flow_condition}")
+            lines.append(f"  Derivatives    {q.bullish_validation.derivatives_condition}")
+            lines.append(f"  Setup          Entry {q.bullish_validation.entry_zone}, Stop {_fmt_price(q.bullish_validation.stop_price)}, TP1 {_fmt_price(q.bullish_validation.tp1)}, TP2 {_fmt_price(q.bullish_validation.tp2)} (R:R {q.bullish_validation.reward_risk_str})")
+
+            lines.append("")
+            lines.append("Bearish Validation (SHORT)")
+            lines.append(f"  Trigger        {q.bearish_validation.trigger_condition}")
+            lines.append(f"  Confirmation   {q.bearish_validation.volume_condition}, {q.bearish_validation.order_flow_condition}")
+            lines.append(f"  Derivatives    {q.bearish_validation.derivatives_condition}")
+            lines.append(f"  Setup          Entry {q.bearish_validation.entry_zone}, Stop {_fmt_price(q.bearish_validation.stop_price)}, TP1 {_fmt_price(q.bearish_validation.tp1)}, TP2 {_fmt_price(q.bearish_validation.tp2)} (R:R {q.bearish_validation.reward_risk_str})")
+
+        # Cross-Venue Dislocation (Section 8, 9)
+        if q.cross_venue_dislocation and q.cross_venue_dislocation.get("available"):
+            cv = q.cross_venue_dislocation
+            lines.append("")
+            lines.append("Cross-Venue")
+            lines.append(f"  Dispersion     {cv.get('dispersion_pct', 0.0):.2f}%")
+            lines.append(f"  Best Venue     {cv.get('best_venue', 'Market')}")
+            lines.append(f"  Dislocation    {cv.get('dislocation_status', 'NORMAL')}")
+
+        # Decision Factors Contribution (Section 14)
+        if q.factor_contributions:
+            lines.append("")
+            lines.append("Decision Factors")
+            for factor_name, pct_str in q.factor_contributions.items():
+                lines.append(f"  {factor_name:<24} {pct_str}")
 
         lines.append("")
         lines.append("Summary")
@@ -278,7 +358,7 @@ class CryptoResearchRunner:
         margin_req = pos_notional / lev if lev > 0 else pos_notional
 
         lines = [
-            f"=== CAPITAL & POSITION SIZING: {name.upper()} ({symbol}) ===",
+            f"=== CAPITAL & POSITION SIZING: {name.upper()} ({symbol} / {q.timeframe}) ===",
             "",
             "Market & Invalidation Context",
             f"  Current Spot Price     {_fmt_price(price)}",
@@ -301,7 +381,7 @@ class CryptoResearchRunner:
 
     def _render_structure_view(self, q: QuantDecisionResult, show_sources: bool = False) -> str:
         lines = [
-            f"{q.asset} / MARKET STRUCTURE",
+            f"{q.asset} / MARKET STRUCTURE / {q.timeframe}",
             "",
             f"Spot Price     {_fmt_price(q.price)}",
             f"Regime         {q.regime.capitalize()}",
@@ -312,12 +392,16 @@ class CryptoResearchRunner:
             f"  Target 1     {_fmt_price(q.tp1) if q.tp1 else '-'}",
             f"  Target 2     {_fmt_price(q.tp2) if q.tp2 else '-'}",
             f"  Invalidation {_fmt_price(q.stop_price) if q.stop_price else '-'}",
-            "",
-            "Summary",
-            f"  {q.narrative}",
-            "",
-            "Why",
         ]
+
+        if q.fibonacci_confluence and q.fibonacci_confluence.get("confluence"):
+            lines.append(f"  Fibonacci    {q.fibonacci_confluence.get('confluence')}")
+
+        lines.append("")
+        lines.append("Summary")
+        lines.append(f"  {q.narrative}")
+        lines.append("")
+        lines.append("Why")
         for k, v in q.why.items():
             lines.append(f"  {k:<14} {v}")
         if show_sources:
@@ -328,7 +412,7 @@ class CryptoResearchRunner:
 
     def _render_risk_view(self, q: QuantDecisionResult, show_sources: bool = False) -> str:
         lines = [
-            f"{q.asset} / RISK PROFILE",
+            f"{q.asset} / RISK PROFILE / {q.timeframe}",
             "",
             f"Decision       {q.decision}",
             f"Regime         {q.regime.capitalize()}",
@@ -351,33 +435,36 @@ class CryptoResearchRunner:
             lines.append(f"  {', '.join(q.sources)}")
         return "\n".join(lines)
 
-    def _run_comparison(self, s1: str, s2: str, show_sources: bool = False) -> str:
+    def _run_comparison(self, s1: str, s2: str, timeframe: str = "H1", show_sources: bool = False) -> str:
         a1, _ = self.catalog.resolve_asset(s1)
         a2, _ = self.catalog.resolve_asset(s2)
         sym1 = a1.symbol if a1 else s1.upper()
         sym2 = a2.symbol if a2 else s2.upper()
 
+        tf_to_interval = {"M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m", "H1": "1h", "H4": "4h", "H6": "6h", "H12": "12h", "D1": "1d", "W1": "1w"}
+        interval = tf_to_interval.get(timeframe, "1h")
+
         t1 = self.zerokey.get_spot_ticker(sym1) or {}
         t2 = self.zerokey.get_spot_ticker(sym2) or {}
-        k1 = self.zerokey.get_klines(sym1)
-        k2 = self.zerokey.get_klines(sym2)
+        k1 = self.zerokey.get_klines(sym1, interval=interval)
+        k2 = self.zerokey.get_klines(sym2, interval=interval)
         d1 = self.zerokey.get_derivatives(sym1)
         d2 = self.zerokey.get_derivatives(sym2)
         sent = self.zerokey.get_sentiment()
 
         q1 = (
-            self.quant.evaluate(sym1, t1, klines=k1, derivatives=d1, sentiment=sent, market_type="perpetual" if d1 else "spot")
+            self.quant.evaluate(sym1, t1, klines=k1, derivatives=d1, sentiment=sent, market_type="perpetual" if d1 else "spot", timeframe=timeframe)
             if t1.get("price")
             else None
         )
         q2 = (
-            self.quant.evaluate(sym2, t2, klines=k2, derivatives=d2, sentiment=sent, market_type="perpetual" if d2 else "spot")
+            self.quant.evaluate(sym2, t2, klines=k2, derivatives=d2, sentiment=sent, market_type="perpetual" if d2 else "spot", timeframe=timeframe)
             if t2.get("price")
             else None
         )
 
         lines = [
-            f"=== ASSET COMPARISON: {sym1} vs {sym2} ===",
+            f"=== ASSET COMPARISON: {sym1} vs {sym2} ({timeframe}) ===",
             "",
             f"{'Metric':<22} {sym1:<20} {sym2:<20}",
             "-" * 62,
@@ -459,7 +546,7 @@ class CryptoResearchRunner:
 
     def _render_followup_levels_explanation(self, q: QuantDecisionResult, raw_query: str) -> str:
         lines = [
-            f"Terkait {q.asset} ({q.market}):",
+            f"Terkait {q.asset} ({q.market} / {q.timeframe}):",
             "",
             f"Keputusan Quant: {q.decision}",
             f"Kualitas Data:   {q.data_quality.capitalize()}",

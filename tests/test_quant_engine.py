@@ -438,6 +438,209 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         # Sources must be omitted when show_sources is False
         self.assertNotIn("Sources", view)
 
+    def test_section_23_targeted_regression_cases(self):
+        from openbagus.intelligence.intent import IntentRouter, SessionState
+
+        router = IntentRouter()
+        session = SessionState()
+
+        # 1. gimana BTC h1? -> BTC / PERPETUAL / H1
+        r1 = router.parse("gimana BTC h1?", session)
+        self.assertEqual(r1.asset, "BTC")
+        self.assertEqual(r1.market, "perpetual")
+        self.assertEqual(r1.timeframe, "H1")
+        self.assertEqual(r1.request_type, "POSITION")
+
+        # 2. kalau eth gimana open posisinya -> ETH position analysis
+        r2 = router.parse("kalau eth gimana open posisinya", session)
+        self.assertEqual(r2.asset, "ETH")
+        self.assertEqual(r2.request_type, "POSITION")
+
+        # 3. wkwk kok no trade semua -> FEEDBACK / follow-up, NOT an asset
+        r3 = router.parse("wkwk kok no trade semua", session)
+        self.assertEqual(r3.request_type, "FEEDBACK")
+        self.assertIsNone(r3.asset)
+
+        # 4. tolol nih -> FEEDBACK, NOT TOLOL token
+        r4 = router.parse("tolol nih", session)
+        self.assertEqual(r4.request_type, "FEEDBACK")
+        self.assertIsNone(r4.asset)
+
+        # 5. Long sentence containing "AI lokal" -> NOT AI category
+        long_query = "Saya ingin tahu apakah sistem ini menggunakan model AI lokal atau cloud provider?"
+        r5 = router.parse(long_query, session)
+        self.assertNotEqual(r5.request_type, "CATEGORY")
+        self.assertIsNone(r5.category)
+
+        # 6. near -> NEAR asset
+        r6 = router.parse("near", session)
+        self.assertEqual(r6.asset, "NEAR")
+
+        # 7. mana hernesnyaaaaaa???? -> HARNESS / SYSTEM_INFO
+        r7 = router.parse("mana hernesnyaaaaaa????", session)
+        self.assertEqual(r7.request_type, "HARNESS")
+        self.assertEqual(r7.intent, "SYSTEM_INFO")
+
+        # 8. Privacy -> category only when appropriate
+        r8 = router.parse("Privacy", session)
+        self.assertEqual(r8.request_type, "CATEGORY")
+        self.assertEqual(r8.category, "Privacy")
+
+    def test_section_24_decision_quality_and_validation_scenarios(self):
+        spot_ticker = {
+            "symbol": "BTC",
+            "price": 85000.0,
+            "high": 86000.0,
+            "low": 84000.0,
+            "volume": 60000000.0,
+            "pct_change": 0.5,
+            "provider": "Binance Vision",
+            "is_cross_confirmed": True,
+            "cross_exchange_sources": ["Binance Vision", "Gate.io"],
+            "cross_venue_quotes": {"Binance Vision": {"price": 85010.0}, "Gate.io": {"price": 85030.0}},
+        }
+        klines = [
+            {"time": i, "open": 84500.0 + i * 10, "high": 85200.0 + i * 10, "low": 84300.0 + i * 10, "close": 85000.0 + i * 10, "volume": 1000.0}
+            for i in range(30)
+        ]
+        res = self.engine.evaluate("BTC", spot_ticker, klines=klines, market_type="perpetual", timeframe="H1")
+
+        # Requested timeframe is honored
+        self.assertEqual(res.timeframe, "H1")
+
+        # Current decision generated
+        self.assertIn(res.decision, ("LONG", "SHORT", "NO_TRADE"))
+
+        # Both bullish and bearish validation scenarios generated with real conditions
+        self.assertIsNotNone(res.bullish_validation)
+        self.assertIsNotNone(res.bearish_validation)
+        self.assertEqual(res.bullish_validation.direction, "LONG")
+        self.assertEqual(res.bearish_validation.direction, "SHORT")
+        self.assertGreaterEqual(res.bullish_validation.reward_risk, 1.5)
+        self.assertGreaterEqual(res.bearish_validation.reward_risk, 1.5)
+        self.assertIn("H1", res.bullish_validation.trigger_condition)
+        self.assertIn("H1", res.bearish_validation.trigger_condition)
+
+        # Factor contributions calculated
+        self.assertIsInstance(res.factor_contributions, dict)
+        self.assertIn("Trend / Momentum", res.factor_contributions)
+        self.assertIn("Microstructure", res.factor_contributions)
+        self.assertIn("Cross-Venue", res.factor_contributions)
+
+        # Narrative uses actual evidence (trader note style)
+        self.assertIn("BTC", res.narrative)
+        self.assertIn("H1", res.narrative)
+        self.assertNotIn("menurut AI", res.narrative)
+        self.assertNotIn("as an AI", res.narrative)
+
+        # Test ETH on H4
+        eth_ticker = dict(spot_ticker, symbol="ETH", price=2700.0, high=2750.0, low=2650.0)
+        res_eth = self.engine.evaluate("ETH", eth_ticker, market_type="perpetual", timeframe="H4")
+        self.assertEqual(res_eth.timeframe, "H4")
+        self.assertIn("H4", res_eth.bullish_validation.trigger_condition)
+
+    def test_section_25_arbitrage_cross_venue_dislocation(self):
+        # 1. Healthy venues with normal dispersion
+        spot_ticker = {
+            "symbol": "BTC",
+            "price": 85000.0,
+            "cross_venue_quotes": {
+                "Binance Vision": {"price": 85000.0, "bid": 84990.0, "ask": 85010.0},
+                "Gate.io": {"price": 85020.0, "bid": 85010.0, "ask": 85030.0},
+            },
+        }
+        res = self.engine.evaluate("BTC", spot_ticker)
+        cv = res.cross_venue_dislocation
+        self.assertTrue(cv.get("available"))
+        self.assertEqual(cv.get("dislocation_status"), "NORMAL")
+        self.assertLess(cv.get("dispersion_pct"), 0.15)
+        self.assertLess(cv.get("estimated_net_spread_pct"), 0.0)  # Costs prevent false profit claim
+
+        # 2. Elevated / Dislocated venues
+        spot_ticker_stress = {
+            "symbol": "BTC",
+            "price": 85000.0,
+            "cross_venue_quotes": {
+                "Binance Vision": {"price": 85000.0},
+                "Gate.io": {"price": 85600.0},
+            },
+        }
+        res_stress = self.engine.evaluate("BTC", spot_ticker_stress)
+        cv_stress = res_stress.cross_venue_dislocation
+        self.assertEqual(cv_stress.get("dislocation_status"), "HIGH")
+        self.assertGreaterEqual(cv_stress.get("dispersion_pct"), 0.50)
+
+        # 3. Dislocation alone never creates LONG or SHORT
+        ev_disloc, _ = self.engine._eval_cross_exchange_dislocation(spot_ticker_stress, 85000.0)
+        self.assertEqual(ev_disloc.direction_score, 0.0)
+
+    def test_section_26_patterns_and_fibonacci_evidence(self):
+        # 1. Bullish Engulfing pattern
+        klines_engulf = [
+            {"open": 100.0, "high": 101.0, "low": 98.0, "close": 98.5, "volume": 100.0},
+            {"open": 98.5, "high": 99.0, "low": 93.0, "close": 94.0, "volume": 120.0},  # red
+            {"open": 93.5, "high": 103.0, "low": 93.0, "close": 102.5, "volume": 350.0},  # green engulfs
+        ]
+        ev_pat, pats = self.engine._eval_chart_patterns(klines_engulf, 102.5, 98.0, 93.0, 103.0, 5.0)
+        self.assertTrue(any(p["pattern"] == "Bullish Engulfing" for p in pats))
+        self.assertGreater(ev_pat.direction_score, 0.20)
+
+        # 2. Hammer pattern
+        klines_hammer = [
+            {"open": 100.0, "high": 101.0, "low": 95.0, "close": 96.0, "volume": 100.0},
+            {"open": 95.5, "high": 96.0, "low": 88.0, "close": 95.8, "volume": 300.0},  # long lower shadow
+        ]
+        ev_ham, ham_pats = self.engine._eval_chart_patterns(klines_hammer, 95.8, 95.0, 90.0, 100.0, 5.0)
+        self.assertTrue(any(p["pattern"] == "Hammer" for p in ham_pats))
+        self.assertGreater(ev_ham.direction_score, 0.15)
+
+        # 3. Random bars do not falsely produce strong pattern signal
+        klines_flat = [
+            {"open": 100.0, "high": 100.5, "low": 99.5, "close": 100.1, "volume": 50.0}
+            for _ in range(10)
+        ]
+        ev_flat, flat_pats = self.engine._eval_chart_patterns(klines_flat, 100.1, 100.0, 95.0, 105.0, 2.0)
+        self.assertEqual(len(flat_pats), 0)
+        self.assertEqual(ev_flat.direction_score, 0.0)
+
+        # 4. Fibonacci confluence
+        # Swing from 50 to 100 (span 50). Fib 0.618 is 100 - 0.618*50 = 69.1. Price at 69.15.
+        klines_fib = [
+            {"high": 50.0 + (i * 2.0), "low": 50.0 + (i * 2.0), "close": 50.0 + (i * 2.0)}
+            for i in range(26)
+        ]
+        ev_fib, fib_d = self.engine._eval_fibonacci_confluence(klines_fib, 69.15, 75.0, 60.0, 90.0)
+        self.assertIn("0.618", fib_d.get("confluence", ""))
+        self.assertGreater(ev_fib.direction_score, 0.0)
+
+        # Fibonacci alone cannot create a trade
+        fib_only_ticker = {"symbol": "SOL", "price": 69.2, "high": 72.0, "low": 66.0, "volume": 1000.0}
+        res_fib = self.engine.evaluate("SOL", fib_only_ticker, klines=klines_fib, market_type="perpetual")
+        self.assertIn(res_fib.decision, ("WAIT", "NO_TRADE"))
+
+    def test_harness_session_state_and_clear(self):
+        from openbagus.intelligence.intent import SessionState
+
+        session = SessionState()
+        session.last_asset = "NEAR"
+        session.timeframe = "H4"
+        session.market_type = "SPOT"
+        session.show_sources = True
+
+        display = session.status_display()
+        self.assertIn("OpenBagus Harness", display)
+        self.assertIn("Current Asset   NEAR", display)
+        self.assertIn("Timeframe       H4", display)
+        self.assertIn("Market          SPOT", display)
+        self.assertIn("Sources         ON", display)
+        self.assertIn("Clear on Exit   YES", display)
+
+        # Test clear
+        session.clear()
+        self.assertIsNone(session.last_asset)
+        self.assertEqual(session.timeframe, "H1")
+        self.assertEqual(session.market_type, "PERPETUAL")
+
 
 if __name__ == "__main__":
     unittest.main()

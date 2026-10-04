@@ -47,6 +47,7 @@ MODES = (
     "config",
     "setup",
     "version",
+    "harness",
     "idx-daily",
 )
 
@@ -580,6 +581,7 @@ class OpenBagusShell(cmd.Cmd):
     def do_help(self, _arg: str) -> None:
         print("OpenBagus Commands:")
         print("  /help             show this help screen")
+        print("  /harness [clear]  show or clear ephemeral session memory")
         print("  /sources [on|off] toggle display of data sources in research outputs")
         print("  /status           show platform runtime and provider status")
         print("  /providers        show data providers and coverage (or /providers --check)")
@@ -599,6 +601,14 @@ class OpenBagusShell(cmd.Cmd):
         print("    support resistance AVAX")
         print("    is ARB attractive now")
         print("    BTC vs ETH")
+
+    def do_harness(self, arg: str) -> None:
+        cmd_str = arg.strip().lower()
+        if cmd_str in ("clear", "reset"):
+            self.session.clear()
+            print("[PASS] Harness session memory cleared.")
+        else:
+            print(self.session.status_display())
 
     def do_sources(self, arg: str) -> None:
         cmd_str = arg.strip().lower()
@@ -642,12 +652,15 @@ class OpenBagusShell(cmd.Cmd):
         os.system("cls" if os.name == "nt" else "clear")
 
     def do_exit(self, _arg: str) -> bool:
+        self.session.clear()
         return True
 
     def do_quit(self, _arg: str) -> bool:
+        self.session.clear()
         return True
 
     def do_EOF(self, _arg: str) -> bool:
+        self.session.clear()
         print()
         return True
 
@@ -682,7 +695,9 @@ class OpenBagusShell(cmd.Cmd):
             print(req.clarification_prompt or "Which asset do you want to analyze?")
             print()
             return
-        if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in ("SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE"):
+        if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
+            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS"
+        ):
             result = self.researcher.execute(req, session=self.session)
             print(result)
             print()
@@ -721,6 +736,15 @@ def main(argv: list[str] | None = None) -> int:
         if args.mode == "version":
             print(f"OpenBagus {__version__}")
             return 0
+        if args.mode == "harness":
+            sub = " ".join(args.extra).lower() if getattr(args, "extra", None) else (" ".join(arguments[1:]).lower() if len(arguments) > 1 else "")
+            s = SessionState()
+            if "clear" in sub or "reset" in sub:
+                s.clear()
+                print("[PASS] Harness session memory cleared.")
+            else:
+                print(s.status_display())
+            return 0
         return _run_pipeline(args)
 
     query_text = " ".join(arguments)
@@ -731,7 +755,9 @@ def main(argv: list[str] | None = None) -> int:
     if req.needs_asset:
         print(req.clarification_prompt or "Which asset do you want to analyze?")
         return 0
-    if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in ("SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE"):
+    if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
+        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS"
+    ):
         result = researcher.execute(req, session=session)
         print(result)
         return 0

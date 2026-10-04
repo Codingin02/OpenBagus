@@ -124,6 +124,18 @@ CORE_CATALOG: list[CryptoAsset] = [
 ]
 
 
+DEX_SLANG_EXCLUSIONS = {
+    # Indonesian conversational slang / profanity / filler words
+    "tolol", "wkwk", "wkwkwk", "kok", "aneh", "gimana", "nanti", "kenapa", "nggk", "nggak", "ga", "gak",
+    "sih", "gitu", "gini", "bego", "bodoh", "anjing", "bangsat", "pantek", "kontol", "memek", "tai", "asu",
+    "anjir", "anjrit", "kacau", "rusak", "parah", "jelek", "sampah", "busuk", "generik", "robot", "apa",
+    "siapa", "dimana", "mana", "kapan", "bagaimana", "yah", "loh", "dong", "deh", "kan", "tuh", "lah",
+    "harness", "hernes", "memory", "state", "jawabannya", "jawaban", "summarynya", "summary",
+    # English conversational words
+    "stupid", "idiot", "nonsense", "garbage", "trash", "terrible", "bad", "generic", "bot", "ai", "llm",
+}
+
+
 class CryptoAssetCatalog:
     """Manages searchable crypto asset universe, aliases, and category filtering."""
 
@@ -151,7 +163,7 @@ class CryptoAssetCatalog:
         except Exception:
             pass
 
-    def resolve_asset(self, term: str) -> tuple[CryptoAsset | None, list[CryptoAsset]]:
+    def resolve_asset(self, term: str, is_explicit: bool = False) -> tuple[CryptoAsset | None, list[CryptoAsset]]:
         """Resolves term to a single asset, or returns candidates if ambiguous.
 
         Returns:
@@ -164,6 +176,9 @@ class CryptoAssetCatalog:
             return None, []
 
         clean_lower = clean.lower()
+        if clean_lower in DEX_SLANG_EXCLUSIONS and not is_explicit:
+            return None, []
+
         exact_symbol = [a for a in self.assets if a.symbol.lower() == clean_lower]
         if len(exact_symbol) == 1:
             return exact_symbol[0], []
