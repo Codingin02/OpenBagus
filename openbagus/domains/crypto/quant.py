@@ -89,6 +89,12 @@ class QuantDecisionResult:
     fibonacci_confluence: dict[str, Any] = field(default_factory=dict)
     why_now: str = ""
     astrology_diagnostic: dict[str, Any] = field(default_factory=dict)
+    stochastic_item: dict[str, Any] = field(default_factory=dict)
+    patterns_item: dict[str, Any] = field(default_factory=dict)
+    fibonacci_item: dict[str, Any] = field(default_factory=dict)
+    arbitrage_item: dict[str, Any] = field(default_factory=dict)
+    cycle_item: dict[str, Any] = field(default_factory=dict)
+    lunar_item: dict[str, Any] = field(default_factory=dict)
 
 
 class QuantEngine:
@@ -140,20 +146,24 @@ class QuantEngine:
 
         # 2. Crypto-Native Chart Pattern Evidence (Section 10, 11)
         ev_pattern, detected_patterns = self._eval_chart_patterns(klines, price, pivot, s1, r1, atr_approx)
+        patterns_item = ev_pattern.details.get("item", {})
 
         # 3. Fibonacci Confluence Evidence (Section 12)
         ev_fib, fib_details = self._eval_fibonacci_confluence(klines, price, pivot, s1, r1)
+        fib_item = ev_fib.details.get("item", {})
 
         # 4. Cross-Exchange Dislocation Evidence (Section 8, 9)
         ev_disloc, disloc_details = self._eval_cross_exchange_dislocation(spot_ticker, price)
+        arbitrage_item = ev_disloc.details.get("item", {})
 
-        # 5. Optional Astrology Diagnostic (Section 13: 0% weight, OFF by default)
-        astro_diagnostic = {
-            "status": "EXPERIMENTAL",
-            "decision_weight": "0%",
-            "lunar_phase": "Calculated (Diagnostic)",
-            "impact": "NONE",
-        }
+        # 5. Stochastic Evidence (Section D1)
+        ev_stoch, stoch_details, stoch_item = self._eval_stochastic(klines, price, pivot, s1, r1)
+
+        # 6. Frequency Cycle Evidence (Section D5)
+        ev_cycle, cycle_item = self._eval_frequency_cycle(klines)
+
+        # 7. Optional Astrology Diagnostic (Section D6: 0% weight, OFF by default)
+        astro_diagnostic, lunar_item = self._eval_astrology_diagnostic()
 
         # Weight allocation & renormalization
         deriv_available = derivatives is not None and ev_deriv.quality >= 0.35
@@ -466,6 +476,12 @@ class QuantEngine:
             fibonacci_confluence=fib_details,
             why_now=why_now,
             astrology_diagnostic=astro_diagnostic,
+            stochastic_item=stoch_item,
+            patterns_item=patterns_item,
+            fibonacci_item=fib_item,
+            arbitrage_item=arbitrage_item,
+            cycle_item=cycle_item,
+            lunar_item=lunar_item,
         )
 
     def _eval_trend_momentum(
@@ -813,13 +829,33 @@ class QuantEngine:
             else "No dominant candle pattern (neutral structure)"
         )
 
+        is_material = False
+        if patterns:
+            top_p = patterns[0]
+            at_struct = top_p.get("at_support", False) or top_p.get("at_resistance", False)
+            if at_struct and vol_confirmed:
+                is_material = True
+
+        patterns_item = {
+            "available": bool(patterns),
+            "material": is_material,
+            "direction": "BULLISH" if (patterns and patterns[0]["bias"] == "BULLISH") else ("BEARISH" if (patterns and patterns[0]["bias"] == "BEARISH") else "NEUTRAL"),
+            "quality": 0.80 if is_material else 0.45,
+            "values": {
+                "name": patterns[0]["pattern"] if (patterns and is_material) else "",
+                "patterns": patterns,
+                "vol_confirmed": vol_confirmed,
+                "summary": summary if is_material else "",
+            },
+        }
+
         return (
             EvidenceBlockResult(
                 name="Chart Pattern",
                 direction_score=round(score, 2),
                 quality=0.75 if patterns else 0.50,
                 summary=summary,
-                details={"patterns": patterns, "vol_confirmed": vol_confirmed},
+                details={"patterns": patterns, "vol_confirmed": vol_confirmed, "item": patterns_item},
             ),
             patterns,
         )
@@ -834,12 +870,20 @@ class QuantEngine:
     ) -> tuple[EvidenceBlockResult, dict[str, Any]]:
         """Calculates Fibonacci retracement levels from objectively detected swing high/low."""
         if not klines or len(klines) < 10 or price <= 0:
+            fib_empty_item = {
+                "available": False,
+                "material": False,
+                "direction": "NEUTRAL",
+                "quality": 0.0,
+                "values": {},
+            }
             return (
                 EvidenceBlockResult(
                     name="Fibonacci Confluence",
                     direction_score=0.0,
                     quality=0.40,
                     summary="Insufficient swing data for Fibonacci",
+                    details={"item": fib_empty_item},
                 ),
                 {},
             )
@@ -851,12 +895,20 @@ class QuantEngine:
         span = swing_high - swing_low
 
         if span <= 0:
+            fib_flat_item = {
+                "available": False,
+                "material": False,
+                "direction": "NEUTRAL",
+                "quality": 0.0,
+                "values": {},
+            }
             return (
                 EvidenceBlockResult(
                     name="Fibonacci Confluence",
                     direction_score=0.0,
                     quality=0.40,
                     summary="Flat price span; no Fib levels",
+                    details={"item": fib_flat_item},
                 ),
                 {},
             )
@@ -889,6 +941,18 @@ class QuantEngine:
             score = -0.15
             summary = f"Near Fib 0.786 deep retracement ({self._fmt_px(fib_786)})"
 
+        # Materiality rule (Section D3):
+        # 1. swing high/low detected (span > 0)
+        # 2. price close to 0.382 / 0.500 / 0.618 / 0.786
+        # 3. AND at least one independent confluence exists (S/R/Pivot proximity within 1.5%)
+        independent_confluence = False
+        if confluence_level:
+            target_fib = fib_618 if "0.618" in confluence_level else (fib_500 if "0.500" in confluence_level else (fib_382 if "0.382" in confluence_level else fib_786))
+            if abs(target_fib - s1) <= price * 0.015 or abs(target_fib - r1) <= price * 0.015 or abs(target_fib - pivot) <= price * 0.015:
+                independent_confluence = True
+
+        is_material = bool(confluence_level and independent_confluence)
+
         fib_details = {
             "swing_high": swing_high,
             "swing_low": swing_low,
@@ -897,6 +961,18 @@ class QuantEngine:
             "fib_618": round(fib_618, 4 if price < 10 else 2),
             "fib_786": round(fib_786, 4 if price < 10 else 2),
             "confluence": confluence_level or "",
+            "independent_confluence": independent_confluence,
+        }
+
+        fib_item = {
+            "available": bool(span > 0),
+            "material": is_material,
+            "direction": "BULLISH" if score > 0 else ("BEARISH" if score < 0 else "NEUTRAL"),
+            "quality": 0.75 if is_material else 0.0,
+            "values": {
+                **fib_details,
+                "summary": summary if is_material else "",
+            },
         }
 
         return (
@@ -905,7 +981,7 @@ class QuantEngine:
                 direction_score=round(score, 2),
                 quality=0.70,
                 summary=summary,
-                details=fib_details,
+                details={"item": fib_item, **fib_details},
             ),
             fib_details,
         )
@@ -916,24 +992,40 @@ class QuantEngine:
         """Compares fresh cross-exchange quotes to detect price dispersion and market stress."""
         quotes: dict[str, dict[str, Any]] = spot_ticker.get("cross_venue_quotes", {})
         if len(quotes) < 2:
+            arb_empty_item = {
+                "available": False,
+                "material": False,
+                "direction": "NEUTRAL",
+                "quality": 0.0,
+                "values": {},
+            }
             return (
                 EvidenceBlockResult(
                     name="Cross-Venue Dislocation",
                     direction_score=0.0,
                     quality=0.40,
                     summary="Single venue feed (no cross-exchange quote)",
+                    details={"item": arb_empty_item},
                 ),
                 {"available": False},
             )
 
         valid_prices = [q["price"] for q in quotes.values() if q.get("price")]
         if len(valid_prices) < 2:
+            arb_insuf_item = {
+                "available": False,
+                "material": False,
+                "direction": "NEUTRAL",
+                "quality": 0.0,
+                "values": {},
+            }
             return (
                 EvidenceBlockResult(
                     name="Cross-Venue Dislocation",
                     direction_score=0.0,
                     quality=0.40,
                     summary="Insufficient fresh quotes",
+                    details={"item": arb_insuf_item},
                 ),
                 {"available": False},
             )
@@ -958,6 +1050,25 @@ class QuantEngine:
         best_venue = next((k for k, v in quotes.items() if v["price"] == min_px), "Market")
         summary = f"Dispersion {dispersion_pct:.2f}% ({dislocation_cls}), best venue: {best_venue}"
 
+        # Materiality rule (Section D4):
+        # Spread is materially larger than expected fee + slippage
+        is_material = bool(len(valid_prices) >= 2 and estimated_net_spread_pct > 0.10)
+
+        arbitrage_item = {
+            "available": True,
+            "material": is_material,
+            "direction": "NEUTRAL",
+            "quality": 0.85 if is_material else 0.40,
+            "values": {
+                "raw_spread_pct": round(dispersion_pct, 2),
+                "estimated_cost_pct": estimated_cost_pct,
+                "estimated_net_spread_pct": estimated_net_spread_pct,
+                "best_venue": best_venue,
+                "is_arbitrage_opportunity": is_material,
+                "summary": summary if is_material else "",
+            },
+        }
+
         disloc_details = {
             "available": True,
             "venues_count": len(valid_prices),
@@ -966,18 +1077,264 @@ class QuantEngine:
             "estimated_net_spread_pct": estimated_net_spread_pct,
             "best_venue": best_venue,
             "median_price": med_px,
+            "item": arbitrage_item,
         }
 
         return (
             EvidenceBlockResult(
                 name="Cross-Venue Dislocation",
-                direction_score=0.0,  # 0% direction weight as per spec
+                direction_score=0.0,
                 quality=0.85,
                 summary=summary,
                 details=disloc_details,
             ),
             disloc_details,
         )
+
+    def _eval_stochastic(
+        self,
+        klines: list[dict[str, Any]] | None,
+        price: float,
+        pivot: float,
+        s1: float,
+        r1: float,
+    ) -> tuple[EvidenceBlockResult, dict[str, Any], dict[str, Any]]:
+        """Calculates Stochastic %K/%D and evaluates materiality based on crosses and structure."""
+        if not klines or len(klines) < 14 or price <= 0:
+            item = {
+                "available": False,
+                "material": False,
+                "direction": "NEUTRAL",
+                "quality": 0.0,
+                "values": {},
+            }
+            return (
+                EvidenceBlockResult(
+                    name="Stochastic",
+                    direction_score=0.0,
+                    quality=0.30,
+                    summary="Insufficient candle history for Stochastic",
+                    details={"item": item},
+                ),
+                {},
+                item,
+            )
+
+        window = klines[-16:]
+        highs = [float(c.get("high") if c.get("high") is not None else c.get("close", 0)) for c in window]
+        lows = [float(c.get("low") if c.get("low") is not None else c.get("close", 0)) for c in window]
+        closes = [float(c.get("close", 0)) for c in window]
+
+        k_vals = []
+        for offset in (2, 1, 0):
+            sub_h = highs[len(highs) - 14 - offset : len(highs) - offset]
+            sub_l = lows[len(lows) - 14 - offset : len(lows) - offset]
+            c_val = closes[len(closes) - 1 - offset]
+            hh = max(sub_h) if sub_h else c_val
+            ll = min(sub_l) if sub_l else c_val
+            rng = hh - ll
+            k = ((c_val - ll) / rng) * 100.0 if rng > 0 else 50.0
+            k_vals.append(k)
+
+        prev_k = k_vals[1] if len(k_vals) >= 2 else k_vals[0]
+        curr_k = k_vals[2] if len(k_vals) >= 3 else k_vals[0]
+        curr_d = sum(k_vals) / len(k_vals)
+        prev_d = (k_vals[0] + k_vals[1]) / 2.0 if len(k_vals) >= 2 else prev_k
+
+        bull_cross = prev_k <= prev_d and curr_k > curr_d
+        bear_cross = prev_k >= prev_d and curr_k < curr_d
+
+        is_material = False
+        direction = "NEUTRAL"
+        score = 0.0
+        summary = f"Stochastic %K {curr_k:.1f}, %D {curr_d:.1f} (Neutral)"
+
+        if bull_cross and (curr_k <= 25 or price <= s1 * 1.01):
+            is_material = True
+            direction = "BULLISH"
+            score = 0.35
+            summary = f"Bullish Stochastic cross from oversold (%K={curr_k:.1f}, %D={curr_d:.1f})"
+        elif bear_cross and (curr_k >= 75 or price >= r1 * 0.99):
+            is_material = True
+            direction = "BEARISH"
+            score = -0.35
+            summary = f"Bearish Stochastic cross from overbought (%K={curr_k:.1f}, %D={curr_d:.1f})"
+        elif curr_k <= 20 and curr_d <= 20:
+            score = 0.15
+            summary = f"Stochastic oversold (%K={curr_k:.1f}, %D={curr_d:.1f})"
+        elif curr_k >= 80 and curr_d >= 80:
+            score = -0.15
+            summary = f"Stochastic overbought (%K={curr_k:.1f}, %D={curr_d:.1f})"
+
+        stoch_details = {
+            "k": round(curr_k, 2),
+            "d": round(curr_d, 2),
+            "bull_cross": bull_cross,
+            "bear_cross": bear_cross,
+            "summary": summary if is_material else "",
+        }
+
+        item = {
+            "available": True,
+            "material": is_material,
+            "direction": direction,
+            "quality": 0.75 if is_material else 0.40,
+            "values": stoch_details,
+        }
+
+        ev = EvidenceBlockResult(
+            name="Stochastic",
+            direction_score=score,
+            quality=0.75 if is_material else 0.40,
+            summary=summary,
+            details={"item": item, **stoch_details},
+        )
+        return ev, stoch_details, item
+
+    def _eval_frequency_cycle(
+        self, klines: list[dict[str, Any]] | None
+    ) -> tuple[EvidenceBlockResult, dict[str, Any]]:
+        """Calculates deterministic periodicity using autocorrelation across candidate cycle lags."""
+        if not klines or len(klines) < 30:
+            item = {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}}
+            return (
+                EvidenceBlockResult(
+                    name="Frequency Cycle",
+                    direction_score=0.0,
+                    quality=0.30,
+                    summary="Insufficient candle history for cycle analysis (need >= 30)",
+                    details={"item": item},
+                ),
+                item,
+            )
+
+        closes = [float(c.get("close", 0)) for c in klines]
+        n = len(closes)
+        mean_c = sum(closes) / n
+        var_c = sum((x - mean_c) ** 2 for x in closes)
+        if var_c <= 1e-12:
+            item = {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}}
+            return (
+                EvidenceBlockResult(
+                    name="Frequency Cycle",
+                    direction_score=0.0,
+                    quality=0.30,
+                    summary="Flat price series; no cycle",
+                    details={"item": item},
+                ),
+                item,
+            )
+
+        best_lag = None
+        best_corr = -1.0
+        max_lag = min(30, n // 2)
+        for lag in range(5, max_lag + 1):
+            cov = sum((closes[i] - mean_c) * (closes[i - lag] - mean_c) for i in range(lag, n))
+            denom = math.sqrt(
+                sum((closes[i] - mean_c) ** 2 for i in range(lag, n))
+                * sum((closes[i - lag] - mean_c) ** 2 for i in range(lag, n))
+            )
+            corr = (cov / denom) if denom > 0 else 0.0
+            if corr > best_corr:
+                best_corr = corr
+                best_lag = lag
+
+        is_stable = False
+        if best_lag and best_corr >= 0.45:
+            half = n // 2
+            h2 = closes[half:]
+            if len(h2) > best_lag:
+                m2 = sum(h2) / len(h2)
+                cov2 = sum((h2[i] - m2) * (h2[i - best_lag] - m2) for i in range(best_lag, len(h2)))
+                denom2 = math.sqrt(
+                    sum((h2[i] - m2) ** 2 for i in range(best_lag, len(h2)))
+                    * sum((h2[i - best_lag] - m2) ** 2 for i in range(best_lag, len(h2)))
+                )
+                corr2 = (cov2 / denom2) if denom2 > 0 else 0.0
+                if corr2 >= 0.30:
+                    is_stable = True
+
+        is_material = bool(best_lag and best_corr >= 0.45 and is_stable)
+        summary = (
+            f"Dominant cycle ~{best_lag} bars (autocorr {best_corr:.2f}, stable)"
+            if is_material
+            else "No dominant stable periodic cycle detected"
+        )
+
+        cycle_item = {
+            "available": True,
+            "material": is_material,
+            "direction": "NEUTRAL",
+            "quality": 0.65 if is_material else 0.35,
+            "values": {
+                "period_bars": best_lag if is_material else None,
+                "correlation": round(best_corr, 2) if best_lag else 0.0,
+                "summary": summary if is_material else "",
+            },
+        }
+
+        return (
+            EvidenceBlockResult(
+                name="Frequency Cycle",
+                direction_score=0.0,
+                quality=0.65 if is_material else 0.35,
+                summary=summary,
+                details={"item": cycle_item, **cycle_item["values"]},
+            ),
+            cycle_item,
+        )
+
+    def _eval_astrology_diagnostic(self) -> tuple[dict[str, Any], dict[str, Any]]:
+        """Provides experimental astrology/lunar factor strictly decoupled with 0% decision weight."""
+        astro_diagnostic = {
+            "status": "EXPERIMENTAL",
+            "decision_weight": "0%",
+            "lunar_phase": "Calculated (Diagnostic)",
+            "impact": "NONE",
+        }
+        lunar_item = {
+            "available": True,
+            "material": False,  # NEVER material for normal analysis
+            "direction": "NEUTRAL",
+            "quality": 0.0,
+            "values": {
+                "lunar_phase": "Waxing Gibbous",
+                "summary": "Experimental only — not used by Quant decision.",
+                "weight": 0.0,
+            },
+        }
+        return astro_diagnostic, lunar_item
+
+    # Public helper evaluation methods
+    def evaluate_stochastic(
+        self, klines: list[dict[str, Any]] | None, price: float, pivot: float, s1: float, r1: float
+    ) -> dict[str, Any]:
+        _, _, item = self._eval_stochastic(klines, price, pivot, s1, r1)
+        return item
+
+    def evaluate_pattern(
+        self, klines: list[dict[str, Any]] | None, price: float, pivot: float, s1: float, r1: float, atr: float = 0.0
+    ) -> dict[str, Any]:
+        ev, _ = self._eval_chart_patterns(klines, price, pivot, s1, r1, atr)
+        return ev.details.get("item", {})
+
+    def evaluate_fibonacci(
+        self, klines: list[dict[str, Any]] | None, price: float, pivot: float, s1: float, r1: float
+    ) -> dict[str, Any]:
+        ev, _ = self._eval_fibonacci_confluence(klines, price, pivot, s1, r1)
+        return ev.details.get("item", {})
+
+    def evaluate_arbitrage(self, spot_ticker: dict[str, Any], price: float) -> dict[str, Any]:
+        ev, _ = self._eval_cross_exchange_dislocation(spot_ticker, price)
+        return ev.details.get("item", {})
+
+    def evaluate_frequency_cycle(self, klines: list[dict[str, Any]] | None) -> dict[str, Any]:
+        _, item = self._eval_frequency_cycle(klines)
+        return item
+
+    def evaluate_lunar(self) -> dict[str, Any]:
+        _, item = self._eval_astrology_diagnostic()
+        return item
 
     def _calculate_factor_contributions(
         self,

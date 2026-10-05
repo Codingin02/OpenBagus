@@ -329,10 +329,20 @@ class LocalLanguageEngine:
         if hasattr(packet, "bearish_validation") and packet.bearish_validation:
             bear_trig = getattr(packet.bearish_validation, "trigger_condition", "")
 
-        pattern_name = getattr(packet, "pattern_name", "") or ""
-        fib_confluence = getattr(packet, "fibonacci_confluence", "") or ""
-        macro_note = getattr(packet, "macro_context", "") or ""
-        flow_note = getattr(packet, "large_flow_context", "") or ""
+        patterns_obj = getattr(packet, "patterns", {})
+        fib_obj = getattr(packet, "fibonacci", {})
+        stoch_obj = getattr(packet, "stochastic", {})
+        arb_obj = getattr(packet, "arbitrage", {})
+        macro_obj = getattr(packet, "macro_item", {})
+        flow_obj = getattr(packet, "large_flow_item", {})
+
+        pattern_name = getattr(packet, "pattern_name", "") if patterns_obj.get("material") else ""
+        fib_confluence = getattr(packet, "fibonacci_confluence", "") if fib_obj.get("material") else ""
+        stoch_note = stoch_obj.get("values", {}).get("summary", "") if stoch_obj.get("material") else ""
+        arb_note = f"Net spread {arb_obj.get('values', {}).get('estimated_net_spread_pct'):+.2f}%" if arb_obj.get("material") else ""
+        macro_note = getattr(packet, "event_risk", "") if macro_obj.get("material") else ""
+        large_flow_val = getattr(packet, "large_flow", None)
+        flow_note = large_flow_val.get("summary", "") if (flow_obj.get("material") and isinstance(large_flow_val, dict)) else ""
 
         lang_label = "Indonesian (Bahasa Indonesia)" if language == "id" else "English"
 
@@ -354,6 +364,8 @@ class LocalLanguageEngine:
             f"- Bearish Validation: {bear_trig}\n"
             + (f"- Chart Pattern: {pattern_name}\n" if pattern_name else "")
             + (f"- Fibonacci Confluence: {fib_confluence}\n" if fib_confluence else "")
+            + (f"- Stochastic: {stoch_note}\n" if stoch_note else "")
+            + (f"- Arbitrage: {arb_note}\n" if arb_note else "")
             + (f"- Macro: {macro_note}\n" if macro_note else "")
             + (f"- Flow Activity: {flow_note}\n" if flow_note else "")
             + f"<|im_end|>\n<|im_start|>assistant\n"

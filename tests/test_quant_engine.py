@@ -429,9 +429,8 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         self.assertNotIn("Reward:Risk    -", view)
         self.assertNotIn("Leverage       -", view)
 
-        # Must contain Reason and Watch
-        self.assertIn("Reason", view)
-        self.assertIn("Watch", view)
+        # Must contain Conditional setup and quality metrics without template headers
+        self.assertIn("Conditional setup", view)
         self.assertIn("Data Quality", view)
         self.assertIn("Setup Quality", view)
 

@@ -133,7 +133,7 @@ DEX_SLANG_EXCLUSIONS = {
     "siapa", "dimana", "mana", "kapan", "bagaimana", "yah", "loh", "dong", "deh", "kan", "tuh", "lah",
     "harness", "hernes", "herness", "memory", "state", "jawabannya", "jawaban", "summarynya", "summary",
     "semua", "parameter", "ohh", "iya", "sistem", "system", "spek", "speknya", "dibawah", "ollama",
-    "lagi", "tampilin", "tampilkan", "sumber", "sources", "chart", "grafik", "whale", "cpi", "fomc", "pembuat", "pembuatnya", "bikin",
+    "lagi", "tampilin", "tampilkan", "sumber", "sources", "chart", "grafik", "whale", "cpi", "fomc", "pembuat", "pembuatnya", "bikin", "tadi",
     "cara", "mobil", "ban", "jalan", "tol", "ganti", "mengganti", "motor", "rumah", "orang", "makan", "minum", "kerja",
     # English conversational words
     "stupid", "idiot", "nonsense", "garbage", "trash", "terrible", "bad", "generic", "bot", "ai", "llm",

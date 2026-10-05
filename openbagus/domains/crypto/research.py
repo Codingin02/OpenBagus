@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import time
+import urllib.parse
+import webbrowser
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -12,7 +14,6 @@ from openbagus.data.ingestion import RuntimeDataIngestion
 from openbagus.data.providers import ProviderRegistry
 from openbagus.data.zerokey import ZeroKeyMarketData
 from openbagus.domains.crypto.catalog import CryptoAsset, CryptoAssetCatalog
-from openbagus.domains.crypto.chart import render_terminal_chart
 from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngine
 from openbagus.intelligence.intent import IntentRequest, SessionState
 from openbagus.intelligence.local_language import LocalLanguageEngine
@@ -47,6 +48,14 @@ class ResearchPacket:
     sources: list[str] = field(default_factory=list)
     ohlcv: list[dict[str, Any]] = field(default_factory=list)
     narrative: str = ""
+    stochastic: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    patterns: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    fibonacci: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    arbitrage: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    frequency_cycle: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    macro_item: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    large_flow_item: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    experimental_lunar: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
 
 
 def _fmt_price(val: float | None) -> str:
@@ -152,25 +161,43 @@ class CryptoResearchRunner:
                 return "[PASS] Harness session memory cleared."
             return session.status_display() if session else "OpenBagus Harness\n\nStatus          ACTIVE\nSession Memory  LOCAL / EPHEMERAL\nClear on Exit   YES"
 
-        # 3b. Terminal Chart request (Stage D)
+        # 3b. Real Browser Chart request (Section A)
         if req.request_type == "CHART":
             target = req.asset or (session.last_asset if session else "BTC")
             tf = req.timeframe or (session.timeframe if session else "H1")
-            tf_to_interval = {
-                "M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m",
-                "H1": "1h", "H4": "4h", "H6": "6h", "H12": "12h",
-                "D1": "1d", "W1": "1w",
-            }
-            interval = tf_to_interval.get(tf, "1h")
-            klines = self.zerokey.get_klines(target, interval=interval)
-            entry_p = stop_p = tp_p = None
-            if session and session.last_quant_result and session.last_asset == target:
-                last_q = session.last_quant_result
-                if last_q.decision in ("BUY", "LONG", "SHORT", "REDUCE") and last_q.stop_price and last_q.tp1:
-                    entry_p = last_q.price
-                    stop_p = last_q.stop_price
-                    tp_p = last_q.tp1
-            return render_terminal_chart(klines, symbol=target, timeframe=tf, entry=entry_p, stop=stop_p, tp=tp_p)
+
+            asset_obj, _ = self.catalog.resolve_asset(target)
+            chart_url = None
+
+            # 1. CEX resolution via TradingView
+            if asset_obj and asset_obj.binance_symbol:
+                chart_url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{asset_obj.binance_symbol}"
+            elif asset_obj and asset_obj.symbol:
+                ticker = self.zerokey.get_spot_ticker(asset_obj.symbol)
+                if ticker and ticker.get("price"):
+                    chart_url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{asset_obj.symbol}USDT"
+            elif target:
+                ticker = self.zerokey.get_spot_ticker(target)
+                if ticker and ticker.get("price"):
+                    chart_url = f"https://www.tradingview.com/chart/?symbol=BINANCE:{target.upper()}USDT"
+
+            # 2. DEX resolution via GeckoTerminal
+            if not chart_url:
+                pool = self.zerokey.get_dex_pool(target)
+                if pool and pool.get("pool_address"):
+                    net = pool.get("network") or "eth"
+                    chart_url = f"https://www.geckoterminal.com/{net}/pools/{pool['pool_address']}"
+                elif pool:
+                    chart_url = f"https://www.geckoterminal.com/en/search?q={urllib.parse.quote(target)}"
+
+            if chart_url:
+                try:
+                    webbrowser.open(chart_url)
+                except Exception:
+                    pass
+                return f"Opening {target.upper()} {tf} chart..."
+            else:
+                return "Chart is not available for this market."
 
         # 4. System Information & Setup Config
         if req.request_type == "SETUP_CONFIG":
@@ -225,6 +252,10 @@ class CryptoResearchRunner:
         show_sources = session.show_sources if session else False
 
         if req.intent.upper() == "COMPARE" and len(req.target_assets) >= 2:
+            if session:
+                session.last_asset = req.target_assets[0]
+                session.last_asset_2 = req.target_assets[1]
+                session.last_comparison_assets = [req.target_assets[0], req.target_assets[1]]
             return self._run_comparison(req.target_assets[0], req.target_assets[1], timeframe=req.timeframe, show_sources=show_sources)
 
         target = req.asset or (req.target_assets[0] if req.target_assets else None)
@@ -339,9 +370,31 @@ class CryptoResearchRunner:
         if macro_fomc and macro_fomc.get("is_near"):
             event_risk = f"High event risk: FOMC meeting in {macro_fomc.get('days_until', 0)} days"
 
+        macro_material = bool(
+            req.focus == "macro"
+            or (event_risk is not None)
+            or (macro_fomc and macro_fomc.get("is_near"))
+        )
+        macro_item = {
+            "available": bool(macro_data),
+            "material": macro_material,
+            "direction": "NEUTRAL",
+            "quality": 0.70,
+            "values": macro_data,
+        }
+
+        lf_material = bool(large_flow and large_flow.get("status") == "ELEVATED" or req.focus == "large_flow")
+        lf_item = {
+            "available": bool(large_flow),
+            "material": lf_material,
+            "direction": "BULLISH" if (large_flow and "buy" in large_flow.get("summary", "").lower()) else ("BEARISH" if (large_flow and "sell" in large_flow.get("summary", "").lower()) else "NEUTRAL"),
+            "quality": 0.70 if lf_material else 0.40,
+            "values": large_flow or {},
+        }
+
         mkt_label = "DEX SPOT" if is_dex else market_type.upper()
-        pattern_name = q.patterns_detected[0].get("name") if (q.patterns_detected and len(q.patterns_detected) > 0) else None
-        fib_confluence = q.fibonacci_confluence.get("confluence") if q.fibonacci_confluence else None
+        pattern_name = q.patterns_item.get("values", {}).get("name") if q.patterns_item.get("material") else None
+        fib_confluence = q.fibonacci_item.get("values", {}).get("summary") if q.fibonacci_item.get("material") else None
 
         packet = ResearchPacket(
             asset=symbol,
@@ -370,6 +423,14 @@ class CryptoResearchRunner:
             sources=q.sources,
             ohlcv=klines or [],
             narrative=q.narrative,
+            stochastic=q.stochastic_item,
+            patterns=q.patterns_item,
+            fibonacci=q.fibonacci_item,
+            arbitrage=q.arbitrage_item,
+            frequency_cycle=q.cycle_item,
+            macro_item=macro_item,
+            large_flow_item=lf_item,
+            experimental_lunar=q.lunar_item,
         )
 
         # Update session memory
@@ -441,18 +502,6 @@ class CryptoResearchRunner:
             f"{_fmt_price(q.price)} · Data Quality: {q.data_quality.capitalize()} · Setup Quality: {q.setup_quality.capitalize()}",
         ]
 
-        # Stage D. Lightweight terminal chart
-        show_chart = session.show_chart if session else True
-        if show_chart and packet.ohlcv and len(packet.ohlcv) >= 3:
-            entry_p = stop_p = tp_p = None
-            if q.decision in ("BUY", "LONG", "SHORT", "REDUCE") and q.stop_price and q.tp1:
-                entry_p = q.price
-                stop_p = q.stop_price
-                tp_p = q.tp1
-            chart_str = render_terminal_chart(packet.ohlcv, symbol=q.asset, timeframe=q.timeframe, entry=entry_p, stop=stop_p, tp=tp_p)
-            lines.append("")
-            lines.append(chart_str)
-
         # C4. Natural consultant trader narrative
         is_indonesian = any(w in raw_query.lower() for w in ("yang", "di", "ini", "itu", "dan", "kalau", "gimana", "apakah", "posisinya", "nunggu", "cari", "enaknya", "sekarang", "bisa", "apa", "bro", "bang")) or not raw_query
         lang = "id" if is_indonesian else "en"
@@ -465,11 +514,11 @@ class CryptoResearchRunner:
             if lang == "id":
                 if q.decision in ("NO_TRADE", "WAIT"):
                     narrative = (
-                        f"Untuk {q.timeframe}, saat ini lebih bijak menunggu konfirmasi sebelum mengeksekusi {q.asset}. "
-                        f"Kondisi pasar berada di rezim {q.regime.lower()} dengan harga {_fmt_price(q.price)}. "
-                        f"{q.decision_reason}. "
-                        f"Skenario bullish membutuhkan validasi di {q.bullish_validation.trigger_condition if q.bullish_validation else 'area breakout'}, "
-                        f"sementara risiko pelemahan terbuka jika {q.bearish_validation.trigger_condition if q.bearish_validation else 'support jebol'}."
+                        f"Pada timeframe {q.timeframe}, struktur pergerakan harga {q.asset} saat ini berada dalam rezim {q.regime.lower()} di sekitar {_fmt_price(q.price)}. "
+                        f"{q.decision_reason} "
+                        f"Kondisi belum memenuhi batas asymmetric risk:reward untuk entry langsung. "
+                        f"Bias bullish memerlukan konfirmasi {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}, "
+                        f"sementara pembatalan dan skenario short terbuka jika {q.bearish_validation.trigger_condition if q.bearish_validation else 'support patah'}."
                     )
                 else:
                     narrative = (
@@ -480,11 +529,11 @@ class CryptoResearchRunner:
             else:
                 if q.decision in ("NO_TRADE", "WAIT"):
                     narrative = (
-                        f"For {q.timeframe}, patience is advised before taking new exposure on {q.asset}. "
-                        f"Price action is compressed at {_fmt_price(q.price)} under a {q.regime.lower()} regime. "
-                        f"{q.decision_reason}. "
-                        f"Upside confirmation requires a trigger at {q.bullish_validation.trigger_condition if q.bullish_validation else 'resistance breakout'}, "
-                        f"while downside risk increases below {q.bearish_validation.trigger_condition if q.bearish_validation else 'support level'}."
+                        f"On the {q.timeframe} timeframe, {q.asset} price structure is currently in a {q.regime.lower()} regime around {_fmt_price(q.price)}. "
+                        f"{q.decision_reason} "
+                        f"Current market conditions do not yet offer an asymmetric risk:reward ratio for direct entry. "
+                        f"Bullish continuation requires confirmed {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}, "
+                        f"while downside risk opens if {q.bearish_validation.trigger_condition if q.bearish_validation else 'support breaks'}."
                     )
                 else:
                     narrative = (
@@ -496,13 +545,8 @@ class CryptoResearchRunner:
         lines.append("")
         lines.append(narrative)
 
-        if q.decision in ("NO_TRADE", "WAIT"):
-            lines.append("")
-            lines.append(f"Reason         {q.decision_reason}")
-            lines.append(f"Watch          {q.watch_trigger or 'Breakout confirmation'}")
-
-        # Execution or validation levels
-        if q.decision in ("BUY", "LONG", "SHORT", "REDUCE"):
+        # Execution or conditional activation levels
+        if q.decision in ("BUY", "LONG", "SHORT", "REDUCE") and q.stop_price and q.tp1:
             lines.append("")
             lines.append(f"Entry          {q.entry_zone}")
             lines.append(f"Stop           {_fmt_price(q.stop_price)}")
@@ -512,38 +556,45 @@ class CryptoResearchRunner:
                 lines.append(f"Leverage       {q.leverage_ceiling}")
         elif q.bullish_validation and q.bearish_validation:
             lines.append("")
-            lines.append("Bullish Validation (LONG)")
-            lines.append(f"  Trigger        {q.bullish_validation.trigger_condition}")
-            lines.append(f"  Setup          Entry {q.bullish_validation.entry_zone}, Stop {_fmt_price(q.bullish_validation.stop_price)}, TP1 {_fmt_price(q.bullish_validation.tp1)} (R:R {q.bullish_validation.reward_risk_str})")
-            lines.append("")
-            lines.append("Bearish Validation (SHORT)")
-            lines.append(f"  Trigger        {q.bearish_validation.trigger_condition}")
-            lines.append(f"  Setup          Entry {q.bearish_validation.entry_zone}, Stop {_fmt_price(q.bearish_validation.stop_price)}, TP1 {_fmt_price(q.bearish_validation.tp1)} (R:R {q.bearish_validation.reward_risk_str})")
+            lines.append("Conditional setup:")
+            lines.append(f"  Long valid if : {q.bullish_validation.trigger_condition}. Entry: {q.bullish_validation.entry_zone}, Stop: {_fmt_price(q.bullish_validation.stop_price)}, Target: {_fmt_price(q.bullish_validation.tp1)} (R:R {q.bullish_validation.reward_risk_str})")
+            lines.append(f"  Short valid if: {q.bearish_validation.trigger_condition}. Entry: {q.bearish_validation.entry_zone}, Stop: {_fmt_price(q.bearish_validation.stop_price)}, Target: {_fmt_price(q.bearish_validation.tp1)} (R:R {q.bearish_validation.reward_risk_str})")
 
-        # C6. Conditional Evidence (only if present or relevant)
-        if packet.pattern_name:
+        # C6. Conditional Evidence (only factors with sufficient MATERIALITY appear in normal output)
+        if packet.stochastic.get("material"):
+            st_val = packet.stochastic.get("values", {})
+            st_sum = st_val.get("summary") or f"%K={st_val.get('k')}, %D={st_val.get('d')}"
+            lines.append(f"\nStochastic: {st_sum}")
+
+        if packet.patterns.get("material") and packet.pattern_name:
             lines.append(f"\nPattern: {packet.pattern_name}")
 
-        if packet.fibonacci_confluence:
+        if packet.fibonacci.get("material") and packet.fibonacci_confluence:
             lines.append(f"\nFibonacci: {packet.fibonacci_confluence}")
 
-        if packet.cross_venue and packet.cross_venue.get("available") and (packet.cross_venue.get("dislocation_status") != "NORMAL" or packet.cross_venue.get("dispersion_pct", 0) > 0.3 or focus == "compare"):
-            cv = packet.cross_venue
-            lines.append(f"\nCross-Venue: Dispersion {cv.get('dispersion_pct', 0):.2f}%, Best: {cv.get('best_venue', 'Market')}, Status: {cv.get('dislocation_status', 'NORMAL')}")
+        if packet.arbitrage.get("material"):
+            arb_v = packet.arbitrage.get("values", {})
+            lines.append(f"\nArbitrage: Net spread {arb_v.get('estimated_net_spread_pct', 0):+.2f}% ({arb_v.get('best_venue', 'Market')})")
 
-        if packet.large_flow and (packet.large_flow.get("status") != "NORMAL" or focus == "large_flow"):
+        if packet.frequency_cycle.get("material"):
+            cyc_v = packet.frequency_cycle.get("values", {})
+            lines.append(f"\nFrequency Cycle: Dominant period ~{cyc_v.get('period_bars')} bars (correlation: {cyc_v.get('correlation')})")
+
+        if packet.large_flow_item.get("material") or focus == "large_flow":
             lf = packet.large_flow
-            lines.append(f"\nLarge Flow: {lf.get('summary')} ({lf.get('provider')})")
+            if lf and lf.get("summary"):
+                lines.append(f"\nLarge Flow: {lf.get('summary')} ({lf.get('provider')})")
 
-        if packet.event_risk or focus == "macro":
-            lines.append(f"\nMacro Context: {packet.event_risk or 'Normal event schedule'}")
+        if packet.macro_item.get("material") or focus == "macro":
+            lines.append(f"\nMacro Context: {packet.event_risk or 'Scheduled Macro Data'}")
             if packet.macro and packet.macro.get("cpi"):
                 lines.append(f"  CPI: {packet.macro['cpi'].get('summary')}")
             if packet.macro and packet.macro.get("fomc"):
                 lines.append(f"  FOMC: {packet.macro['fomc'].get('summary')}")
 
-        # C7. Astrology: EXPERIMENTAL, hidden unless requested
-        if any(k in raw_query.lower() for k in ("astrology", "lunar", "astro")):
+        # Astrology: EXPERIMENTAL, hidden unless explicitly requested
+        is_astro_query = any(k in raw_query.lower() for k in ("astrology", "lunar", "moon", "astro", "experimental factors"))
+        if is_astro_query:
             lines.append("\nAstrology (EXPERIMENTAL / Weight=0): Lunar cycle neutral; zero weight in QuantEngine decision.")
 
         if show_sources and q.sources:

@@ -591,20 +591,21 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_help(self, _arg: str) -> None:
         print("OpenBagus Commands:")
-        print("  /help             show this help screen")
-        print("  /harness [clear]  show or clear ephemeral session memory")
-        print("  /sources [on|off] toggle display of data sources in research outputs")
-        print("  /chart [on|off]   toggle terminal candlestick chart in research outputs")
-        print("  /status           show platform runtime and provider status")
-        print("  /providers        show data providers and coverage (or /providers --check)")
-        print("  /assets [query]   search crypto asset universe (e.g. /assets eth, /assets defi)")
-        print("  /categories       list crypto taxonomy categories")
-        print("  /setup            configure optional API keys or email")
-        print("  /doctor [network] run local diagnostics (use /doctor network for live ping)")
-        print("  /email            manage optional email draft/check")
-        print("  /version          show OpenBagus version")
-        print("  /clear            clear the terminal screen")
-        print("  /exit             close OpenBagus\n")
+        print("  /help                     show this help screen")
+        print("  /harness [clear]          show or clear ephemeral session memory")
+        print("  /switch <asset>           switch active research context directly")
+        print("  /sources [on|off]         toggle display of data sources in research outputs")
+        print("  /chart [asset] [tf]       open real browser chart in TradingView or GeckoTerminal")
+        print("  /status                   show platform runtime and provider status")
+        print("  /providers                show data providers and coverage (or /providers --check)")
+        print("  /assets [query]           search crypto asset universe (e.g. /assets eth, /assets defi)")
+        print("  /categories               list crypto taxonomy categories")
+        print("  /setup                    configure optional API keys or email")
+        print("  /doctor [network]         run local diagnostics (use /doctor network for live ping)")
+        print("  /email                    manage optional email draft/check")
+        print("  /version                  show OpenBagus version")
+        print("  /clear                    clear the terminal screen")
+        print("  /exit                     close OpenBagus\n")
         print("Research Queries:")
         print("  Type any coin, symbol, or question directly:")
         print("    ETH")
@@ -622,6 +623,19 @@ class OpenBagusShell(cmd.Cmd):
         else:
             print(self.session.status_display())
 
+    def do_switch(self, arg: str) -> None:
+        target = arg.strip()
+        if not target:
+            print("Usage: /switch <ASSET>")
+            return
+        a_obj, _ = self.router.catalog.resolve_asset(target)
+        sym = a_obj.symbol if a_obj else target.upper()
+        self.session.last_asset = sym
+        req = self.router.parse(f"/switch {target}", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
     def do_sources(self, arg: str) -> None:
         cmd_str = arg.strip().lower()
         if cmd_str in ("on", "true", "1", "show"):
@@ -635,20 +649,11 @@ class OpenBagusShell(cmd.Cmd):
             print(f"Sources are currently {status}. Use '/sources on' or '/sources off' to toggle.")
 
     def do_chart(self, arg: str) -> None:
-        cmd_str = arg.strip().lower()
-        if cmd_str in ("on", "true", "1", "show"):
-            self.session.show_chart = True
-            print("[PASS] Terminal chart display enabled for research outputs.")
-        elif cmd_str in ("off", "false", "0", "hide"):
-            self.session.show_chart = False
-            print("[PASS] Terminal chart display disabled for research outputs.")
-        elif cmd_str:
-            req = self.router.parse(f"chart {arg}", session=self.session)
-            res = self.researcher.execute(req, session=self.session)
-            print(res)
-        else:
-            status = "enabled" if self.session.show_chart else "disabled"
-            print(f"Terminal chart is currently {status}. Use '/chart on' or '/chart off' to toggle.")
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/chart {cmd_str}" if cmd_str else "/chart", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
 
     def do_status(self, _arg: str) -> None:
         _run_status()
@@ -720,20 +725,29 @@ class OpenBagusShell(cmd.Cmd):
             return
         req = self.router.parse(cleaned, session=self.session)
 
-        # Ambiguous topic switch confirmation (B6)
+        # Strict Asset Context Switch Confirmation (Section B)
         if req.needs_topic_switch_confirmation and req.switch_target_asset:
             target = req.switch_target_asset
-            prompt_str = f"Pertanyaan ini tampaknya berpindah dari konteks {target}.\nPertahankan konteks {target}? (Y/N): "
+            curr = self.session.last_asset or "BTC"
+            prompt_str = f"Konteks aktif: {curr}.\nPindah fokus ke {target}? (Y/N): "
             try:
                 ans = input(prompt_str).strip().lower()
             except (EOFError, KeyboardInterrupt):
                 ans = "n"
-            if ans == "y":
-                print(f"[Konteks {target} dipertahankan. Silakan lanjutkan analisis atau ajukan pertanyaan spesifik.]\n")
+            if ans in ("y", "yes", "ya"):
+                # Switch active asset to target
+                self.session.last_asset = target
+                req.needs_topic_switch_confirmation = False
+                req.asset = target
+                req.target_assets = [target]
+                result = self.researcher.execute(req, session=self.session)
+                self.session.add_turn(cleaned, result[:300])
+                print(result)
+                print()
                 return
             else:
-                self.session.clear()
-                print(f"[Konteks {target} dibersihkan. Membuka topik baru.]\n")
+                # Keep curr as active context
+                print(f"[Konteks {curr} dipertahankan.]\n")
                 return
 
         if req.needs_asset:

@@ -114,7 +114,7 @@ COMPREHENSIVE_STOP_WORDS = {
     "posisinya", "setupnya", "targetnya", "alasannya", "kenapanya", "bang", "bro", "gan", "kak", "om", "pak",
     "ingin", "mau", "tahu", "tau", "menggunakan", "guna", "apapun", "model", "cloud", "lokal", "tanya",
     "semua", "parameter", "spek", "speknya", "dibawah", "ollama", "llm", "ohh", "iya", "harness", "herness", "hernes", "sistem", "system",
-    "lagi", "tampilin", "chart", "grafik", "whale", "cpi", "fomc", "pembuat", "pembuatnya", "bikin",
+    "lagi", "tampilin", "chart", "grafik", "whale", "cpi", "fomc", "pembuat", "pembuatnya", "bikin", "tadi",
     "cara", "mobil", "ban", "jalan", "tol", "ganti", "mengganti", "motor", "rumah", "orang", "makan", "minum", "kerja",
     # English grammatical and conversational words
     "the", "a", "an", "is", "are", "was", "were", "be", "been", "being", "in", "on", "at", "to", "for", "with",
@@ -291,6 +291,7 @@ class IntentRouter:
                     "DOT", "RUNE", "FIL", "IMX",
                 }
                 if pure_cand in top_symbols:
+                    needs_switch = bool(session and session.last_asset and session.last_asset != pure_cand)
                     return IntentRequest(
                         intent="ANALYZE",
                         request_type="ASSET_ANALYSIS",
@@ -298,6 +299,9 @@ class IntentRouter:
                         target_assets=[pure_cand],
                         timeframe=detected_tf,
                         raw_query=text,
+                        needs_topic_switch_confirmation=needs_switch,
+                        switch_target_asset=pure_cand if needs_switch else None,
+                        relation_to_context="SWITCH" if needs_switch else "CONTINUE",
                     )
 
         # -------------------------------------------------------------
@@ -309,20 +313,32 @@ class IntentRouter:
                 return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", timeframe=detected_tf, raw_query=text)
             if cmd in ("harness clear", "harness reset"):
                 return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", preference_action="clear_harness", timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("switch"):
+                switch_arg = cleaned[1:].replace("switch", "", 1).strip()
+                if switch_arg:
+                    a_obj, _ = self.catalog.resolve_asset(switch_arg)
+                    sw_sym = a_obj.symbol if a_obj else switch_arg.upper()
+                    return IntentRequest(
+                        intent="ANALYZE",
+                        request_type="ASSET_ANALYSIS",
+                        asset=sw_sym,
+                        target_assets=[sw_sym],
+                        timeframe=detected_tf,
+                        raw_query=text,
+                        relation_to_context="SWITCH",
+                        needs_topic_switch_confirmation=False,
+                    )
             if cmd.startswith("sources"):
                 act = "show_sources" if any(x in cmd for x in ("on", "1", "show")) else "hide_sources"
                 return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", preference_action=act, timeframe=detected_tf, raw_query=text)
             if cmd.startswith("chart"):
-                act = "show_chart" if any(x in cmd for x in ("on", "1", "show")) else ("hide_chart" if any(x in cmd for x in ("off", "0", "hide")) else None)
-                if act:
-                    return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", preference_action=act, timeframe=detected_tf, raw_query=text)
-                chart_arg = cmd.replace("chart", "").strip()
+                chart_arg = cmd.replace("chart", "", 1).strip()
                 if chart_arg:
                     a_obj, _ = self.catalog.resolve_asset(chart_arg)
                     if a_obj:
                         return IntentRequest(intent="CHART", request_type="CHART", asset=a_obj.symbol, timeframe=detected_tf, raw_query=text)
-                elif session and session.last_asset:
-                    return IntentRequest(intent="CHART", request_type="CHART", asset=session.last_asset, timeframe=detected_tf, raw_query=text)
+                target_sym = session.last_asset if (session and session.last_asset) else "BTC"
+                return IntentRequest(intent="CHART", request_type="CHART", asset=target_sym, timeframe=detected_tf, raw_query=text)
 
         # -------------------------------------------------------------
         # 2. Obvious System / Preference / Feedback Requests (Deterministic)
@@ -551,7 +567,8 @@ class IntentRouter:
                 "nggak ada", "tidak ada", "kenapa", "kok", "alasannya", "kenapanya",
             ]
             followup_position_triggers = [
-                "entry dimana", "masuk dimana", "bisa beli", "bisa serok", "enaknya long",
+                "entry dimana", "entry tadi dimana", "entry di mana", "entry tadi di mana", "entry tadi",
+                "masuk dimana", "bisa beli", "bisa serok", "enaknya long",
                 "bagusnya long", "long apa short", "long or short", "beli sekarang",
             ]
             followup_outlook_triggers = [
@@ -683,11 +700,18 @@ class IntentRouter:
                         raw_query=text,
                         relation_to_context="SWITCH" if session and session.last_asset != a_obj.symbol else "CONTINUE",
                     )
-        if lower.strip("?!. ") in ("chart", "grafik", "tampilkan chart", "kasih grafik") and session and session.last_asset:
+        chart_phrases = {
+            "chart", "grafik", "chartnya", "grafiknya", "chart dong", "chartnya dong",
+            "grafik dong", "grafiknya dong", "tampilkan chart", "kasih grafik", "buka chart",
+            "lihat chart", "tampilin chart", "open chart", "show chart", "tampilkan grafik",
+        }
+        stripped_lower = lower.strip("?!. ")
+        if stripped_lower in chart_phrases or any(stripped_lower.startswith(p) for p in ("chartnya", "grafiknya", "buka chart", "lihat chart", "tampilin chart")):
+            target_asset = session.last_asset if (session and session.last_asset) else "BTC"
             return IntentRequest(
                 intent="CHART",
                 request_type="CHART",
-                asset=session.last_asset,
+                asset=target_asset,
                 timeframe=detected_tf,
                 raw_query=text,
                 relation_to_context="CONTINUE",
@@ -1037,6 +1061,13 @@ class IntentRouter:
                     switch_target_asset=target_switch,
                 )
 
+        needs_switch = False
+        target_switch = None
+        if asset and session and session.last_asset and session.last_asset != asset and intent != "COMPARE":
+            if not cleaned.lower().startswith("/switch"):
+                needs_switch = True
+                target_switch = asset
+
         return IntentRequest(
             intent=intent,
             request_type=request_type,
@@ -1052,4 +1083,7 @@ class IntentRouter:
             risk_pct=risk_pct_val,
             needs_capital_inputs=needs_capital_inputs,
             raw_query=text,
+            needs_topic_switch_confirmation=needs_switch,
+            switch_target_asset=target_switch,
+            relation_to_context="SWITCH" if needs_switch else "CONTINUE",
         )
