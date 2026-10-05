@@ -593,6 +593,42 @@ class IntentRouter:
                 )
 
         # -------------------------------------------------------------
+        # 3b. Deterministic Asset Comparison Detection (e.g. BTC vs ETH, compare BTC ETH)
+        # Prioritized BEFORE LLM to ensure comparison never triggers switch prompt
+        # -------------------------------------------------------------
+        comp_c1, comp_c2 = None, None
+        vs_m = re.search(r"\b([A-Za-z0-9]+)\s+(?:vs|versus|v)\s+([A-Za-z0-9]+)\b", query_no_tf, re.IGNORECASE)
+        if vs_m:
+            comp_c1, comp_c2 = vs_m.group(1), vs_m.group(2)
+        elif any(k in lower for k in ("bandingkan", "compare", "komparasi")):
+            cand_assets = []
+            for w in words:
+                wl = w.lower()
+                if wl not in COMPREHENSIVE_STOP_WORDS and wl not in DEX_SLANG_EXCLUSIONS and wl not in ("bandingkan", "compare", "komparasi", "versus", "vs", "dengan", "dan", "and", "with"):
+                    a_obj, _ = self.catalog.resolve_asset(w)
+                    if a_obj and a_obj.symbol not in cand_assets:
+                        cand_assets.append(a_obj.symbol)
+            if len(cand_assets) >= 2:
+                comp_c1, comp_c2 = cand_assets[0], cand_assets[1]
+
+        if comp_c1 and comp_c2:
+            a1, _ = self.catalog.resolve_asset(comp_c1)
+            a2, _ = self.catalog.resolve_asset(comp_c2)
+            if a1 and a2:
+                return IntentRequest(
+                    intent="COMPARE",
+                    request_type="COMPARE",
+                    asset=a1.symbol,
+                    asset_2=a2.symbol,
+                    target_assets=[a1.symbol, a2.symbol],
+                    timeframe=detected_tf,
+                    focus="compare",
+                    raw_query=text,
+                    needs_topic_switch_confirmation=False,
+                    relation_to_context="CONTINUE",
+                )
+
+        # -------------------------------------------------------------
         # 4. Local Language Model Intent Interpretation
         # For free-form / ambiguous natural language queries
         # -------------------------------------------------------------
@@ -652,7 +688,19 @@ class IntentRouter:
                         if chart_target:
                             return IntentRequest(intent="CHART", request_type="CHART", asset=chart_target, timeframe=tf, raw_query=text, relation_to_context=relation)
                     elif verified_asset:
-                        return IntentRequest(intent="ANALYZE", request_type="ASSET_ANALYSIS", asset=verified_asset, target_assets=[verified_asset], market=mkt, timeframe=tf, raw_query=text, relation_to_context=relation)
+                        needs_sw = bool(session and session.last_asset and session.last_asset != verified_asset and not cleaned.lower().startswith("/switch"))
+                        return IntentRequest(
+                            intent="ANALYZE",
+                            request_type="ASSET_ANALYSIS",
+                            asset=verified_asset,
+                            target_assets=[verified_asset],
+                            market=mkt,
+                            timeframe=tf,
+                            raw_query=text,
+                            relation_to_context="SWITCH" if needs_sw else relation,
+                            needs_topic_switch_confirmation=needs_sw,
+                            switch_target_asset=verified_asset if needs_sw else None,
+                        )
                 elif (req_t == "MARKET_OUTLOOK" or topic == "macro") and any(k in lower for k in ("cpi", "fomc", "macro", "makro", "inflasi", "outlook", "pasar", "market", "fed")):
                     macro_target = verified_asset or (session.last_asset if session else "BTC")
                     return IntentRequest(intent="MARKET_OUTLOOK", request_type="MARKET_OUTLOOK", asset=macro_target, focus="macro", timeframe=tf, raw_query=text, relation_to_context=relation)
@@ -669,6 +717,7 @@ class IntentRouter:
                     intent_code = "POSITION" if is_pos else ("RISK" if req_t == "RISK" else "ANALYZE")
                     req_type_code = "POSITION" if is_pos else "ASSET_ANALYSIS"
                     final_mkt = session.market_type.lower() if (session and session.market_type) else ("perpetual" if req_type_code == "POSITION" else "all")
+                    needs_sw = bool(session and session.last_asset and session.last_asset != verified_asset and intent_code != "COMPARE" and not cleaned.lower().startswith("/switch"))
                     return IntentRequest(
                         intent=intent_code,
                         request_type=req_type_code,
@@ -677,7 +726,9 @@ class IntentRouter:
                         market=final_mkt,
                         timeframe=tf,
                         raw_query=text,
-                        relation_to_context=relation,
+                        relation_to_context="SWITCH" if needs_sw else relation,
+                        needs_topic_switch_confirmation=needs_sw,
+                        switch_target_asset=verified_asset if needs_sw else None,
                     )
 
         # -------------------------------------------------------------
@@ -802,25 +853,6 @@ class IntentRouter:
                 raw_query=text,
             )
 
-        # -------------------------------------------------------------
-        # 5. Asset Comparison Detection (e.g. BTC vs ETH)
-        # -------------------------------------------------------------
-        vs_match = re.search(r"\b([A-Za-z0-9]+)\s+(?:vs|versus|v)\s+([A-Za-z0-9]+)\b", query_no_tf, re.IGNORECASE)
-        if vs_match or ("bandingkan" in lower and len(words) >= 3):
-            c1, c2 = (vs_match.group(1), vs_match.group(2)) if vs_match else (words[1], words[2])
-            a1, _ = self.catalog.resolve_asset(c1)
-            a2, _ = self.catalog.resolve_asset(c2)
-            if a1 and a2:
-                return IntentRequest(
-                    intent="COMPARE",
-                    request_type="COMPARE",
-                    asset=a1.symbol,
-                    asset_2=a2.symbol,
-                    target_assets=[a1.symbol, a2.symbol],
-                    timeframe=detected_tf,
-                    focus="compare",
-                    raw_query=text,
-                )
 
         # -------------------------------------------------------------
         # 6. Typo correction for crypto vocabulary

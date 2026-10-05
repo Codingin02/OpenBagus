@@ -92,7 +92,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[FAIL] Failed to install OpenBagus." -ForegroundColor Red
     exit 1
 }
-& $venvPython -m pip check --quiet -ErrorAction SilentlyContinue
+& $venvPython -m pip check --quiet 2>$null
 Write-Host "[PASS] OpenBagus installed" -ForegroundColor Green
 
 # 4. Verify CLI Entrypoint

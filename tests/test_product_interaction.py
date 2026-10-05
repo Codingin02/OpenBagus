@@ -52,17 +52,30 @@ class TestProductInteraction(unittest.TestCase):
                 # Context must remain BTC
                 self.assertEqual(shell.session.last_asset, "BTC")
 
-            # 2. User repeats "ETH" and confirms with "Y"
+            # 2. User inputs natural language query "kalau ETH gimana?", user enters "N"
+            with patch("builtins.input", return_value="N"):
+                shell.default("kalau ETH gimana?")
+                # Context must remain BTC
+                self.assertEqual(shell.session.last_asset, "BTC")
+
+            # 3. User repeats "ETH" and confirms with "Y"
             with patch("builtins.input", return_value="Y"):
                 shell.default("ETH")
                 # Context must switch to ETH
                 self.assertEqual(shell.session.last_asset, "ETH")
 
-            # 3. User inputs comparison "BTC vs ETH"
+            # 4. User inputs comparison "BTC vs ETH" and "bandingkan BTC dengan ETH"
             with patch("builtins.input") as mock_input:
                 shell.default("BTC vs ETH")
+                shell.default("bandingkan BTC dengan ETH")
                 # Context switch confirmation must NOT be triggered for COMPARE
                 mock_input.assert_not_called()
+
+            # 5. Explicit command "/switch BTC" switches immediately without confirmation
+            with patch("builtins.input") as mock_input:
+                shell.do_switch("BTC")
+                mock_input.assert_not_called()
+                self.assertEqual(shell.session.last_asset, "BTC")
 
     # ============================================================
     # I2. SYSTEM CONTEXT TEST
