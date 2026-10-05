@@ -13,11 +13,17 @@ QuantEngine remains 100% authoritative for all calculations, decisions, and pric
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
 import os
 import re
+import ssl
 import subprocess
 import sys
+import time
+import urllib.request
+import zipfile
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
@@ -38,9 +44,13 @@ def get_local_appdata_dir() -> Path:
 LOCAL_RUNTIME_DIR = get_local_appdata_dir()
 MODELS_DIR = LOCAL_RUNTIME_DIR / "models"
 BIN_DIR = LOCAL_RUNTIME_DIR / "bin"
+CACHE_DIR = LOCAL_RUNTIME_DIR / "cache"
 MODEL_NAME = "Qwen3-0.6B-Q8_0.gguf"
 MODEL_FILE = MODELS_DIR / MODEL_NAME
 LLAMA_CLI_EXE = BIN_DIR / ("llama-cli.exe" if os.name == "nt" else "llama-cli")
+
+# Official SHA-256 Checksum for Qwen3-0.6B-Q8_0.gguf from Hugging Face LFS
+QWEN3_SHA256 = "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
 
 # Canonical Factual OpenBagus System Profile (Section 12)
 SYSTEM_PROFILE: dict[str, str] = {
@@ -66,9 +76,32 @@ ALLOWED_LLM_REQUEST_TYPES = {
     "FEEDBACK",
     "PREFERENCE",
     "CATEGORY",
+    "CHART",
+    "MARKET_OUTLOOK",
     "SETUP_CONFIG",
     "UNKNOWN",
 }
+
+ALLOWED_RELATION_TYPES = {
+    "CONTINUE",
+    "SWITCH",
+    "UNRELATED",
+    "UNCERTAIN",
+}
+
+
+def _verify_sha256(filepath: Path, expected_sha: str) -> bool:
+    """Computes SHA-256 of file and checks against expected hex string."""
+    if not filepath.is_file():
+        return False
+    h = hashlib.sha256()
+    try:
+        with open(filepath, "rb") as f:
+            while chunk := f.read(1024 * 1024):
+                h.update(chunk)
+        return h.hexdigest().lower() == expected_sha.lower()
+    except Exception:
+        return False
 
 
 class LocalLanguageEngine:
@@ -91,11 +124,36 @@ class LocalLanguageEngine:
         """Returns True only if both llama.cpp CLI and the Qwen model GGUF exist on disk."""
         return self.llama_bin.is_file() and self.model_path.is_file()
 
+    def get_runtime_state(self) -> str:
+        """Returns runtime state: ACTIVE, FALLBACK, or UNAVAILABLE."""
+        if not self.is_available():
+            if not self.model_path.is_file() and not self.llama_bin.is_file():
+                return "UNAVAILABLE"
+            return "FALLBACK"
+
+        smoke_file = CACHE_DIR / "llm_smoke.ok"
+        if smoke_file.is_file():
+            try:
+                if smoke_file.stat().st_mtime >= self.llama_bin.stat().st_mtime:
+                    return "ACTIVE"
+            except Exception:
+                pass
+
+        if self._smoke_test():
+            try:
+                CACHE_DIR.mkdir(parents=True, exist_ok=True)
+                smoke_file.write_text("OK", encoding="utf-8")
+            except Exception:
+                pass
+            return "ACTIVE"
+        return "FALLBACK"
+
     def get_status_info(self) -> dict[str, Any]:
         """Returns local language runtime status metadata."""
-        avail = self.is_available()
+        state = self.get_runtime_state()
         return {
-            "available": avail,
+            "state": state,
+            "available": (state == "ACTIVE"),
             "model_name": MODEL_NAME,
             "model_path": str(self.model_path),
             "model_exists": self.model_path.is_file(),
@@ -104,7 +162,34 @@ class LocalLanguageEngine:
             "llama_exists": self.llama_bin.is_file(),
         }
 
-    def _run_llama(self, prompt: str, max_tokens: int = 192, temp: float = 0.0, timeout: float = 12.0) -> str | None:
+    def _smoke_test(self, timeout: float = 12.0) -> bool:
+        """Runs ONE real inference smoke test against llama-cli to verify readiness."""
+        if not self.is_available():
+            return False
+        prompt = (
+            "<|im_start|>system\nYou are the intent classifier. Output ONLY valid JSON.<|im_end|>\n"
+            '<|im_start|>user\nReturn JSON only: {"request_type": "SYSTEM_INFO"}<|im_end|>\n'
+            "<|im_start|>assistant\n"
+        )
+        out = self._run_llama(prompt, max_tokens=32, temp=0.0, timeout=timeout)
+        if not out:
+            return False
+        match = re.search(r"\{.*\}", out, re.DOTALL)
+        if not match:
+            return False
+        try:
+            d = json.loads(match.group(0))
+            return isinstance(d, dict) and d.get("request_type") == "SYSTEM_INFO"
+        except Exception:
+            return False
+
+    def _run_llama(
+        self,
+        prompt: str,
+        max_tokens: int = 128,
+        temp: float = 0.0,
+        timeout: float = 15.0,
+    ) -> str | None:
         """Executes llama-cli subprocess directly without HTTP server overhead."""
         if not self.is_available():
             return None
@@ -114,14 +199,19 @@ class LocalLanguageEngine:
             "-m", str(self.model_path),
             "-p", prompt,
             "-n", str(max_tokens),
+            "-c", "1024",
             "--temp", str(temp),
             "-ngl", "0",
             "--no-display-prompt",
+            "--single-turn",
+            "--simple-io",
+            "--chat-template-kwargs", '{"enable_thinking":false}',
         ]
 
         try:
             res = subprocess.run(
                 cmd,
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 timeout=timeout,
@@ -129,7 +219,17 @@ class LocalLanguageEngine:
                 errors="replace",
             )
             if res.returncode == 0 and res.stdout:
-                return res.stdout.strip()
+                raw = res.stdout
+                # Clean prompt echo, banner, and performance footer
+                clean = re.sub(r"\[\s*Prompt:.*?\]", "", raw, flags=re.DOTALL)
+                clean = re.sub(r"Exiting\.\.\.", "", clean)
+                if "(truncated)" in clean:
+                    clean = clean.split("(truncated)")[-1]
+                elif "<|im_start|>assistant" in clean:
+                    clean = clean.split("<|im_start|>assistant")[-1]
+                elif "\n\n> " in clean:
+                    clean = clean.split("\n\n> ")[-1]
+                return clean.strip()
             return None
         except Exception:
             return None
@@ -145,42 +245,38 @@ class LocalLanguageEngine:
         last_tf = ctx.get("last_timeframe") or "H1"
 
         system_instruction = (
-            "You are the intent router for OpenBagus, a crypto market research terminal.\n"
-            "Analyze the user input and output ONLY valid JSON matching this exact schema:\n"
-            "{\n"
-            '  "request_type": "ANALYZE|POSITION|COMPARE|RISK|SYSTEM_INFO|HARNESS|FEEDBACK|PREFERENCE|CATEGORY|SETUP_CONFIG|UNKNOWN",\n'
-            '  "asset": null,\n'
-            '  "asset_2": null,\n'
-            '  "market": null,\n'
-            '  "timeframe": null,\n'
-            '  "topic": null,\n'
-            '  "follow_up": false,\n'
-            '  "system_question": false,\n'
-            '  "confidence": "high"\n'
-            "}\n\n"
-            "RULES:\n"
-            "1. If user asks about system, creator, AI model, architecture, or who made it -> request_type: SYSTEM_INFO, asset: null.\n"
-            "2. If user mentions harness, herness, session memory -> request_type: HARNESS, asset: null.\n"
-            "3. If user expresses feedback, slang (tolol, wkwk, sampah, aneh, no trade) -> request_type: FEEDBACK, asset: null.\n"
-            "4. If user sets preferences (no ollama, hide sources) -> request_type: PREFERENCE, asset: null.\n"
-            "5. If user discusses LLM installation or specs -> request_type: SETUP_CONFIG, asset: null.\n"
-            "6. NEVER classify Indonesian slang, filler words, or system terms as crypto coins.\n"
-            f"Context: last_asset={last_asset}, last_market={last_market}, last_tf={last_tf}.\n"
-            f"Input: {text}\n"
-            "JSON:"
+            "<|im_start|>system\n"
+            "You are the intent router for OpenBagus crypto research terminal.\n"
+            'Output JSON only: {"request_type": "...", "asset": "...", "relation_to_context": "..."}\n'
+            'Allowed request_type: ["POSITION", "ANALYZE", "CHART", "MARKET_OUTLOOK", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "HARNESS", "UNKNOWN"]\n'
+            'Allowed relation_to_context: ["CONTINUE", "SWITCH", "UNRELATED", "UNCERTAIN"]\n\n'
+            "Rules:\n"
+            '- "posisi btc", "long atau short", "nunggu atau cari long" -> {"request_type": "POSITION", "asset": "BTC", "relation_to_context": "SWITCH"}\n'
+            '- "kalau eth gimana", "analisa sol" -> {"request_type": "ANALYZE", "asset": "ETH", "relation_to_context": "SWITCH"}\n'
+            '- "tampilkan chart", "grafik eth" -> {"request_type": "CHART", "asset": "ETH", "relation_to_context": "SWITCH"}\n'
+            '- "kok no trade terus", "tolol nih" -> {"request_type": "FEEDBACK", "asset": null, "relation_to_context": "CONTINUE"}\n'
+            '- "siapa pembuatnya", "tentang sistem" -> {"request_type": "SYSTEM_INFO", "asset": null, "relation_to_context": "UNRELATED"}\n'
+            '- "jangan tampilin sources", "hide sources" -> {"request_type": "PREFERENCE", "asset": null, "relation_to_context": "CONTINUE"}\n'
+            '- "ini masih nyambung sama btc nggak" -> {"request_type": "HARNESS", "asset": null, "relation_to_context": "CONTINUE"}\n'
+            '- "gimana cpi pengaruh ke btc" -> {"request_type": "MARKET_OUTLOOK", "asset": "BTC", "relation_to_context": "SWITCH"}\n'
+            "- NEVER classify slang or Indonesian words (lagi, ya, kok, terus, nih, dong) as crypto coins.<|im_end|>\n"
+            f"<|im_start|>user\nContext: last_asset={last_asset}, last_market={last_market}, last_tf={last_tf}.\n"
+            f"Input: {text}<|im_end|>\n"
+            "<|im_start|>assistant\n"
         )
 
         output = self._run_llama(system_instruction, max_tokens=128, temp=0.0)
         if not output:
             return None
 
-        # Extract JSON substring
-        json_match = re.search(r"\{.*\}", output, re.DOTALL)
-        if not json_match:
+        matches = list(re.finditer(r"\{[^{}]*\}", output, re.DOTALL))
+        if not matches:
+            matches = list(re.finditer(r"\{.*\}", output, re.DOTALL))
+        if not matches:
             return None
 
         try:
-            data = json.loads(json_match.group(0))
+            data = json.loads(matches[-1].group(0))
             if not isinstance(data, dict):
                 return None
 
@@ -188,73 +284,117 @@ class LocalLanguageEngine:
             if req_type not in ALLOWED_LLM_REQUEST_TYPES:
                 req_type = "UNKNOWN"
 
+            relation = str(data.get("relation_to_context", "UNCERTAIN")).upper()
+            if relation not in ALLOWED_RELATION_TYPES:
+                relation = "UNCERTAIN"
+
             # Asset Safety: non-asset request types MUST NOT have assets
             if req_type in ("FEEDBACK", "SYSTEM_INFO", "HARNESS", "PREFERENCE", "SETUP_CONFIG"):
                 data["asset"] = None
                 data["asset_2"] = None
 
             data["request_type"] = req_type
+            data["relation_to_context"] = relation
             return data
         except Exception:
             return None
 
     def generate_narrative(
         self,
-        quant_result: Any,
+        research_packet: Any,
         user_query: str = "",
         language: str = "id",
     ) -> str | None:
-        """Generates professional crypto analyst trader narrative from structured QuantEngine data.
+        """Generates professional crypto analyst trader narrative strictly grounded in research packet.
 
-        QuantEngine numbers and decision are strictly preserved and verified.
+        Guarded by numeric invariance check: invented or changed numbers cause immediate rejection.
         """
         if not self.is_available():
             return None
 
-        q = quant_result
-        asset = getattr(q, "asset", "ASSET")
-        decision = getattr(q, "decision", "NO_TRADE")
-        price = getattr(q, "price", 0.0)
-        tf = getattr(q, "timeframe", "H1")
-        regime = getattr(q, "regime", "Compressed")
-        reason = getattr(q, "decision_reason", "")
-        rr_str = getattr(q, "reward_risk_str", "N/A")
+        # Extract structured packet attributes
+        packet = research_packet
+        asset = getattr(packet, "asset", "ASSET")
+        decision = getattr(packet, "decision", "NO_TRADE")
+        price = getattr(packet, "price", 0.0)
+        tf = getattr(packet, "timeframe", "H1")
+        regime = getattr(packet, "regime", getattr(packet, "market_state", "Compressed"))
+        reason = getattr(packet, "decision_reason", getattr(packet, "reason", ""))
+        rr_str = getattr(packet, "reward_risk_str", "N/A")
 
-        bull_trig = q.bullish_validation.trigger_condition if getattr(q, "bullish_validation", None) else ""
-        bear_trig = q.bearish_validation.trigger_condition if getattr(q, "bearish_validation", None) else ""
+        bull_trig = ""
+        bear_trig = ""
+        if hasattr(packet, "bullish_validation") and packet.bullish_validation:
+            bull_trig = getattr(packet.bullish_validation, "trigger_condition", "")
+        if hasattr(packet, "bearish_validation") and packet.bearish_validation:
+            bear_trig = getattr(packet.bearish_validation, "trigger_condition", "")
+
+        pattern_name = getattr(packet, "pattern_name", "") or ""
+        fib_confluence = getattr(packet, "fibonacci_confluence", "") or ""
+        macro_note = getattr(packet, "macro_context", "") or ""
+        flow_note = getattr(packet, "large_flow_context", "") or ""
 
         lang_label = "Indonesian (Bahasa Indonesia)" if language == "id" else "English"
 
         prompt = (
-            f"You are a senior quantitative crypto analyst. Write a concise, professional 3-sentence trader note in {lang_label}.\n"
+            f"<|im_start|>system\n"
+            f"You are a senior quantitative crypto research consultant. Write an objective, concise 4-8 sentence trader note in {lang_label}.\n"
             "STRICT RULES:\n"
             f"1. You MUST keep the decision '{decision}' and asset '{asset}'.\n"
-            "2. Do NOT invent prices, targets, stops, or leverage.\n"
-            "3. Sound like an objective trading consultant, not a robot.\n\n"
-            f"Facts:\n"
+            "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts.\n"
+            "3. Sound like an objective institutional consultant giving high-conviction decision support, not an AI bot.\n"
+            "4. Do NOT repeat formulaic phrases like 'diperdagangkan pada' or 'disarankan menahan diri'.<|im_end|>\n"
+            f"<|im_start|>user\nFacts from QuantEngine:\n"
             f"- Asset: {asset} ({tf})\n"
             f"- Price: ${price:,.2f}\n"
             f"- Quant Decision: {decision}\n"
             f"- Market Regime: {regime}\n"
             f"- Reason: {reason} (RR: {rr_str})\n"
             f"- Bullish Validation: {bull_trig}\n"
-            f"- Bearish Validation: {bear_trig}\n\n"
-            "Trader Note:"
+            f"- Bearish Validation: {bear_trig}\n"
+            + (f"- Chart Pattern: {pattern_name}\n" if pattern_name else "")
+            + (f"- Fibonacci Confluence: {fib_confluence}\n" if fib_confluence else "")
+            + (f"- Macro: {macro_note}\n" if macro_note else "")
+            + (f"- Flow Activity: {flow_note}\n" if flow_note else "")
+            + f"<|im_end|>\n<|im_start|>assistant\n"
         )
 
-        res = self._run_llama(prompt, max_tokens=160, temp=0.2)
+        res = self._run_llama(prompt, max_tokens=220, temp=0.2)
         if not res:
             return None
 
         clean_narrative = re.sub(r"^(?:Trader Note:?|Note:?|Summary:?)\s*", "", res.strip(), flags=re.IGNORECASE)
 
-        # Integrity Validation: Verify no contradictory decision was generated
+        # Integrity Validation 1: Verify decision alignment
         upper_text = clean_narrative.upper()
         if decision in ("NO_TRADE", "WAIT"):
             if "BUY NOW" in upper_text or "SEGERA BELI" in upper_text or "ENTRY SEKARANG" in upper_text:
-                return None  # Contradicts quant risk gate; reject and fallback
+                return None
         elif decision in ("BUY", "LONG"):
             if "SHORT NOW" in upper_text or "JUAL SEKARANG" in upper_text:
+                return None
+
+        # Integrity Validation 2 (C3 Numeric Invariance Guard):
+        # Extract numbers from narrative and check they exist in packet
+        valid_numbers = set()
+        # Collect allowed numeric tokens from facts
+        raw_facts = f"{price} {price:,.2f} {price:.2f} {price:.0f} {rr_str} {bull_trig} {bear_trig} {reason} {fib_confluence} {macro_note} {flow_note}"
+        for num in re.findall(r"\b\d+(?:[.,]\d+)?\b", raw_facts):
+            clean_n = num.replace(",", "").replace(".", "")
+            valid_numbers.add(clean_n)
+
+        # Numbers <= 10 or common integers (1, 2, 3, 4, 10, etc.) are allowed for sentence structure
+        narrative_numbers = re.findall(r"\b\d+(?:[.,]\d+)?\b", clean_narrative)
+        for num_str in narrative_numbers:
+            clean_num = num_str.replace(",", "").replace(".", "")
+            try:
+                val = float(num_str.replace(",", "."))
+                if val <= 10.0 and val == int(val):
+                    continue  # structural count (e.g. 1st scenario, 2 levels)
+            except Exception:
+                pass
+            if clean_num not in valid_numbers:
+                # Model invented a price or number not in ResearchPacket
                 return None
 
         return clean_narrative
@@ -294,66 +434,137 @@ class LocalLanguageEngine:
 def provision_local_runtime(download_model: bool = True, download_llama: bool = True) -> bool:
     """Provisions llama-cli and Qwen3-0.6B-Q8_0.gguf into %LOCALAPPDATA%\\OpenBagus.
 
-    Only uses official HTTPS endpoints. Safely removes incomplete files if interrupted.
+    - Queries GitHub Releases API dynamically for the newest Windows x64 CPU binary.
+    - Validates SHA-256 for both llama.cpp and Qwen model.
+    - Executes ONE real inference smoke test before reporting success.
     """
-    import urllib.request
-    import zipfile
-
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
     BIN_DIR.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+    ssl_ctx = ssl.create_default_context()
+    headers = {"User-Agent": "OpenBagus-Setup/1.0", "Accept": "application/vnd.github.v3+json"}
 
     # 1. llama.cpp Windows binaries
     if download_llama and not LLAMA_CLI_EXE.is_file():
-        llama_zip_urls = [
-            "https://github.com/ggml-org/llama.cpp/releases/download/b4850/llama-b4850-bin-win-x64.zip",
-            "https://github.com/ggml-org/llama.cpp/releases/download/b4800/llama-b4800-bin-win-x64.zip",
-        ]
+        print("[....] Querying latest llama.cpp release from GitHub")
+        llama_asset = None
+        for attempt in range(4):
+            try:
+                req = urllib.request.Request(
+                    "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=3",
+                    headers=headers,
+                )
+                with urllib.request.urlopen(req, context=ssl_ctx, timeout=15) as resp:
+                    releases = json.loads(resp.read().decode("utf-8"))
+                    for r in releases:
+                        for a in r.get("assets", []):
+                            aname = a.get("name", "").lower()
+                            if "bin-win-cpu-x64.zip" in aname or ("win" in aname and "cpu" in aname and "x64" in aname and aname.endswith(".zip")):
+                                llama_asset = a
+                                break
+                        if llama_asset:
+                            break
+                if llama_asset:
+                    break
+            except Exception as e:
+                time.sleep(1.5)
+
+        if not llama_asset:
+            print("[WARN] Could not find suitable llama.cpp binary in GitHub releases.")
+            return False
+
+        dl_url = llama_asset["browser_download_url"]
+        expected_sha = llama_asset.get("digest", "").replace("sha256:", "").strip()
+        print(f"[....] Downloading {llama_asset['name']}")
+
         tmp_zip = BIN_DIR / "llama_win.tmp.zip"
         downloaded = False
-        for url in llama_zip_urls:
+        for attempt in range(4):
             try:
-                print(f"[....] Downloading llama.cpp binaries from {url}")
-                urllib.request.urlretrieve(url, tmp_zip)
+                req_dl = urllib.request.Request(dl_url, headers={"User-Agent": "OpenBagus-Setup/1.0"})
+                with urllib.request.urlopen(req_dl, context=ssl_ctx, timeout=60) as resp:
+                    with open(tmp_zip, "wb") as f:
+                        f.write(resp.read())
+
                 if tmp_zip.is_file() and tmp_zip.stat().st_size > 1_000_000:
+                    if expected_sha:
+                        if not _verify_sha256(tmp_zip, expected_sha):
+                            print("[WARN] SHA-256 mismatch on downloaded llama.cpp; aborting.")
+                            tmp_zip.unlink(missing_ok=True)
+                            return False
                     with zipfile.ZipFile(tmp_zip, "r") as z:
                         z.extractall(BIN_DIR)
                     downloaded = True
                     break
             except Exception as e:
-                print(f"[WARN] Failed to download {url}: {e}")
+                time.sleep(2.0)
             finally:
-                if tmp_zip.is_file():
-                    tmp_zip.unlink(missing_ok=True)
+                tmp_zip.unlink(missing_ok=True)
 
         if not downloaded:
-            print("[WARN] Could not retrieve prebuilt llama.cpp binaries.")
+            print("[WARN] Failed downloading llama.cpp runtime.")
+            return False
 
     # 2. Qwen3-0.6B-Q8_0.gguf (~639 MB)
-    if download_model and not MODEL_FILE.is_file():
-        model_urls = [
-            "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
-            "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
-            "https://huggingface.co/gatherz/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
-        ]
-        tmp_model = MODELS_DIR / "qwen3_model.tmp.gguf"
-        downloaded = False
-        for url in model_urls:
-            try:
-                print(f"[....] Downloading {MODEL_NAME} (~639 MB) from {url}")
-                urllib.request.urlretrieve(url, tmp_model)
-                if tmp_model.is_file() and tmp_model.stat().st_size > 300_000_000:
-                    tmp_model.rename(MODEL_FILE)
-                    downloaded = True
-                    print(f"[PASS] Model saved: {MODEL_FILE}")
-                    break
-            except Exception as e:
-                print(f"[WARN] Failed downloading model from {url}: {e}")
-            finally:
-                if tmp_model.is_file():
+    if download_model:
+        if MODEL_FILE.is_file():
+            print("[....] Verifying existing Qwen3-0.6B model checksum")
+            if not _verify_sha256(MODEL_FILE, QWEN3_SHA256):
+                print("[WARN] Existing model checksum mismatch; removing corrupted file.")
+                MODEL_FILE.unlink(missing_ok=True)
+            else:
+                print(f"[PASS] Model verified: {MODEL_FILE}")
+
+        if not MODEL_FILE.is_file():
+            model_urls = [
+                "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+                "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
+            ]
+            tmp_model = MODELS_DIR / "qwen3_model.tmp.gguf"
+            downloaded = False
+            for url in model_urls:
+                try:
+                    print(f"[....] Downloading {MODEL_NAME} (~639 MB) from {url}")
+                    for attempt in range(4):
+                        try:
+                            req_m = urllib.request.Request(url, headers={"User-Agent": "OpenBagus-Setup/1.0"})
+                            with urllib.request.urlopen(req_m, context=ssl_ctx, timeout=120) as resp:
+                                with open(tmp_model, "wb") as f:
+                                    while chunk := resp.read(1024 * 1024):
+                                        f.write(chunk)
+                            if tmp_model.is_file() and tmp_model.stat().st_size > 300_000_000:
+                                if _verify_sha256(tmp_model, QWEN3_SHA256):
+                                    tmp_model.rename(MODEL_FILE)
+                                    downloaded = True
+                                    print(f"[PASS] Model verified and saved: {MODEL_FILE}")
+                                    break
+                                else:
+                                    print("[WARN] Model SHA-256 verification failed; retrying.")
+                                    tmp_model.unlink(missing_ok=True)
+                        except Exception:
+                            time.sleep(2.0)
+                    if downloaded:
+                        break
+                except Exception as e:
+                    print(f"[WARN] Failed downloading model from {url}: {e}")
+                finally:
                     tmp_model.unlink(missing_ok=True)
 
-        if not downloaded:
-            print("[WARN] Model download incomplete; deterministic fallback remains active.")
+            if not downloaded:
+                print("[WARN] Model download incomplete; falling back safely.")
+                return False
 
+    # 3. Real Inference Smoke Test Verification
     engine = LocalLanguageEngine()
-    return engine.is_available()
+    print("[....] Running local LLM smoke test inference")
+    if engine._smoke_test():
+        try:
+            (CACHE_DIR / "llm_smoke.ok").write_text("OK", encoding="utf-8")
+        except Exception:
+            pass
+        print("[PASS] Local Language Engine: ACTIVE")
+        return True
+    else:
+        print("[WARN] Local Language Engine: FALLBACK (smoke test did not succeed)")
+        return False

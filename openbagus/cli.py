@@ -207,11 +207,14 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
         add("FAIL", "Runtime output", str(exc))
 
     llm = LocalLanguageEngine(repo_root=REPO_ROOT)
-    if llm.is_available():
+    llm_state = llm.get_runtime_state()
+    if llm_state == "ACTIVE":
         info = llm.get_status_info()
-        add("PASS", "Local Language Model", f"{info.get('model_name')} active ({info.get('model_size_mb')}MB)")
+        add("PASS", "Local Language Model", f"ACTIVE ({info.get('model_name')}, {info.get('model_size_mb')}MB)")
+    elif llm_state == "FALLBACK":
+        add("OPTIONAL", "Local Language Model", "FALLBACK (deterministic engine active)")
     else:
-        add("OPTIONAL", "Local Language Model", "offline / using canonical deterministic engine")
+        add("OPTIONAL", "Local Language Model", "UNAVAILABLE (offline / optional)")
 
     if network:
         registry = ProviderRegistry(REPO_ROOT)
@@ -591,6 +594,7 @@ class OpenBagusShell(cmd.Cmd):
         print("  /help             show this help screen")
         print("  /harness [clear]  show or clear ephemeral session memory")
         print("  /sources [on|off] toggle display of data sources in research outputs")
+        print("  /chart [on|off]   toggle terminal candlestick chart in research outputs")
         print("  /status           show platform runtime and provider status")
         print("  /providers        show data providers and coverage (or /providers --check)")
         print("  /assets [query]   search crypto asset universe (e.g. /assets eth, /assets defi)")
@@ -629,6 +633,22 @@ class OpenBagusShell(cmd.Cmd):
         else:
             status = "enabled" if self.session.show_sources else "disabled"
             print(f"Sources are currently {status}. Use '/sources on' or '/sources off' to toggle.")
+
+    def do_chart(self, arg: str) -> None:
+        cmd_str = arg.strip().lower()
+        if cmd_str in ("on", "true", "1", "show"):
+            self.session.show_chart = True
+            print("[PASS] Terminal chart display enabled for research outputs.")
+        elif cmd_str in ("off", "false", "0", "hide"):
+            self.session.show_chart = False
+            print("[PASS] Terminal chart display disabled for research outputs.")
+        elif cmd_str:
+            req = self.router.parse(f"chart {arg}", session=self.session)
+            res = self.researcher.execute(req, session=self.session)
+            print(res)
+        else:
+            status = "enabled" if self.session.show_chart else "disabled"
+            print(f"Terminal chart is currently {status}. Use '/chart on' or '/chart off' to toggle.")
 
     def do_status(self, _arg: str) -> None:
         _run_status()
@@ -699,14 +719,32 @@ class OpenBagusShell(cmd.Cmd):
         if not cleaned:
             return
         req = self.router.parse(cleaned, session=self.session)
+
+        # Ambiguous topic switch confirmation (B6)
+        if req.needs_topic_switch_confirmation and req.switch_target_asset:
+            target = req.switch_target_asset
+            prompt_str = f"Pertanyaan ini tampaknya berpindah dari konteks {target}.\nPertahankan konteks {target}? (Y/N): "
+            try:
+                ans = input(prompt_str).strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                ans = "n"
+            if ans == "y":
+                print(f"[Konteks {target} dipertahankan. Silakan lanjutkan analisis atau ajukan pertanyaan spesifik.]\n")
+                return
+            else:
+                self.session.clear()
+                print(f"[Konteks {target} dibersihkan. Membuka topik baru.]\n")
+                return
+
         if req.needs_asset:
             print(req.clarification_prompt or "Which asset do you want to analyze?")
             print()
             return
         if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG"
+            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART"
         ):
             result = self.researcher.execute(req, session=self.session)
+            self.session.add_turn(cleaned, result[:300])
             print(result)
             print()
             return
@@ -764,7 +802,7 @@ def main(argv: list[str] | None = None) -> int:
         print(req.clarification_prompt or "Which asset do you want to analyze?")
         return 0
     if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG"
+        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART"
     ):
         result = researcher.execute(req, session=session)
         print(result)

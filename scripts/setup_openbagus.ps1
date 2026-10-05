@@ -60,6 +60,21 @@ Write-Host "[....] Preparing virtual environment"
 $venvDir = Join-Path $repoRoot ".venv"
 $venvPython = Join-Path $venvDir "Scripts\python.exe"
 
+$running = Get-Process -Name "openbagus" -ErrorAction SilentlyContinue
+if ($running) {
+    Write-Host "OpenBagus is currently running." -ForegroundColor Yellow
+    Write-Host "Close the OpenBagus CLI and run setup again." -ForegroundColor Yellow
+    exit 1
+}
+
+$sitePackages = Join-Path $venvDir "Lib\site-packages"
+if (Test-Path $sitePackages) {
+    $stale = Get-ChildItem -Path $sitePackages -Filter "~penbagus*" -ErrorAction SilentlyContinue
+    if ($stale) {
+        $stale | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if (-not (Test-Path $venvPython)) {
     & $pythonCmd -m venv $venvDir
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path $venvPython)) {
@@ -77,6 +92,7 @@ if ($LASTEXITCODE -ne 0) {
     Write-Host "[FAIL] Failed to install OpenBagus." -ForegroundColor Red
     exit 1
 }
+& $venvPython -m pip check --quiet -ErrorAction SilentlyContinue
 Write-Host "[PASS] OpenBagus installed" -ForegroundColor Green
 
 # 4. Verify CLI Entrypoint
@@ -123,12 +139,22 @@ $binDir = Join-Path $appDataOpenBagus "bin"
 $modelFile = Join-Path $modelsDir "Qwen3-0.6B-Q8_0.gguf"
 $llamaExe = Join-Path $binDir "llama-cli.exe"
 
-if ((Test-Path $modelFile) -and (Test-Path $llamaExe)) {
+$llmState = "UNAVAILABLE"
+try {
+    $llmState = (& $venvPython -c "from openbagus.intelligence.local_language import LocalLanguageEngine; print(LocalLanguageEngine().get_runtime_state())").Trim()
+} catch {
+    $llmState = "UNAVAILABLE"
+}
+
+if ($llmState -eq "ACTIVE") {
     Write-Host ""
-    Write-Host "[PASS] Local Language Model ready (Qwen3-0.6B-Q8_0.gguf)" -ForegroundColor Green
+    Write-Host "[PASS] Local Language Engine: ACTIVE (Qwen3-0.6B-Q8_0.gguf)" -ForegroundColor Green
+} elseif ($llmState -eq "FALLBACK") {
+    Write-Host ""
+    Write-Host "[WARN] Local Language Engine: FALLBACK (deterministic engine active)" -ForegroundColor Yellow
 } else {
     Write-Host ""
-    Write-Host "[INFO] Local Language Model: optional (~639MB); deterministic engine active."
+    Write-Host "[INFO] Local Language Model: UNAVAILABLE (optional ~639MB; deterministic engine active)"
 }
 
 # 8. Non-interactive bypass
@@ -139,16 +165,16 @@ if ($NonInteractive -or $SkipWizard) {
 }
 
 # 9. Interactive configuration & launch
-if (-not ((Test-Path $modelFile) -and (Test-Path $llamaExe))) {
+if ($llmState -ne "ACTIVE") {
     Write-Host ""
     $dlModel = Read-Host "Download local language model (Qwen 0.6B, ~639MB)? (Y/N):"
     $dlLower = if ($dlModel) { $dlModel.Trim().ToLower() } else { "n" }
     if ($dlLower -eq "y") {
         Write-Host ""
         Write-Host "[....] Provisioning Local Language Engine"
-        & $venvPython -c "from openbagus.intelligence.local_language import provision_local_runtime; provision_local_runtime()"
+        & $venvPython -c "from openbagus.intelligence.local_language import provision_local_runtime; import sys; sys.exit(0 if provision_local_runtime() else 1)"
         if ($LASTEXITCODE -eq 0) {
-            Write-Host "[PASS] Local Language Engine provisioned" -ForegroundColor Green
+            Write-Host "[PASS] Local Language Engine: ACTIVE" -ForegroundColor Green
         } else {
             Write-Host "[WARN] Local Language Engine download incomplete. Continuing with deterministic fallback." -ForegroundColor Yellow
         }
