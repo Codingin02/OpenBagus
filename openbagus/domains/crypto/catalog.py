@@ -135,6 +135,9 @@ DEX_SLANG_EXCLUSIONS = {
     "semua", "parameter", "ohh", "iya", "sistem", "system", "spek", "speknya", "dibawah", "ollama",
     "lagi", "tampilin", "tampilkan", "sumber", "sources", "chart", "grafik", "whale", "cpi", "fomc", "pembuat", "pembuatnya", "bikin", "tadi",
     "cara", "mobil", "ban", "jalan", "tol", "ganti", "mengganti", "motor", "rumah", "orang", "makan", "minum", "kerja",
+    # Fiat, payment, conversational, and common command terms
+    "card", "kartu", "beli", "buy", "jual", "sell", "harga", "price", "dolar", "dollar", "rupiah", "idr", "usd",
+    "eur", "euro", "jpy", "yen", "gbp", "pound", "chat", "wai", "other", "lainnya",
     # English conversational words
     "stupid", "idiot", "nonsense", "garbage", "trash", "terrible", "bad", "generic", "bot", "ai", "llm",
 }
@@ -153,7 +156,11 @@ class CryptoAssetCatalog:
         if self.cache_path.exists():
             try:
                 data = json.loads(self.cache_path.read_text(encoding="utf-8"))
-                self.assets = [CryptoAsset(**item) for item in data]
+                self.assets = [
+                    CryptoAsset(**item) for item in data
+                    if item.get("symbol", "").lower() not in DEX_SLANG_EXCLUSIONS
+                    and item.get("id", "").lower() not in DEX_SLANG_EXCLUSIONS
+                ]
                 return
             except Exception:
                 pass
@@ -207,21 +214,8 @@ class CryptoAssetCatalog:
         if len(alias_matches) > 1:
             return None, alias_matches
 
-        # Prefix search (require at least 2 characters to avoid single letter spurious matches)
-        if len(clean_lower) >= 2:
-            prefix_matches = [
-                a for a in self.assets
-                if a.symbol.lower().startswith(clean_lower) or a.name.lower().startswith(clean_lower)
-            ]
-            if len(prefix_matches) == 1:
-                return prefix_matches[0], []
-            if len(prefix_matches) > 1:
-                # Sort by rank
-                prefix_matches.sort(key=lambda x: x.rank)
-                return None, prefix_matches[:5]
-
         # Online Discovery fallback (e.g. Manta, Kaspa, newly listed tokens)
-        if len(clean_lower) >= 2:
+        if is_explicit and len(clean_lower) >= 2:
             discovered = self.discover_online(clean)
             if discovered:
                 # Check exact symbol in discovered
@@ -232,8 +226,6 @@ class CryptoAssetCatalog:
                 exact_nm = [a for a in discovered if a.name.lower() == clean_lower or clean_lower in [al.lower() for al in a.aliases]]
                 if len(exact_nm) == 1:
                     return exact_nm[0], []
-                if len(discovered) == 1:
-                    return discovered[0], []
                 discovered.sort(key=lambda x: x.rank)
                 return None, discovered[:5]
 
@@ -259,6 +251,8 @@ class CryptoAssetCatalog:
                 name = c.get("name") or sym
                 rank = c.get("market_cap_rank") or 9999
                 if not sym or not cid:
+                    continue
+                if sym.lower() in DEX_SLANG_EXCLUSIONS or cid.lower() in DEX_SLANG_EXCLUSIONS:
                     continue
                 existing = next((a for a in self.assets if a.symbol == sym and a.coingecko_id == cid), None)
                 if existing:
@@ -330,6 +324,8 @@ class CryptoAssetCatalog:
             if pool:
                 pool_name = pool.get("name", clean.upper())
                 sym = clean.upper()
+                if sym.lower() in DEX_SLANG_EXCLUSIONS:
+                    return new_assets
                 existing = next((a for a in self.assets if a.symbol == sym), None)
                 if existing:
                     new_assets.append(existing)

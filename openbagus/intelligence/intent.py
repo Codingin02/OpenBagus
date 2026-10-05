@@ -20,7 +20,10 @@ No local LLM. No cloud LLM.
 
 from __future__ import annotations
 
+import ast
 import difflib
+import operator as _op
+import math
 import re
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -58,6 +61,11 @@ ALLOWED_INTENTS = (
     "HARNESS",
     "SETUP_CONFIG",
     "CHART",
+    "FIAT_FX",
+    "CALCULATOR",
+    "CRYPTO_QUOTE",
+    "EXECUTION_REQUEST",
+    "COMMAND",
 )
 
 REQUEST_TYPES = (
@@ -76,6 +84,11 @@ REQUEST_TYPES = (
     "HARNESS",
     "SETUP_CONFIG",
     "CHART",
+    "FIAT_FX",
+    "CALCULATOR",
+    "CRYPTO_QUOTE",
+    "EXECUTION_REQUEST",
+    "COMMAND",
     "UNKNOWN",
 )
 
@@ -219,6 +232,19 @@ class IntentRequest:
     topic: str | None = None
     needs_topic_switch_confirmation: bool = False
     switch_target_asset: str | None = None
+    amount: float = 1.0
+
+    @property
+    def domain(self) -> str:
+        if self.request_type in {"HARNESS", "SETUP_CONFIG"}:
+            return "SYSTEM_INFO"
+        if self.request_type == "SCREEN":
+            return "CATEGORY"
+        if self.system_query in {"list_assets", "list_categories"}:
+            return "COMMAND"
+        if self.request_type in {"FIAT_FX", "CALCULATOR", "CRYPTO_QUOTE", "EXECUTION_REQUEST", "COMMAND", "CATEGORY", "CHART", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "UNKNOWN"}:
+            return self.request_type
+        return "CRYPTO_RESEARCH"
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -246,6 +272,7 @@ def _parse_timeframe(text: str, default_tf: str = "H1") -> tuple[str, str]:
         (r"\b(?:1\s*(?:hari|day)|harian|daily)\b", "D1"),
         (r"\b(?:1\s*(?:minggu|week)|mingguan|weekly)\b", "W1"),
         (r"\b(?:short\s*term|short-term)\b", "H1"),
+        (r"\b(?:hari ini|today|intraday)\b", "H1"),
         (r"\bswing\b", "H4"),
     ]
     for pat, tf in nl_patterns:
@@ -256,6 +283,62 @@ def _parse_timeframe(text: str, default_tf: str = "H1") -> tuple[str, str]:
 
     return default_tf, text
 
+
+# ---------------------------------------------------------------------------
+# Safe arithmetic evaluator for CALCULATOR domain gate
+# ---------------------------------------------------------------------------
+_CALC_OPS = {
+    ast.Add: _op.add,
+    ast.Sub: _op.sub,
+    ast.Mult: _op.mul,
+    ast.Div: _op.truediv,
+    ast.Pow: _op.pow,
+    ast.USub: _op.neg,
+}
+
+
+def _safe_calc(expr: str) -> str | None:
+    """Evaluate a simple arithmetic expression; return string result or None on failure."""
+    # strip whitespace variants around = and ? to get the expression
+    clean = expr.rstrip(" =?").strip()
+    if len(clean) > 256:
+        return None
+    try:
+        tree = ast.parse(clean, mode="eval")
+    except (SyntaxError, RecursionError):
+        return None
+    if sum(1 for _ in ast.walk(tree)) > 64:
+        return None
+
+    def _eval(node: ast.expr) -> float:  # type: ignore[type-arg]
+        if isinstance(node, ast.Constant) and type(node.value) in (int, float):
+            return float(node.value)
+        if isinstance(node, ast.BinOp) and type(node.op) in _CALC_OPS:
+            left, right = _eval(node.left), _eval(node.right)
+            if isinstance(node.op, ast.Pow) and abs(right) > 100:
+                raise ValueError("Exponent limit")
+            result = _CALC_OPS[type(node.op)](left, right)
+            if not math.isfinite(result) or abs(result) > 1e100:
+                raise ValueError("Result limit")
+            return result
+        if isinstance(node, ast.UnaryOp) and type(node.op) in _CALC_OPS:
+            return _CALC_OPS[type(node.op)](_eval(node.operand))
+        raise ValueError("Unsupported node")
+
+    try:
+        result = _eval(tree.body)  # type: ignore[arg-type]
+        if result == int(result):
+            return str(int(result))
+        return f"{result:.6g}"
+    except Exception:
+        return None
+
+
+# Known command words for typo correction (difflib)
+_COMMAND_VOCAB = [
+    "assets", "categories", "category", "chart", "harness", "sources",
+    "screen", "compare", "help", "version", "status", "providers", "doctor", "setup",
+]
 
 class IntentRouter:
     """Lightweight bilingual intent router with hierarchical classification and session memory."""
@@ -276,10 +359,81 @@ class IntentRouter:
         lower_no_tf = query_no_tf.lower()
         words = re.findall(r"\b[A-Za-z0-9/]+\b", query_no_tf)
 
+        # Non-research requests must never enter crypto discovery or Harness switching.
+        fiat_aliases = {"dollar": "USD", "dolar": "USD", "rupiah": "IDR", "rp": "IDR",
+                        "euro": "EUR", "yen": "JPY", "pound": "GBP", "sterling": "GBP"}
+        fiat_codes = {"USD", "IDR", "EUR", "JPY", "GBP", "AUD", "CAD", "CHF", "SGD", "MYR"}
+        currencies = [fiat_aliases.get(w.lower(), w.upper()) for w in words
+                      if w.lower() in fiat_aliases or w.upper() in fiat_codes]
+        if len(set(currencies)) >= 2:
+            base, quote = currencies[0], next(c for c in currencies if c != currencies[0])
+            if re.search(r"harga\s+rupiah.*(?:dibandingkan|vs).*dolar", lower):
+                base, quote = "USD", "IDR"
+            number = re.search(r"\b\d+(?:\.\d+)?\b", cleaned)
+            return IntentRequest(intent="FIAT_FX", request_type="FIAT_FX", raw_query=text,
+                                 focus=f"{base}/{quote}", amount=float(number.group()) if number else 1.0,
+                                 relation_to_context="UNRELATED")
+
+        if re.fullmatch(r"[\d\s+\-*/().=?]+", cleaned) and re.search(r"[+\-*/]", cleaned):
+            result = _safe_calc(cleaned)
+            return IntentRequest(intent="CALCULATOR", request_type="CALCULATOR",
+                                 raw_query=text, focus=result or "CALCULATOR_INVALID",
+                                 relation_to_context="UNRELATED")
+
+        payment = re.search(r"\b(?:card|kartu|payment|bayar|rekening)\b", lower)
+        if (payment and re.search(r"\b(?:beli|buy|purchase|bayar)\b", lower)) or re.search(
+            r"\b(?:purchase|execute\s+(?:order|trade)|place\s+order)\b", lower
+        ):
+            return IntentRequest(intent="EXECUTION_REQUEST", request_type="EXECUTION_REQUEST",
+                                 raw_query=text, relation_to_context="UNRELATED")
+
+        category_names = {c.lower(): c for c in TAXONOMY_CATEGORIES if c.lower() != "bitcoin"}
+        category_names.update({"other": "Other / Unknown", "others": "Other / Unknown",
+                               "lainnya": "Other / Unknown"})
+        category = category_names.get(lower.strip("?!. "))
+        if category:
+            return IntentRequest(intent="CATEGORY", request_type="CATEGORY", category=category,
+                                 raw_query=text, relation_to_context="UNRELATED")
+
+        command_match = re.search(r"\b(?:berikan|tampilkan|kasih|lihat|daftar|list|show)\s+(assets?|categories)\b", lower)
+        command = command_match.group(1) if command_match else lower.strip("?!. ")
+        if command == "asset":
+            command = "assets"
+        matches = difflib.get_close_matches(command, _COMMAND_VOCAB, n=1, cutoff=0.75) if " " not in command else []
+        command = matches[0] if matches else command
+        if command in ("categories", "category", "assets"):
+            return IntentRequest(intent="SYSTEM_INFO", request_type="SYSTEM_INFO",
+                                 system_query="list_assets" if command == "assets" else "list_categories",
+                                 raw_query=text, relation_to_context="UNRELATED")
+        if command in ("help", "status", "providers", "doctor", "setup", "version"):
+            return IntentRequest(intent="COMMAND", request_type="COMMAND", system_query=command,
+                                 raw_query=text, relation_to_context="UNRELATED")
+
+        chart_match = re.fullmatch(r"(?:chart|chat|char)\s+([A-Za-z0-9/]+)", lower)
+        if chart_match:
+            asset, _ = self.catalog.resolve_asset(chart_match.group(1))
+            return IntentRequest(intent="CHART", request_type="CHART",
+                                 asset=asset.symbol if asset else None, raw_query=text,
+                                 relation_to_context="UNRELATED")
+
+        is_analysis = re.search(r"\b(?:analisa|analisis|analysis|analyze|review|risk|risiko|position|posisi|long|short|setup)\b", lower)
+        quote_match = re.search(r"\b(?:harga|price|berapa)\s+([A-Za-z0-9/]+)", lower)
+        amount_match = re.search(r"\b(\d+(?:\.\d+)?)\s+([A-Za-z][A-Za-z0-9/]*)\s+(?:berapa|to|in)", lower)
+        if not is_analysis and (quote_match or amount_match):
+            symbol = amount_match.group(2) if amount_match else quote_match.group(1)
+            if symbol.lower() not in DEX_SLANG_EXCLUSIONS:
+                asset, _ = self.catalog.resolve_asset(symbol, is_explicit=True)
+                if asset:
+                    return IntentRequest(intent="CRYPTO_QUOTE", request_type="CRYPTO_QUOTE",
+                                         asset=asset.symbol, raw_query=text,
+                                         amount=float(amount_match.group(1)) if amount_match else 1.0,
+                                         relation_to_context="UNRELATED")
+
         # -------------------------------------------------------------
         # 0. Fast Path for pure exact known asset symbols (BTC, ETH, SOL, NEAR, ZEC, etc.)
         # Prevents unnecessary LLM invocation for straightforward queries
         # -------------------------------------------------------------
+
         if len(words) == 1 and not cleaned.startswith("/"):
             pure_cand = words[0].upper()
             if pure_cand not in COMPREHENSIVE_STOP_WORDS and pure_cand.lower() not in DEX_SLANG_EXCLUSIONS:
@@ -653,23 +807,12 @@ class IntentRouter:
                             verified_asset = a_obj.symbol
 
                 tf = llm_res.get("timeframe") or detected_tf
-                mkt = llm_res.get("market") or (session.market_type.lower() if session and session.market_type else "all")
+                mkt = "perpetual" if re.search(r"\b(?:perp|perpetual|futures|long|short|leverage|open\s+position)\b", lower_no_tf) else "all"
                 topic = llm_res.get("topic")
 
                 if req_t == "HARNESS":
                     if any(k in lower for k in ("harness", "herness", "memory", "state", "nyambung", "konteks")):
                         return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", timeframe=tf, raw_query=text, relation_to_context=relation)
-                elif req_t == "UNKNOWN":
-                    needs_switch = bool(session and session.last_asset)
-                    return IntentRequest(
-                        intent="UNKNOWN",
-                        request_type="UNKNOWN",
-                        timeframe=tf,
-                        raw_query=text,
-                        needs_topic_switch_confirmation=needs_switch,
-                        switch_target_asset=session.last_asset if session else None,
-                        relation_to_context="UNRELATED",
-                    )
                 elif req_t == "FEEDBACK":
                     if any(re.search(pat, lower) for pat in feedback_triggers):
                         return IntentRequest(intent="FEEDBACK", request_type="FEEDBACK", asset=session.last_asset if session else None, timeframe=tf, raw_query=text, relation_to_context="CONTINUE")
@@ -716,7 +859,7 @@ class IntentRouter:
                     )
                     intent_code = "POSITION" if is_pos else ("RISK" if req_t == "RISK" else "ANALYZE")
                     req_type_code = "POSITION" if is_pos else "ASSET_ANALYSIS"
-                    final_mkt = session.market_type.lower() if (session and session.market_type) else ("perpetual" if req_type_code == "POSITION" else "all")
+                    final_mkt = mkt
                     needs_sw = bool(session and session.last_asset and session.last_asset != verified_asset and intent_code != "COMPARE" and not cleaned.lower().startswith("/switch"))
                     return IntentRequest(
                         intent=intent_code,
@@ -879,6 +1022,13 @@ class IntentRouter:
         asset: str | None = None
         asset_2: str | None = None
         target_assets: list[str] = []
+        explicit_crypto = bool(re.search(r"\b(?:crypto|kripto|koin|coin|token|analyze|analisa|analisis|review)\b", lower))
+        known_asset = any(w.lower() in {a.symbol.lower(), a.name.lower(), a.id.lower(), *[v.lower() for v in a.aliases]}
+                          for w in words for a in self.catalog.assets)
+        research_words = bool(re.search(r"\b(?:entry|risk|risiko|support|resistance|position|posisi|long|short|funding|prospek)\b", lower))
+        if not (explicit_crypto or known_asset or research_words):
+            return IntentRequest(intent="UNKNOWN", request_type="UNKNOWN", raw_query=text,
+                                 relation_to_context="UNRELATED")
 
         # Check explicit preposition/directive target: "di ADA", "pada BTC", "koin SOL", "token DOGE", "analyze TOLOL"
         prep_match = re.search(r"\b(?:di|pada|koin|coin|token|analyze)\s+([A-Za-z0-9]+)\b", query_no_tf, re.IGNORECASE)
@@ -922,9 +1072,11 @@ class IntentRouter:
                     continue
                 if orig_lower == "ada":  # Indonesian "ada" protection
                     continue
-                a_obj, _ = self.catalog.resolve_asset(orig_w)
+                if not explicit_crypto and not any(orig_lower in {a.symbol.lower(), a.name.lower(), a.id.lower(), *[v.lower() for v in a.aliases]} for a in self.catalog.assets):
+                    continue
+                a_obj, _ = self.catalog.resolve_asset(orig_w, is_explicit=explicit_crypto)
                 if not a_obj:
-                    a_obj, _ = self.catalog.resolve_asset(clean_w)
+                    a_obj, _ = self.catalog.resolve_asset(clean_w, is_explicit=explicit_crypto)
                 if a_obj:
                     asset = a_obj.symbol
                     target_assets = [a_obj.symbol]
@@ -1000,7 +1152,7 @@ class IntentRouter:
             market = "spot"
             focus = "spot"
             request_type = "POSITION"
-        elif any(k in norm_text for k in [
+        elif re.search(r"\b(?:long|short)\b", norm_text) or any(k in norm_text for k in [
             "long atau short", "long or short", "enaknya long apa short", "bagusnya long atau short",
             "enaknya long", "bagusnya long", "leverage", "perp", "perpetual", "futures",
         ]):
@@ -1019,7 +1171,7 @@ class IntentRouter:
             intent = "POSITION"
             focus = "setup"
             request_type = "POSITION"
-            market = "perpetual"
+            market = "perpetual" if re.search(r"\bopen\s+(?:position|posisi)\b", norm_text) else "all"
         elif "divergence" in norm_text or "divergent" in lower:
             intent = "DIVERGENCE"
             focus = "divergence"
@@ -1046,7 +1198,7 @@ class IntentRouter:
             # Query explicitly specifying timeframe like "gimana BTC h1?" or "BTC H4"
             intent = "POSITION"
             focus = "setup"
-            market = "perpetual"
+            market = "all"
             request_type = "POSITION"
 
         # Check for capital inputs (equity / risk)
@@ -1081,9 +1233,6 @@ class IntentRouter:
             else:
                 needs_switch = False
                 target_switch = None
-                if session and session.last_asset:
-                    needs_switch = True
-                    target_switch = session.last_asset
                 return IntentRequest(
                     intent="UNKNOWN",
                     request_type="UNKNOWN",

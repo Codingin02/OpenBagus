@@ -16,7 +16,7 @@ from openbagus.data.zerokey import ZeroKeyMarketData
 from openbagus.domains.crypto.catalog import CryptoAsset, CryptoAssetCatalog
 from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngine
 from openbagus.intelligence.intent import IntentRequest, SessionState
-from openbagus.intelligence.local_language import LocalLanguageEngine
+from openbagus.intelligence.local_language import LocalLanguageEngine, format_price
 
 
 @dataclass
@@ -32,6 +32,7 @@ class ResearchPacket:
     regime: str = "Compressed"
     decision_reason: str = ""
     reward_risk_str: str = "N/A"
+    rr_gate_passed: bool = False
     entry_zone: str = ""
     stop_price: float | None = None
     tp1: float | None = None
@@ -61,13 +62,7 @@ class ResearchPacket:
 def _fmt_price(val: float | None) -> str:
     if val is None:
         return "N/A"
-    if val >= 1000:
-        return f"${val:,.2f}"
-    if val >= 1:
-        return f"${val:,.4f}"
-    if val >= 0.0001:
-        return f"${val:,.6f}"
-    return f"${val:,.8f}"
+    return format_price(val)
 
 
 def _fmt_pct(val: float | None) -> str:
@@ -99,6 +94,40 @@ class CryptoResearchRunner:
         self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def execute(self, req: IntentRequest, session: SessionState | None = None) -> str:
+        if req.request_type == "CALCULATOR":
+            return req.focus if req.focus != "CALCULATOR_INVALID" else "Ekspresi aritmetika tidak valid atau melewati batas aman."
+        if req.request_type == "EXECUTION_REQUEST":
+            return "OpenBagus menyediakan research; tidak menjalankan order trading, pembayaran, atau transaksi kartu."
+        if req.request_type == "FIAT_FX":
+            base, quote = req.focus.split("/")
+            result = self.zerokey.get_fx_rate(base, quote, req.amount)
+            if result.get("error"):
+                return "SOURCE GAP: kurs referensi belum tersedia."
+            return (f"{req.amount:g} {base} = {result['converted']:,.4f} {quote}\n"
+                    f"Rate: {result['rate']:g}\nReference date: {result['date']}\nSource: {result['provider']}")
+        if req.request_type == "CRYPTO_QUOTE":
+            ticker = self.zerokey.get_spot_ticker(req.asset)
+            if not ticker or ticker.get("price") is None:
+                return "SOURCE GAP: harga crypto belum tersedia."
+            return (f"{req.amount:g} {req.asset} = {_fmt_price(req.amount * ticker['price'])}\n"
+                    f"Updated: {ticker.get('observed_at', 'DATA GAP')}\nSource: {ticker.get('provider', 'SOURCE GAP')}")
+        if req.request_type == "COMMAND":
+            from openbagus import cli
+            if req.system_query == "help":
+                return "Commands: help, assets, categories, chart, status, providers, doctor, harness, setup."
+            if req.system_query == "setup":
+                return "Gunakan /setup untuk konfigurasi lokal interaktif."
+            import contextlib
+            import io
+            output = io.StringIO()
+            operations = {"status": cli._run_status, "providers": cli._run_providers,
+                          "doctor": lambda: cli._run_doctor(network=False, as_json=False)}
+            if req.system_query == "version":
+                from openbagus import __version__
+                return f"OpenBagus {__version__}"
+            with contextlib.redirect_stdout(output):
+                operations[req.system_query]()
+            return output.getvalue().strip()
         # 1. Preferences
         if req.request_type == "PREFERENCE":
             if req.preference_action == "hide_sources":
@@ -219,6 +248,11 @@ class CryptoResearchRunner:
             return "\n".join(lines)
 
         if req.request_type == "SYSTEM_INFO":
+            if req.system_query == "list_assets":
+                return "\n".join(f"{a.symbol} - {a.name}" for a in self.catalog.assets)
+            if req.system_query == "list_categories":
+                from openbagus.domains.crypto.catalog import TAXONOMY_CATEGORIES
+                return "\n".join(TAXONOMY_CATEGORIES)
             return self._render_system_info()
 
         # 5. Market-wide Outlook
@@ -344,7 +378,7 @@ class CryptoResearchRunner:
         elif intent_up in ("BUY_SPOT", "SELL_SPOT") or req.focus == "spot":
             market_type = "spot"
         else:
-            market_type = "perpetual" if derivatives is not None else "spot"
+            market_type = "perpetual" if req.market.lower() == "perpetual" else "spot"
 
         q = self.quant.evaluate(
             symbol=symbol,
@@ -392,7 +426,7 @@ class CryptoResearchRunner:
             "values": large_flow or {},
         }
 
-        mkt_label = "DEX SPOT" if is_dex else market_type.upper()
+        mkt_label = "DEX SPOT" if is_dex else ("GENERAL / SPOT REFERENCE" if market_type == "spot" else market_type.upper())
         pattern_name = q.patterns_item.get("values", {}).get("name") if q.patterns_item.get("material") else None
         fib_confluence = q.fibonacci_item.get("values", {}).get("summary") if q.fibonacci_item.get("material") else None
 
@@ -407,6 +441,7 @@ class CryptoResearchRunner:
             regime=q.regime,
             decision_reason=q.decision_reason,
             reward_risk_str=q.reward_risk_str,
+            rr_gate_passed=q.rr_gate_passed,
             entry_zone=q.entry_zone,
             stop_price=q.stop_price,
             tp1=q.tp1,
@@ -485,6 +520,7 @@ class CryptoResearchRunner:
                 regime=q.regime,
                 decision_reason=q.decision_reason,
                 reward_risk_str=q.reward_risk_str,
+                rr_gate_passed=q.rr_gate_passed,
                 entry_zone=q.entry_zone,
                 stop_price=q.stop_price,
                 tp1=q.tp1,
@@ -494,7 +530,7 @@ class CryptoResearchRunner:
                 bearish_validation=q.bearish_validation,
                 sources=q.sources,
             )
-        mkt_label = "DEX SPOT" if dex else market_type.upper()
+        mkt_label = "DEX SPOT" if dex else ("GENERAL / SPOT REFERENCE" if market_type.lower() == "spot" else market_type.upper())
         # C1. Compact deterministic decision header
         lines = [
             f"{q.asset} · {mkt_label} · {q.timeframe}",
@@ -508,7 +544,10 @@ class CryptoResearchRunner:
 
         narrative = None
         if self.local_llm.is_available():
-            narrative = self.local_llm.generate_narrative(packet, user_query=raw_query, language=lang)
+            try:
+                narrative = self.local_llm.generate_narrative(packet, user_query=raw_query, language=lang)
+            except (ValueError, TypeError, AttributeError):
+                narrative = None
 
         if not narrative:
             if lang == "id":
@@ -576,7 +615,7 @@ class CryptoResearchRunner:
             arb_v = packet.arbitrage.get("values", {})
             lines.append(f"\nArbitrage: Net spread {arb_v.get('estimated_net_spread_pct', 0):+.2f}% ({arb_v.get('best_venue', 'Market')})")
 
-        if packet.frequency_cycle.get("material"):
+        if packet.frequency_cycle.get("material") and (focus == "frequency" or "frequency" in raw_query.lower() or "cycle" in raw_query.lower()):
             cyc_v = packet.frequency_cycle.get("values", {})
             lines.append(f"\nFrequency Cycle: Dominant period ~{cyc_v.get('period_bars')} bars (correlation: {cyc_v.get('correlation')})")
 

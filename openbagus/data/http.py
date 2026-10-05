@@ -40,6 +40,8 @@ ALLOWED_PROVIDER_HOSTS: frozenset[str] = frozenset({
     "min-api.cryptocompare.com",
     "api.coinalyze.net",
     "www.alphavantage.co",
+    # FX & Reference Providers
+    "api.frankfurter.dev",
     # Macro & Public Feeds
     "www.coindesk.com",
     "cointelegraph.com",

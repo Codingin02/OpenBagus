@@ -691,3 +691,27 @@ class ZeroKeyMarketData:
             "summary": "Normal trade distribution without outsized aggressive prints.",
             "provider": "Trade Stream",
         }
+
+    def get_fx_rate(self, base: str, quote: str, amount: float = 1.0) -> dict[str, Any]:
+        """Return a validated Frankfurter reference conversion or an explicit gap."""
+        base, quote = base.upper().strip(), quote.upper().strip()
+        result = {"base": base, "quote": quote, "amount": amount, "rate": None,
+                  "converted": None, "date": None, "provider": "Frankfurter (Zero-Key)",
+                  "error": "FX_FETCH_FAILED"}
+        if not (len(base) == len(quote) == 3 and base.isalpha() and quote.isalpha()):
+            return result
+        amount = validate_finite_number(amount, min_val=0.0)
+        if amount is None:
+            return result
+        data = self._get_json(f"https://api.frankfurter.dev/v2/rate/{base}/{quote}", ttl_seconds=300.0)
+        if not isinstance(data, dict) or data.get("base") != base or data.get("quote") != quote:
+            return result
+        rate = validate_finite_number(data.get("rate"), min_val=0.0)
+        try:
+            datetime.strptime(str(data.get("date")), "%Y-%m-%d")
+        except ValueError:
+            return result
+        converted = validate_finite_number(amount * rate) if rate is not None else None
+        if rate and converted is not None:
+            result.update(rate=rate, converted=converted, date=data["date"], error=None)
+        return result

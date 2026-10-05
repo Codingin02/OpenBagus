@@ -15,6 +15,7 @@ I9: Narrative consistency and anti-template compliance
 from __future__ import annotations
 
 import unittest
+import math
 from unittest.mock import MagicMock, patch
 
 from openbagus.cli import OpenBagusShell
@@ -26,8 +27,8 @@ from openbagus.domains.crypto.quant import (
     ValidationScenario,
 )
 from openbagus.domains.crypto.research import CryptoResearchRunner, ResearchPacket
-from openbagus.intelligence.intent import IntentRequest, IntentRouter, SessionState
-from openbagus.intelligence.local_language import LocalLanguageEngine
+from openbagus.intelligence.intent import IntentRequest, IntentRouter, SessionState, _safe_calc
+from openbagus.intelligence.local_language import LocalLanguageEngine, NarrativeFacts, format_price
 
 
 class TestProductInteraction(unittest.TestCase):
@@ -35,6 +36,146 @@ class TestProductInteraction(unittest.TestCase):
         self.router = IntentRouter()
         self.quant = QuantEngine()
         self.zerokey = ZeroKeyMarketData()
+
+    def test_domain_gate_regressions(self) -> None:
+        cases = {
+            "harga rupiah saat ini dibandingkan dolar?": ("FIAT_FX", None),
+            "1 dolar berapa rupiah?": ("FIAT_FX", None),
+            "1 USD berapa IDR": ("FIAT_FX", None),
+            "1+1 =?": ("CALCULATOR", None),
+            "1 btc berapa dolar": ("CRYPTO_QUOTE", "BTC"),
+            "harga ETH berapa?": ("CRYPTO_QUOTE", "ETH"),
+            "berapa SOL sekarang?": ("CRYPTO_QUOTE", "SOL"),
+            "beli gunakan card saya": ("EXECUTION_REQUEST", None),
+            "buy BTC with my card": ("EXECUTION_REQUEST", None),
+            "purchase BTC": ("EXECUTION_REQUEST", None),
+            "execute order": ("EXECUTION_REQUEST", None),
+            "categoories": ("SYSTEM_INFO", None),
+            "catgories": ("SYSTEM_INFO", None),
+            "wai tolong berikan Assets": ("SYSTEM_INFO", None),
+            "tolong berikan assets": ("SYSTEM_INFO", None),
+            "lihat categories": ("SYSTEM_INFO", None),
+            "categories": ("SYSTEM_INFO", None),
+            "other": ("CATEGORY", None),
+            "Other / Unknown": ("CATEGORY", None),
+            "AI": ("CATEGORY", None),
+            "RWA": ("CATEGORY", None),
+            "Privacy": ("CATEGORY", None),
+            "DeFi": ("CATEGORY", None),
+            "chat ondo": ("CHART", "ONDO"),
+            "char BTC": ("CHART", "BTC"),
+            "chart ETH": ("CHART", "ETH"),
+            "hello world": ("UNKNOWN", None),
+            "help": ("COMMAND", None),
+        }
+        session = SessionState(last_asset="BTC")
+        with patch.object(self.router.local_llm, "is_available", return_value=False), patch.object(self.router.catalog, "discover_online") as discovery:
+            for query, (request_type, asset) in cases.items():
+                with self.subTest(query=query):
+                    req = self.router.parse(query, session)
+                    self.assertEqual(req.request_type, request_type)
+                    self.assertEqual(req.asset, asset)
+                    self.assertFalse(req.needs_topic_switch_confirmation)
+                    self.assertEqual(session.last_asset, "BTC")
+            discovery.assert_not_called()
+            self.assertEqual(self.router.parse("other", session).category, "Other / Unknown")
+            self.assertEqual(self.router.parse("wai tolong berikan Assets", session).system_query, "list_assets")
+            self.assertEqual(self.router.parse("categoories", session).system_query, "list_categories")
+            self.assertEqual(self.router.parse("1+1 =?", session).focus, "2")
+            self.assertEqual(self.router.parse("1 dolar berapa rupiah?", session).focus, "USD/IDR")
+            for word in ("card", "harga", "dolar", "chat", "bitco"):
+                self.assertIsNone(self.router.catalog.resolve_asset(word)[0])
+
+    def test_non_research_bypasses_harness_and_quant(self) -> None:
+        shell = OpenBagusShell()
+        shell.session.last_asset = "BTC"
+        with patch.object(shell.router.local_llm, "is_available", return_value=False), patch.object(shell.researcher, "execute", return_value="OK"), patch("builtins.input") as confirmation:
+            for query in ("1+1", "1 USD berapa IDR", "categories", "chart ETH", "other"):
+                shell.default(query)
+            confirmation.assert_not_called()
+            self.assertEqual(shell.session.last_asset, "BTC")
+        runner = CryptoResearchRunner()
+        session = SessionState(last_asset="BTC")
+        with patch.object(runner.quant, "evaluate") as quant, patch.object(runner.zerokey, "get_spot_ticker", return_value={"price": 86434.22, "observed_at": "2026-10-05T10:00:00Z", "provider": "mock"}):
+            result = runner.execute(IntentRequest(intent="CRYPTO_QUOTE", request_type="CRYPTO_QUOTE", asset="BTC"), session)
+            self.assertIn("$86,434.22", result)
+            for forbidden in ("LONG", "SHORT", "NO_TRADE", "Fibonacci", "Reward:Risk"):
+                self.assertNotIn(forbidden, result)
+            self.assertEqual(runner.execute(self.router.parse("1+1 =?"), session), "2")
+            quant.assert_not_called()
+            self.assertEqual(session.last_asset, "BTC")
+
+    def test_calculator_limits(self) -> None:
+        for expression, expected in (("1+1", "2"), ("1000 * 0.02", "20"), ("(1500 / 3) + 25", "525")):
+            self.assertEqual(_safe_calc(expression), expected)
+        for expression in ("__import__('os')", "1 / 0", "2**1000000", "1+" * 200 + "1", "text 1+1", "9**9**9"):
+            self.assertIsNone(_safe_calc(expression))
+
+    def test_fx_public_pair_mock(self) -> None:
+        data = {"base": "USD", "quote": "IDR", "rate": 16000, "date": "2026-10-02"}
+        with patch.object(self.zerokey, "_get_json", return_value=data) as http:
+            result = self.zerokey.get_fx_rate("USD", "IDR", 2)
+            self.assertEqual(result["converted"], 32000)
+            self.assertEqual(result["rate"], 16000)
+            self.assertEqual(result["date"], "2026-10-02")
+            self.assertIn("https://api.frankfurter.dev/v2/rate/USD/IDR", str(http.call_args))
+        with patch.object(self.zerokey, "_get_json", return_value={"base": "EUR", "quote": "IDR", "rate": 1, "date": "invalid"}):
+            self.assertEqual(self.zerokey.get_fx_rate("USD", "IDR")["error"], "FX_FETCH_FAILED")
+
+    def test_general_market_and_timeframe(self) -> None:
+        with patch.object(self.router.local_llm, "is_available", return_value=False):
+            for query, tf in (("BTC hari ini gimana?", "H1"), ("BTC today", "H1"), ("BTC intraday", "H1"), ("BTC short term", "H1"), ("BTC H4", "H4"), ("BTC daily", "D1"), ("BTC swing", "H4")):
+                req = self.router.parse(query)
+                self.assertNotEqual(req.market, "perpetual", query)
+                self.assertEqual(req.timeframe, tf)
+            for query in ("long BTC", "BTC perpetual", "open position ETH"):
+                self.assertEqual(self.router.parse(query).market, "perpetual", query)
+        with patch.object(self.router.local_llm, "is_available", return_value=True), patch.object(self.router.local_llm, "interpret_intent", return_value={"request_type": "ANALYZE", "asset": "BTC", "market": "PERPETUAL"}):
+            self.assertEqual(self.router.parse("BTC short term").market, "all")
+            self.assertEqual(self.router.parse("BTC hari ini gimana?").market, "all")
+
+    def test_semantic_grounding_and_sampling(self) -> None:
+        engine = LocalLanguageEngine()
+        facts = NarrativeFacts(asset="BTC", price=86434.22, decision="WAIT", fibonacci_level=85778.55)
+        with patch.object(engine, "is_available", return_value=True):
+            for phrase in ("below Fibonacci", "di bawah Fibonacci", "under Fibonacci", "pada akhir bulan", "bulan depan", "minggu depan"):
+                with patch.object(engine, "_run_llama", return_value=f"BTC WAIT {phrase}."):
+                    self.assertIsNone(engine.generate_narrative(facts), phrase)
+            with patch.object(engine, "_run_llama", return_value="BTC WAIT; harga di atas Fibonacci.") as inference:
+                self.assertIsNotNone(engine.generate_narrative(facts))
+                self.assertEqual(inference.call_args.kwargs["temp"], 0.35)
+                self.assertEqual(inference.call_args.kwargs["top_p"], 0.8)
+                self.assertEqual(inference.call_args.kwargs["top_k"], 20)
+            with patch.object(engine, "_run_llama", return_value='{"request_type":"ANALYZE","asset":"BTC"}') as inference:
+                self.assertIsNotNone(engine.interpret_intent("analisa BTC"))
+                self.assertEqual(inference.call_args.kwargs["temp"], 0.0)
+        self.assertEqual(format_price(0.000545), "$0.000545")
+        self.assertEqual(format_price(86434.22), "$86,434.22")
+        tiny = NarrativeFacts(asset="TEST", price=0.000545, decision="WAIT")
+        with patch.object(engine, "is_available", return_value=True), patch.object(engine, "_run_llama", return_value="TEST WAIT.") as inference:
+            engine.generate_narrative(tiny)
+            self.assertIn("$0.000545", inference.call_args.args[0])
+        with patch.object(engine, "is_available", return_value=True), patch.object(engine, "_run_llama", return_value="TEST WAIT pada $0.00."):
+            self.assertIsNone(engine.generate_narrative(tiny))
+
+    def test_packet_fibonacci_facts_and_safe_fallback(self) -> None:
+        runner = CryptoResearchRunner()
+        q = self.quant.evaluate("BTC", {"symbol": "BTC", "price": 86434.22, "high": 87000, "low": 83000, "volume": 1000000})
+        packet = ResearchPacket(asset="BTC", market="GENERAL / SPOT REFERENCE", timeframe="H1", price=86434.22, decision="WAIT", data_quality="good", setup_quality="weak", fibonacci_confluence="Confluence at Fib 0.618 ($85,778.55)", fibonacci={"material": True, "values": {"fib_618": 85778.55}})
+        with patch.object(runner.local_llm, "is_available", return_value=True), patch.object(runner.local_llm, "_run_llama", return_value="BTC WAIT di bawah Fibonacci.") as inference:
+            report = runner._render_section_25_view(q, packet=packet, raw_query="BTC hari ini gimana?")
+            self.assertNotIn("di bawah Fibonacci", report)
+            self.assertIn("86434", inference.call_args.args[0].replace(",", ""))
+            self.assertIn("85778.55", inference.call_args.args[0])
+            self.assertIn("price relation: ABOVE", inference.call_args.args[0])
+        with patch.object(runner.local_llm, "is_available", return_value=True), patch.object(runner.local_llm, "generate_narrative", side_effect=ValueError("invalid optional fact")):
+            self.assertIn(q.decision, runner._render_section_25_view(q, raw_query="BTC"))
+
+    def test_frequency_requires_stable_windows(self) -> None:
+        stable = [{"close": 100 + math.sin(2 * math.pi * i / 12)} for i in range(120)]
+        changing = [{"close": 100 + math.sin(2 * math.pi * i / (7 if i < 60 else 19))} for i in range(120)]
+        self.assertTrue(self.quant.evaluate_frequency_cycle(stable)["material"])
+        self.assertFalse(self.quant.evaluate_frequency_cycle(changing)["material"])
 
     # ============================================================
     # I1. HARNESS TEST

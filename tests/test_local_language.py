@@ -77,7 +77,7 @@ class TestLocalLanguageIntelligence(unittest.TestCase):
         r = self.router.parse("gimana BTC h1?", self.session)
         self.assertEqual(r.asset, "BTC")
         self.assertEqual(r.timeframe, "H1")
-        self.assertEqual(r.market, "perpetual")
+        self.assertEqual(r.market, "all")
 
     def test_local_language_mock_interpreter_and_asset_safety(self) -> None:
         """Verifies JSON schema parsing, asset verification, and non-asset safety."""

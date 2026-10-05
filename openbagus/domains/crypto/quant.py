@@ -1241,18 +1241,25 @@ class QuantEngine:
 
         is_stable = False
         if best_lag and best_corr >= 0.45:
-            half = n // 2
-            h2 = closes[half:]
-            if len(h2) > best_lag:
-                m2 = sum(h2) / len(h2)
-                cov2 = sum((h2[i] - m2) * (h2[i - best_lag] - m2) for i in range(best_lag, len(h2)))
-                denom2 = math.sqrt(
-                    sum((h2[i] - m2) ** 2 for i in range(best_lag, len(h2)))
-                    * sum((h2[i - best_lag] - m2) ** 2 for i in range(best_lag, len(h2)))
-                )
-                corr2 = (cov2 / denom2) if denom2 > 0 else 0.0
-                if corr2 >= 0.30:
-                    is_stable = True
+            window_size = n // 2
+            window_lags = []
+            for start in (0, n // 4, n - window_size):
+                window = closes[start:start + window_size]
+                center = sum(window) / len(window)
+                correlations = []
+                for lag in range(5, min(30, window_size // 2) + 1):
+                    left = [v - center for v in window[lag:]]
+                    right = [v - center for v in window[:-lag]]
+                    denominator = math.sqrt(sum(v * v for v in left) * sum(v * v for v in right))
+                    correlation = sum(a * b for a, b in zip(left, right)) / denominator if denominator else 0.0
+                    correlations.append((correlation, lag))
+                if correlations:
+                    peak = max(c for c, _ in correlations)
+                    # Prefer the fundamental period over near-equal harmonics.
+                    lag = min(l for c, l in correlations if c >= peak - 0.02)
+                    if peak >= 0.30:
+                        window_lags.append(lag)
+            is_stable = len(window_lags) == 3 and max(window_lags) - min(window_lags) <= max(1, min(window_lags) * 0.20)
 
         is_material = bool(best_lag and best_corr >= 0.45 and is_stable)
         summary = (

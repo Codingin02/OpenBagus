@@ -443,10 +443,10 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         router = IntentRouter()
         session = SessionState()
 
-        # 1. gimana BTC h1? -> BTC / PERPETUAL / H1
+        # Timeframe alone does not select derivatives as the primary market.
         r1 = router.parse("gimana BTC h1?", session)
         self.assertEqual(r1.asset, "BTC")
-        self.assertEqual(r1.market, "perpetual")
+        self.assertEqual(r1.market, "all")
         self.assertEqual(r1.timeframe, "H1")
         self.assertEqual(r1.request_type, "POSITION")
 
