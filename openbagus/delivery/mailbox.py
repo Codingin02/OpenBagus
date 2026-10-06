@@ -43,22 +43,30 @@ class SmtpConfig:
 
     @classmethod
     def from_runtime_env(cls, runtime_env: RuntimeEnv) -> "SmtpConfig":
-        host = runtime_env.get("OPENBAGUS_EMAIL_SMTP_HOST")
-        port_text = runtime_env.get("OPENBAGUS_EMAIL_SMTP_PORT")
-        username = runtime_env.get("OPENBAGUS_EMAIL_SMTP_USERNAME")
-        password = runtime_env.get("OPENBAGUS_EMAIL_SMTP_PASSWORD")
-        sender = runtime_env.get("OPENBAGUS_EMAIL_FROM")
-        recipient_text = (
-            runtime_env.get("OPENBAGUS_EMAIL_TO")
-            or runtime_env.get("OPENBAGUS_EMAIL_TO_MACRO")
-            or runtime_env.get("OPENBAGUS_EMAIL_TO_OPERATOR")
+        return cls.from_values(
+            host=runtime_env.get("OPENBAGUS_EMAIL_SMTP_HOST"),
+            port_text=runtime_env.get("OPENBAGUS_EMAIL_SMTP_PORT"),
+            security=runtime_env.get("OPENBAGUS_EMAIL_SECURITY"),
+            username=runtime_env.get("OPENBAGUS_EMAIL_SMTP_USERNAME"),
+            password=runtime_env.get("OPENBAGUS_EMAIL_SMTP_PASSWORD"),
+            sender=runtime_env.get("OPENBAGUS_EMAIL_FROM"),
+            recipient_text=(
+                runtime_env.get("OPENBAGUS_EMAIL_TO")
+                or runtime_env.get("OPENBAGUS_EMAIL_TO_MACRO")
+                or runtime_env.get("OPENBAGUS_EMAIL_TO_OPERATOR")
+            ),
+            use_tls=runtime_env.get("OPENBAGUS_EMAIL_USE_TLS", "true"),
         )
+
+    @classmethod
+    def from_values(cls, *, host: str | None, port_text: str | None, security: str | None,
+                    username: str | None, password: str | None, sender: str | None,
+                    recipient_text: str | None, use_tls: str | None = "true") -> "SmtpConfig":
         recipients = _parse_recipients(recipient_text)
 
-        security = (runtime_env.get("OPENBAGUS_EMAIL_SECURITY") or "").strip().lower()
+        security = (security or "").strip().lower()
         if not security:
-            use_tls = (runtime_env.get("OPENBAGUS_EMAIL_USE_TLS", "true") or "true").strip().lower()
-            security = "starttls" if use_tls in TRUE_VALUES else "none"
+            security = "starttls" if (use_tls or "true").strip().lower() in TRUE_VALUES else "none"
 
         errors: list[str] = []
         port: int | None = None
@@ -168,6 +176,7 @@ class SmtpTransport:
         with self._connect() as client:
             if self.config.username:
                 client.login(self.config.username, self.config.password or "")
+            client.noop()
         return {"status": "EMAIL_SMTP_READY", "message_sent": False}
 
     def send(self, message: EmailMessage) -> dict[str, Any]:

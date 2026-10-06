@@ -238,16 +238,16 @@ class CryptoResearchRunner:
             st = self.local_llm.get_status_info()
             status_label = "TERPASANG / AKTIF" if st.get("available") else "BELUM TERPASANG (Fallback Deterministik Aktif)"
             lines = [
-                "OpenBagus Local Language Engine (Qwen 0.6B)",
+                "OpenBagus Local Language Engine (Qwen3-4B)",
                 "===========================================",
-                "Model:          Qwen3-0.6B-Q8_0.gguf (~639 MB)",
-                "Inference:      Direct llama.cpp CLI Subprocess (Zero-Ollama, Zero-Server)",
+                "Model:          Qwen3-4B-Q4_K_M.gguf (~2.5 GB)",
+                f"Inference:      Managed llama.cpp server / {st.get('backend')} (loopback only, no Ollama)",
                 f"Lokasi Runtime: {st.get('model_path')}",
                 f"Status:         {status_label}",
                 "",
                 "Catatan:",
                 "OpenBagus menggunakan mesin kuantitatif deterministik secara default.",
-                "Model lokal berukuran < 1 GB ini hanya berperan untuk pemahaman bahasa alami",
+                "Model lokal ini hanya berperan untuk pemahaman bahasa alami",
                 "dan narasi trader, tanpa mengubah keputusan maupun kalkulasi risiko kuantitatif.",
             ]
             return "\n".join(lines)
@@ -601,6 +601,7 @@ class CryptoResearchRunner:
             if supporting:
                 narrative += (" Konfluensi yang mendukung setup: " if lang == "id" else " Setup confluence: ") + "; ".join(supporting) + "."
 
+        packet.narrative = narrative
         lines.append("")
         lines.append(narrative)
 

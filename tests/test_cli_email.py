@@ -15,8 +15,10 @@ from openbagus.core.env import RuntimeEnv
 from openbagus.cli import main as cli_main
 from openbagus import cli
 from openbagus.data.providers import ProviderRegistry, VALIDATORS
-from openbagus.delivery.adapters import OpenClawBridgeAdapter
+from openbagus.delivery.adapters import WhatsAppCloudConfig, WhatsAppCloudTransport
 from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport
+from openbagus.domains.crypto.quant import QuantEngine
+from openbagus.domains.crypto.research import ResearchPacket
 from openbagus.delivery.runner import ManualQueryParser, run_final_delivery
 from scripts.openbagus_run_final import _delivery_exit_code, main as compatibility_main
 
@@ -49,7 +51,7 @@ class TestCliEmail(unittest.TestCase):
             alpha = str(next(i for i, p in enumerate(configurable, 1) if p.id == "alpha_vantage"))
             fred = str(next(i for i, p in enumerate(configurable, 1) if p.id == "fred"))
             output = io.StringIO()
-            with patch.dict(os.environ, {}, clear=True), patch.object(cli, "REPO_ROOT", root), patch("builtins.input", side_effect=["y", alpha, fred, "0", "n"]) as inputs, patch("getpass.getpass", side_effect=["fixture-alpha", "fixture-fred"]), patch.dict(VALIDATORS, {"alpha_vantage": lambda key: "VALID", "fred": lambda key: "INVALID"}), redirect_stdout(output):
+            with patch.dict(os.environ, {}, clear=True), patch.object(cli, "REPO_ROOT", root), patch("builtins.input", side_effect=["y", alpha, fred, "0", "n", "n"]) as inputs, patch("getpass.getpass", side_effect=["fixture-alpha", "fixture-fred"]), patch.dict(VALIDATORS, {"alpha_vantage": lambda key: "VALID", "fred": lambda key: "INVALID"}), redirect_stdout(output):
                 self.assertEqual(cli._run_setup(), 0)
                 cli._run_status()
             content = (root / ".env").read_text(encoding="utf-8")
@@ -66,6 +68,8 @@ class TestCliEmail(unittest.TestCase):
         script = (root / "scripts/setup_openbagus.ps1").read_text(encoding="utf-8")
         self.assertNotIn('(Y/N):"', script)
         self.assertEqual(script.count('Write-Host "[PASS] Local Language Engine: ACTIVE'), 1)
+        self.assertIn("Qwen3-0.6B -> Qwen3-4B Q4_K_M", script)
+        self.assertIn("Qwen3-4B-Q4_K_M.gguf", script)
 
     def test_runtime_failure_has_nonzero_exit_code(self):
         self.assertEqual(_delivery_exit_code([{"status": "RUNTIME_FAILED"}]), 1)
@@ -157,7 +161,38 @@ class TestCliEmail(unittest.TestCase):
             self.assertEqual(result, {"status": "EMAIL_SMTP_READY", "message_sent": False})
             smtp_instance.starttls.assert_called_once()
             smtp_session.login.assert_called_once_with("user@example.test", "x")
+            smtp_session.noop.assert_called_once()
             smtp_session.send_message.assert_not_called()
+
+    def test_ssl_send_authenticates_and_sends(self):
+        config = SmtpConfig.from_values(
+            host="smtp.example.test", port_text="465", security="ssl",
+            username="user@example.test", password="secret", sender="sender@example.test",
+            recipient_text="recipient@example.test",
+        )
+        smtp_instance = MagicMock()
+        smtp_session = MagicMock()
+        smtp_instance.__enter__.return_value = smtp_session
+        with patch("openbagus.delivery.mailbox.smtplib.SMTP_SSL", return_value=smtp_instance):
+            result = SmtpTransport(config).send(MagicMock())
+        self.assertEqual(result["status"], "EMAIL_SENT")
+        smtp_session.login.assert_called_once_with("user@example.test", "secret")
+        smtp_session.send_message.assert_called_once()
+
+    def test_smtp_authentication_and_send_failures_are_propagated_without_secret(self):
+        config = SmtpConfig.from_values(
+            host="smtp.example.test", port_text="587", security="starttls",
+            username="user@example.test", password="local-secret", sender="sender@example.test",
+            recipient_text="recipient@example.test",
+        )
+        smtp_instance = MagicMock()
+        smtp_session = MagicMock()
+        smtp_instance.__enter__.return_value = smtp_session
+        smtp_session.login.side_effect = __import__("smtplib").SMTPAuthenticationError(535, b"rejected")
+        with patch("openbagus.delivery.mailbox.smtplib.SMTP", return_value=smtp_instance):
+            with self.assertRaises(__import__("smtplib").SMTPAuthenticationError) as failure:
+                SmtpTransport(config).send(MagicMock())
+        self.assertNotIn("local-secret", str(failure.exception))
 
     def test_live_send_requires_local_enablement(self):
         env = {
@@ -194,11 +229,65 @@ class TestCliEmail(unittest.TestCase):
 
         self.assertEqual(result["status"], "BLOCKED_DRY_RUN")
 
-    def test_whatsapp_bridge_is_inert(self):
-        status = OpenClawBridgeAdapter().check_connection()
-        self.assertEqual(status["status"], "WHATSAPP_DISABLED")
-        self.assertFalse(status["connected"])
-        self.assertFalse(status["network_attempted"])
+    def test_whatsapp_cloud_validate_text_template_and_sanitized_failure(self):
+        config = WhatsAppCloudConfig(True, "local-secret", "12345", "+628111111111", template_name="hello_world")
+        transport = WhatsAppCloudTransport(config)
+        with patch.object(transport, "_request", return_value=(200, {"id": "12345"})):
+            self.assertEqual(transport.validate()["status"], "VALID")
+        with patch.object(transport, "_request", return_value=(401, {"error": {"message": "invalid token"}})):
+            self.assertEqual(transport.validate(), {"status": "INVALID"})
+        with patch.object(transport, "_request", return_value=(200, {"messages": [{"id": "wamid"}]})) as request:
+            self.assertEqual(transport.send("Current research")["status"], "WHATSAPP_SENT")
+            self.assertEqual(request.call_args.kwargs["payload"]["type"], "text")
+        with patch.object(transport, "_request", return_value=(200, {"messages": [{"id": "wamid"}]})) as request:
+            self.assertEqual(transport.send("ignored", use_template=True)["status"], "WHATSAPP_SENT")
+            self.assertEqual(request.call_args.kwargs["payload"]["type"], "template")
+        with patch.object(transport, "_request", return_value=(400, {"error": {"code": 131047, "message": "secret detail"}})):
+            failure = transport.send("Current research")
+        self.assertEqual(failure, {"status": "WHATSAPP_TEMPLATE_REQUIRED"})
+        self.assertNotIn("secret", json.dumps(failure).lower())
+        with patch.object(transport, "_request", return_value=(500, {"error": {"message": "local-secret"}})):
+            failure = transport.send("Current research")
+        self.assertEqual(failure["status"], "WHATSAPP_SEND_FAILED")
+        self.assertNotIn("local-secret", json.dumps(failure))
+
+    def test_direct_send_reuses_current_session_without_research_fetch(self):
+        quant = QuantEngine().evaluate("BTC", {"price": 65000.0, "high": 66000.0, "low": 64000.0})
+        packet = ResearchPacket(
+            asset="BTC", market="GENERAL / SPOT REFERENCE", timeframe="H1", price=quant.price,
+            decision=quant.decision, data_quality=quant.data_quality, setup_quality=quant.setup_quality,
+            decision_reason=quant.decision_reason, narrative="BTC remains conditional on the stated levels.",
+        )
+        shell = cli.OpenBagusShell()
+        shell.session.last_quant_result = quant
+        shell.session.last_research_packet = packet
+        env = {
+            "OPENBAGUS_EMAIL_SMTP_HOST": "smtp.example.test", "OPENBAGUS_EMAIL_SMTP_PORT": "587",
+            "OPENBAGUS_EMAIL_SECURITY": "starttls", "OPENBAGUS_EMAIL_FROM": "sender@example.test",
+            "OPENBAGUS_EMAIL_TO": "recipient@example.test", "OPENBAGUS_EMAIL_LIVE_ENABLED": "true",
+            "OPENBAGUS_WHATSAPP_ENABLED": "true", "OPENBAGUS_WHATSAPP_ACCESS_TOKEN": "local-secret",
+            "OPENBAGUS_WHATSAPP_PHONE_NUMBER_ID": "12345", "OPENBAGUS_WHATSAPP_RECIPIENT": "+628111111111",
+        }
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as temp_dir, patch.dict(os.environ, env, clear=False), patch.object(cli, "REPO_ROOT", Path(temp_dir)), patch.object(SmtpTransport, "send", return_value={"status": "EMAIL_SENT", "message_sent": True}) as email_send, patch.object(WhatsAppCloudTransport, "send", return_value={"status": "WHATSAPP_SENT"}) as wa_send, patch.object(shell.researcher, "execute") as research, redirect_stdout(output):
+            shell.do_send("all")
+        email_send.assert_called_once()
+        wa_send.assert_called_once()
+        research.assert_not_called()
+        self.assertIn("Email      SENT", output.getvalue())
+        self.assertIn("WhatsApp   SENT", output.getvalue())
+
+    def test_natural_send_phrases_delegate_to_direct_delivery(self):
+        shell = cli.OpenBagusShell()
+        cases = {
+            "kirim hasil ini ke email": "email",
+            "send to whatsapp": "whatsapp",
+            "kirim ke email dan whatsapp": "all",
+        }
+        for phrase, channel in cases.items():
+            with self.subTest(phrase=phrase), patch.object(shell, "do_send") as send:
+                shell.default(phrase)
+                send.assert_called_once_with(channel)
 
 
 if __name__ == "__main__":

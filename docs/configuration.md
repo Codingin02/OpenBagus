@@ -20,11 +20,13 @@ Copy `.env.example` to `.env` (or `config/openbagus_runtime_local.env.example` t
 ### Optional
 - **FRED API Key (`FRED_API_KEY`)**: Enables official Federal Reserve Economic Data series. If omitted, Yahoo Finance public proxies provide macro context.
 - **SMTP Email (`OPENBAGUS_EMAIL_*`)**: Enables outbound email delivery. If omitted, reports are saved locally to disk as text, HTML, and EML files without error. See [email.md](email.md).
+- **WhatsApp Cloud API (`OPENBAGUS_WHATSAPP_*`)**: Enables direct delivery through Meta's official API. It requires a local access token, Phone Number ID, recipient, and explicit `OPENBAGUS_WHATSAPP_ENABLED=true`. An approved template is optional and used only when explicitly selected.
 - **LLM Critic (`OPENROUTER_API_KEY`, `OPENBAGUS_LLM_JURY_ENABLED=true`)**: Optional qualitative narrative summarizer/critic. Numerical scores and risk metrics remain strictly deterministic in Python.
+
+The local language layer uses the official `Qwen3-4B-Q4_K_M.gguf` through a managed loopback-only `llama-server`. Model/runtime files remain under `%LOCALAPPDATA%\OpenBagus`; no Ollama service is required.
 
 ### Disabled Subsystems
 - **Equities (`idx-daily`)**: Disabled. OpenBagus active domain is crypto.
-- **WhatsApp / OpenClaw**: Disabled.
 - **Live Trading**: Not implemented. OpenBagus is strictly research-only and has no broker or exchange order execution capabilities.
 
 ## Data Providers Summary

@@ -804,6 +804,7 @@ class IntentRouter:
                 "last_market": session.market_type if session else "PERPETUAL",
                 "last_timeframe": detected_tf,
                 "last_request_type": getattr(session, "last_intent", "ANALYZE") if session else None,
+                "recent_turns": session.conversational_turns if session else [],
             }
             llm_res = self.local_llm.interpret_intent(cleaned, session_context=session_ctx)
             if llm_res and llm_res.get("request_type") and llm_res["request_type"] != "UNKNOWN":

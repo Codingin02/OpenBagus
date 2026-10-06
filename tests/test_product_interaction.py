@@ -238,9 +238,10 @@ class TestProductInteraction(unittest.TestCase):
                     self.assertIsNone(engine.generate_narrative(facts), phrase)
             with patch.object(engine, "_run_llama", return_value="BTC WAIT; harga di atas Fibonacci.") as inference:
                 self.assertIsNotNone(engine.generate_narrative(facts))
-                self.assertEqual(inference.call_args.kwargs["temp"], 0.35)
-                self.assertEqual(inference.call_args.kwargs["top_p"], 0.8)
+                self.assertEqual(inference.call_args.kwargs["temp"], 0.55)
+                self.assertEqual(inference.call_args.kwargs["top_p"], 0.90)
                 self.assertEqual(inference.call_args.kwargs["top_k"], 20)
+                self.assertEqual(inference.call_args.kwargs["presence_penalty"], 1.2)
             with patch.object(engine, "_run_llama", return_value='{"request_type":"ANALYZE","asset":"BTC"}') as inference:
                 self.assertIsNotNone(engine.interpret_intent("analisa BTC"))
                 self.assertEqual(inference.call_args.kwargs["temp"], 0.0)

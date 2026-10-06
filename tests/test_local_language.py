@@ -2,14 +2,20 @@
 
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from openbagus.domains.crypto.quant import QuantDecisionResult, ValidationScenario
 from openbagus.intelligence.intent import IntentRouter, SessionState
 from openbagus.intelligence.local_language import (
+    MODEL_NAME,
     SYSTEM_PROFILE,
     LocalLanguageEngine,
+    _ManagedLlamaServer,
+    _verify_sha256,
 )
 
 
@@ -65,6 +71,74 @@ class TestLocalLanguageIntelligence(unittest.TestCase):
         r9 = self.router.parse("near", self.session)
         self.assertEqual(r9.request_type, "ASSET_ANALYSIS")
         self.assertEqual(r9.asset, "NEAR")
+
+    def test_canonical_local_model_and_checksum_rejection(self) -> None:
+        self.assertEqual(MODEL_NAME, "Qwen3-4B-Q4_K_M.gguf")
+        with tempfile.TemporaryDirectory() as temp_dir:
+            fixture = Path(temp_dir) / "model.gguf"
+            fixture.write_bytes(b"not-the-official-model")
+            self.assertFalse(_verify_sha256(fixture, "0" * 64))
+
+    def test_managed_server_backend_detection(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            executable = Path(temp_dir) / "llama-server.exe"
+            executable.touch()
+            cuda = MagicMock(stdout="CUDA0: NVIDIA GeForce RTX", stderr="")
+            vulkan = MagicMock(stdout="Vulkan0: GPU", stderr="")
+            with patch("openbagus.intelligence.local_language.subprocess.run", return_value=cuda):
+                self.assertEqual(_ManagedLlamaServer.detect_backend(executable), "CUDA")
+            with patch("openbagus.intelligence.local_language.subprocess.run", return_value=vulkan):
+                self.assertEqual(_ManagedLlamaServer.detect_backend(executable), "VULKAN")
+
+    def test_managed_server_starts_on_loopback_and_stops(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            server = Path(temp_dir) / "llama-server.exe"
+            model = Path(temp_dir) / MODEL_NAME
+            server.touch()
+            model.touch()
+            process = MagicMock()
+            process.poll.return_value = None
+            health = MagicMock()
+            health.__enter__.return_value.status = 200
+            with patch.object(_ManagedLlamaServer, "detect_backend", return_value="CUDA"), patch("openbagus.intelligence.local_language.subprocess.Popen", return_value=process) as popen, patch("openbagus.intelligence.local_language.urllib.request.urlopen", return_value=health):
+                runtime = _ManagedLlamaServer.ensure(server, model)
+                self.assertEqual(runtime[1], "CUDA")
+                command = popen.call_args.args[0]
+                self.assertIn("127.0.0.1", command)
+                self.assertIn("all", command)
+                self.assertNotIn("0.0.0.0", command)
+                _ManagedLlamaServer.stop()
+            process.terminate.assert_called_once()
+
+    def test_managed_server_uses_cpu_fallback_without_gpu_offload(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            server = Path(temp_dir) / "llama-server.exe"
+            model = Path(temp_dir) / MODEL_NAME
+            server.touch()
+            model.touch()
+            process = MagicMock()
+            process.poll.return_value = None
+            health = MagicMock()
+            health.__enter__.return_value.status = 200
+            with patch.object(_ManagedLlamaServer, "detect_backend", return_value="CPU"), patch("openbagus.intelligence.local_language.subprocess.Popen", return_value=process) as popen, patch("openbagus.intelligence.local_language.urllib.request.urlopen", return_value=health):
+                runtime = _ManagedLlamaServer.ensure(server, model)
+                self.assertEqual(runtime[1], "CPU")
+                command = popen.call_args.args[0]
+                self.assertEqual(command[command.index("-ngl") + 1], "0")
+                _ManagedLlamaServer.stop()
+
+    def test_server_completion_uses_deterministic_routing_sampling(self) -> None:
+        engine = LocalLanguageEngine(model_path=Path("model.gguf"), llama_bin=Path("server.exe"))
+        response = MagicMock()
+        response.__enter__.return_value.status = 200
+        response.__enter__.return_value.read.return_value = json.dumps({"content": '{"request_type":"SYSTEM_INFO"}'}).encode()
+        with patch.object(engine, "is_available", return_value=True), patch.object(_ManagedLlamaServer, "ensure", return_value=(8123, "CUDA")), patch("openbagus.intelligence.local_language.urllib.request.urlopen", return_value=response) as urlopen:
+            result = engine._run_llama("fixture", temp=0.0, top_p=1.0, top_k=1)
+        self.assertIn("SYSTEM_INFO", result or "")
+        payload = json.loads(urlopen.call_args.args[0].data.decode())
+        self.assertEqual(payload["temperature"], 0.0)
+        self.assertEqual(payload["top_p"], 1.0)
+        self.assertEqual(payload["top_k"], 1)
 
     def test_section_20_fallback_when_local_model_unavailable(self) -> None:
         """When local model is offline/unavailable, fallback remains fully operational."""

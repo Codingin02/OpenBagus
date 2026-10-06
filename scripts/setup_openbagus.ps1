@@ -132,12 +132,13 @@ if ($LASTEXITCODE -ne 0) {
 Write-Host ""
 Write-Host "[PASS] Doctor completed" -ForegroundColor Green
 
-# 7. Local Language Model status (Qwen3-0.6B-Q8_0.gguf)
+# 7. Local Language Model status
 $appDataOpenBagus = Join-Path $env:LOCALAPPDATA "OpenBagus"
 $modelsDir = Join-Path $appDataOpenBagus "models"
 $binDir = Join-Path $appDataOpenBagus "bin"
-$modelFile = Join-Path $modelsDir "Qwen3-0.6B-Q8_0.gguf"
-$llamaExe = Join-Path $binDir "llama-cli.exe"
+$modelFile = Join-Path $modelsDir "Qwen3-4B-Q4_K_M.gguf"
+$oldModelFile = Join-Path $modelsDir "Qwen3-0.6B-Q8_0.gguf"
+$llamaExe = Join-Path $binDir "llama-server.exe"
 
 $llmState = "UNAVAILABLE"
 try {
@@ -148,13 +149,13 @@ try {
 
 if ($llmState -eq "ACTIVE") {
     Write-Host ""
-    Write-Host "[PASS] Local Language Engine: ACTIVE (Qwen3-0.6B-Q8_0.gguf)" -ForegroundColor Green
+    Write-Host "[PASS] Local Language Engine: ACTIVE (Qwen3-4B Q4_K_M)" -ForegroundColor Green
 } elseif ($llmState -eq "FALLBACK") {
     Write-Host ""
     Write-Host "[WARN] Local Language Engine: FALLBACK (deterministic engine active)" -ForegroundColor Yellow
 } else {
     Write-Host ""
-    Write-Host "[INFO] Local Language Model: UNAVAILABLE (optional ~639MB; deterministic engine active)"
+    Write-Host "[INFO] Local Language Model: UNAVAILABLE (optional ~2.5GB; deterministic engine active)"
 }
 
 # 8. Non-interactive bypass
@@ -167,7 +168,12 @@ if ($NonInteractive -or $SkipWizard) {
 # 9. Interactive configuration & launch
 if ($llmState -ne "ACTIVE") {
     Write-Host ""
-    $dlModel = Read-Host "Download local language model (Qwen 0.6B, ~639MB)? (Y/N)"
+    if (Test-Path $oldModelFile) {
+        Write-Host "Local language upgrade available: Qwen3-0.6B -> Qwen3-4B Q4_K_M"
+        $dlModel = Read-Host "Upgrade local model now? (Y/N)"
+    } else {
+        $dlModel = Read-Host "Download local language model (Qwen3-4B Q4_K_M, ~2.5GB)? (Y/N)"
+    }
     $dlLower = if ($dlModel) { $dlModel.Trim().ToLower() } else { "n" }
     if ($dlLower -eq "y") {
         Write-Host ""

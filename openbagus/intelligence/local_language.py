@@ -1,7 +1,7 @@
 """OpenBagus Local Language Engine.
 
 Provides offline, private, zero-API-key local language intelligence using
-Qwen3-0.6B-Q8_0.gguf through direct llama.cpp CLI subprocess execution.
+Qwen3-4B-Q4_K_M.gguf through one managed loopback-only llama.cpp server.
 
 Roles:
 1. Intent Interpreter: Free-form conversational intent classification with strict JSON output.
@@ -13,15 +13,20 @@ QuantEngine remains 100% authoritative for all calculations, decisions, and pric
 
 from __future__ import annotations
 
+import atexit
 import hashlib
 import io
 import json
 import os
 import re
+import shutil
+import socket
 import ssl
 import subprocess
 import sys
+import threading
 import time
+import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass, field
@@ -68,6 +73,8 @@ def format_price(value: float) -> str:
     if abs(value) >= 1:
         return f"${value:,.2f}"
     return "$" + format(Decimal(str(value)), "f")
+
+
 def get_local_appdata_dir() -> Path:
     """Returns local app data directory for OpenBagus runtime files (%LOCALAPPDATA%\\OpenBagus)."""
     base = os.environ.get("LOCALAPPDATA")
@@ -82,12 +89,14 @@ LOCAL_RUNTIME_DIR = get_local_appdata_dir()
 MODELS_DIR = LOCAL_RUNTIME_DIR / "models"
 BIN_DIR = LOCAL_RUNTIME_DIR / "bin"
 CACHE_DIR = LOCAL_RUNTIME_DIR / "cache"
-MODEL_NAME = "Qwen3-0.6B-Q8_0.gguf"
+MODEL_NAME = "Qwen3-4B-Q4_K_M.gguf"
 MODEL_FILE = MODELS_DIR / MODEL_NAME
-LLAMA_CLI_EXE = BIN_DIR / ("llama-cli.exe" if os.name == "nt" else "llama-cli")
+OLD_MODEL_FILE = MODELS_DIR / "Qwen3-0.6B-Q8_0.gguf"
+LLAMA_SERVER_EXE = BIN_DIR / ("llama-server.exe" if os.name == "nt" else "llama-server")
 
-# Official SHA-256 Checksum for Qwen3-0.6B-Q8_0.gguf from Hugging Face LFS
-QWEN3_SHA256 = "9465e63a22add5354d9bb4b99e90117043c7124007664907259bd16d043bb031"
+QWEN3_SHA256 = "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5"
+MODEL_REPOSITORY = "Qwen/Qwen3-4B-GGUF"
+MODEL_URL = f"https://huggingface.co/{MODEL_REPOSITORY}/resolve/main/{MODEL_NAME}"
 
 # Canonical Factual OpenBagus System Profile (Section 12)
 SYSTEM_PROFILE: dict[str, str] = {
@@ -96,7 +105,7 @@ SYSTEM_PROFILE: dict[str, str] = {
     "purpose": "Crypto quantitative research and decision-support CLI",
     "core": "Local deterministic QuantEngine (Microstructure & Risk)",
     "data": "Online Zero-Key public providers (16 active) + optional keyed providers",
-    "language_layer": "Local lightweight model (Qwen3-0.6B-Q8_0.gguf via direct llama.cpp)",
+    "language_layer": "Local Qwen3-4B Q4_K_M via managed llama.cpp server",
     "active_domain": "Crypto (Equities disabled)",
     "trading_execution": "Not implemented (research and risk analysis only)",
     "secrets": "Stored locally only (zero telemetry, zero cloud model inference)",
@@ -141,8 +150,100 @@ def _verify_sha256(filepath: Path, expected_sha: str) -> bool:
         return False
 
 
+def _safe_subprocess_env() -> dict[str, str]:
+    blocked = ("KEY", "TOKEN", "SECRET", "PASSWORD", "CREDENTIAL", "SMTP", "WHATSAPP")
+    return {key: value for key, value in os.environ.items() if not any(part in key.upper() for part in blocked)}
+
+
+class _ManagedLlamaServer:
+    _lock = threading.RLock()
+    _process: subprocess.Popen[str] | None = None
+    _signature: tuple[str, str] | None = None
+    _port: int | None = None
+    _backend = "CPU"
+
+    @classmethod
+    def detect_backend(cls, server_bin: Path) -> str:
+        if not server_bin.is_file():
+            return "UNAVAILABLE"
+        try:
+            result = subprocess.run(
+                [str(server_bin), "--list-devices"], capture_output=True, text=True,
+                timeout=10, encoding="utf-8", errors="replace", env=_safe_subprocess_env(),
+            )
+            output = (result.stdout + result.stderr).upper()
+            if "CUDA" in output or "NVIDIA" in output:
+                return "CUDA"
+            if "VULKAN" in output:
+                return "VULKAN"
+        except (OSError, subprocess.SubprocessError):
+            pass
+        return "CPU"
+
+    @classmethod
+    def ensure(cls, server_bin: Path, model_path: Path, timeout: float = 90.0) -> tuple[int, str] | None:
+        signature = (str(server_bin.resolve()), str(model_path.resolve()))
+        with cls._lock:
+            if cls._process and cls._process.poll() is None and cls._signature == signature and cls._port:
+                return cls._port, cls._backend
+            cls.stop()
+            backend = cls.detect_backend(server_bin)
+            with socket.socket() as sock:
+                sock.bind(("127.0.0.1", 0))
+                port = int(sock.getsockname()[1])
+            command = [
+                str(server_bin), "-m", str(model_path), "-c", "4096", "--host", "127.0.0.1",
+                "--port", str(port), "--no-webui", "--flash-attn", "auto",
+                "--reasoning", "off",
+            ]
+            if backend in {"CUDA", "VULKAN"}:
+                command.extend(["-ngl", "all", "--fit", "on"])
+            else:
+                command.extend(["-ngl", "0"])
+            creationflags = getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0
+            try:
+                cls._process = subprocess.Popen(
+                    command, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                    stderr=subprocess.DEVNULL, text=True, env=_safe_subprocess_env(),
+                    creationflags=creationflags,
+                )
+                cls._signature, cls._port, cls._backend = signature, port, backend
+                deadline = time.monotonic() + timeout
+                while time.monotonic() < deadline:
+                    if cls._process.poll() is not None:
+                        cls.stop()
+                        return None
+                    try:
+                        with urllib.request.urlopen(f"http://127.0.0.1:{port}/health", timeout=1) as response:
+                            if response.status == 200:
+                                return port, backend
+                    except (OSError, urllib.error.URLError):
+                        time.sleep(0.2)
+            except OSError:
+                pass
+            cls.stop()
+            return None
+
+    @classmethod
+    def stop(cls) -> None:
+        process = cls._process
+        cls._process = None
+        cls._signature = None
+        cls._port = None
+        if process and process.poll() is None:
+            process.terminate()
+            try:
+                process.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.wait(timeout=5)
+
+
+atexit.register(_ManagedLlamaServer.stop)
+
+
 class LocalLanguageEngine:
-    """Manages local llama.cpp execution for intent parsing and consultant narrative."""
+    """Manages one loopback-only llama.cpp server for routing and narrative."""
 
     def __init__(
         self,
@@ -152,13 +253,13 @@ class LocalLanguageEngine:
     ) -> None:
         self.root = repo_root or get_repo_root()
         custom_model = os.environ.get("OPENBAGUS_MODEL_PATH")
-        custom_llama = os.environ.get("OPENBAGUS_LLAMA_CLI")
+        custom_llama = os.environ.get("OPENBAGUS_LLAMA_SERVER") or os.environ.get("OPENBAGUS_LLAMA_CLI")
 
         self.model_path = Path(custom_model) if custom_model else (model_path or MODEL_FILE)
-        self.llama_bin = Path(custom_llama) if custom_llama else (llama_bin or LLAMA_CLI_EXE)
+        self.llama_bin = Path(custom_llama) if custom_llama else (llama_bin or LLAMA_SERVER_EXE)
 
     def is_available(self) -> bool:
-        """Returns True only if both llama.cpp CLI and the Qwen model GGUF exist on disk."""
+        """Returns True only if both llama-server and the canonical model exist."""
         return self.llama_bin.is_file() and self.model_path.is_file()
 
     def get_runtime_state(self) -> str:
@@ -168,10 +269,10 @@ class LocalLanguageEngine:
                 return "UNAVAILABLE"
             return "FALLBACK"
 
-        smoke_file = CACHE_DIR / "llm_smoke.ok"
+        smoke_file = CACHE_DIR / "llm_4b_smoke.ok"
         if smoke_file.is_file():
             try:
-                if smoke_file.stat().st_mtime >= self.llama_bin.stat().st_mtime:
+                if smoke_file.stat().st_mtime >= max(self.llama_bin.stat().st_mtime, self.model_path.stat().st_mtime):
                     return "ACTIVE"
             except Exception:
                 pass
@@ -197,10 +298,11 @@ class LocalLanguageEngine:
             "model_size_mb": round(self.model_path.stat().st_size / (1024 * 1024), 1) if self.model_path.is_file() else 0.0,
             "llama_bin": str(self.llama_bin),
             "llama_exists": self.llama_bin.is_file(),
+            "backend": _ManagedLlamaServer.detect_backend(self.llama_bin),
         }
 
     def _smoke_test(self, timeout: float = 12.0) -> bool:
-        """Runs ONE real inference smoke test against llama-cli to verify readiness."""
+        """Runs one real inference smoke against the managed local server."""
         if not self.is_available():
             return False
         prompt = (
@@ -227,52 +329,48 @@ class LocalLanguageEngine:
         temp: float = 0.0,
         top_p: float = 0.95,
         top_k: int = 40,
-        timeout: float = 15.0,
+        presence_penalty: float = 0.0,
+        timeout: float = 45.0,
     ) -> str | None:
-        """Executes llama-cli subprocess directly without HTTP server overhead."""
+        """Runs inference through one process-local loopback llama-server."""
         if not self.is_available():
             return None
-
-        cmd = [
-            str(self.llama_bin),
-            "-m", str(self.model_path),
-            "-p", prompt,
-            "-n", str(max_tokens),
-            "-c", "1024",
-            "--temp", str(temp),
-            "--top-p", str(top_p),
-            "--top-k", str(top_k),
-            "-ngl", "0",
-            "--no-display-prompt",
-            "--single-turn",
-            "--simple-io",
-            "--chat-template-kwargs", '{"enable_thinking":false}',
-        ]
+        marker = "<|im_end|>\n<|im_start|>assistant\n"
+        if marker in prompt and "/no_think" not in prompt:
+            head, separator, tail = prompt.rpartition(marker)
+            prompt = f"{head}\n/no_think{separator}{tail}"
+        server = _ManagedLlamaServer.ensure(self.llama_bin, self.model_path)
+        if not server:
+            return None
+        port, _backend = server
+        payload = json.dumps({
+            "prompt": prompt,
+            "n_predict": max_tokens,
+            "temperature": temp,
+            "top_p": top_p,
+            "top_k": top_k,
+            "presence_penalty": presence_penalty,
+            "cache_prompt": True,
+            "stop": ["<|im_end|>", "<|im_start|>user"],
+        }).encode("utf-8")
         try:
-            res = subprocess.run(
-                cmd,
-                stdin=subprocess.DEVNULL,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-                encoding="utf-8",
-                errors="replace",
+            request = urllib.request.Request(
+                f"http://127.0.0.1:{port}/completion", data=payload,
+                headers={"Content-Type": "application/json"}, method="POST",
             )
-            if res.returncode == 0 and res.stdout:
-                raw = res.stdout
-                # Clean prompt echo, banner, and performance footer
-                clean = re.sub(r"\[\s*Prompt:.*?\]", "", raw, flags=re.DOTALL)
-                clean = re.sub(r"Exiting\.\.\.", "", clean)
-                if "(truncated)" in clean:
-                    clean = clean.split("(truncated)")[-1]
-                elif "<|im_start|>assistant" in clean:
-                    clean = clean.split("<|im_start|>assistant")[-1]
-                elif "\n\n> " in clean:
-                    clean = clean.split("\n\n> ")[-1]
-                return clean.strip()
+            with urllib.request.urlopen(request, timeout=timeout) as response:
+                result = json.loads(response.read().decode("utf-8"))
+            content = result.get("content")
+            if not isinstance(content, str):
+                return None
+            content = re.sub(r"<think>.*?</think>\s*", "", content, flags=re.DOTALL).strip()
+            return content or None
+        except (OSError, ValueError, urllib.error.URLError):
             return None
-        except Exception:
-            return None
+
+    @staticmethod
+    def shutdown_runtime() -> None:
+        _ManagedLlamaServer.stop()
 
     def interpret_intent(self, text: str, session_context: dict[str, Any] | None = None) -> dict[str, Any] | None:
         """Interprets free-form natural language query into constrained JSON intent schema."""
@@ -283,6 +381,11 @@ class LocalLanguageEngine:
         last_asset = ctx.get("last_asset") or "null"
         last_market = ctx.get("last_market") or "PERPETUAL"
         last_tf = ctx.get("last_timeframe") or "H1"
+        recent_turns = ctx.get("recent_turns") or []
+        history = "\n".join(
+            f"User: {turn.get('user', '')}\nAssistant: {turn.get('assistant', '')[:240]}"
+            for turn in recent_turns[-4:] if isinstance(turn, dict)
+        )
 
         system_instruction = (
             "<|im_start|>system\n"
@@ -301,11 +404,12 @@ class LocalLanguageEngine:
             '- "gimana cpi pengaruh ke btc" -> {"request_type": "MARKET_OUTLOOK", "asset": "BTC", "relation_to_context": "SWITCH"}\n'
             "- NEVER classify slang or Indonesian words (lagi, ya, kok, terus, nih, dong) as crypto coins.<|im_end|>\n"
             f"<|im_start|>user\nContext: last_asset={last_asset}, last_market={last_market}, last_tf={last_tf}.\n"
+            f"Recent conversation:\n{history or 'none'}\n"
             f"Input: {text}<|im_end|>\n"
             "<|im_start|>assistant\n"
         )
 
-        output = self._run_llama(system_instruction, max_tokens=128, temp=0.0)
+        output = self._run_llama(system_instruction, max_tokens=128, temp=0.0, top_p=1.0, top_k=1)
         if not output:
             return None
 
@@ -448,14 +552,15 @@ class LocalLanguageEngine:
 
         prompt = (
             f"<|im_start|>system\n"
-            f"You are a senior quantitative crypto research consultant. Write an objective, concise 4-8 sentence trader note in {lang_label}.\n"
+            f"You are a senior quantitative crypto research consultant. Answer the user's actual question in {lang_label}, naturally and concisely.\n"
+            "Use this ontology only when relevant: spot, perpetual, long, short, entry, invalidation, stop loss, TP, reward:risk, basis, funding, open interest, CVD, order flow, liquidity, volatility, support/resistance, market structure, Fibonacci confluence, Stochastic, patterns, cross-venue dislocation, arbitrage, large flow, whale context, CPI, FOMC, DXY, US10Y, VIX, gold, oil, DeFi, DEX, stablecoins.\n"
             "STRICT RULES:\n"
             f"1. You MUST keep the decision '{facts.decision}' and asset '{facts.asset}'.\n"
             "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts.\n"
             "Unconfirmed or UNKNOWN triggers are future conditions, never completed breakouts/breakdowns. Use conditional language.\n"
             "3. Sound like an objective institutional consultant giving high-conviction decision support, not an AI bot.\n"
-            "4. Do NOT repeat formulaic phrases like 'diperdagangkan pada' or 'disarankan menahan diri'.<|im_end|>\n"
-            f"<|im_start|>user\nFacts from QuantEngine:\n"
+            "4. Do NOT repeat formulaic phrases or dump a full report when the user asks a narrow follow-up.<|im_end|>\n"
+            f"<|im_start|>user\nQuestion: {user_query or 'Explain the current research view.'}\nFacts from QuantEngine:\n"
             f"- Asset: {facts.asset} ({facts.timeframe})\n"
             f"- Price: {format_price(facts.price)}\n"
             f"- Market: {facts.market}\n"
@@ -478,45 +583,54 @@ class LocalLanguageEngine:
             + f"<|im_end|>\n<|im_start|>assistant\n"
         )
 
-        res = self._run_llama(prompt, max_tokens=220, temp=0.35, top_p=0.8, top_k=20)
-        if not res:
-            return None
+        for attempt in range(2):
+            current_prompt = prompt if attempt == 0 else prompt.replace(
+                "STRICT RULES:\n", "STRICT RULES:\nPrevious wording failed factual validation. Use only the supplied facts and conditional trigger language.\n",
+            )
+            res = self._run_llama(
+                current_prompt, max_tokens=400, temp=0.55, top_p=0.90,
+                top_k=20, presence_penalty=1.2,
+            )
+            if res:
+                clean = re.sub(r"^(?:Trader Note:?|Note:?|Summary:?)\s*", "", res.strip(), flags=re.IGNORECASE)
+                if self._narrative_is_grounded(facts, clean):
+                    return clean
+        return None
 
-        clean_narrative = re.sub(r"^(?:Trader Note:?|Note:?|Summary:?)\s*", "", res.strip(), flags=re.IGNORECASE)
-
-        # Integrity Validation 1: Verify decision alignment
+    @staticmethod
+    def _narrative_is_grounded(facts: NarrativeFacts, clean_narrative: str) -> bool:
         upper_text = clean_narrative.upper()
         if facts.decision in ("NO_TRADE", "WAIT"):
             if "BUY NOW" in upper_text or "SEGERA BELI" in upper_text or "ENTRY SEKARANG" in upper_text:
-                return None
+                return False
         elif facts.decision in ("BUY", "LONG"):
             if "SHORT NOW" in upper_text or "JUAL SEKARANG" in upper_text:
-                return None
+                return False
 
         # Semantic Grounding Guard 1: Fibonacci relative position contradiction
         lower_narrative = clean_narrative.lower()
         confirmed_up = r"(?:crossed|closed|broke|broken)\s+above|breakout\s+(?:confirmed|has\s+occurred)|sudah\s+(?:menembus|breakout|close\s+di\s+atas)|telah\s+(?:menembus|breakout)"
         confirmed_down = r"(?:crossed|closed|broke|broken)\s+below|breakdown\s+(?:confirmed|has\s+occurred)|sudah\s+(?:breakdown|close\s+di\s+bawah|menembus\s+(?:ke\s+)?bawah)|telah\s+(?:breakdown|menembus\s+bawah)"
         if facts.bullish_trigger_state != "CONFIRMED" and re.search(confirmed_up, lower_narrative):
-            return None
+            return False
         if facts.bearish_trigger_state != "CONFIRMED" and re.search(confirmed_down, lower_narrative):
-            return None
+            return False
         if facts.price_vs_fib == "ABOVE":
             if re.search(r"(?:di\s+bawah|below|under)\s+(?:(?:the|level)\s+){0,2}fib(?:onacci)?", lower_narrative):
-                return None
+                return False
         elif facts.price_vs_fib == "BELOW":
             if re.search(r"(?:di\s+atas|above|over)\s+(?:(?:the|level)\s+){0,2}fib(?:onacci)?", lower_narrative):
-                return None
+                return False
 
         # Semantic Grounding Guard 2: Hallucinated date / temporal horizon
         raw_facts = f"{facts.price} {format_price(facts.price)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)}"
         for phrase in ("akhir bulan", "end of month", "bulan depan", "next month", "minggu depan", "next week"):
             if phrase in lower_narrative and phrase not in " ".join(facts.event_dates).lower():
-                return None
+                return False
 
         # Semantic Grounding Guard 3: Bullish trigger mislabeled as opening price
         if re.search(r"harga\s+pembukaan\s*(?:di|pada|sebesar)?\s*\$?\d+", lower_narrative):
-            return None
+            return False
 
         # Integrity Validation 2 (C3 Numeric Invariance Guard):
         # Extract numbers from narrative and check they exist in packet
@@ -532,10 +646,9 @@ class LocalLanguageEngine:
             if not monetary and "." not in num_str and value <= 10:
                 continue
             if value not in valid_numbers:
-                # Model invented a price or number not in facts
-                return None
+                return False
 
-        return clean_narrative
+        return True
 
     def answer_system_question(self, query: str = "", language: str = "id") -> str:
         """Returns factual OpenBagus system information strictly from the canonical profile."""
@@ -569,140 +682,156 @@ class LocalLanguageEngine:
         return "\n".join(lines)
 
 
-def provision_local_runtime(download_model: bool = True, download_llama: bool = True) -> bool:
-    """Provisions llama-cli and Qwen3-0.6B-Q8_0.gguf into %LOCALAPPDATA%\\OpenBagus.
-
-    - Queries GitHub Releases API dynamically for the newest Windows x64 CPU binary.
-    - Validates SHA-256 for both llama.cpp and Qwen model.
-    - Executes ONE real inference smoke test before reporting success.
-    """
-    MODELS_DIR.mkdir(parents=True, exist_ok=True)
-    BIN_DIR.mkdir(parents=True, exist_ok=True)
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-
-    ssl_ctx = ssl.create_default_context()
-    headers = {"User-Agent": "OpenBagus-Setup/1.0", "Accept": "application/vnd.github.v3+json"}
-
-    # 1. llama.cpp Windows binaries
-    if download_llama and not LLAMA_CLI_EXE.is_file():
-        print("[....] Querying latest llama.cpp release from GitHub")
-        llama_asset = None
-        for attempt in range(4):
-            try:
-                req = urllib.request.Request(
-                    "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=3",
-                    headers=headers,
-                )
-                with urllib.request.urlopen(req, context=ssl_ctx, timeout=15) as resp:
-                    releases = json.loads(resp.read().decode("utf-8"))
-                    for r in releases:
-                        for a in r.get("assets", []):
-                            aname = a.get("name", "").lower()
-                            if "bin-win-cpu-x64.zip" in aname or ("win" in aname and "cpu" in aname and "x64" in aname and aname.endswith(".zip")):
-                                llama_asset = a
-                                break
-                        if llama_asset:
-                            break
-                if llama_asset:
-                    break
-            except Exception as e:
-                time.sleep(1.5)
-
-        if not llama_asset:
-            print("[WARN] Could not find suitable llama.cpp binary in GitHub releases.")
-            return False
-
-        dl_url = llama_asset["browser_download_url"]
-        expected_sha = llama_asset.get("digest", "").replace("sha256:", "").strip()
-        print(f"[....] Downloading {llama_asset['name']}")
-
-        tmp_zip = BIN_DIR / "llama_win.tmp.zip"
-        downloaded = False
-        for attempt in range(4):
-            try:
-                req_dl = urllib.request.Request(dl_url, headers={"User-Agent": "OpenBagus-Setup/1.0"})
-                with urllib.request.urlopen(req_dl, context=ssl_ctx, timeout=60) as resp:
-                    with open(tmp_zip, "wb") as f:
-                        f.write(resp.read())
-
-                if tmp_zip.is_file() and tmp_zip.stat().st_size > 1_000_000:
-                    if expected_sha:
-                        if not _verify_sha256(tmp_zip, expected_sha):
-                            print("[WARN] SHA-256 mismatch on downloaded llama.cpp; aborting.")
-                            tmp_zip.unlink(missing_ok=True)
-                            return False
-                    with zipfile.ZipFile(tmp_zip, "r") as z:
-                        z.extractall(BIN_DIR)
-                    downloaded = True
-                    break
-            except Exception as e:
-                time.sleep(2.0)
-            finally:
-                tmp_zip.unlink(missing_ok=True)
-
-        if not downloaded:
-            print("[WARN] Failed downloading llama.cpp runtime.")
-            return False
-
-    # 2. Qwen3-0.6B-Q8_0.gguf (~639 MB)
-    if download_model:
-        if MODEL_FILE.is_file():
-            print("[....] Verifying existing Qwen3-0.6B model checksum")
-            if not _verify_sha256(MODEL_FILE, QWEN3_SHA256):
-                print("[WARN] Existing model checksum mismatch; removing corrupted file.")
-                MODEL_FILE.unlink(missing_ok=True)
-            else:
-                print(f"[PASS] Model verified: {MODEL_FILE}")
-
-        if not MODEL_FILE.is_file():
-            model_urls = [
-                "https://huggingface.co/Qwen/Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
-                "https://huggingface.co/bartowski/Qwen_Qwen3-0.6B-GGUF/resolve/main/Qwen3-0.6B-Q8_0.gguf",
-            ]
-            tmp_model = MODELS_DIR / "qwen3_model.tmp.gguf"
-            downloaded = False
-            for url in model_urls:
-                try:
-                    print(f"[....] Downloading {MODEL_NAME} (~639 MB) from {url}")
-                    for attempt in range(4):
-                        try:
-                            req_m = urllib.request.Request(url, headers={"User-Agent": "OpenBagus-Setup/1.0"})
-                            with urllib.request.urlopen(req_m, context=ssl_ctx, timeout=120) as resp:
-                                with open(tmp_model, "wb") as f:
-                                    while chunk := resp.read(1024 * 1024):
-                                        f.write(chunk)
-                            if tmp_model.is_file() and tmp_model.stat().st_size > 300_000_000:
-                                if _verify_sha256(tmp_model, QWEN3_SHA256):
-                                    tmp_model.rename(MODEL_FILE)
-                                    downloaded = True
-                                    print(f"[PASS] Model verified and saved: {MODEL_FILE}")
-                                    break
-                                else:
-                                    print("[WARN] Model SHA-256 verification failed; retrying.")
-                                    tmp_model.unlink(missing_ok=True)
-                        except Exception:
-                            time.sleep(2.0)
-                    if downloaded:
-                        break
-                except Exception as e:
-                    print(f"[WARN] Failed downloading model from {url}: {e}")
-                finally:
-                    tmp_model.unlink(missing_ok=True)
-
-            if not downloaded:
-                print("[WARN] Model download incomplete; falling back safely.")
-                return False
-
-    # 3. Real Inference Smoke Test Verification
-    engine = LocalLanguageEngine()
-    print("[....] Running local LLM smoke test inference")
-    if engine._smoke_test():
-        try:
-            (CACHE_DIR / "llm_smoke.ok").write_text("OK", encoding="utf-8")
-        except Exception:
-            pass
-        print("[PASS] Local Language Engine: ACTIVE")
-        return True
-    else:
-        print("[WARN] Local Language Engine: FALLBACK (smoke test did not succeed)")
+def _download_file(url: str, path: Path, expected_sha: str = "") -> bool:
+    request = urllib.request.Request(url, headers={"User-Agent": "OpenBagus-Setup/2.0"})
+    try:
+        with urllib.request.urlopen(request, context=ssl.create_default_context(), timeout=120) as response:
+            with path.open("wb") as output:
+                while chunk := response.read(1024 * 1024):
+                    output.write(chunk)
+        return path.is_file() and path.stat().st_size > 1_000_000 and (
+            not expected_sha or _verify_sha256(path, expected_sha)
+        )
+    except (OSError, urllib.error.URLError):
         return False
+
+
+def _official_model_sha() -> str | None:
+    try:
+        request = urllib.request.Request(
+            f"https://huggingface.co/api/models/{MODEL_REPOSITORY}/tree/main?recursive=true&expand=true",
+            headers={"User-Agent": "OpenBagus-Setup/2.0"},
+        )
+        with urllib.request.urlopen(request, context=ssl.create_default_context(), timeout=20) as response:
+            metadata = json.loads(response.read().decode("utf-8"))
+        for item in metadata:
+            if item.get("path") == MODEL_NAME:
+                return item.get("lfs", {}).get("oid")
+    except (OSError, ValueError, urllib.error.URLError):
+        return None
+    return None
+
+
+def _select_llama_assets() -> tuple[str, list[dict[str, Any]]]:
+    request = urllib.request.Request(
+        "https://api.github.com/repos/ggml-org/llama.cpp/releases?per_page=5",
+        headers={"User-Agent": "OpenBagus-Setup/2.0", "Accept": "application/vnd.github.v3+json"},
+    )
+    with urllib.request.urlopen(request, context=ssl.create_default_context(), timeout=20) as response:
+        releases = json.loads(response.read().decode("utf-8"))
+    nvidia = shutil.which("nvidia-smi") is not None
+    preferences = ("cuda-13", "cuda-12", "vulkan", "cpu") if nvidia else ("vulkan", "cpu")
+    for backend in preferences:
+        for release in releases:
+            assets = release.get("assets", [])
+            runtime = next((
+                a for a in assets
+                if f"bin-win-{backend}" in a.get("name", "").lower()
+                and "cudart-" not in a.get("name", "").lower()
+                and a.get("name", "").lower().endswith("x64.zip")
+            ), None)
+            if not runtime:
+                continue
+            selected = [runtime]
+            if backend.startswith("cuda"):
+                cudart = next((a for a in assets if "cudart-llama-bin-win" in a.get("name", "").lower() and backend in a.get("name", "").lower() and a.get("name", "").lower().endswith("x64.zip")), None)
+                if not cudart:
+                    continue
+                selected.append(cudart)
+            return backend.upper(), selected
+    return "UNAVAILABLE", []
+
+
+def provision_local_runtime(download_model: bool = True, download_llama: bool = True) -> bool:
+    """Safely provisions the canonical model and GPU-preferred llama.cpp runtime."""
+    MODELS_DIR.mkdir(parents=True, exist_ok=True)
+    BIN_DIR.parent.mkdir(parents=True, exist_ok=True)
+    CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    backup_dir = BIN_DIR.parent / "bin-backup"
+    staging_dir = BIN_DIR.parent / "bin-staging"
+    current_backend = _ManagedLlamaServer.detect_backend(LLAMA_SERVER_EXE)
+    runtime_changed = False
+
+    def restore_runtime() -> bool:
+        if not runtime_changed or not backup_dir.exists():
+            return True
+        _ManagedLlamaServer.stop()
+        for _attempt in range(10):
+            shutil.rmtree(BIN_DIR, ignore_errors=True)
+            if not BIN_DIR.exists():
+                backup_dir.rename(BIN_DIR)
+                return True
+            time.sleep(0.25)
+        print(f"[WARN] Runtime rollback is pending; preserved backup at {backup_dir}")
+        return False
+
+    if download_llama and (not LLAMA_SERVER_EXE.is_file() or (shutil.which("nvidia-smi") and current_backend != "CUDA")):
+        print("[....] Resolving current official llama.cpp Windows runtime")
+        try:
+            selected_backend, assets = _select_llama_assets()
+        except (OSError, ValueError, urllib.error.URLError):
+            selected_backend, assets = "UNAVAILABLE", []
+        if not assets:
+            print("[WARN] No suitable official llama.cpp Windows runtime was found.")
+            return False
+        shutil.rmtree(staging_dir, ignore_errors=True)
+        staging_dir.mkdir(parents=True)
+        for index, asset in enumerate(assets):
+            archive = staging_dir / f"runtime-{index}.zip"
+            digest = str(asset.get("digest") or "").removeprefix("sha256:")
+            print(f"[....] Downloading {asset['name']}")
+            if not _download_file(asset["browser_download_url"], archive, digest):
+                shutil.rmtree(staging_dir, ignore_errors=True)
+                print("[WARN] llama.cpp download or checksum verification failed.")
+                return False
+            with zipfile.ZipFile(archive) as package:
+                package.extractall(staging_dir)
+            archive.unlink(missing_ok=True)
+        if not (staging_dir / LLAMA_SERVER_EXE.name).is_file():
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            return False
+        _ManagedLlamaServer.stop()
+        shutil.rmtree(backup_dir, ignore_errors=True)
+        if BIN_DIR.exists():
+            BIN_DIR.rename(backup_dir)
+        staging_dir.rename(BIN_DIR)
+        runtime_changed = True
+        print(f"[PASS] llama.cpp runtime installed ({selected_backend})")
+
+    if download_model:
+        official_sha = _official_model_sha()
+        if official_sha != QWEN3_SHA256:
+            restore_runtime()
+            print("[WARN] Official Hugging Face metadata did not match the canonical model SHA-256.")
+            return False
+        if MODEL_FILE.is_file() and not _verify_sha256(MODEL_FILE, QWEN3_SHA256):
+            MODEL_FILE.unlink(missing_ok=True)
+        if not MODEL_FILE.is_file():
+            temporary = MODEL_FILE.with_suffix(".part")
+            temporary.unlink(missing_ok=True)
+            print(f"[....] Downloading {MODEL_NAME} (~2.5 GB) from official Qwen repository")
+            if not _download_file(MODEL_URL, temporary, QWEN3_SHA256):
+                temporary.unlink(missing_ok=True)
+                restore_runtime()
+                print("[WARN] Model download or checksum verification failed.")
+                return False
+            temporary.replace(MODEL_FILE)
+        print(f"[PASS] Model verified: {MODEL_FILE}")
+
+    engine = LocalLanguageEngine()
+    print("[....] Running routing and narrative inference smoke tests")
+    routing_ok = engine._smoke_test(timeout=120)
+    narrative = engine.generate_narrative(
+        NarrativeFacts(asset="BTC", price=85000.0, decision="WAIT", reason="RR gate belum terpenuhi"),
+        user_query="jelaskan singkat kondisi BTC", language="id",
+    )
+    if not routing_ok or not narrative:
+        restore_runtime()
+        print("[WARN] Local Language Engine smoke tests failed; old model remains available.")
+        return False
+    (CACHE_DIR / "llm_4b_smoke.ok").write_text("OK", encoding="utf-8")
+    if OLD_MODEL_FILE.is_file():
+        OLD_MODEL_FILE.unlink()
+    shutil.rmtree(backup_dir, ignore_errors=True)
+    print(f"[PASS] Local Language Engine: ACTIVE ({_ManagedLlamaServer.detect_backend(LLAMA_SERVER_EXE)})")
+    return True

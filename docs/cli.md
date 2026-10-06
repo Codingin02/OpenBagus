@@ -27,9 +27,10 @@ Users can directly enter natural coin queries without needing commands:
 | `/assets [query]` | Search dynamic asset universe or filter by sector (e.g. `/assets defi`) |
 | `/categories` | List all taxonomy sectors and asset counts (DeFi, Layer 1, AI, Memecoin, etc.) |
 | `/doctor [network]` | Run environment diagnostics; add `network` for live provider latency checks |
-| `/setup` | Launch interactive wizard to configure API keys, email, and intent models |
+| `/setup` | Launch interactive wizard to configure API keys, SMTP email, and official WhatsApp Cloud API |
 | `/config` | Show safe redacted configuration status |
 | `/email draft\|check\|send` | Local delivery artifact generation or safe check |
+| `/send email\|whatsapp\|all` | Send the current in-memory research result through enabled channels |
 | `/crypto` | Run standard core crypto pipeline (BTC/USD, ETH/USD, SOL/USD) |
 | `/version` | Show OpenBagus package version |
 | `/clear` | Clear the terminal screen |
@@ -73,4 +74,4 @@ Successful operations return exit code `0`. Runtime failures return `1`; blocked
 
 ## Disabled Commands
 
-`idx-daily` remains available only as a compatibility guard and returns `EQUITY_DOMAIN_DISABLED`. WhatsApp and OpenClaw have no active CLI delivery command.
+`idx-daily` remains available only as a compatibility guard and returns `EQUITY_DOMAIN_DISABLED`. WhatsApp delivery uses only Meta's official Cloud API; OpenClaw and browser-session automation are not used.

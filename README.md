@@ -11,12 +11,12 @@ Current active domain: **Crypto**.
 | Crypto Research | Active: Dynamic universe (Layer 1, Layer 2, DeFi, Memecoin, AI, RWA, DEX tokens) |
 | Public Market Data | Active: Binance Vision, Gate.io, Bybit, OKX, CoinGecko, GeckoTerminal, DefiLlama, Alternative.me, CoinLore |
 | Decision Engine | Active: Canonical Python Quant Engine (5 independent evidence families, strict RR >= 1.5 gate) |
-| Intent Routing | Active: Deterministic bilingual (ID/EN) typo-tolerant intent parser |
+| Intent Routing | Active: Deterministic bilingual router with optional local Qwen3-4B language layer |
 | Security Policy | Active: Strict HTTPS, host allowlist, verified TLS only ([SECURITY.md](SECURITY.md)) |
 | Optional APIs | Optional: FRED, CoinMarketCap, CryptoCompare, Coinalyze, Alpha Vantage (enhancements only) |
-| Email Delivery | Optional (Local staging default; SMTP delivery requires explicit confirmation) |
+| Email Delivery | Optional (SMTP via local credentials; disabled by default) |
 | Equities | Disabled |
-| WhatsApp / OpenClaw | Disabled by default |
+| WhatsApp | Optional official Meta Cloud API; disabled by default |
 | Live Trading | Not implemented (Strictly quantitative decision-support research only) |
 
 OpenBagus is research-only. Python owns all numerical analysis, decision rules, structural levels, and risk calculations; no cloud LLMs or local neural weights calculate financial math or execute trades.
@@ -74,7 +74,7 @@ OpenBagus operates a single canonical deterministic multi-evidence decision engi
 
 1. Clone or download the repository.
 2. Double-click `setup.bat`.
-3. Follow the setup prompts.
+3. Follow the setup prompts. The optional local language layer uses Qwen3-4B Q4_K_M with a managed loopback-only `llama-server`; NVIDIA CUDA is preferred and CPU remains the fallback.
 4. The OpenBagus research terminal launches automatically.
 
 ### Manual Installation (Windows, Linux, macOS)
@@ -120,9 +120,10 @@ Inside the shell or directly from the CLI:
 - `/assets [query]` or `openbagus assets [query]`: Search assets or filter by sector (`/assets defi`).
 - `/categories` or `openbagus categories`: List taxonomy groups and coin counts.
 - `/doctor [network]` or `openbagus doctor [--network]`: Environment diagnostics & live reachability.
-- `/setup` or `openbagus setup`: Interactive wizard to configure optional provider API keys and email.
+- `/setup` or `openbagus setup`: Interactive wizard to configure optional provider API keys, SMTP email, and official WhatsApp Cloud API.
 - `/crypto` or `openbagus crypto-daily`: Core crypto pipeline (BTC/USD, ETH/USD, SOL/USD).
 - `/email draft`: Generate local delivery draft (no send).
+- `/send email|whatsapp|all`: Send the current in-memory research result through locally enabled channels.
 
 ---
 

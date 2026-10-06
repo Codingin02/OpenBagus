@@ -11,6 +11,7 @@ import os
 import re
 import shlex
 import shutil
+import smtplib
 import sys
 import tempfile
 from datetime import datetime, timezone
@@ -22,8 +23,10 @@ from openbagus.analysis.engine import run_real_analysis
 from openbagus.core.env import RuntimeEnv, get_repo_root
 from openbagus.data.ingestion import run_runtime_ingestion
 from openbagus.data.providers import ProviderRegistry
-from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport
+from openbagus.delivery.adapters import WhatsAppCloudConfig, WhatsAppCloudTransport, render_research_delivery
+from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport, build_email_message
 from openbagus.delivery.runner import run_final_delivery
+from openbagus.delivery.safety import scan_payload
 from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
 from openbagus.domains.crypto.research import CryptoResearchRunner
 from openbagus.intelligence.intent import IntentRouter, SessionState
@@ -166,6 +169,16 @@ def _email_config() -> SmtpConfig:
     return SmtpConfig.from_runtime_env(RuntimeEnv(REPO_ROOT))
 
 
+def _delivery_states() -> tuple[str, str]:
+    runtime_env = RuntimeEnv(REPO_ROOT)
+    email = SmtpConfig.from_runtime_env(runtime_env)
+    email_enabled = (runtime_env.get("OPENBAGUS_EMAIL_LIVE_ENABLED", "false") or "false").lower() in {"1", "true", "yes", "on"}
+    email_state = "READY" if email.ready and email_enabled else "INVALID" if email.errors else "NOT CONFIGURED"
+    whatsapp = WhatsAppCloudConfig.from_runtime_env(runtime_env)
+    wa_state = "READY" if whatsapp.ready and whatsapp.template_name else "TEMPLATE REQUIRED" if whatsapp.ready else "INVALID" if whatsapp.errors else "NOT CONFIGURED"
+    return email_state, wa_state
+
+
 def _run_doctor(*, network: bool, as_json: bool) -> int:
     checks: list[dict[str, str]] = []
 
@@ -196,6 +209,8 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
 
     email_config = _email_config()
     add("PASS" if email_config.ready else "OPTIONAL", "Email", "configured" if email_config.ready else "not configured")
+    whatsapp_config = WhatsAppCloudConfig.from_runtime_env(RuntimeEnv(REPO_ROOT))
+    add("PASS" if whatsapp_config.ready else "OPTIONAL", "WhatsApp", whatsapp_config.status()["status"])
 
     output_dir = REPO_ROOT / "reports/runtime/delivery"
     try:
@@ -231,6 +246,9 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
                 add("FAIL", "SMTP network", type(exc).__name__)
         else:
             add("OPTIONAL", "SMTP network", "not configured (email is optional)")
+        if whatsapp_config.ready:
+            result = WhatsAppCloudTransport(whatsapp_config).validate()
+            add("PASS" if result["status"] == "VALID" else "FAIL", "WhatsApp Cloud API", result["status"])
 
     final = "FAIL" if any(item["status"] == "FAIL" for item in checks) else (
         "WARN" if any(item["status"] == "OPTIONAL" for item in checks) else "PASS"
@@ -269,11 +287,14 @@ def _run_status(session: SessionState | None = None) -> int:
     print(f"  API Keys          {counts['present']} present / {counts['valid']} validated / {counts['invalid']} invalid / {counts['unverified']} unverified")
     print(f"  Crypto catalog    {len(CryptoAssetCatalog(REPO_ROOT).assets)} cached; on-demand discovery enabled")
     print("")
+    email_state, wa_state = _delivery_states()
+    llm_info = LocalLanguageEngine(repo_root=REPO_ROOT).get_status_info()
     print("Features")
     print("  Crypto Research   enabled")
-    print(f"  Email Delivery    {'configured' if email.ready else 'optional / not configured'}")
+    print(f"  Local Language    {llm_info['state']} / Qwen3-4B Q4_K_M / {llm_info['backend']}")
+    print(f"  Email             {email_state}")
+    print(f"  WhatsApp          {wa_state}")
     print("  Daily Email       off")
-    print("  WhatsApp          disabled")
     print("  Equities          disabled")
     return 0
 
@@ -437,16 +458,88 @@ def _run_setup() -> int:
             sender = input("Sender Email Address: ").strip()
             recip = input("Recipient Email Address: ").strip()
 
-            if host:
-                updates["OPENBAGUS_EMAIL_SMTP_HOST"] = host
-                updates["OPENBAGUS_EMAIL_SMTP_PORT"] = port
-                updates["OPENBAGUS_EMAIL_SECURITY"] = sec
-                updates["OPENBAGUS_EMAIL_SMTP_USERNAME"] = user
-                if pwd:
-                    updates["OPENBAGUS_EMAIL_SMTP_PASSWORD"] = pwd
-                updates["OPENBAGUS_EMAIL_FROM"] = sender
-                updates["OPENBAGUS_EMAIL_TO"] = recip
-                updates["OPENBAGUS_EMAIL_LIVE_ENABLED"] = "false"
+            config = SmtpConfig.from_values(
+                host=host, port_text=port, security=sec, username=user, password=pwd,
+                sender=sender, recipient_text=recip,
+            )
+            if not config.ready:
+                print("EMAIL_CONFIG_INVALID - not saved")
+            else:
+                try:
+                    transport = SmtpTransport(config)
+                    transport.check()
+                    print("EMAIL_SMTP_READY")
+                    test_failed = False
+                    send_test = input("Send test email now? (Y/N): ").strip().lower()
+                    if send_test == "y":
+                        test_message = build_email_message(
+                            subject="OpenBagus email connection test", text="OpenBagus email connection test successful.",
+                            html="<p>OpenBagus email connection test successful.</p>", config=config,
+                        )
+                        try:
+                            transport.send(test_message)
+                            print("EMAIL_TEST_SENT")
+                        except (OSError, smtplib.SMTPException):
+                            test_failed = True
+                            print("EMAIL_SEND_FAILED")
+                    enable_live = input("Enable direct email delivery? (Y/N): ").strip().lower() == "y" and not test_failed
+                    updates.update({
+                        "OPENBAGUS_EMAIL_SMTP_HOST": host,
+                        "OPENBAGUS_EMAIL_SMTP_PORT": port,
+                        "OPENBAGUS_EMAIL_SECURITY": sec,
+                        "OPENBAGUS_EMAIL_SMTP_USERNAME": user,
+                        "OPENBAGUS_EMAIL_SMTP_PASSWORD": pwd,
+                        "OPENBAGUS_EMAIL_FROM": sender,
+                        "OPENBAGUS_EMAIL_TO": recip,
+                        "OPENBAGUS_EMAIL_LIVE_ENABLED": "true" if enable_live else "false",
+                    })
+                except smtplib.SMTPAuthenticationError:
+                    print("EMAIL_SEND_FAILED (authentication) - not saved")
+                except (OSError, smtplib.SMTPException):
+                    print("EMAIL_SEND_FAILED (network) - not saved")
+        except (EOFError, KeyboardInterrupt):
+            pass
+
+    whatsapp_current = bool(current_values.get("OPENBAGUS_WHATSAPP_ACCESS_TOKEN"))
+    prompt_whatsapp = "WhatsApp Cloud API is already configured. Reconfigure? (Y/N): " if whatsapp_current else "Configure optional WhatsApp Cloud API? (Y/N): "
+    try:
+        configure_whatsapp = input(prompt_whatsapp).strip().lower()
+    except (EOFError, KeyboardInterrupt):
+        configure_whatsapp = "n"
+    if configure_whatsapp == "y":
+        try:
+            token = getpass.getpass("Meta access token (input hidden): ").strip()
+            phone_id = input("WhatsApp Phone Number ID: ").strip()
+            recipient = input("Test/default recipient in international format: ").strip()
+            version = input("Meta Graph version [v26.0]: ").strip() or "v26.0"
+            template = input("Approved template name (optional): ").strip()
+            template_language = input("Template language [en_US]: ").strip() or "en_US"
+            config = WhatsAppCloudConfig(True, token, phone_id, recipient, version, None, template or None, template_language)
+            validation = WhatsAppCloudTransport(config).validate()
+            print(f"WhatsApp credentials ........ {validation['status']}")
+            if validation["status"] == "VALID":
+                test_failed = False
+                send_test = input("Send WhatsApp test message now? (Y/N): ").strip().lower()
+                if send_test == "y":
+                    result = WhatsAppCloudTransport(config).send(
+                        "OpenBagus WhatsApp connection test successful.", use_template=bool(template),
+                    )
+                    print(result["status"])
+                    test_failed = result["status"] not in {"WHATSAPP_SENT", "WHATSAPP_TEMPLATE_REQUIRED"}
+                elif not template:
+                    print("VALID_CREDENTIALS_TEMPLATE_REQUIRED")
+                enable_live = input("Enable direct WhatsApp delivery? (Y/N): ").strip().lower() == "y" and not test_failed
+                updates.update({
+                    "OPENBAGUS_WHATSAPP_ENABLED": "true" if enable_live else "false",
+                    "OPENBAGUS_WHATSAPP_ACCESS_TOKEN": token,
+                    "OPENBAGUS_WHATSAPP_PHONE_NUMBER_ID": phone_id,
+                    "OPENBAGUS_WHATSAPP_RECIPIENT": recipient,
+                    "OPENBAGUS_WHATSAPP_GRAPH_VERSION": version,
+                    "OPENBAGUS_WHATSAPP_TEMPLATE_NAME": template,
+                    "OPENBAGUS_WHATSAPP_TEMPLATE_LANGUAGE": template_language,
+                })
+            else:
+                print("WhatsApp credentials not saved")
         except (EOFError, KeyboardInterrupt):
             pass
 
@@ -613,6 +706,7 @@ class OpenBagusShell(cmd.Cmd):
         print("  /setup                    configure optional API keys or email")
         print("  /doctor [network]         run local diagnostics (use /doctor network for live ping)")
         print("  /email                    manage optional email draft/check")
+        print("  /send email|whatsapp|all  send the current research result")
         print("  /version                  show OpenBagus version")
         print("  /clear                    clear the terminal screen")
         print("  /exit                     close OpenBagus\n")
@@ -696,14 +790,17 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_exit(self, _arg: str) -> bool:
         self.session.clear()
+        LocalLanguageEngine.shutdown_runtime()
         return True
 
     def do_quit(self, _arg: str) -> bool:
         self.session.clear()
+        LocalLanguageEngine.shutdown_runtime()
         return True
 
     def do_EOF(self, _arg: str) -> bool:
         self.session.clear()
+        LocalLanguageEngine.shutdown_runtime()
         print()
         return True
 
@@ -729,9 +826,58 @@ class OpenBagusShell(cmd.Cmd):
             return
         _run_pipeline(_namespace("email", email_action=action, confirm_live_send=confirmation))
 
+    def do_send(self, arg: str) -> None:
+        channel = arg.strip().lower()
+        if channel not in {"email", "whatsapp", "all"}:
+            print("Usage: /send email|whatsapp|all")
+            return
+        if not self.session.last_quant_result or not self.session.last_research_packet:
+            print("No research result is available to send.")
+            return
+        rendered = render_research_delivery(
+            self.session.last_quant_result, self.session.last_research_packet,
+            include_sources=self.session.show_sources,
+        )
+        safety = scan_payload(rendered)
+        if not safety["passed"]:
+            print("Delivery blocked by research safety guard.")
+            return
+        runtime_env = RuntimeEnv(REPO_ROOT)
+        results: dict[str, str] = {}
+        if channel in {"email", "all"}:
+            config = SmtpConfig.from_runtime_env(runtime_env)
+            enabled = (runtime_env.get("OPENBAGUS_EMAIL_LIVE_ENABLED", "false") or "false").lower() in {"1", "true", "yes", "on"}
+            if not config.ready or not enabled:
+                missing = ", ".join(config.missing or ("OPENBAGUS_EMAIL_LIVE_ENABLED=true",))
+                results["Email"] = f"NOT CONFIGURED ({missing})"
+            else:
+                try:
+                    message = build_email_message(subject=rendered["subject"], text=rendered["text"], html=rendered["html"], config=config)
+                    results["Email"] = "SENT" if SmtpTransport(config).send(message)["message_sent"] else "FAILED"
+                except smtplib.SMTPAuthenticationError:
+                    results["Email"] = "AUTH FAILED"
+                except (OSError, smtplib.SMTPException):
+                    results["Email"] = "SEND FAILED"
+        if channel in {"whatsapp", "all"}:
+            config = WhatsAppCloudConfig.from_runtime_env(runtime_env)
+            status = WhatsAppCloudTransport(config).send(rendered["whatsapp"])["status"]
+            results["WhatsApp"] = status.removeprefix("WHATSAPP_").replace("_", " ")
+        for name, result in results.items():
+            print(f"{name:<10} {result}")
+
     def default(self, line: str) -> None:
         cleaned = line.strip()
         if not cleaned:
+            return
+        lower = cleaned.lower()
+        if re.search(r"(?:kirim hasil ini ke email|email this analysis|send this to email)", lower):
+            self.do_send("email")
+            return
+        if re.search(r"(?:kirim hasil ini ke whatsapp|send to whatsapp|wa hasil ini)", lower):
+            self.do_send("whatsapp")
+            return
+        if re.search(r"kirim ke email dan whatsapp", lower):
+            self.do_send("all")
             return
         req = self.router.parse(cleaned, session=self.session)
 
