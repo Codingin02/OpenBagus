@@ -1,4 +1,6 @@
 import json
+import io
+from contextlib import redirect_stdout
 import os
 import subprocess
 import sys
@@ -11,6 +13,8 @@ from unittest.mock import MagicMock, patch
 
 from openbagus.core.env import RuntimeEnv
 from openbagus.cli import main as cli_main
+from openbagus import cli
+from openbagus.data.providers import ProviderRegistry, VALIDATORS
 from openbagus.delivery.adapters import OpenClawBridgeAdapter
 from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, SmtpTransport
 from openbagus.delivery.runner import ManualQueryParser, run_final_delivery
@@ -36,6 +40,33 @@ ANALYSIS = {
 
 
 class TestCliEmail(unittest.TestCase):
+    def test_setup_saves_only_valid_keys(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            (root / ".env").write_text("", encoding="utf-8")
+            registry = ProviderRegistry(root)
+            configurable = [p for p in registry.list_all() if not p.public_access]
+            alpha = str(next(i for i, p in enumerate(configurable, 1) if p.id == "alpha_vantage"))
+            fred = str(next(i for i, p in enumerate(configurable, 1) if p.id == "fred"))
+            output = io.StringIO()
+            with patch.dict(os.environ, {}, clear=True), patch.object(cli, "REPO_ROOT", root), patch("builtins.input", side_effect=["y", alpha, fred, "0", "n"]) as inputs, patch("getpass.getpass", side_effect=["fixture-alpha", "fixture-fred"]), patch.dict(VALIDATORS, {"alpha_vantage": lambda key: "VALID", "fred": lambda key: "INVALID"}), redirect_stdout(output):
+                self.assertEqual(cli._run_setup(), 0)
+                cli._run_status()
+            content = (root / ".env").read_text(encoding="utf-8")
+            self.assertIn("ALPHAVANTAGE_API_KEY=", content)
+            self.assertNotIn("FRED_API_KEY=", content)
+            self.assertIn("INVALID - not saved", output.getvalue())
+            self.assertIn("1 present / 1 validated", output.getvalue())
+            self.assertNotIn("fixture-alpha", output.getvalue())
+            self.assertNotIn("fixture-fred", output.getvalue())
+            self.assertTrue(all("(Y/N)::" not in call.args[0] for call in inputs.call_args_list))
+
+    def test_powershell_setup_prompt_and_active_output(self):
+        root = Path(__file__).resolve().parents[1]
+        script = (root / "scripts/setup_openbagus.ps1").read_text(encoding="utf-8")
+        self.assertNotIn('(Y/N):"', script)
+        self.assertEqual(script.count('Write-Host "[PASS] Local Language Engine: ACTIVE'), 1)
+
     def test_runtime_failure_has_nonzero_exit_code(self):
         self.assertEqual(_delivery_exit_code([{"status": "RUNTIME_FAILED"}]), 1)
         self.assertEqual(_delivery_exit_code([{"status": "EMAIL_CONFIG_MISSING"}]), 2)

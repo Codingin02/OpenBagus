@@ -7,6 +7,7 @@ and capability matrices across crypto, macro, onchain, and alternative data.
 from __future__ import annotations
 
 import json
+import hashlib
 import os
 import re
 import socket
@@ -615,6 +616,9 @@ def classify_provider_capability(p: ProviderSpec) -> str:
     return "MARKET"
 
 
+_KEY_VALIDATION_STATE: dict[tuple[str, str], str] = {}
+
+
 class ProviderRegistry:
     """Central registry and health inspector for OpenBagus data providers."""
 
@@ -663,7 +667,20 @@ class ProviderRegistry:
         validator = VALIDATORS.get(provider_id)
         if not validator:
             return "UNSUPPORTED"
-        return validator(val)
+        state = validator(val)
+        _KEY_VALIDATION_STATE[(provider_id, hashlib.sha256(val.encode()).hexdigest())] = state
+        return state
+
+    def key_validation_counts(self) -> dict[str, int]:
+        counts = {"present": 0, "valid": 0, "invalid": 0, "unverified": 0}
+        for provider in self.list_configured_apis():
+            key = self.get_key(provider.id)
+            if not key:
+                continue
+            counts["present"] += 1
+            state = _KEY_VALIDATION_STATE.get((provider.id, hashlib.sha256(key.encode()).hexdigest()))
+            counts["valid" if state == "VALID" else "invalid" if state == "INVALID" else "unverified"] += 1
+        return counts
 
     def check_reachability(self, provider_id: str, timeout: float = 2.5) -> dict[str, Any]:
         p = self.get(provider_id)
@@ -764,4 +781,4 @@ class ProviderRegistry:
         pub_count = len(self.list_public())
         cfg_count = len(self.list_configured_apis())
         miss_count = len(self.list_missing_apis())
-        return f"Zero-Key Core: {pub_count} public providers active | Optional Keyed: {cfg_count} configured, {miss_count} unconfigured"
+        return f"Zero-Key Core: {pub_count} public providers active | Optional Keyed: {cfg_count} present, {miss_count} missing (presence is not validation)"

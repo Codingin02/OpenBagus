@@ -162,8 +162,9 @@ class SessionState:
     last_candidate_short: Any = None
     last_category: str | None = None
     last_query: str = ""
+    last_research_at: str | None = None
+    language: str = "AUTO"
     show_sources: bool = False
-    show_chart: bool = True
     clear_on_exit: bool = True
     recent_preferences: dict[str, Any] = field(default_factory=dict)
     conversational_turns: list[dict[str, str]] = field(default_factory=list)
@@ -187,6 +188,8 @@ class SessionState:
         self.last_candidate_short = None
         self.last_category = None
         self.last_query = ""
+        self.last_research_at = None
+        self.language = "AUTO"
         self.conversational_turns = []
 
     def status_display(self) -> str:
@@ -199,7 +202,6 @@ class SessionState:
             f"Timeframe       {self.timeframe}",
             "Session Memory  LOCAL / EPHEMERAL",
             f"Sources         {'ON' if self.show_sources else 'OFF'}",
-            f"Chart           {'ON' if self.show_chart else 'OFF'}",
             f"Turns Cached    {len(self.conversational_turns)}/4",
             f"Clear on Exit   {'YES' if self.clear_on_exit else 'NO'}",
         ]
@@ -233,6 +235,8 @@ class IntentRequest:
     needs_topic_switch_confirmation: bool = False
     switch_target_asset: str | None = None
     amount: float = 1.0
+    has_position_context: bool = False
+    asset_id: str | None = None
 
     @property
     def domain(self) -> str:
@@ -349,15 +353,25 @@ class IntentRouter:
         self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def parse(self, text: str, session: SessionState | None = None) -> IntentRequest:
+        request = self._parse(text, session)
+        request.has_position_context = bool(re.search(
+            r"\b(?:aku\s+pegang|saya\s+(?:pegang|sudah\s+beli)|posisi\s+\w+\s+saya|"
+            r"(?:i\s+(?:already\s+)?hold|i\s+own|my\s+position)|should\s+i\s+reduce|"
+            r"jual\s+sebagian|kurangi\s+posisi)\b", text, re.IGNORECASE))
+        return request
+
+    def _parse(self, text: str, session: SessionState | None = None) -> IntentRequest:
         cleaned = text.strip()
         if not cleaned:
             return IntentRequest(intent="UNKNOWN", request_type="UNKNOWN", raw_query=text)
 
         lower = cleaned.lower()
+        if re.fullmatch(r"(?:jelasin dalam bahasa indonesia|pakai bahasa indonesia|bahasa indonesia|indonesia aja|explain in english|use english|english please)[?!. ]*", lower):
+            return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", preference_action="language_id" if "indonesia" in lower else "language_en", raw_query=text, relation_to_context="CONTINUE")
         default_tf = session.timeframe if session and session.timeframe else "H1"
         detected_tf, query_no_tf = _parse_timeframe(cleaned, default_tf=default_tf)
         lower_no_tf = query_no_tf.lower()
-        words = re.findall(r"\b[A-Za-z0-9/]+\b", query_no_tf)
+        words = re.findall(r"\b[A-Za-z0-9/-]+\b", query_no_tf)
 
         # Non-research requests must never enter crypto discovery or Harness switching.
         fiat_aliases = {"dollar": "USD", "dolar": "USD", "rupiah": "IDR", "rp": "IDR",
@@ -437,19 +451,17 @@ class IntentRouter:
         if len(words) == 1 and not cleaned.startswith("/"):
             pure_cand = words[0].upper()
             if pure_cand not in COMPREHENSIVE_STOP_WORDS and pure_cand.lower() not in DEX_SLANG_EXCLUSIONS:
-                top_symbols = {
-                    "BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA", "AVAX", "SUI", "SHIB",
-                    "LINK", "PEPE", "NEAR", "APT", "POL", "ARB", "OP", "STRK", "TAO", "RENDER",
-                    "FET", "AAVE", "UNI", "MKR", "PENDLE", "ENA", "ONDO", "LDO", "KAS", "SEI",
-                    "INJ", "TIA", "WIF", "BONK", "FLOKI", "WLD", "JUP", "XMR", "ZEC", "ATOM",
-                    "DOT", "RUNE", "FIL", "IMX",
-                }
-                if pure_cand in top_symbols:
+                resolved, ambiguous = self.catalog.resolve_asset(words[0], is_explicit=True)
+                if ambiguous:
+                    return IntentRequest(intent="ANALYZE", request_type="ASSET_ANALYSIS", is_ambiguous=True, candidates=[a.id for a in ambiguous[:5]], raw_query=text)
+                if resolved:
+                    pure_cand = resolved.symbol
                     needs_switch = bool(session and session.last_asset and session.last_asset != pure_cand)
                     return IntentRequest(
                         intent="ANALYZE",
                         request_type="ASSET_ANALYSIS",
                         asset=pure_cand,
+                        asset_id=resolved.id,
                         target_assets=[pure_cand],
                         timeframe=detected_tf,
                         raw_query=text,
@@ -1036,6 +1048,8 @@ class IntentRouter:
             candidate = prep_match.group(1)
             if candidate.lower() not in COMPREHENSIVE_STOP_WORDS:
                 a_obj, amb = self.catalog.resolve_asset(candidate, is_explicit=True)
+                if amb:
+                    return IntentRequest(intent="ANALYZE", request_type="ASSET_ANALYSIS", is_ambiguous=True, candidates=[a.id for a in amb[:5]], raw_query=text)
                 if a_obj:
                     asset = a_obj.symbol
                     target_assets = [a_obj.symbol]
@@ -1056,7 +1070,7 @@ class IntentRouter:
                         intent="ANALYZE",
                         request_type="ASSET_ANALYSIS",
                         is_ambiguous=True,
-                        candidates=[a.symbol for a in amb],
+                        candidates=[a.id for a in amb[:5]],
                         timeframe=detected_tf,
                         raw_query=text,
                     )

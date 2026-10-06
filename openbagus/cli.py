@@ -187,7 +187,7 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
 
     catalog = CryptoAssetCatalog(REPO_ROOT)
     catalog_count = len(catalog.assets)
-    add("PASS" if catalog_count > 0 else "FAIL", "Crypto universe", f"dynamic catalog active ({catalog_count} assets discovered)")
+    add("PASS" if catalog_count > 0 else "FAIL", "Crypto catalog", f"{catalog_count} cached; on-demand discovery enabled")
     registry = ProviderRegistry(REPO_ROOT)
     pub_count = len(registry.list_public())
     add("PASS" if pub_count > 0 else "FAIL", "Zero-Key Core", f"{pub_count} public providers available (no keys required)")
@@ -244,7 +244,7 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
     return 1 if final == "FAIL" else 0
 
 
-def _run_status() -> int:
+def _run_status(session: SessionState | None = None) -> int:
     registry = ProviderRegistry(REPO_ROOT)
     email = _email_config()
     latest = _read_json(STATUS_PATH)
@@ -255,12 +255,19 @@ def _run_status() -> int:
     print(f"  Version           {__version__}")
     print("  Active Domain     crypto (equities disabled)")
     print("  Mode              research-only (no live trading)")
-    print(f"  Last Run          {latest.get('generated_at_utc', 'no runs yet')}")
+    if session and session.last_quant_result:
+        q = session.last_quant_result
+        print(f"  Last Research     {q.asset} / {q.timeframe} / {q.decision}")
+        print(f"  Last Research At  {session.last_research_at or 'timestamp unavailable'}")
+    else:
+        print(f"  Last Run          {latest.get('generated_at_utc', 'no runs yet')}")
     print("")
     print("Providers")
     print(f"  Public Sources    {len(registry.list_public())} active (no keys required)")
     print(f"  Capabilities      MARKET, METADATA, DERIVATIVES, ONCHAIN, DEFI, MACRO")
-    print(f"  API Keys          {len(registry.list_configured_apis())} configured in .env")
+    counts = registry.key_validation_counts()
+    print(f"  API Keys          {counts['present']} present / {counts['valid']} validated / {counts['invalid']} invalid / {counts['unverified']} unverified")
+    print(f"  Crypto catalog    {len(CryptoAssetCatalog(REPO_ROOT).assets)} cached; on-demand discovery enabled")
     print("")
     print("Features")
     print("  Crypto Research   enabled")
@@ -397,11 +404,14 @@ def _run_setup() -> int:
                     env_name = target_p.credential_env_names[0] if target_p.credential_env_names else f"{target_p.id.upper()}_API_KEY"
                     val = getpass.getpass(f"Enter API key for {target_p.display_name} (input hidden): ").strip()
                     if val:
-                        updates[env_name] = val
-                        current_values[env_name] = val
                         print(f"Testing {target_p.display_name}...")
                         result_status = registry.validate_key(target_p.id, val)
-                        print(f"{target_p.display_name} ........ {result_status}")
+                        if result_status == "VALID":
+                            updates[env_name] = val
+                            current_values[env_name] = val
+                            print(f"{target_p.display_name} ........ VALID")
+                        else:
+                            print(f"{target_p.display_name} ........ {result_status} - not saved")
                 else:
                     print("Invalid selection.")
             except (ValueError, EOFError, KeyboardInterrupt):
@@ -656,7 +666,7 @@ class OpenBagusShell(cmd.Cmd):
         print()
 
     def do_status(self, _arg: str) -> None:
-        _run_status()
+        _run_status(self.session)
 
     def do_providers(self, arg: str) -> None:
         check = "--check" in arg or "check" in arg

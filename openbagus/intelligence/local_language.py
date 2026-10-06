@@ -56,6 +56,10 @@ class NarrativeFacts:
     rr_short: float | None = None
     rr_gate_passed: bool = False
     frequency: str = ""
+    bullish_trigger_level: float | None = None
+    bullish_trigger_state: str = "UNKNOWN"
+    bearish_trigger_level: float | None = None
+    bearish_trigger_state: str = "UNKNOWN"
 
 
 def format_price(value: float) -> str:
@@ -432,6 +436,10 @@ class LocalLanguageEngine:
                 rr_gate_passed=bool(getattr(packet, "rr_gate_passed", False)),
                 event_dates=re.findall(r"\b\d{4}-\d{2}-\d{2}\b", str(getattr(packet, "macro", {}))),
                 frequency=getattr(packet, "frequency_cycle", {}).get("values", {}).get("summary", "") if re.search(r"\b(?:frequency|cycle)\b", user_query, re.IGNORECASE) and getattr(packet, "frequency_cycle", {}).get("material") else "",
+                bullish_trigger_level=getattr(getattr(packet, "bullish_validation", None), "trigger_level", None),
+                bullish_trigger_state=getattr(getattr(packet, "bullish_validation", None), "trigger_state", "UNKNOWN"),
+                bearish_trigger_level=getattr(getattr(packet, "bearish_validation", None), "trigger_level", None),
+                bearish_trigger_state=getattr(getattr(packet, "bearish_validation", None), "trigger_state", "UNKNOWN"),
             )
         if facts.fibonacci_level is not None:
             facts.price_vs_fib = "ABOVE" if facts.price > facts.fibonacci_level else ("BELOW" if facts.price < facts.fibonacci_level else "AT")
@@ -444,6 +452,7 @@ class LocalLanguageEngine:
             "STRICT RULES:\n"
             f"1. You MUST keep the decision '{facts.decision}' and asset '{facts.asset}'.\n"
             "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts.\n"
+            "Unconfirmed or UNKNOWN triggers are future conditions, never completed breakouts/breakdowns. Use conditional language.\n"
             "3. Sound like an objective institutional consultant giving high-conviction decision support, not an AI bot.\n"
             "4. Do NOT repeat formulaic phrases like 'diperdagangkan pada' or 'disarankan menahan diri'.<|im_end|>\n"
             f"<|im_start|>user\nFacts from QuantEngine:\n"
@@ -457,6 +466,8 @@ class LocalLanguageEngine:
             f"- Reason: {facts.reason} (RR: {facts.reward_risk_str})\n"
             f"- Bullish Validation: {facts.bullish_trigger}\n"
             f"- Bearish Validation: {facts.bearish_trigger}\n"
+            f"- Bullish trigger level/state: {facts.bullish_trigger_level} / {facts.bullish_trigger_state}\n"
+            f"- Bearish trigger level/state: {facts.bearish_trigger_level} / {facts.bearish_trigger_state}\n"
             + (f"- Chart Pattern: {facts.pattern_name}\n" if facts.pattern_name else "")
             + (f"- Fibonacci: {facts.fibonacci_level}; price relation: {facts.price_vs_fib}; {facts.fibonacci_confluence}\n" if facts.fibonacci_level is not None else (f"- Fibonacci Confluence: {facts.fibonacci_confluence}\n" if facts.fibonacci_confluence else ""))
             + (f"- Stochastic: {facts.stochastic_summary}\n" if facts.stochastic_summary else "")
@@ -484,6 +495,12 @@ class LocalLanguageEngine:
 
         # Semantic Grounding Guard 1: Fibonacci relative position contradiction
         lower_narrative = clean_narrative.lower()
+        confirmed_up = r"(?:crossed|closed|broke|broken)\s+above|breakout\s+(?:confirmed|has\s+occurred)|sudah\s+(?:menembus|breakout|close\s+di\s+atas)|telah\s+(?:menembus|breakout)"
+        confirmed_down = r"(?:crossed|closed|broke|broken)\s+below|breakdown\s+(?:confirmed|has\s+occurred)|sudah\s+(?:breakdown|close\s+di\s+bawah|menembus\s+(?:ke\s+)?bawah)|telah\s+(?:breakdown|menembus\s+bawah)"
+        if facts.bullish_trigger_state != "CONFIRMED" and re.search(confirmed_up, lower_narrative):
+            return None
+        if facts.bearish_trigger_state != "CONFIRMED" and re.search(confirmed_down, lower_narrative):
+            return None
         if facts.price_vs_fib == "ABOVE":
             if re.search(r"(?:di\s+bawah|below|under)\s+(?:(?:the|level)\s+){0,2}fib(?:onacci)?", lower_narrative):
                 return None

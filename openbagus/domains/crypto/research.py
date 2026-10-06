@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import re
 import urllib.parse
 import webbrowser
 from dataclasses import dataclass, field
@@ -120,7 +121,7 @@ class CryptoResearchRunner:
             import contextlib
             import io
             output = io.StringIO()
-            operations = {"status": cli._run_status, "providers": cli._run_providers,
+            operations = {"status": lambda: cli._run_status(session), "providers": cli._run_providers,
                           "doctor": lambda: cli._run_doctor(network=False, as_json=False)}
             if req.system_query == "version":
                 from openbagus import __version__
@@ -130,6 +131,16 @@ class CryptoResearchRunner:
             return output.getvalue().strip()
         # 1. Preferences
         if req.request_type == "PREFERENCE":
+            if req.preference_action in {"language_id", "language_en"}:
+                if not session:
+                    return "Language preference requires an active session."
+                session.language = "ID" if req.preference_action == "language_id" else "EN"
+                if session.last_quant_result and session.last_research_packet:
+                    packet = session.last_research_packet
+                    return self._render_section_25_view(session.last_quant_result, packet=packet,
+                        market_type="perpetual" if packet.market == "PERPETUAL" else "spot",
+                        show_sources=session.show_sources, session=session, raw_query=session.last_query)
+                return "Bahasa sesi: Indonesia." if session.language == "ID" else "Session language: English."
             if req.preference_action == "hide_sources":
                 if session:
                     session.show_sources = False
@@ -138,14 +149,8 @@ class CryptoResearchRunner:
                 if session:
                     session.show_sources = True
                 return "[PASS] Sources diaktifkan untuk setiap analisis."
-            elif req.preference_action == "hide_chart":
-                if session:
-                    session.show_chart = False
-                return "[PASS] Grafik terminal dinonaktifkan. Ketik '/chart on' untuk mengaktifkan kembali."
-            elif req.preference_action == "show_chart":
-                if session:
-                    session.show_chart = True
-                return "[PASS] Grafik terminal diaktifkan untuk setiap analisis."
+            elif req.preference_action in {"hide_chart", "show_chart"}:
+                return "Chart hanya dibuka atas permintaan eksplisit melalui /chart; tidak ada tampilan chart otomatis."
             elif req.preference_action == "no_ollama":
                 return "[PASS] Preferensi disimpan: OpenBagus beroperasi tanpa Ollama menggunakan llama.cpp lokal / deterministik."
 
@@ -273,14 +278,15 @@ class CryptoResearchRunner:
 
         if req.is_ambiguous and req.candidates:
             lines = ["Multiple assets matched your query:", ""]
-            for idx, sym in enumerate(req.candidates[:5], 1):
-                asset_obj, _ = self.catalog.resolve_asset(sym)
-                name = asset_obj.name if asset_obj else sym
+            for idx, asset_id in enumerate(req.candidates[:5], 1):
+                asset_obj, _ = self.catalog.resolve_asset(asset_id)
+                name = asset_obj.name if asset_obj else asset_id
+                sym = asset_obj.symbol if asset_obj else asset_id
                 cat = asset_obj.categories[0] if asset_obj and asset_obj.categories else "General"
                 rank = f"#{asset_obj.rank}" if asset_obj and asset_obj.rank < 9000 else ""
-                lines.append(f"  {idx}. {name:<25} ({sym}) {rank:<6} [{cat}]")
+                lines.append(f"  {idx}. {name:<25} ({sym}) {rank:<6} [{cat}] - {asset_id}")
             lines.append("")
-            lines.append(f"Please specify exact symbol, e.g. '{req.candidates[0]}'.")
+            lines.append(f"Please specify the asset ID, e.g. '{req.candidates[0]}'.")
             return "\n".join(lines)
 
         show_sources = session.show_sources if session else False
@@ -299,7 +305,7 @@ class CryptoResearchRunner:
         if req.focus == "capital" and req.needs_capital_inputs:
             return "Please specify account equity and risk percentage (e.g. equity $1000, risk 2%)."
 
-        asset_obj, _ = self.catalog.resolve_asset(target)
+        asset_obj, _ = self.catalog.resolve_asset(req.asset_id or target)
         symbol = asset_obj.symbol if asset_obj else target.upper()
         name = asset_obj.name if asset_obj else symbol
 
@@ -391,6 +397,7 @@ class CryptoResearchRunner:
             stablecoins=stablecoins,
             market_type=market_type,
             timeframe=req.timeframe,
+            has_position_context=req.has_position_context,
         )
 
         # Macro and Large Flow evidence enrichment
@@ -478,6 +485,7 @@ class CryptoResearchRunner:
             session.last_candidate_long = q.candidate_long
             session.last_candidate_short = q.candidate_short
             session.last_query = req.raw_query
+            session.last_research_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
         if req.focus == "capital":
             return self._render_capital_view(symbol, name, q, req.equity, req.risk_pct)
@@ -541,6 +549,8 @@ class CryptoResearchRunner:
         # C4. Natural consultant trader narrative
         is_indonesian = any(w in raw_query.lower() for w in ("yang", "di", "ini", "itu", "dan", "kalau", "gimana", "apakah", "posisinya", "nunggu", "cari", "enaknya", "sekarang", "bisa", "apa", "bro", "bang")) or not raw_query
         lang = "id" if is_indonesian else "en"
+        if session and session.language in {"ID", "EN"}:
+            lang = session.language.lower()
 
         narrative = None
         if self.local_llm.is_available():
@@ -549,13 +559,14 @@ class CryptoResearchRunner:
             except (ValueError, TypeError, AttributeError):
                 narrative = None
 
-        if not narrative:
+        used_fallback = not narrative
+        if used_fallback:
             if lang == "id":
-                if q.decision in ("NO_TRADE", "WAIT"):
+                if q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
                     narrative = (
                         f"Pada timeframe {q.timeframe}, struktur pergerakan harga {q.asset} saat ini berada dalam rezim {q.regime.lower()} di sekitar {_fmt_price(q.price)}. "
                         f"{q.decision_reason} "
-                        f"Kondisi belum memenuhi batas asymmetric risk:reward untuk entry langsung. "
+                        f"Research View: {q.decision}; tidak ada instruksi eksekusi. "
                         f"Bias bullish memerlukan konfirmasi {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}, "
                         f"sementara pembatalan dan skenario short terbuka jika {q.bearish_validation.trigger_condition if q.bearish_validation else 'support patah'}."
                     )
@@ -566,11 +577,11 @@ class CryptoResearchRunner:
                         f"Rasio Reward:Risk terhitung {q.reward_risk_str} dengan batas leverage maksimal {q.leverage_ceiling}."
                     )
             else:
-                if q.decision in ("NO_TRADE", "WAIT"):
+                if q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
                     narrative = (
                         f"On the {q.timeframe} timeframe, {q.asset} price structure is currently in a {q.regime.lower()} regime around {_fmt_price(q.price)}. "
                         f"{q.decision_reason} "
-                        f"Current market conditions do not yet offer an asymmetric risk:reward ratio for direct entry. "
+                        f"Research View: {q.decision}; no execution instruction. "
                         f"Bullish continuation requires confirmed {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}, "
                         f"while downside risk opens if {q.bearish_validation.trigger_condition if q.bearish_validation else 'support breaks'}."
                     )
@@ -581,11 +592,20 @@ class CryptoResearchRunner:
                         f"Reward-to-risk ratio stands at {q.reward_risk_str} with suggested leverage capped at {q.leverage_ceiling}."
                     )
 
+        if used_fallback:
+            supporting = []
+            for item in (packet.stochastic, packet.patterns, packet.fibonacci, packet.arbitrage):
+                summary = item.get("values", {}).get("summary")
+                if item.get("material") and summary:
+                    supporting.append(summary)
+            if supporting:
+                narrative += (" Konfluensi yang mendukung setup: " if lang == "id" else " Setup confluence: ") + "; ".join(supporting) + "."
+
         lines.append("")
         lines.append(narrative)
 
         # Execution or conditional activation levels
-        if q.decision in ("BUY", "LONG", "SHORT", "REDUCE") and q.stop_price and q.tp1:
+        if q.decision in ("BUY", "LONG", "SHORT") and q.stop_price and q.tp1:
             lines.append("")
             lines.append(f"Entry          {q.entry_zone}")
             lines.append(f"Stop           {_fmt_price(q.stop_price)}")
@@ -593,25 +613,30 @@ class CryptoResearchRunner:
             lines.append(f"Reward:Risk    {q.reward_risk_str}")
             if market_type.lower() == "perpetual":
                 lines.append(f"Leverage       {q.leverage_ceiling}")
-        elif q.bullish_validation and q.bearish_validation:
+        elif q.bullish_validation or q.bearish_validation:
             lines.append("")
             lines.append("Conditional setup:")
-            lines.append(f"  Long valid if : {q.bullish_validation.trigger_condition}. Entry: {q.bullish_validation.entry_zone}, Stop: {_fmt_price(q.bullish_validation.stop_price)}, Target: {_fmt_price(q.bullish_validation.tp1)} (R:R {q.bullish_validation.reward_risk_str})")
-            lines.append(f"  Short valid if: {q.bearish_validation.trigger_condition}. Entry: {q.bearish_validation.entry_zone}, Stop: {_fmt_price(q.bearish_validation.stop_price)}, Target: {_fmt_price(q.bearish_validation.tp1)} (R:R {q.bearish_validation.reward_risk_str})")
+            for label, prefix, scenario in (("Bullish", "Long valid if :", q.bullish_validation), ("Bearish", "Short valid if:", q.bearish_validation)):
+                if scenario:
+                    lines.append(f"  {label} scenario ({scenario.scenario_type})")
+                    lines.append(f"  {prefix} {scenario.trigger_condition}. Entry: {scenario.entry_zone}, Stop: {_fmt_price(scenario.stop_price)}, Target: {_fmt_price(scenario.tp1)} (R:R {scenario.reward_risk_str})")
+        elif q.decision in {"WAIT", "NO_TRADE", "AVOID_ENTRY", "REDUCE"}:
+            lines.append("\nConditional setup: tidak ada candidate dengan geometri dan RR struktural yang memadai." if lang == "id" else "\nConditional setup: no candidate passes structural geometry and RR requirements.")
 
         # C6. Conditional Evidence (only factors with sufficient MATERIALITY appear in normal output)
-        if packet.stochastic.get("material"):
+        diagnostics = re.search(r"\b(?:show|tampilkan|lihat)\s+(?:fib|fibonacci|stochastic|pattern|arbitrage|factors)\b", raw_query.lower())
+        if diagnostics and packet.stochastic.get("material"):
             st_val = packet.stochastic.get("values", {})
             st_sum = st_val.get("summary") or f"%K={st_val.get('k')}, %D={st_val.get('d')}"
             lines.append(f"\nStochastic: {st_sum}")
 
-        if packet.patterns.get("material") and packet.pattern_name:
+        if diagnostics and packet.patterns.get("material") and packet.pattern_name:
             lines.append(f"\nPattern: {packet.pattern_name}")
 
-        if packet.fibonacci.get("material") and packet.fibonacci_confluence:
+        if diagnostics and packet.fibonacci.get("material") and packet.fibonacci_confluence:
             lines.append(f"\nFibonacci: {packet.fibonacci_confluence}")
 
-        if packet.arbitrage.get("material"):
+        if diagnostics and packet.arbitrage.get("material"):
             arb_v = packet.arbitrage.get("values", {})
             lines.append(f"\nArbitrage: Net spread {arb_v.get('estimated_net_spread_pct', 0):+.2f}% ({arb_v.get('best_venue', 'Market')})")
 

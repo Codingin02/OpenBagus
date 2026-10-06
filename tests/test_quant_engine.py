@@ -17,7 +17,7 @@ from openbagus.data.http import (
     sanitize_url,
 )
 from openbagus.data.zerokey import ZeroKeyMarketData
-from openbagus.domains.crypto.quant import QuantEngine
+from openbagus.domains.crypto.quant import QuantEngine, EvidenceBlockResult
 from openbagus.domains.crypto.research import CryptoResearchRunner
 from openbagus.intelligence.intent import IntentRequest
 from openbagus.risk.metrics import (
@@ -29,6 +29,65 @@ from openbagus.risk.metrics import (
 
 
 class TestMarketStructureMath(unittest.TestCase):
+    def test_validation_geometry_and_unforced_rr(self):
+        engine = QuantEngine()
+        variants = [("LONG", "Breakout", 105, 98, 120, 125),
+                    ("LONG", "Pullback", 95, 88, 110, 120),
+                    ("SHORT", "Breakdown", 95, 102, 80, 75),
+                    ("SHORT", "Rejection", 105, 112, 90, 80)]
+        for direction, style, entry, stop, target, target2 in variants:
+            with self.subTest(style=style):
+                scenario = engine._validation_candidate(direction, style, entry, stop, target, target2, "H1", False)
+                self.assertIsNotNone(scenario)
+                self.assertEqual(scenario.entry_price, entry)
+                self.assertEqual(scenario.stop_price, stop)
+                self.assertGreater(abs(entry - stop), 0)
+                self.assertGreater(abs(target - entry), 0)
+                self.assertAlmostEqual(scenario.reward_risk, abs(target - entry) / abs(entry - stop))
+                self.assertTrue(scenario.rr_gate_passed)
+                self.assertNotIn(" or ", scenario.entry_zone)
+                self.assertTrue(stop < entry < target if direction == "LONG" else target < entry < stop)
+        insufficient = engine._validation_candidate("LONG", "Breakout", 100, 90, 110, 120, "H1", False)
+        self.assertEqual(insufficient.stop_price, 90)
+        self.assertEqual(insufficient.reward_risk, 1)
+        self.assertFalse(insufficient.rr_gate_passed)
+        self.assertIsNone(engine._validation_candidate("LONG", "Pullback", 100, 101, 120, 130, "H1", False))
+        self.assertIsNone(engine._validation_candidate("SHORT", "Rejection", 100, 99, 90, 80, "H1", False))
+        for price in (0.000545, 100, 2700, 85262):
+            result = engine.evaluate("TEST", {"price": price, "high": price * 1.02, "low": price * 0.98})
+            for scenario in (result.bullish_validation, result.bearish_validation):
+                if scenario:
+                    self.assertTrue(scenario.rr_gate_passed)
+                    self.assertTrue(scenario.stop_price < scenario.entry_price < scenario.tp1 if scenario.direction == "LONG" else scenario.tp1 < scenario.entry_price < scenario.stop_price)
+
+    def test_spot_reduce_requires_position_context(self):
+        engine = QuantEngine()
+        bearish = EvidenceBlockResult
+        with patch.object(engine, "_eval_trend_momentum", return_value=bearish("Trend", -1, 0.8, "bearish")), patch.object(engine, "_eval_microstructure_liquidity", return_value=bearish("Micro", -1, 0.8, "sell flow")):
+            ticker = {"price": 100, "high": 110, "low": 90, "quote_volume": 100000000}
+            generic = engine.evaluate("ETH", ticker)
+            held = engine.evaluate("ETH", ticker, has_position_context=True)
+            self.assertEqual(generic.decision, "AVOID_ENTRY")
+            self.assertEqual(held.decision, "REDUCE")
+
+    def test_closed_candle_trigger_states(self):
+        engine = QuantEngine()
+        candles = [{"close": 85262, "high": 85800, "low": 84900, "is_closed": True},
+                   {"close": 90000, "is_closed": False}]
+        self.assertEqual(engine._trigger_state("LONG", "Breakout", 86516, "H1", candles), "NOT_CONFIRMED")
+        self.assertEqual(engine._trigger_state("SHORT", "Breakdown", 84489, "H1", candles), "NOT_CONFIRMED")
+        self.assertEqual(engine._trigger_state("LONG", "Breakout", 86516, "H1", [{"close": 90000}]), "UNKNOWN")
+        self.assertEqual(engine._trigger_state("LONG", "Breakout", 86516, "H1", [{"close": 87000, "is_closed": True}]), "CONFIRMED")
+
+    def test_fibonacci_volatility_and_actionable_structure(self):
+        engine = QuantEngine()
+        candles = [{"high": 50 + i * 2, "low": 50 + i * 2, "close": 50 + i * 2} for i in range(26)]
+        irrelevant = engine.evaluate_fibonacci(candles, 69.15, 69, 68.8, 69.5)
+        self.assertFalse(irrelevant["material"])
+        relevant = engine.evaluate_fibonacci(candles, 69.15, 69, 60, 90)
+        self.assertTrue(relevant["material"])
+        self.assertTrue(relevant["values"]["actionable_structure"])
+
     def test_market_structure_math(self):
         prices = [100.0, 102.0, 101.0, 105.0, 104.0, 108.0]
         volumes = [10.0, 15.0, 20.0, 25.0, 10.0, 30.0]
@@ -190,7 +249,7 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         sentiment = {"value": 75, "classification": "Greed", "provider": "Alternative.me"}
 
         res_spot = self.engine.evaluate("BTC", spot_ticker, sentiment=sentiment, market_type="spot")
-        self.assertIn(res_spot.decision, ("WAIT", "REDUCE"))
+        self.assertIn(res_spot.decision, ("WAIT", "AVOID_ENTRY"))
         self.assertNotEqual(res_spot.decision, "BUY")
         self.assertFalse(res_spot.rr_gate_passed)
 
@@ -344,6 +403,9 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         session = SessionState()
 
         # 1. Five ini apa?
+        from openbagus.domains.crypto.catalog import CryptoAsset
+        router.catalog.assets = [a for a in router.catalog.assets if a.symbol != "FIVE"]
+        router.catalog.assets.append(CryptoAsset(id="five-fixture", symbol="FIVE", name="Five"))
         r1 = router.parse("Five ini apa?", session)
         self.assertEqual(r1.asset, "FIVE")
         self.assertEqual(r1.request_type, "ASSET_ANALYSIS")
@@ -510,15 +572,15 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         # Current decision generated
         self.assertIn(res.decision, ("LONG", "SHORT", "NO_TRADE"))
 
-        # Both bullish and bearish validation scenarios generated with real conditions
-        self.assertIsNotNone(res.bullish_validation)
-        self.assertIsNotNone(res.bearish_validation)
-        self.assertEqual(res.bullish_validation.direction, "LONG")
-        self.assertEqual(res.bearish_validation.direction, "SHORT")
-        self.assertGreaterEqual(res.bullish_validation.reward_risk, 1.5)
-        self.assertGreaterEqual(res.bearish_validation.reward_risk, 1.5)
-        self.assertIn("H1", res.bullish_validation.trigger_condition)
-        self.assertIn("H1", res.bearish_validation.trigger_condition)
+        # This narrow range cannot pass the structural RR gate without moving stops.
+        self.assertIsNone(res.bullish_validation)
+        self.assertIsNone(res.bearish_validation)
+        wider = dict(spot_ticker, high=87000.0, low=83000.0)
+        valid = self.engine.evaluate("BTC", wider, klines=klines, market_type="perpetual", timeframe="H1")
+        for scenario in (valid.bullish_validation, valid.bearish_validation):
+            self.assertIsNotNone(scenario)
+            self.assertGreaterEqual(scenario.reward_risk, 1.5)
+            self.assertIn("H1", scenario.trigger_condition)
 
         # Factor contributions calculated
         self.assertIsInstance(res.factor_contributions, dict)
@@ -536,7 +598,7 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         eth_ticker = dict(spot_ticker, symbol="ETH", price=2700.0, high=2750.0, low=2650.0)
         res_eth = self.engine.evaluate("ETH", eth_ticker, market_type="perpetual", timeframe="H4")
         self.assertEqual(res_eth.timeframe, "H4")
-        self.assertIn("H4", res_eth.bullish_validation.trigger_condition)
+        self.assertIsNone(res_eth.bullish_validation)
 
     def test_section_25_arbitrage_cross_venue_dislocation(self):
         # 1. Healthy venues with normal dispersion
@@ -610,6 +672,8 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         ]
         ev_fib, fib_d = self.engine._eval_fibonacci_confluence(klines_fib, 69.15, 75.0, 60.0, 90.0)
         self.assertIn("0.618", fib_d.get("confluence", ""))
+        self.assertEqual(ev_fib.direction_score, 0.0)
+        ev_fib, fib_d = self.engine._eval_fibonacci_confluence(klines_fib, 69.15, 69.0, 60.0, 90.0)
         self.assertGreater(ev_fib.direction_score, 0.0)
 
         # Fibonacci alone cannot create a trade

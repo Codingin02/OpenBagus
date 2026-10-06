@@ -232,6 +232,7 @@ class ZeroKeyMarketData:
             for item in b_data:
                 candles.append({
                     "time": int(item[0]),
+                    "close_time": int(item[6]),
                     "open": float(item[1]),
                     "high": float(item[2]),
                     "low": float(item[3]),

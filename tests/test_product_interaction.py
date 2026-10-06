@@ -29,6 +29,7 @@ from openbagus.domains.crypto.quant import (
 from openbagus.domains.crypto.research import CryptoResearchRunner, ResearchPacket
 from openbagus.intelligence.intent import IntentRequest, IntentRouter, SessionState, _safe_calc
 from openbagus.intelligence.local_language import LocalLanguageEngine, NarrativeFacts, format_price
+from openbagus.domains.crypto.catalog import CryptoAsset
 
 
 class TestProductInteraction(unittest.TestCase):
@@ -36,6 +37,100 @@ class TestProductInteraction(unittest.TestCase):
         self.router = IntentRouter()
         self.quant = QuantEngine()
         self.zerokey = ZeroKeyMarketData()
+
+    def test_language_followup_rerenders_without_fetch(self):
+        runner = CryptoResearchRunner()
+        q = self.quant.evaluate("IMX", {"price": 1.23, "high": 1.3, "low": 1.1})
+        packet = ResearchPacket(asset="IMX", market="GENERAL / SPOT REFERENCE", timeframe="H1", price=q.price, decision=q.decision, data_quality=q.data_quality, setup_quality=q.setup_quality)
+        session = SessionState(last_asset="IMX", last_quant_result=q, last_research_packet=packet)
+        original = (q.price, q.decision, q.stop_price, q.tp1)
+        with patch.object(runner.local_llm, "is_available", return_value=False), patch.object(runner.zerokey, "get_spot_ticker") as fetch, patch.object(runner.quant, "evaluate") as quant:
+            req = self.router.parse("jelasin dalam bahasa indonesia", session)
+            self.assertEqual(req.request_type, "PREFERENCE")
+            result = runner.execute(req, session)
+            self.assertIn("Pada timeframe", result)
+            self.assertEqual(session.language, "ID")
+            self.assertIn("IMX", result)
+            self.assertIn("$1.23", result)
+            result = runner.execute(self.router.parse("english please", session), session)
+            self.assertIn("On the H1 timeframe", result)
+            self.assertEqual(session.language, "EN")
+            fetch.assert_not_called()
+            quant.assert_not_called()
+            self.assertEqual(original, (q.price, q.decision, q.stop_price, q.tp1))
+            self.assertIs(session.last_research_packet, packet)
+
+    def test_single_token_discovery_and_ambiguity(self):
+        manta = CryptoAsset(id="manta-network", symbol="MANTA", name="Manta Network")
+        catalog = self.router.catalog
+        catalog.assets = [a for a in catalog.assets if a.symbol != "MANTA"]
+        with patch.object(catalog, "discover_online", return_value=[manta]) as discovery:
+            req = self.router.parse("manta")
+            self.assertEqual(req.asset, "MANTA")
+            discovery.assert_called_once_with("manta")
+        with patch.object(catalog, "discover_online") as discovery, patch.object(self.router.local_llm, "is_available", return_value=False):
+            self.assertEqual(self.router.parse("aku lagi capek nih").request_type, "UNKNOWN")
+            discovery.assert_not_called()
+        candidates = [CryptoAsset(id=f"xyz-{i}", symbol="XYZ", name=f"XYZ {i}", rank=i) for i in range(7)]
+        with patch.object(catalog, "discover_online", return_value=candidates):
+            req = self.router.parse("XYZ")
+            self.assertTrue(req.is_ambiguous)
+            self.assertLessEqual(len(req.candidates), 5)
+            self.assertIsNone(req.asset)
+            self.assertEqual(req.candidates, [f"xyz-{i}" for i in range(5)])
+        catalog.assets.extend(candidates)
+        runner = CryptoResearchRunner()
+        runner.catalog = catalog
+        self.assertIn("XYZ 0", runner.execute(req))
+        selected = self.router.parse("xyz-0")
+        self.assertEqual(selected.asset, "XYZ")
+        self.assertEqual(selected.asset_id, "xyz-0")
+
+    def test_position_context_is_explicit_and_not_persisted(self):
+        with patch.object(self.router.local_llm, "is_available", return_value=False):
+            self.assertFalse(self.router.parse("ETH").has_position_context)
+            for query in ("aku pegang ETH", "posisi ETH saya", "saya sudah beli BTC", "should I reduce my SOL?", "jual sebagian ETH?", "kurangi posisi BTC", "I already hold ETH, should I reduce?"):
+                self.assertTrue(self.router.parse(query).has_position_context, query)
+
+    def test_unconfirmed_trigger_claims_are_rejected(self):
+        engine = LocalLanguageEngine()
+        facts = NarrativeFacts(asset="BTC", price=85262, decision="WAIT", bullish_trigger_level=86516,
+            bullish_trigger_state="NOT_CONFIRMED", bearish_trigger_level=84489,
+            bearish_trigger_state="NOT_CONFIRMED", bullish_trigger="H1 close above $86,516",
+            bearish_trigger="H1 close below $84,489")
+        with patch.object(engine, "is_available", return_value=True):
+            for text in ("BTC crossed above 86516 and broke below 84489.", "BTC closed above 86516.", "BTC breakout confirmed.", "Harga sudah menembus 86516.", "Harga sudah close di atas 86516.", "BTC broke below 84489.", "BTC breakdown has occurred."):
+                with patch.object(engine, "_run_llama", return_value=text):
+                    self.assertIsNone(engine.generate_narrative(facts), text)
+            with patch.object(engine, "_run_llama", return_value="BTC WAIT; long baru valid jika H1 close di atas $86,516."):
+                self.assertIsNotNone(engine.generate_narrative(facts))
+
+    def test_material_factors_are_prose_not_orphan_lines(self):
+        runner = CryptoResearchRunner()
+        q = self.quant.evaluate("ETH", {"price": 100, "high": 110, "low": 90})
+        packet = ResearchPacket(asset="ETH", market="SPOT", timeframe="H1", price=100, decision=q.decision, data_quality=q.data_quality, setup_quality=q.setup_quality,
+            fibonacci={"material": True, "values": {"summary": "Fib aligns with independently valid support"}}, fibonacci_confluence="Fib aligns with independently valid support")
+        with patch.object(runner.local_llm, "is_available", return_value=False):
+            normal = runner._render_section_25_view(q, packet=packet, raw_query="ETH")
+            self.assertNotIn("\nFibonacci:", normal)
+            self.assertIn("Setup confluence:", normal)
+            diagnostics = runner._render_section_25_view(q, packet=packet, raw_query="show fib ETH")
+            self.assertIn("\nFibonacci:", diagnostics)
+
+    def test_session_status_after_research(self):
+        import io
+        from contextlib import redirect_stdout
+        shell = OpenBagusShell()
+        q = self.quant.evaluate("BTC", {"price": 100, "high": 110, "low": 90})
+        shell.session.last_quant_result = q
+        shell.session.last_research_at = "2026-10-06T00:00:00Z"
+        output = io.StringIO()
+        with redirect_stdout(output):
+            shell.do_status("")
+        self.assertIn("Last Research", output.getvalue())
+        self.assertIn("BTC / H1", output.getvalue())
+        self.assertNotIn("no runs yet", output.getvalue())
+        self.assertNotIn("Chart", shell.session.status_display())
 
     def test_domain_gate_regressions(self) -> None:
         cases = {

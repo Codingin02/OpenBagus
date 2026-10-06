@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -47,6 +48,11 @@ class ValidationScenario:
     reward_risk: float
     reward_risk_str: str
     summary: str = ""
+    entry_price: float = 0.0
+    scenario_type: str = "Breakout"
+    rr_gate_passed: bool = False
+    trigger_level: float | None = None
+    trigger_state: str = "UNKNOWN"
 
 
 @dataclass
@@ -118,6 +124,7 @@ class QuantEngine:
         stablecoins: dict[str, Any] | None = None,
         market_type: str = "spot",
         timeframe: str = "H1",
+        has_position_context: bool = False,
     ) -> QuantDecisionResult:
         price = validate_finite_number(spot_ticker.get("price"), min_val=0.0) or 0.0
         high = validate_finite_number(spot_ticker.get("high"), min_val=0.0) or (price * 1.02)
@@ -149,7 +156,7 @@ class QuantEngine:
         patterns_item = ev_pattern.details.get("item", {})
 
         # 3. Fibonacci Confluence Evidence (Section 12)
-        ev_fib, fib_details = self._eval_fibonacci_confluence(klines, price, pivot, s1, r1)
+        ev_fib, fib_details = self._eval_fibonacci_confluence(klines, price, pivot, s1, r1, ev_vol.details.get("atr"))
         fib_item = ev_fib.details.get("item", {})
 
         # 4. Cross-Exchange Dislocation Evidence (Section 8, 9)
@@ -239,8 +246,7 @@ class QuantEngine:
         long_risk_span = price - long_stop
         long_reward_span = long_tp1 - price
         long_rr = round(long_reward_span / long_risk_span, 2) if long_risk_span > 0 and long_reward_span > 0 else 0.0
-        long_rr_passed = long_rr >= self.MINIMUM_REWARD_RISK
-        ideal_long_pullback = round((long_tp1 + (self.MINIMUM_REWARD_RISK * long_stop)) / (1.0 + self.MINIMUM_REWARD_RISK), 4 if price < 10 else 2)
+        long_rr_passed = 0 < long_stop < price < long_tp1 and long_rr >= self.MINIMUM_REWARD_RISK
 
         if composite_score >= 0.20 and long_rr_passed and quality_gate_passed:
             long_setup_quality = "STRONG"
@@ -251,7 +257,7 @@ class QuantEngine:
 
         cand_long = CandidateSetup(
             direction="LONG",
-            entry_zone=f"{self._fmt_px(min(price, pivot))} - {self._fmt_px(price)}" if long_rr_passed else f"Pullback limit: {self._fmt_px(ideal_long_pullback)}",
+            entry_zone=self._fmt_px(price),
             stop_price=long_stop,
             tp1=long_tp1,
             tp2=long_tp2,
@@ -260,7 +266,7 @@ class QuantEngine:
             setup_quality=long_setup_quality,
             rr_gate_passed=long_rr_passed,
             reason="Reward-to-risk below 1.5" if not long_rr_passed else "",
-            watch_trigger=f"Pullback to {self._fmt_px(ideal_long_pullback)} for R:R >= 1.5" if not long_rr_passed else "",
+            watch_trigger="Wait for a structurally valid pullback with sufficient R:R" if not long_rr_passed else "",
         )
 
         # --- Evaluate Candidate SHORT ---
@@ -270,8 +276,7 @@ class QuantEngine:
         short_risk_span = short_stop - price
         short_reward_span = price - short_tp1
         short_rr = round(short_reward_span / short_risk_span, 2) if short_risk_span > 0 and short_reward_span > 0 else 0.0
-        short_rr_passed = short_rr >= self.MINIMUM_REWARD_RISK
-        ideal_short_bounce = round((short_tp1 + (self.MINIMUM_REWARD_RISK * short_stop)) / (1.0 + self.MINIMUM_REWARD_RISK), 4 if price < 10 else 2)
+        short_rr_passed = 0 < short_tp1 < price < short_stop and short_rr >= self.MINIMUM_REWARD_RISK
 
         if composite_score <= -0.20 and short_rr_passed and quality_gate_passed:
             short_setup_quality = "STRONG"
@@ -282,7 +287,7 @@ class QuantEngine:
 
         cand_short = CandidateSetup(
             direction="SHORT",
-            entry_zone=f"{self._fmt_px(price)} - {self._fmt_px(max(price, pivot))}" if short_rr_passed else f"Bounce limit: {self._fmt_px(ideal_short_bounce)}",
+            entry_zone=self._fmt_px(price),
             stop_price=short_stop,
             tp1=short_tp1,
             tp2=short_tp2,
@@ -308,9 +313,9 @@ class QuantEngine:
                 chosen = cand_long
                 setup_quality = "STRONG"
             elif composite_score <= -0.25:
-                decision = "REDUCE"
-                chosen = cand_short if cand_short.setup_quality == "STRONG" else None
-                setup_quality = cand_short.setup_quality if chosen else "MODERATE"
+                decision = "REDUCE" if has_position_context else "AVOID_ENTRY"
+                chosen = None
+                setup_quality = "MODERATE"
             else:
                 decision = "WAIT"
                 setup_quality = cand_long.setup_quality if cand_long.setup_quality != "INSUFFICIENT" else "INSUFFICIENT"
@@ -353,7 +358,7 @@ class QuantEngine:
                 why_now = "Konsensus data antar bursa publik belum mencapai batas kualitas minimum."
             elif not long_rr_passed and not short_rr_passed:
                 decision_reason = f"Reward-to-risk at current price (Long 1:{long_rr:.2f}, Short 1:{short_rr:.2f}) does not meet 1:1.50 minimum gate."
-                watch_trigger = f"Pullback limit to {self._fmt_px(ideal_long_pullback)} for Long R:R >= 1.5, or resistance reaction at {self._fmt_px(r1)} for Short."
+                watch_trigger = f"Wait for a structurally valid pullback or resistance reaction at {self._fmt_px(r1)} with sufficient R:R."
                 why_now = f"Struktur harga {timeframe} belum memberi rasio risk:reward memadai (Long 1:{long_rr:.2f}, Short 1:{short_rr:.2f}); entry sekarang terlalu dekat resistance/support."
             elif abs(composite_score) < 0.20:
                 decision_reason = f"Market is in a neutral/choppy regime (composite score {composite_score:+.2f}) without directional momentum."
@@ -363,6 +368,10 @@ class QuantEngine:
                 decision_reason = "Setup conditions do not provide a favorable asymmetric risk/reward edge."
                 watch_trigger = f"Monitor price reaction near key pivot level {self._fmt_px(pivot)}."
                 why_now = "Kondisi teknikal dan likuiditas belum menghasilkan tepi asimetris yang layak ditradingkan."
+
+        if m_lower == "spot" and decision in {"REDUCE", "AVOID_ENTRY"}:
+            decision_reason = ("Existing-position review: bearish spot evidence supports a reduction review; no order is executed."
+                               if has_position_context else "Bearish spot evidence: avoid a new entry; no existing holding is assumed.")
 
         # Leverage Policy
         if m_lower == "perpetual" and decision in ("LONG", "SHORT") and stop_price:
@@ -402,8 +411,8 @@ class QuantEngine:
             atr_buffer=atr_buffer,
             timeframe=timeframe,
             deriv_available=deriv_available,
-            ideal_long_pullback=ideal_long_pullback,
-            ideal_short_bounce=ideal_short_bounce,
+            composite_score=composite_score,
+            klines=klines,
         )
 
         why = {
@@ -867,6 +876,7 @@ class QuantEngine:
         pivot: float,
         s1: float,
         r1: float,
+        atr: float | None = None,
     ) -> tuple[EvidenceBlockResult, dict[str, Any]]:
         """Calculates Fibonacci retracement levels from objectively detected swing high/low."""
         if not klines or len(klines) < 10 or price <= 0:
@@ -918,8 +928,9 @@ class QuantEngine:
         fib_618 = swing_high - (0.618 * span)
         fib_786 = swing_high - (0.786 * span)
 
-        # Proximity threshold = 0.8% of price
-        thresh = price * 0.008
+        if atr is None:
+            atr = self._eval_volatility_regime(price, swing_high, swing_low, klines).details.get("atr", 0.0)
+        thresh = max(0.0, atr * 0.25)
         confluence_level = None
         score = 0.0
         summary = "Price mid-range; no immediate Fib confluence"
@@ -948,10 +959,14 @@ class QuantEngine:
         independent_confluence = False
         if confluence_level:
             target_fib = fib_618 if "0.618" in confluence_level else (fib_500 if "0.500" in confluence_level else (fib_382 if "0.382" in confluence_level else fib_786))
-            if abs(target_fib - s1) <= price * 0.015 or abs(target_fib - r1) <= price * 0.015 or abs(target_fib - pivot) <= price * 0.015:
+            if any(abs(target_fib - structure) <= thresh for structure in (s1, r1, pivot)):
                 independent_confluence = True
 
-        is_material = bool(confluence_level and independent_confluence)
+        long_risk = price - (s1 - atr * 0.5)
+        short_risk = (r1 + atr * 0.5) - price
+        actionable = ((long_risk > 0 and (r1 - price) / long_risk >= self.MINIMUM_REWARD_RISK)
+                      or (short_risk > 0 and (price - s1) / short_risk >= self.MINIMUM_REWARD_RISK))
+        is_material = bool(span >= 2 * atr > 0 and confluence_level and independent_confluence and actionable)
 
         fib_details = {
             "swing_high": swing_high,
@@ -962,6 +977,8 @@ class QuantEngine:
             "fib_786": round(fib_786, 4 if price < 10 else 2),
             "confluence": confluence_level or "",
             "independent_confluence": independent_confluence,
+            "actionable_structure": actionable,
+            "proximity_atr": abs(price - target_fib) / atr if confluence_level and atr else None,
         }
 
         fib_item = {
@@ -978,7 +995,7 @@ class QuantEngine:
         return (
             EvidenceBlockResult(
                 name="Fibonacci Confluence",
-                direction_score=round(score, 2),
+                direction_score=round(score, 2) if is_material else 0.0,
                 quality=0.70,
                 summary=summary,
                 details={"item": fib_item, **fib_details},
@@ -1382,65 +1399,78 @@ class QuantEngine:
         atr_buffer: float,
         timeframe: str,
         deriv_available: bool,
-        ideal_long_pullback: float,
-        ideal_short_bounce: float,
-    ) -> tuple[ValidationScenario, ValidationScenario]:
-        """Generates conditional bullish and bearish future validation scenarios."""
-        # 1. Bullish Validation (Breakout / confirmed trend continuation)
-        long_val_entry = r1
-        long_val_stop = round(pivot - atr_buffer, 4 if price < 10 else 2)
-        long_val_tp1 = round(r2, 4 if price < 10 else 2)
-        long_val_tp2 = round(r2 + (r2 - r1), 4 if price < 10 else 2)
-        long_risk = long_val_entry - long_val_stop
-        long_reward = long_val_tp1 - long_val_entry
-        long_val_rr = round(long_reward / long_risk, 2) if long_risk > 0 and long_reward > 0 else 1.85
-        if long_val_rr < 1.5:
-            long_val_stop = round(long_val_entry - (long_reward / 1.6), 4 if price < 10 else 2)
-            long_val_rr = 1.60
+        composite_score: float = 0.0,
+        klines: list[dict[str, Any]] | None = None,
+    ) -> tuple[ValidationScenario | None, ValidationScenario | None]:
+        """Choose one gated, structurally consistent scenario per direction."""
+        variants = (
+            ("LONG", "Breakout", r1, pivot - atr_buffer, r2, r2 + (r2 - r1)),
+            ("LONG", "Pullback", s1, s2 - atr_buffer, r1, r2),
+            ("SHORT", "Breakdown", s1, pivot + atr_buffer, s2, s2 - (s1 - s2)),
+            ("SHORT", "Rejection", r1, r2 + atr_buffer, s1, s2),
+        )
+        candidates = [self._validation_candidate(*variant, timeframe, deriv_available, klines) for variant in variants]
+        selected = []
+        for direction in ("LONG", "SHORT"):
+            valid = [c for c in candidates if c and c.direction == direction and c.rr_gate_passed]
+            momentum_aligned = composite_score >= 0.20 if direction == "LONG" else composite_score <= -0.20
+            selected.append(max(valid, key=lambda c: (momentum_aligned == (c.scenario_type in {"Breakout", "Breakdown"}), c.reward_risk), default=None))
+        return selected[0], selected[1]
 
-        bullish_val = ValidationScenario(
-            direction="LONG",
-            trigger_condition=f"{timeframe} close above {self._fmt_px(r1)}",
-            volume_condition="Relative volume > 1.2x 20-period moving average",
-            order_flow_condition="Aggressive taker buy flow > +0.10 and bid depth dominance",
-            derivatives_condition="Open interest rising without crowded funding (< +0.03%)" if deriv_available else "Confirmed spot volume expansion",
-            entry_zone=f"{self._fmt_px(r1)} (Breakout) or pullback to {self._fmt_px(ideal_long_pullback)}",
-            stop_price=long_val_stop,
-            tp1=long_val_tp1,
-            tp2=long_val_tp2,
-            reward_risk=long_val_rr,
-            reward_risk_str=f"1:{long_val_rr:.2f}",
-            summary=f"{timeframe} close above {self._fmt_px(r1)} confirms bullish structure toward {self._fmt_px(long_val_tp1)}",
+    def _validation_candidate(self, direction: str, style: str, entry: float, stop: float,
+                              tp1: float, tp2: float, timeframe: str, derivatives: bool,
+                              klines: list[dict[str, Any]] | None = None) -> ValidationScenario | None:
+        geometry = 0 < stop < entry < tp1 if direction == "LONG" else 0 < tp1 < entry < stop
+        if not geometry or not all(math.isfinite(v) for v in (entry, stop, tp1, tp2)):
+            return None
+        risk, reward = abs(entry - stop), abs(tp1 - entry)
+        rr = reward / risk
+        relation = "above" if direction == "LONG" else "below"
+        trigger = f"{timeframe} close {relation} {self._fmt_px(entry)}"
+        if style == "Pullback":
+            trigger = f"{timeframe} reaction/hold at {self._fmt_px(entry)} with close above support"
+        elif style == "Rejection":
+            trigger = f"{timeframe} rejection at {self._fmt_px(entry)} with close below resistance"
+        return ValidationScenario(
+            direction=direction, trigger_condition=trigger,
+            volume_condition="Volume expansion relative to recent candles",
+            order_flow_condition="Bid dominance" if direction == "LONG" else "Sell flow dominance",
+            derivatives_condition="Non-crowded funding and aligned OI" if derivatives else "Spot volume confirmation",
+            entry_zone=self._fmt_px(entry), stop_price=stop, tp1=tp1, tp2=tp2,
+            reward_risk=rr, reward_risk_str=f"1:{rr:.2f}", entry_price=entry,
+            scenario_type=style, rr_gate_passed=rr >= self.MINIMUM_REWARD_RISK,
+            trigger_level=entry, trigger_state=self._trigger_state(direction, style, entry, timeframe, klines),
+            summary=f"Conditional {style.lower()}: {trigger}",
         )
 
-        # 2. Bearish Validation (Breakdown continuation)
-        short_val_entry = s1
-        short_val_stop = round(pivot + atr_buffer, 4 if price < 10 else 2)
-        short_val_tp1 = round(s2, 4 if price < 10 else 2)
-        short_val_tp2 = round(s2 - (s1 - s2), 4 if price < 10 else 2)
-        short_risk = short_val_stop - short_val_entry
-        short_reward = short_val_entry - short_val_tp1
-        short_val_rr = round(short_reward / short_risk, 2) if short_risk > 0 and short_reward > 0 else 1.85
-        if short_val_rr < 1.5:
-            short_val_stop = round(short_val_entry + (short_reward / 1.6), 4 if price < 10 else 2)
-            short_val_rr = 1.60
-
-        bearish_val = ValidationScenario(
-            direction="SHORT",
-            trigger_condition=f"{timeframe} breakdown below {self._fmt_px(s1)}",
-            volume_condition="Sell volume expansion exceeding 20-period average",
-            order_flow_condition="Aggressive taker sell flow < -0.10",
-            derivatives_condition="Open interest expands on breakdown aggression" if deriv_available else "Rising sell volume on breakdown",
-            entry_zone=f"{self._fmt_px(s1)} (Breakdown) or bounce rejection at {self._fmt_px(ideal_short_bounce)}",
-            stop_price=short_val_stop,
-            tp1=short_val_tp1,
-            tp2=short_val_tp2,
-            reward_risk=short_val_rr,
-            reward_risk_str=f"1:{short_val_rr:.2f}",
-            summary=f"{timeframe} breakdown below {self._fmt_px(s1)} confirms bearish continuation toward {self._fmt_px(short_val_tp1)}",
-        )
-
-        return bullish_val, bearish_val
+    @staticmethod
+    def _trigger_state(direction: str, style: str, level: float, timeframe: str,
+                       klines: list[dict[str, Any]] | None) -> str:
+        seconds = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600,
+                   "H4": 14400, "H6": 21600, "H12": 43200, "D1": 86400, "W1": 604800}.get(timeframe)
+        closed = []
+        for candle in klines or []:
+            timestamp = validate_finite_number(candle.get("time"))
+            end = validate_finite_number(candle.get("close_time"))
+            if end and end > 1e10:
+                end /= 1000
+            if timestamp and timestamp > 1e10:
+                timestamp /= 1000
+            is_closed = candle.get("is_closed")
+            if is_closed is None:
+                is_closed = bool((end and end <= time.time()) or (timestamp and seconds and timestamp + seconds <= time.time()))
+            close = validate_finite_number(candle.get("close"), min_val=0)
+            if is_closed and close is not None:
+                closed.append(candle)
+        if not closed:
+            return "UNKNOWN"
+        candle = closed[-1]
+        confirmed = float(candle["close"]) > level if direction == "LONG" else float(candle["close"]) < level
+        if style == "Pullback":
+            confirmed = confirmed and candle.get("low") is not None and float(candle["low"]) <= level
+        elif style == "Rejection":
+            confirmed = confirmed and candle.get("high") is not None and float(candle["high"]) >= level
+        return "CONFIRMED" if confirmed else "NOT_CONFIRMED"
 
     def _generate_trader_narrative(
         self,

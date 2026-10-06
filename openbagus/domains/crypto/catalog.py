@@ -195,9 +195,7 @@ class CryptoAssetCatalog:
             return exact_symbol[0], []
         if len(exact_symbol) > 1:
             exact_symbol.sort(key=lambda x: x.rank)
-            if all(a.symbol.upper() == exact_symbol[0].symbol.upper() for a in exact_symbol):
-                return exact_symbol[0], []
-            return None, exact_symbol
+            return None, exact_symbol[:5]
 
         # Try exact name / id / alias
         exact_name = [a for a in self.assets if a.name.lower() == clean_lower or a.id.lower() == clean_lower]
@@ -205,7 +203,7 @@ class CryptoAssetCatalog:
             return exact_name[0], []
         if len(exact_name) > 1:
             exact_name.sort(key=lambda x: x.rank)
-            return exact_name[0], []
+            return None, exact_name[:5]
 
         # Try alias
         alias_matches = [a for a in self.assets if clean_lower in [al.lower() for al in a.aliases]]
@@ -218,16 +216,11 @@ class CryptoAssetCatalog:
         if is_explicit and len(clean_lower) >= 2:
             discovered = self.discover_online(clean)
             if discovered:
-                # Check exact symbol in discovered
-                exact_sym = [a for a in discovered if a.symbol.lower() == clean_lower]
-                if len(exact_sym) == 1:
-                    return exact_sym[0], []
-                # Check exact name / alias in discovered
-                exact_nm = [a for a in discovered if a.name.lower() == clean_lower or clean_lower in [al.lower() for al in a.aliases]]
-                if len(exact_nm) == 1:
-                    return exact_nm[0], []
-                discovered.sort(key=lambda x: x.rank)
-                return None, discovered[:5]
+                matches = {a.id: a for a in discovered if clean_lower in {a.symbol.lower(), a.name.lower(), a.id.lower(), *[al.lower() for al in a.aliases]}}
+                credible = sorted(matches.values(), key=lambda a: a.rank)
+                if len(credible) == 1:
+                    return credible[0], []
+                return None, credible[:5]
 
         return None, []
 
@@ -251,6 +244,8 @@ class CryptoAssetCatalog:
                 name = c.get("name") or sym
                 rank = c.get("market_cap_rank") or 9999
                 if not sym or not cid:
+                    continue
+                if clean.lower() not in {sym.lower(), name.lower(), cid.lower()}:
                     continue
                 if sym.lower() in DEX_SLANG_EXCLUSIONS or cid.lower() in DEX_SLANG_EXCLUSIONS:
                     continue
@@ -290,6 +285,8 @@ class CryptoAssetCatalog:
                 rank = int(c.get("rank") or 9999)
                 if not sym:
                     continue
+                if clean.lower() not in {sym.lower(), name.lower(), cid.lower()}:
+                    continue
                 existing = next((a for a in self.assets if a.symbol == sym), None)
                 if existing:
                     new_assets.append(existing)
@@ -323,6 +320,8 @@ class CryptoAssetCatalog:
             pool = zk.get_dex_pool(clean)
             if pool:
                 pool_name = pool.get("name", clean.upper())
+                if clean.lower() not in {part.strip().lower() for part in pool_name.split("/")}:
+                    return new_assets
                 sym = clean.upper()
                 if sym.lower() in DEX_SLANG_EXCLUSIONS:
                     return new_assets
