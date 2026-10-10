@@ -274,3 +274,107 @@ class NewsIntelligenceRuntime:
         (self.news_dir / "openbagus_news_intelligence_latest.md").write_text(
             "\n".join(md_lines) + "\n", encoding="utf-8"
         )
+
+    def fetch_gdelt_discovery(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Discover multi-publisher articles using the public GDELT DOC 2.0 API."""
+        import urllib.parse
+        encoded = urllib.parse.quote(query)
+        url = f"https://api.gdeltproject.org/api/v2/doc/doc?query={encoded}&mode=ArtList&maxrecords={max(1, min(limit, 20))}&format=json"
+        req = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=5) as response:
+                payload = json.loads(response.read().decode("utf-8", errors="replace"))
+            articles = payload.get("articles") or []
+            results: list[dict[str, Any]] = []
+            for art in articles[:limit]:
+                art_url = str(art.get("url") or "").strip()
+                title = str(art.get("title") or "").strip()
+                domain = str(art.get("domain") or "GDELT Discovery").strip()
+                seendate = str(art.get("seendate") or "")
+                # Format seendate (e.g. 20261010T120000Z -> ISO)
+                dt_iso = _iso_now()
+                if len(seendate) >= 8:
+                    try:
+                        dt = datetime.strptime(seendate[:15], "%Y%m%dT%H%M%S").replace(tzinfo=timezone.utc)
+                        dt_iso = dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+                    except Exception:
+                        pass
+                if art_url and title:
+                    results.append({
+                        "title": title,
+                        "article_url": art_url,
+                        "source_name": domain,
+                        "source_id": f"gdelt_{domain.replace('.', '_')}",
+                        "published_at": dt_iso,
+                        "summary_short": deterministic_summary(title),
+                        "asset_scope": infer_scopes(title, "", []),
+                        "credibility_score": 0.85,
+                        "duplicate_group_id": duplicate_group_id(title, domain),
+                    })
+            return results
+        except Exception:
+            return []
+
+    def get_relevant_news_with_citations(self, topic_or_asset: str, limit: int = 4) -> dict[str, Any]:
+        """Retrieves verified news matching a topic/asset and assigns deterministic [1], [2] citations."""
+        query_lower = topic_or_asset.lower().strip()
+        cached = self._load_cached().get("items", [])
+        if not cached:
+            try:
+                res = self.run(refresh_live=True, limit=12)
+                cached = res.get("items", [])
+            except Exception:
+                pass
+
+        matched: list[dict[str, Any]] = []
+
+        # Search synonyms and asset scopes
+        synonyms = {query_lower}
+        if query_lower in {"btc", "bitcoin"}:
+            synonyms.update({"btc", "bitcoin", "crypto"})
+        elif query_lower in {"eth", "ethereum"}:
+            synonyms.update({"eth", "ether", "ethereum", "crypto"})
+        elif query_lower in {"sol", "solana"}:
+            synonyms.update({"sol", "solana", "crypto"})
+        elif query_lower in {"bbca", "bbri", "bmri", "bbni"}:
+            synonyms.update({query_lower, "bank", "ihsg", "saham", "id_equity"})
+
+        # 1. Filter local cached verified articles
+        for item in cached:
+            title = str(item.get("title", "")).lower()
+            summary = str(item.get("summary_short", "")).lower()
+            scopes = [str(s).lower() for s in item.get("asset_scope", [])]
+            if any(syn in title or syn in summary or syn in scopes for syn in synonyms):
+                matched.append(dict(item))
+
+        # 2. If insufficient matched items and network permitted, try GDELT discovery
+        if len(matched) < limit:
+            gdelt_items = self.fetch_gdelt_discovery(query_lower, limit=limit - len(matched))
+            matched.extend(gdelt_items)
+
+        # 3. If still empty, fall back to top general verified news
+        if not matched:
+            matched = [dict(it) for it in cached[:limit]]
+
+        # Assign deterministic citation IDs
+        deduped = dedup_and_rank(matched, limit=limit)
+        citations_text_lines: list[str] = []
+        final_items: list[dict[str, Any]] = []
+
+        for idx, item in enumerate(deduped, 1):
+            cit_id = f"[{idx}]"
+            item["citation_id"] = cit_id
+            pub_date = str(item.get("published_at", "")).split("T")[0] or "N/A"
+            source_name = item.get("source_name", "Unknown Source")
+            url = item.get("article_url", "")
+            title = item.get("title", "Untitled")
+
+            citations_text_lines.append(f"{cit_id} \"{title}\" - {source_name} ({pub_date}) <{url}>")
+            final_items.append(item)
+
+        return {
+            "query": topic_or_asset,
+            "count": len(final_items),
+            "items": final_items,
+            "citations_text": "\n".join(citations_text_lines),
+        }

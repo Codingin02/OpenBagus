@@ -42,7 +42,38 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
     elif not narrative:
         text.append(equity_context(asset, query))
     f = packet.fundamentals
-    if f.get("ratios") and (not follow or re.search(r"fundamental|valuasi|rate|nikel|dampak", query.lower())):
+    val_query = bool(re.search(r"valuasi|fundamental|layak\s+beli|layak\s+investasi", query.lower()))
+    if val_query and f.get("ratios") and not narrative:
+        r = f["ratios"]
+        roe_val = r.get("roe") or r.get("ROE")
+        pbv_val = r.get("pbv") or r.get("PBV")
+        per_val = r.get("per") or r.get("PER")
+        car_val = r.get("car") or r.get("CAR")
+        nim_val = r.get("nim") or r.get("NIM")
+        npl_val = r.get("npl") or r.get("NPL")
+        eval_lines = [
+            f"Analisis Valuasi & Fundamental {asset.symbol}:",
+            f"Berdasarkan laporan {f.get('period_type', '')} {f.get('period', '')} ({f.get('basis', 'konsolidasi')}), rasio yang dilaporkan:",
+        ]
+        if pbv_val is not None:
+            eval_lines.append(f"  - Price to Book (PBV): {pbv_val:.2f}x")
+        if per_val is not None:
+            eval_lines.append(f"  - Price to Earnings (PER): {per_val:.2f}x")
+        if roe_val is not None:
+            eval_lines.append(f"  - Return on Equity (ROE): {roe_val*100 if roe_val < 1 else roe_val:.2f}%")
+        if car_val is not None:
+            eval_lines.append(f"  - Capital Adequacy Ratio (CAR): {car_val*100 if car_val < 1 else car_val:.2f}%")
+        if nim_val is not None:
+            eval_lines.append(f"  - Net Interest Margin (NIM): {nim_val*100 if nim_val < 1 else nim_val:.2f}%")
+        if npl_val is not None:
+            eval_lines.append(f"  - Non-Performing Loan (NPL Gross): {npl_val*100 if npl_val < 1 else npl_val:.2f}%")
+        eval_lines.append(
+            f"Prinsip Riset: Terdapat perbedaan esensial antara emiten berkualitas fundamental tinggi dan harga entry yang atraktif. "
+            f"Valuasi saat ini mencerminkan premi kualitas. Keputusan Quant adalah '{quant.decision}' ({quant.regime}) "
+            f"karena setup teknikal dan margin of safety belum memenuhi kriteria entry baru."
+        )
+        text.append("\n".join(eval_lines))
+    elif f.get("ratios") and (not follow or re.search(r"fundamental|valuasi|rate|nikel|dampak", query.lower())):
         text.append(f"Fundamental {f['period_type']} {f['period']} ({f['basis']}): " +
                     "; ".join(f"{key} {value:,.3f}" for key, value in f["ratios"].items()))
     elif not f.get("ratios"):
@@ -203,6 +234,8 @@ def run_equity_research(runner, req, session=None) -> str:
             data_freshness=q.data_freshness, evidence_families=q.evidence_families,
             currency="IDR", asset_type=asset.asset_type, fundamentals=financials, events=events,
             price_as_of=data.get("quote", {}).get("as_of", ""), ownership=own)
+        from openbagus.intelligence.evidence import build_evidence_packet_from_research
+        packet.evidence_packet = build_evidence_packet_from_research(packet, q)
         output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",
                                show_sources=session.show_sources if session else False)
         if data.get("quote") or statement:

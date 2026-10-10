@@ -75,6 +75,10 @@ class NarrativeFacts:
     currency: str = "USD"
     asset_type: str = "CRYPTO"
     fundamentals: dict[str, Any] = field(default_factory=dict)
+    evidence_packet: Any = None
+    derived_metrics: dict[str, Any] = field(default_factory=dict)
+    user_style: str = "PROFESSIONAL_DIRECT"
+    cited_sources: list[dict[str, Any]] = field(default_factory=list)
 
 
 def format_price(value: float, currency: str = "USD") -> str:
@@ -252,6 +256,24 @@ class _ManagedLlamaServer:
 
 
 atexit.register(_ManagedLlamaServer.stop)
+
+
+def classify_user_style(user_query: str) -> str:
+    """Classifies user style for adaptive response length and rhetorical goal."""
+    q = user_query.lower()
+    if re.search(r"\b(?:bro|bang|gan|enak|nggak|gimana|nih|wkwk|hehe|cuy|santai|layak)\b", q):
+        return "CASUAL_DIRECT"
+    if re.search(r"\b(?:bedah|detail|mendalam|lengkap|komprehensif|derivatives|microstructure|volume\s+distribution)\b", q):
+        return "QUANT_DETAILED"
+    if re.search(r"\b(?:laporan|makro|institusi|fundamental|valuasi|annual|audit|emiten)\b", q):
+        return "INSTITUTIONAL_RESEARCH"
+    if re.search(r"\b(?:vs|bandingkan|versus|compare|mana yang lebih)\b", q):
+        return "COMPARATIVE"
+    if re.search(r"\b(?:nfp|cpi|ppi|fomc|bi-rate|suku\s+bunga|rilis|jadwal|berita|news)\b", q):
+        return "EVENT_BRIEF"
+    if re.search(r"\b(?:kenapa|tadi|kemarin|maksudnya|kok|ini apa|mengapa)\b", q):
+        return "FOLLOW_UP"
+    return "PROFESSIONAL_DIRECT"
 
 
 class LocalLanguageEngine:
@@ -584,6 +606,56 @@ class LocalLanguageEngine:
         if facts.fibonacci_level is not None:
             facts.price_vs_fib = "ABOVE" if facts.price > facts.fibonacci_level else ("BELOW" if facts.price < facts.fibonacci_level else "AT")
 
+        user_style = classify_user_style(user_query)
+        facts.user_style = user_style
+
+        # Ensure evidence packet is present and derived setup metrics are computed
+        if facts.evidence_packet is None and packet is not None:
+            try:
+                from openbagus.intelligence.evidence import build_evidence_packet_from_research
+                facts.evidence_packet = build_evidence_packet_from_research(packet)
+            except Exception:
+                pass
+
+        if facts.evidence_packet and hasattr(facts.evidence_packet, "derived_setup") and facts.evidence_packet.derived_setup:
+            ds = facts.evidence_packet.derived_setup
+            facts.derived_metrics = {
+                "entry": ds.entry,
+                "stop": ds.stop,
+                "target": ds.target,
+                "risk_distance": ds.risk_distance,
+                "reward_distance": ds.reward_distance,
+                "gross_rr": ds.gross_rr,
+                "estimated_cost": ds.estimated_cost,
+                "net_risk": ds.net_risk,
+                "net_reward": ds.net_reward,
+                "net_rr": ds.net_rr,
+            }
+
+        # Dynamic Hook Directive
+        if facts.contradictions:
+            hook_directive = "Lead by explaining the contradiction or tension between market signals (e.g., indicator vs trend)."
+        elif facts.decision in ("NO_TRADE", "WAIT") and facts.bullish_trigger_state != "CONFIRMED":
+            hook_directive = f"Directly state that entry is not taken at current price ({format_price(facts.price, facts.currency)}) and explain the exact conditional trigger level awaited."
+        elif facts.macro_event:
+            hook_directive = f"Lead with the dominant upcoming macroeconomic event risk: {facts.macro_event}."
+        elif facts.derived_metrics.get("gross_rr") and facts.derived_metrics.get("net_rr"):
+            hook_directive = "Explain the trade geometry: gross vs net R:R after deducting transaction fees and slippage."
+        else:
+            hook_directive = "Lead directly with the primary calculated finding and decision."
+
+        # Variable token budget & style instructions
+        budget_map = {
+            "CASUAL_DIRECT": 220,
+            "FOLLOW_UP": 250,
+            "EVENT_BRIEF": 300,
+            "PROFESSIONAL_DIRECT": 380,
+            "COMPARATIVE": 450,
+            "INSTITUTIONAL_RESEARCH": 550,
+            "QUANT_DETAILED": 650,
+        }
+        token_budget = budget_map.get(user_style, 380)
+
         lang_label = "Indonesian (Bahasa Indonesia)" if language == "id" else "English"
 
         prompt = (
@@ -592,10 +664,11 @@ class LocalLanguageEngine:
             "Use this ontology only when relevant: spot, perpetual, long, short, entry, invalidation, stop loss, TP, reward:risk, basis, funding, open interest, CVD, order flow, liquidity, volatility, support/resistance, market structure, Fibonacci confluence, Stochastic, patterns, cross-venue dislocation, arbitrage, large flow, whale context, CPI, FOMC, DXY, US10Y, VIX, gold, oil, DeFi, DEX, stablecoins.\n"
             "STRICT RULES:\n"
             f"1. You MUST keep the decision '{facts.decision}' and asset '{facts.asset}'.\n"
-            "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts.\n"
+            "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts or derived metrics.\n"
             "Unconfirmed or UNKNOWN triggers are future conditions, never completed breakouts/breakdowns. Use conditional language.\n"
             "3. Use short plain paragraphs, matching the question. Confidence categories describe data quality, not calibrated odds. Never invent whale activity, event dates or performance.\n"
-            "4. Do NOT repeat formulaic phrases or dump a full report when the user asks a narrow follow-up.<|im_end|>\n"
+            "4. Do NOT repeat formulaic phrases or dump a full report when the user asks a narrow follow-up.\n"
+            f"5. Style Directive: {user_style}. {hook_directive}<|im_end|>\n"
             f"<|im_start|>user\nQuestion: {user_query or 'Explain the current research view.'}\nFacts from QuantEngine:\n"
             f"- Asset: {facts.asset} ({facts.timeframe})\n"
             f"- Price: {format_price(facts.price, facts.currency)}; currency {facts.currency}; asset type {facts.asset_type}\n"
@@ -610,7 +683,8 @@ class LocalLanguageEngine:
             f"- Data freshness: {facts.data_freshness}\n"
             f"- Data quality: {facts.data_quality} (never upgrade this category)\n"
             f"- Entry: {facts.entry_zone}; stop: {facts.stop_price}; target: {facts.target_price}\n"
-            f"- Independent evidence: {json.dumps(facts.evidence_families)}\n"
+            + (f"- Validated Derived Setup: {json.dumps(facts.derived_metrics)}\n" if facts.derived_metrics else "")
+            + f"- Independent evidence: {json.dumps(facts.evidence_families)}\n"
             f"- Contradictions: {json.dumps(facts.contradictions)}\n"
             f"- Bullish Validation: {facts.bullish_trigger}\n"
             f"- Bearish Validation: {facts.bearish_trigger}\n"
@@ -631,7 +705,7 @@ class LocalLanguageEngine:
                 "STRICT RULES:\n", "STRICT RULES:\nPrevious wording failed factual validation. Use only the supplied facts and conditional trigger language.\n",
             )
             res = self._complete(
-                current_prompt, max_tokens=400, temp=0.4, top_p=0.8,
+                current_prompt, max_tokens=token_budget, temp=0.4, top_p=0.8,
                 top_k=20, presence_penalty=1.2,
             )
             if res:
@@ -684,7 +758,7 @@ class LocalLanguageEngine:
                 return False
 
         # Semantic Grounding Guard 2: Hallucinated date / temporal horizon
-        raw_facts = f"{facts.price} {format_price(facts.price, facts.currency)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)} {facts.evidence_families} {facts.contradictions} {facts.entry_zone} {facts.stop_price} {facts.target_price} {facts.fundamentals}"
+        raw_facts = f"{facts.price} {format_price(facts.price, facts.currency)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)} {facts.evidence_families} {facts.contradictions} {facts.entry_zone} {facts.stop_price} {facts.target_price} {facts.fundamentals} {facts.derived_metrics}"
         for phrase in ("akhir bulan", "end of month", "bulan depan", "next month", "minggu depan", "next week"):
             if phrase in lower_narrative and phrase not in " ".join(facts.event_dates).lower():
                 return False
@@ -693,21 +767,43 @@ class LocalLanguageEngine:
         if re.search(r"harga\s+pembukaan\s*(?:di|pada|sebesar)?\s*\$?\d+", lower_narrative):
             return False
 
-        # Integrity Validation 2 (C3 Numeric Invariance Guard):
-        # Extract numbers from narrative and check they exist in packet
+        # Integrity Validation 2 (C3 Numeric Invariance & Derived Metrics Guard):
         from decimal import Decimal
         number_pattern = r"(?<![\w.])\d+(?:,\d{3})*(?:\.\d+)?"
         valid_numbers = {Decimal(num.replace(",", "")) for num in re.findall(number_pattern, raw_facts)}
 
-        # Numbers <= 10 or common integers (1, 2, 3, 4, 10, etc.) are allowed for sentence structure
-        for match in re.finditer(number_pattern, clean_narrative):
+        if facts.evidence_packet and hasattr(facts.evidence_packet, "get_valid_numbers"):
+            valid_numbers.update(facts.evidence_packet.get_valid_numbers())
+
+        if facts.derived_metrics:
+            for v in facts.derived_metrics.values():
+                if isinstance(v, (int, float)):
+                    try:
+                        d = Decimal(str(v))
+                        valid_numbers.add(d)
+                        valid_numbers.add(Decimal(f"{v:.2f}"))
+                        valid_numbers.add(Decimal(f"{v:.1f}"))
+                    except Exception:
+                        pass
+
+        # Normalize Indonesian comma decimal format for numbers like 1,55 or 1:1,55
+        norm_narrative = re.sub(r"(\d+),(\d{1,2})(?!\d)", r"\1.\2", clean_narrative)
+        for match in re.finditer(number_pattern, norm_narrative):
             num_str = match.group()
-            value = Decimal(num_str.replace(",", ""))
-            monetary = clean_narrative[:match.start()].rstrip().endswith("$")
+            clean_str = num_str.replace(",", "")
+            # check thousands dot separator in ID: e.g. 65.000 -> 65000
+            if clean_str.count(".") == 1 and len(clean_str.split(".")[1]) == 3 and not clean_str.startswith("0."):
+                clean_str = clean_str.replace(".", "")
+            try:
+                value = Decimal(clean_str)
+            except Exception:
+                continue
+            monetary = norm_narrative[:match.start()].rstrip().endswith(("$", "rp", "rp."))
             if not monetary and "." not in num_str and value <= 10:
                 continue
-            if value not in valid_numbers:
-                return False
+            if value in valid_numbers:
+                continue
+            return False
 
         return True
 

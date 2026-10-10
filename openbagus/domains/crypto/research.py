@@ -69,6 +69,8 @@ class ResearchPacket:
     price_as_of: str = ""
     ownership: Any = None
     backtest: Any = None
+    evidence_packet: Any = None
+    cited_sources: list[dict[str, Any]] = field(default_factory=list)
 
 
 def _fmt_price(val: float | None) -> str:
@@ -209,7 +211,7 @@ class CryptoResearchRunner:
                 "Jadwal Rilis Terdekat & Status Lifecycle:",
             ]
             for ev in events[:5]:
-                surprise_str = f"Surprise: {ev.surprise_standardized:+.2f}σ" if ev.surprise_standardized is not None else (f"Delta: {ev.surprise_delta:+.2f}" if ev.surprise_delta is not None else "-")
+                surprise_str = f"Surprise: {ev.surprise_standardized:+.2f} sigma" if ev.surprise_standardized is not None else (f"Delta: {ev.surprise_delta:+.2f}" if ev.surprise_delta is not None else "-")
                 act_str = f"Actual: {ev.actual} {ev.unit}" if ev.actual is not None else "Actual: BELUM RILIS"
                 lines.append(f"  [{ev.lifecycle_state:<12}] {ev.name} ({ev.reference_period})")
                 lines.append(f"    Waktu: {ev.scheduled_at} | Forecast: {ev.forecast} {ev.unit} | {act_str} | {surprise_str}")
@@ -764,6 +766,19 @@ class CryptoResearchRunner:
             evidence_families=q.evidence_families,
         )
 
+        from openbagus.intelligence.evidence import build_evidence_packet_from_research
+        packet.evidence_packet = build_evidence_packet_from_research(packet, q)
+
+        # Attach real news citations if requested
+        if req.focus == "news" or re.search(r"\b(?:berita|news|sentimen|kabar)\b", req.raw_query.lower()):
+            from openbagus.intelligence.news.runtime import NewsIntelligenceRuntime
+            news_res = NewsIntelligenceRuntime(self.root).get_relevant_news_with_citations(symbol, limit=4)
+            packet.cited_sources = news_res.get("items", [])
+            for src in packet.cited_sources:
+                url = src.get("article_url")
+                if url and url not in packet.sources:
+                    packet.sources.append(url)
+
         # Update session memory
         if session:
             session.last_asset = symbol
@@ -829,6 +844,8 @@ class CryptoResearchRunner:
                 bearish_validation=q.bearish_validation,
                 sources=q.sources,
             )
+            from openbagus.intelligence.evidence import build_evidence_packet_from_research
+            packet.evidence_packet = build_evidence_packet_from_research(packet, q)
         mkt_label = "DEX SPOT" if dex else ("GENERAL / SPOT REFERENCE" if market_type.lower() == "spot" else market_type.upper())
         # C1. Compact deterministic decision header
         lines = [
@@ -854,8 +871,27 @@ class CryptoResearchRunner:
 
         used_fallback = not narrative
         if used_fallback:
+            from openbagus.intelligence.local_language import classify_user_style
+            style = classify_user_style(raw_query)
+            ds = getattr(packet.evidence_packet, "derived_setup", None) if packet.evidence_packet else None
+
             if lang == "id":
-                if q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
+                if style == "CASUAL_DIRECT" and q.decision in ("NO_TRADE", "WAIT") and ds and ds.entry:
+                    narrative = (
+                        f"Belum saya ambil long di harga sekarang. {q.asset} masih di {_fmt_price(q.price)}, "
+                        f"sementara konfirmasi yang ditunggu adalah {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}. "
+                        f"Kalau breakout itu benar-benar terjadi dan harga eksekusinya masih masuk, skenario ini punya entry {_fmt_price(ds.entry)}, "
+                        f"stop {_fmt_price(ds.stop)}, dan target {_fmt_price(ds.target)}. R:R sebelum biaya 1:{ds.gross_rr:.2f}, "
+                        f"tetapi setelah estimasi biaya turun menjadi sekitar 1:{ds.net_rr:.2f}. "
+                        f"Jadi yang ditunggu bukan sekadar harga naik, melainkan konfirmasi trigger dan biaya eksekusi yang masih memungkinkan."
+                    )
+                elif re.search(r"\b(?:wkwk|kenapa\s+no\s+trade|kok\s+no\s+trade)\b", raw_query.lower()):
+                    narrative = (
+                        f"Belum ada posisi baru karena {q.why_now or q.decision_reason}. "
+                        f"Threshold R:R minimal atau konfirmasi penutupan bar belum terpenuhi (R:R terukur {q.reward_risk_str}). "
+                        f"Sistem menunggu validasi {q.bullish_validation.trigger_condition if q.bullish_validation else 'kondisi terarah'} daripada memaksakan entry tanpa keunggulan statistik."
+                    )
+                elif q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
                     narrative = (
                         f"Pada timeframe {q.timeframe}, struktur pergerakan harga {q.asset} saat ini berada dalam rezim {q.regime.lower()} di sekitar {_fmt_price(q.price)}. "
                         f"{q.why_now or q.decision_reason} "
@@ -869,7 +905,15 @@ class CryptoResearchRunner:
                         f"Rasio Reward:Risk terhitung {q.reward_risk_str} dengan batas leverage maksimal {q.leverage_ceiling}."
                     )
             else:
-                if q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
+                if style == "CASUAL_DIRECT" and q.decision in ("NO_TRADE", "WAIT") and ds and ds.entry:
+                    narrative = (
+                        f"I wouldn't take a long at current market price. {q.asset} is trading around {_fmt_price(q.price)}, "
+                        f"and the required confirmation is {q.bullish_validation.trigger_condition if q.bullish_validation else 'a closed candle breakout'}. "
+                        f"If confirmed, the setup parameters are entry {_fmt_price(ds.entry)}, stop {_fmt_price(ds.stop)}, target {_fmt_price(ds.target)}. "
+                        f"Gross R:R stands at 1:{ds.gross_rr:.2f}, adjusting to ~1:{ds.net_rr:.2f} after fees. "
+                        f"Waiting for confirmed trigger execution rather than anticipating unconfirmed breakouts."
+                    )
+                elif q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
                     narrative = (
                         f"On the {q.timeframe} timeframe, {q.asset} price structure is currently in a {q.regime.lower()} regime around {_fmt_price(q.price)}. "
                         f"{q.decision_reason} "
@@ -954,6 +998,14 @@ class CryptoResearchRunner:
         is_astro_query = any(k in raw_query.lower() for k in ("astrology", "lunar", "moon", "astro", "experimental factors"))
         if is_astro_query:
             lines.append("\nAstrology (EXPERIMENTAL / Weight=0): Lunar cycle neutral; zero weight in QuantEngine decision.")
+
+        if packet.cited_sources:
+            lines.append("")
+            lines.append("Sumber Berita Terverifikasi:" if lang == "id" else "Verified News Sources:")
+            for src in packet.cited_sources:
+                cit_id = src.get("citation_id", "[*]")
+                pub_date = str(src.get("published_at", "")).split("T")[0] or "N/A"
+                lines.append(f"  {cit_id} \"{src.get('title')}\" - {src.get('source_name')} ({pub_date}) <{src.get('article_url')}>")
 
         if show_sources and q.sources:
             lines.append(f"\nSources: {', '.join(q.sources)}")
