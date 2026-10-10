@@ -6,7 +6,7 @@ OpenBagus is a local, read-only quantitative research terminal. It enforces stri
 
 ## 1. Outbound Network Policy
 
-OpenBagus only connects outbound via standard HTTPS (port 443) to known, public market data endpoints. It never opens inbound server ports and never executes remote code.
+Public market requests use allowlisted HTTPS endpoints. Local Qwen uses a managed HTTP server bound to loopback only. Opt-in Puter uses its official Node.js SDK over HTTPS plus browser authentication with a temporary callback listener. SMTP and Meta WhatsApp delivery use their existing separately configured transports; they are not enabled by cloud consent.
 
 ### Expected Outbound Domains
 
@@ -65,9 +65,10 @@ OpenBagus **never** requires users to disable antivirus, Windows Defender, McAfe
 
 ## 5. What OpenBagus Never Does
 
-- **No Remote Code Execution**: API responses are parsed strictly as untrusted JSON data. OpenBagus never calls `eval()`, `exec()`, or executes downloaded scripts or binaries.
+- **No Provider-Supplied Code Execution**: Market responses are untrusted JSON. Calculator arithmetic uses restricted AST nodes, never eval/exec. Explicit optional provisioning installs the official SDK or verified local llama.cpp/model artifacts; these are not market-response code.
 - **No Private Keys or Wallets**: OpenBagus has no wallet integrations, does not manage private keys, and cannot sign or broadcast transactions.
-- **No Telemetry or User Tracking**: OpenBagus does not send telemetry, analytics, user queries, or prompt logs to external servers.
+- **No Unsolicited Telemetry**: Feedback is opt-in and local only, with user-reviewed export. Optional Puter receives sanitized questions/facts only after separate cloud consent; no full history or credentials. See [PRIVACY.md](PRIVACY.md).
+- **Cloud Credential Storage**: Puter auth is Windows DPAPI-encrypted in local user data, outside Git. No token appears in argv, prompts or logs. Failures use categorical statuses, not raw credential-bearing errors.
 
 ---
 

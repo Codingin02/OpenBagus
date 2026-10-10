@@ -567,6 +567,22 @@ def _run_setup() -> int:
     else:
         print("[PASS] No configuration changes made")
 
+    from openbagus.intelligence.feedback import FeedbackStore
+    from openbagus.intelligence.puter import PuterBackend
+    feedback = FeedbackStore()
+    print("Optional feedback stores only an explicit correction and asset/timeframe/type locally; no raw prompt history or uploads.")
+    try:
+        consent = input("Help improve OpenBagus through optional local feedback collection? (Y/N): ").strip().lower() == "y"
+    except (EOFError, KeyboardInterrupt):
+        consent = False
+    feedback.set_enabled(consent)
+    print("Puter requires browser login; allowance is limited and additional usage may be charged. Local Qwen remains available.")
+    try:
+        cloud = input("Enable optional Cloud AI through Puter? (Y/N): ").strip().lower() == "y"
+        approved = cloud and input("Permit sanitized questions and Quant facts to be sent to Puter? (Y/N): ").strip().lower() == "y"
+    except (EOFError, KeyboardInterrupt):
+        approved = False
+    print(PuterBackend().configure(consent=approved))
     return 0
 
 
@@ -694,6 +710,8 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_help(self, _arg: str) -> None:
         print("OpenBagus Commands:")
+        print("  /feedback <type> <text>    explicit correction, opt-in local storage")
+        print("  /improve status|off|clear|export  review and control local feedback")
         print("  /help                     show this help screen")
         print("  /harness [clear]          show or clear ephemeral session memory")
         print("  /switch <asset>           switch active research context directly")
@@ -726,6 +744,32 @@ class OpenBagusShell(cmd.Cmd):
             print("[PASS] Harness session memory cleared.")
         else:
             print(self.session.status_display())
+
+    def do_feedback(self, arg: str) -> None:
+        from openbagus.intelligence.feedback import FeedbackStore
+        kind, _, correction = arg.partition(" ")
+        print(FeedbackStore().record(kind, correction, self.session.last_asset, self.session.timeframe))
+
+    def do_improve(self, arg: str) -> None:
+        from openbagus.intelligence.feedback import FeedbackStore
+        store = FeedbackStore()
+        action = arg.strip().lower() or "status"
+        if action == "off":
+            store.set_enabled(False)
+            print("FEEDBACK_OFF")
+        elif action == "clear":
+            store.clear()
+            print("FEEDBACK_CLEARED")
+        elif action == "export":
+            print(store.review() or "No feedback recorded.")
+            try:
+                approved = input("Export this reviewed content locally for manual redaction/sharing? (Y/N): ").strip().lower() == "y"
+            except (EOFError, KeyboardInterrupt):
+                approved = False
+            result = store.export(reviewed=approved)
+            print(str(result) if result else "EXPORT_CANCELLED")
+        else:
+            print("FEEDBACK_ON_LOCAL_ONLY" if store.enabled else "FEEDBACK_OFF")
 
     def do_switch(self, arg: str) -> None:
         target = arg.strip()

@@ -248,13 +248,15 @@ class ZeroKeyMarketData:
             for item in g_data:
                 candles.append({
                     "time": int(item[0]) * 1000 if int(item[0]) < 10000000000 else int(item[0]),
-                    "volume": float(item[1]),
+                    "volume": float(item[6]) if len(item) > 6 else 0.0,
+                    "quote_volume": float(item[1]),
+                    "is_closed": str(item[7]).lower() == "true" if len(item) > 7 else False,
                     "close": float(item[2]),
                     "high": float(item[3]),
                     "low": float(item[4]),
                     "open": float(item[5]),
                 })
-            return candles
+            return sorted(candles, key=lambda c: c["time"])
 
         return []
 
@@ -267,9 +269,9 @@ class ZeroKeyMarketData:
             row = g_data[0]
             mark_price = validate_finite_number(row.get("mark_price"), min_val=0.0)
             index_price = validate_finite_number(row.get("index_price"), min_val=0.0)
-            funding_rate = validate_finite_number(row.get("funding_rate")) or 0.0
+            funding_rate = validate_finite_number(row.get("funding_rate"))
             open_interest = validate_finite_number(row.get("total_size"), min_val=0.0) or 0.0
-            vol_24h = validate_finite_number(row.get("volume_24h_settle"), min_val=0.0) or validate_finite_number(row.get("volume_24h"), min_val=0.0) or 0.0
+            vol_24h = validate_finite_number(row.get("volume_24h_settle"), min_val=0.0)
             basis = (mark_price - index_price) if (mark_price and index_price) else 0.0
             basis_bps = ((basis / index_price) * 10000.0) if (index_price and index_price > 0) else 0.0
 
@@ -304,6 +306,9 @@ class ZeroKeyMarketData:
                 "funding_history": rates,
                 "funding_zscore": round(zscore, 2),
                 "open_interest": open_interest,
+                "open_interest_unit": "contracts",
+                "volume_24h_unit": "USDT",
+                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 "volume_24h": vol_24h,
                 "basis": basis,
                 "basis_bps": round(basis_bps, 2),
@@ -317,9 +322,9 @@ class ZeroKeyMarketData:
             if match:
                 price = validate_finite_number(match.get("price"), min_val=0.0)
                 idx = validate_finite_number(match.get("index"), min_val=0.0)
-                funding = validate_finite_number(match.get("funding_rate")) or 0.0
-                normalized_funding = funding / 100.0 if funding > 0.01 else funding
-                basis = validate_finite_number(match.get("basis")) or 0.0
+                funding = validate_finite_number(match.get("funding_rate"))
+                normalized_funding = funding / 100.0 if funding is not None else None
+                basis = price - idx if price and idx else 0.0
                 basis_bps = ((basis / idx) * 10000.0) if (idx and idx > 0) else 0.0
 
                 return {
@@ -332,6 +337,9 @@ class ZeroKeyMarketData:
                     "funding_history": [],
                     "funding_zscore": 0.0,
                     "open_interest": validate_finite_number(match.get("open_interest"), min_val=0.0) or 0.0,
+                    "open_interest_unit": "USD",
+                    "volume_24h_unit": "USD",
+                    "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     "volume_24h": validate_finite_number(match.get("volume_24h"), min_val=0.0) or 0.0,
                     "basis": basis,
                     "basis_bps": round(basis_bps, 2),
@@ -367,6 +375,10 @@ class ZeroKeyMarketData:
                 if len(a) >= 2 and validate_finite_number(a[0], min_val=0.0) and validate_finite_number(a[1], min_val=0.0)
             ]
             if bids and asks:
+                bids.sort(reverse=True)
+                asks.sort()
+                if bids[0][0] >= asks[0][0]:
+                    return None
                 bid_vol = sum(p * q for p, q in bids)
                 ask_vol = sum(p * q for p, q in asks)
                 tot = bid_vol + ask_vol
@@ -393,6 +405,7 @@ class ZeroKeyMarketData:
                     "microprice_dev_bps": round(microprice_dev_bps, 2),
                     "spread_bps": round(spread_bps, 2),
                     "provider": provider,
+                    "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 }
 
         return None
@@ -411,18 +424,19 @@ class ZeroKeyMarketData:
                 val = p * q
                 if t.get("isBuyerMaker") is True:
                     sell_notional += val
-                else:
+                elif t.get("isBuyerMaker") is False:
                     buy_notional += val
 
             tot = buy_notional + sell_notional
             imbalance = ((buy_notional - sell_notional) / tot) if tot > 0 else 0.0
             return {
-                "status": "OK",
+                "status": "OK" if tot > 0 else "DATA_GAP",
                 "trade_flow_imbalance": round(imbalance, 3),
                 "buy_notional": round(buy_notional, 2),
                 "sell_notional": round(sell_notional, 2),
                 "trades_evaluated": len(b_data),
                 "provider": "Binance Trades (Public)",
+                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
 
         g_url = f"https://api.gateio.ws/api/v4/spot/trades?currency_pair={sym}_USDT&limit={limit}"
@@ -443,12 +457,13 @@ class ZeroKeyMarketData:
             tot = buy_notional + sell_notional
             imbalance = ((buy_notional - sell_notional) / tot) if tot > 0 else 0.0
             return {
-                "status": "OK",
+                "status": "OK" if tot > 0 else "DATA_GAP",
                 "trade_flow_imbalance": round(imbalance, 3),
                 "buy_notional": round(buy_notional, 2),
                 "sell_notional": round(sell_notional, 2),
                 "trades_evaluated": len(g_data),
                 "provider": "Gate.io Trades (Public)",
+                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             }
 
         return {
@@ -464,10 +479,10 @@ class ZeroKeyMarketData:
         data = self._get_json("https://api.alternative.me/fng/?limit=1", ttl_seconds=300.0)
         if isinstance(data, dict) and data.get("data"):
             row = data["data"][0]
-            val = int(validate_finite_number(row.get("value"), min_val=0.0, max_val=100.0) or 50)
+            val = validate_finite_number(row.get("value"), min_val=0.0, max_val=100.0)
             cls = str(row.get("value_classification", "Neutral"))
-            return {"value": val, "classification": cls, "provider": "Alternative.me"}
-        return {"value": 50, "classification": "Neutral", "provider": "Default"}
+            return {"value": val, "classification": cls, "provider": "Alternative.me", "timestamp": row.get("timestamp")}
+        return {"value": None, "classification": "DATA_GAP", "provider": "Unavailable"}
 
     def get_stablecoin_tvl(self) -> dict[str, Any] | None:
         data = self._get_json("https://stablecoins.llama.fi/stablecoins", ttl_seconds=600.0)

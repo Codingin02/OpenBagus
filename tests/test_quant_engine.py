@@ -1,6 +1,8 @@
 """Test Quant Engine Math, Security, Microstructure, and Risk Calculations."""
 
 import unittest
+import time
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from openbagus.core.market_structure import (
@@ -64,9 +66,10 @@ class TestMarketStructureMath(unittest.TestCase):
         engine = QuantEngine()
         bearish = EvidenceBlockResult
         with patch.object(engine, "_eval_trend_momentum", return_value=bearish("Trend", -1, 0.8, "bearish")), patch.object(engine, "_eval_microstructure_liquidity", return_value=bearish("Micro", -1, 0.8, "sell flow")):
-            ticker = {"price": 100, "high": 110, "low": 90, "quote_volume": 100000000}
-            generic = engine.evaluate("ETH", ticker)
-            held = engine.evaluate("ETH", ticker, has_position_context=True)
+            ticker = {"price": 100, "high": 110, "low": 90, "quote_volume": 100000000, "observed_at": datetime.now(timezone.utc).isoformat()}
+            candles = [{"time": (time.time() - 3600) * 1000, "high": 110, "low": 90, "close": 100}]
+            generic = engine.evaluate("ETH", ticker, klines=candles, sentiment={"value": 30, "timestamp": time.time()})
+            held = engine.evaluate("ETH", ticker, klines=candles, sentiment={"value": 30, "timestamp": time.time()}, has_position_context=True)
             self.assertEqual(generic.decision, "AVOID_ENTRY")
             self.assertEqual(held.decision, "REDUCE")
 
@@ -296,6 +299,7 @@ class TestCanonicalQuantEngine(unittest.TestCase):
             "mark_price": 85100.0,
             "index_price": 85000.0,
             "funding_rate": 0.0008,
+            "observed_at": datetime.now(timezone.utc).isoformat(),
             "funding_zscore": 2.5,
             "open_interest": 100000.0,
             "volume_24h": 500000000.0,
@@ -343,8 +347,11 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         trades = {"status": "OK", "trade_flow_imbalance": 0.45}
         orderbook = {"imbalance": 0.40, "microprice_dev_bps": 3.0}
         sentiment = {"value": 65, "classification": "Greed"}
-
-        res = self.engine.evaluate("ETH", spot_ticker, trades=trades, orderbook=orderbook, sentiment=sentiment)
+        spot_ticker["observed_at"] = datetime.now(timezone.utc).isoformat()
+        trades["observed_at"] = orderbook["observed_at"] = spot_ticker["observed_at"]
+        sentiment["timestamp"] = time.time()
+        candles = [{"time": (time.time() - (30 - i) * 3600) * 1000, "open": 2700, "high": 2710, "low": 2690, "close": 2700} for i in range(30)]
+        res = self.engine.evaluate("ETH", spot_ticker, klines=candles, derivatives={"funding_rate": 0.0001, "open_interest_unit": "contracts", "observed_at": spot_ticker["observed_at"]}, trades=trades, orderbook=orderbook, sentiment=sentiment)
         self.assertEqual(res.confidence, "HIGH")
         self.assertGreaterEqual(res.composite_quality, 0.70)
 

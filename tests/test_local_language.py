@@ -25,6 +25,73 @@ class TestLocalLanguageIntelligence(unittest.TestCase):
         self.session = SessionState()
         self.engine = LocalLanguageEngine()
 
+    def test_cloud_consent_failure_and_local_fallback(self):
+        from openbagus.intelligence.puter import PuterBackend
+        with tempfile.TemporaryDirectory() as directory:
+            cloud = PuterBackend(Path(directory))
+            with patch.object(cloud, "_call") as call:
+                self.assertIsNone(cloud.complete("Do not send"))
+                call.assert_not_called()
+            self.assertEqual(cloud.configure(False), "CLOUD_DISABLED")
+            cloud.settings.write_text(json.dumps({"consent": True, "validated": True}), encoding="utf-8")
+            self.engine.cloud = cloud
+            with patch.object(cloud, "_call", return_value=None) as request, patch.object(self.engine, "_run_llama", return_value="local answer") as local:
+                self.assertEqual(self.engine._complete("facts", temp=0), "local answer")
+                self.assertEqual(self.engine._complete("facts", temp=0), "local answer")
+                request.assert_called_once()
+                self.assertEqual(local.call_count, 2)
+        from openbagus.intelligence.local_language import NarrativeFacts
+        facts = NarrativeFacts("BTC", 100, "WAIT")
+        self.assertFalse(self.engine._narrative_is_grounded(NarrativeFacts("BTC", 100, "WAIT", data_quality="LOW"), "BTC memiliki kualitas data tinggi."))
+        with patch.object(self.engine, "is_available", return_value=True), patch.object(self.engine, "_complete", side_effect=["Decision: LONG at $100", "WAIT; price $100."]) as completion:
+            self.assertEqual(self.engine.generate_narrative(facts), "WAIT; price $100.")
+            self.assertEqual(completion.call_args.kwargs["temp"], 0.4)
+
+    def test_local_feedback_default_off_review_export_and_clear(self):
+        from openbagus.intelligence.feedback import FeedbackStore, sanitize_text
+        with tempfile.TemporaryDirectory() as directory:
+            store = FeedbackStore(Path(directory))
+            self.assertFalse(store.enabled)
+            self.assertEqual(store.record("intent", "explicit correction"), "FEEDBACK_OFF")
+            self.assertFalse(store.entries.exists())
+            store.set_enabled(True)
+            with patch.dict("os.environ", {"SMTP_PASSWORD": "sensitive-test-value"}):
+                store.record("intent", "sensitive-test-value person@example.com C:\\private\\wallet.txt token=private-test-value", "BTC", "H1")
+            reviewed = store.review()
+            for private in ("sensitive-test-value", "person@example.com", "wallet.txt", "private-test-value"):
+                self.assertNotIn(private, reviewed)
+            self.assertIsNone(store.export())
+            self.assertTrue(store.export(reviewed=True).exists())
+            store.set_enabled(False)
+            store.clear()
+            self.assertFalse(store.entries.exists())
+            self.assertEqual(sanitize_text("unchanged market facts"), "unchanged market facts")
+
+    def test_cloud_bridge_sanitizes_and_activation_requires_smoke(self):
+        from openbagus.intelligence.puter import PuterBackend
+        from types import SimpleNamespace
+        with tempfile.TemporaryDirectory() as directory:
+            cloud = PuterBackend(Path(directory))
+            with patch("openbagus.intelligence.puter.shutil.which", return_value="node.exe"), patch("openbagus.intelligence.puter.subprocess.run", return_value=SimpleNamespace(stdout='{"status":"CLOUD_QUOTA_EXHAUSTED"}')) as run, patch.dict("os.environ", {"SMTP_PASSWORD": "sensitive-test-value"}):
+                self.assertIsNone(cloud._call("chat", "secret=sensitive-test-value C:\\private\\wallet.txt"))
+                self.assertEqual(cloud.status, "CLOUD_QUOTA_EXHAUSTED")
+                args = run.call_args.kwargs
+                self.assertNotIn("sensitive-test-value", args["input"])
+                self.assertNotIn("SMTP_PASSWORD", args["env"])
+                self.assertNotIn("wallet.txt", args["input"])
+            sdk = cloud.directory / "node_modules/@heyputer/puter.js/src/init.cjs"
+            sdk.parent.mkdir(parents=True)
+            sdk.touch()
+            def authorized(action, *args, **kwargs):
+                cloud.status = "CLOUD_AUTH_READY" if action == "login" else "CLOUD_OK"
+                return "OPENBAGUS_CLOUD_OK" if action == "chat" else None
+            with patch("openbagus.intelligence.puter.os.name", "nt"), patch("openbagus.intelligence.puter.shutil.which", return_value="node.exe"), patch("openbagus.intelligence.puter.subprocess.check_output", return_value="v24.18.0"), patch.object(cloud, "_call", side_effect=authorized) as call:
+                self.assertEqual(cloud.configure(True), "CLOUD_ACTIVE")
+                self.assertEqual([c.args[0] for c in call.call_args_list], ["login", "chat"])
+                self.assertTrue(cloud.enabled)
+            cloud.configure(False)
+            self.assertFalse(cloud.enabled)
+
     def test_section_20_targeted_intent_regressions(self) -> None:
         """Verify the exact 9 regression queries plus fallback without live network."""
         # 1. "herness" -> HARNESS, NOT an asset
@@ -132,7 +199,7 @@ class TestLocalLanguageIntelligence(unittest.TestCase):
         response = MagicMock()
         response.__enter__.return_value.status = 200
         response.__enter__.return_value.read.return_value = json.dumps({"content": '{"request_type":"SYSTEM_INFO"}'}).encode()
-        with patch.object(engine, "is_available", return_value=True), patch.object(_ManagedLlamaServer, "ensure", return_value=(8123, "CUDA")), patch("openbagus.intelligence.local_language.urllib.request.urlopen", return_value=response) as urlopen:
+        with patch.object(engine, "_local_available", return_value=True), patch.object(_ManagedLlamaServer, "ensure", return_value=(8123, "CUDA")), patch("openbagus.intelligence.local_language.urllib.request.urlopen", return_value=response) as urlopen:
             result = engine._run_llama("fixture", temp=0.0, top_p=1.0, top_k=1)
         self.assertIn("SYSTEM_INFO", result or "")
         payload = json.loads(urlopen.call_args.args[0].data.decode())

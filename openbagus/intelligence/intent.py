@@ -168,6 +168,8 @@ class SessionState:
     clear_on_exit: bool = True
     recent_preferences: dict[str, Any] = field(default_factory=dict)
     conversational_turns: list[dict[str, str]] = field(default_factory=list)
+    language_backend: str = "local"
+    explanation_depth: str = "normal"
 
     def add_turn(self, user_text: str, assistant_text: str) -> None:
         self.conversational_turns.append({"user": user_text, "assistant": assistant_text})
@@ -191,6 +193,8 @@ class SessionState:
         self.last_research_at = None
         self.language = "AUTO"
         self.conversational_turns = []
+        self.recent_preferences = {}
+        self.explanation_depth = "normal"
 
     def status_display(self) -> str:
         lines = [
@@ -366,7 +370,7 @@ class IntentRouter:
             return IntentRequest(intent="UNKNOWN", request_type="UNKNOWN", raw_query=text)
 
         lower = cleaned.lower()
-        if re.fullmatch(r"(?:jelasin dalam bahasa indonesia|pakai bahasa indonesia|bahasa indonesia|indonesia aja|explain in english|use english|english please)[?!. ]*", lower):
+        if re.fullmatch(r"(?:jelasin dalam bahasa indonesia|(?:pakai|gunakan) bahasa indonesia|bahasa indonesia|indonesia aja|explain in english|use english|english please)[?!. ]*", lower):
             return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", preference_action="language_id" if "indonesia" in lower else "language_en", raw_query=text, relation_to_context="CONTINUE")
         default_tf = session.timeframe if session and session.timeframe else "H1"
         detected_tf, query_no_tf = _parse_timeframe(cleaned, default_tf=default_tf)
@@ -727,6 +731,17 @@ class IntentRouter:
 
         # Follow-up on previous asset without naming a new coin
         if session and session.last_asset:
+            other_assets = [a.symbol for a in self.catalog.assets
+                            if a.symbol != session.last_asset and re.search(r"\b" + re.escape(a.symbol) + r"\b", text, re.I)]
+            explanatory = (
+                re.search(r"\b(?:kalau|jika|what if|how|bagaimana)\b.*\b(?:funding|oi|resistance|support|fomc|cpi|tadi)\b", lower)
+                or re.search(r"\b(?:jelas(?:kan|in)|explain)\b.*\b(?:sederhana|simple|simply)\b", lower)
+                or re.search(r"\b(?:kenapa|why)\b.*\b(?:belum|not|wait|long|short)\b", lower)
+            )
+            if explanatory and not other_assets:
+                return IntentRequest(intent="ANALYZE", request_type="FOLLOW_UP", asset=session.last_asset,
+                                     target_assets=[session.last_asset], timeframe=session.timeframe,
+                                     market=session.market_type.lower(), raw_query=text, relation_to_context="CONTINUE")
             followup_level_triggers = [
                 "tpnya", "risknya", "slnya", "entrynya", "tp nya", "risk nya", "sl nya",
                 "tp", "sl", "take profit", "stop loss", "levels", "nggk ada",
@@ -744,7 +759,7 @@ class IntentRouter:
             is_pos_followup = any(trig in lower for trig in followup_position_triggers)
             is_out_followup = any(trig in lower for trig in followup_outlook_triggers)
 
-            other_coins = [w.upper() for w in words if w.upper() in {"BTC", "ETH", "SOL", "BNB", "XRP", "ADA", "DOGE", "AVAX", "NEAR"} and w.upper() != session.last_asset]
+            other_coins = other_assets
             if not other_coins and (is_level_followup or is_pos_followup or is_out_followup):
                 req_type = "EXPLAIN_LEVELS" if is_level_followup else ("POSITION" if is_pos_followup else "FOLLOW_UP")
                 intent_code = "STRUCTURE" if is_level_followup else ("POSITION" if is_pos_followup else "ANALYZE")
@@ -766,7 +781,7 @@ class IntentRouter:
         vs_m = re.search(r"\b([A-Za-z0-9]+)\s+(?:vs|versus|v)\s+([A-Za-z0-9]+)\b", query_no_tf, re.IGNORECASE)
         if vs_m:
             comp_c1, comp_c2 = vs_m.group(1), vs_m.group(2)
-        elif any(k in lower for k in ("bandingkan", "compare", "komparasi")):
+        elif any(k in lower for k in ("bandingkan", "dibandingkan", "compare", "komparasi")):
             cand_assets = []
             for w in words:
                 wl = w.lower()
@@ -776,6 +791,8 @@ class IntentRouter:
                         cand_assets.append(a_obj.symbol)
             if len(cand_assets) >= 2:
                 comp_c1, comp_c2 = cand_assets[0], cand_assets[1]
+            elif len(cand_assets) == 1 and session and session.last_asset and cand_assets[0] != session.last_asset:
+                comp_c1, comp_c2 = session.last_asset, cand_assets[0]
 
         if comp_c1 and comp_c2:
             a1, _ = self.catalog.resolve_asset(comp_c1)

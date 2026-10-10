@@ -51,7 +51,7 @@ class TestCliEmail(unittest.TestCase):
             alpha = str(next(i for i, p in enumerate(configurable, 1) if p.id == "alpha_vantage"))
             fred = str(next(i for i, p in enumerate(configurable, 1) if p.id == "fred"))
             output = io.StringIO()
-            with patch.dict(os.environ, {}, clear=True), patch.object(cli, "REPO_ROOT", root), patch("builtins.input", side_effect=["y", alpha, fred, "0", "n", "n"]) as inputs, patch("getpass.getpass", side_effect=["fixture-alpha", "fixture-fred"]), patch.dict(VALIDATORS, {"alpha_vantage": lambda key: "VALID", "fred": lambda key: "INVALID"}), redirect_stdout(output):
+            with patch.dict(os.environ, {"LOCALAPPDATA": temp_dir}, clear=True), patch.object(cli, "REPO_ROOT", root), patch("builtins.input", side_effect=["y", alpha, fred, "0", "n", "n", "n", "n"]) as inputs, patch("getpass.getpass", side_effect=["fixture-alpha", "fixture-fred"]), patch.dict(VALIDATORS, {"alpha_vantage": lambda key: "VALID", "fred": lambda key: "INVALID"}), redirect_stdout(output):
                 self.assertEqual(cli._run_setup(), 0)
                 cli._run_status()
             content = (root / ".env").read_text(encoding="utf-8")
@@ -61,6 +61,10 @@ class TestCliEmail(unittest.TestCase):
             self.assertIn("1 present / 1 validated", output.getvalue())
             self.assertNotIn("fixture-alpha", output.getvalue())
             self.assertNotIn("fixture-fred", output.getvalue())
+            self.assertIn("Help improve OpenBagus", " ".join(call.args[0] for call in inputs.call_args_list))
+            self.assertIn("Enable optional Cloud AI", " ".join(call.args[0] for call in inputs.call_args_list))
+            self.assertEqual(json.loads((root / "OpenBagus/feedback/settings.json").read_text())["enabled"], False)
+            self.assertEqual(json.loads((root / "OpenBagus/cloud/settings.json").read_text())["consent"], False)
             self.assertTrue(all("(Y/N)::" not in call.args[0] for call in inputs.call_args_list))
 
     def test_powershell_setup_prompt_and_active_output(self):

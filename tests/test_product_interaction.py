@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import unittest
 import math
+import time
+from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from openbagus.cli import OpenBagusShell
@@ -37,6 +39,69 @@ class TestProductInteraction(unittest.TestCase):
         self.router = IntentRouter()
         self.quant = QuantEngine()
         self.zerokey = ZeroKeyMarketData()
+
+    def test_continuous_explanatory_session_without_refetch(self):
+        runner = CryptoResearchRunner()
+        stamp = datetime.now(timezone.utc).isoformat()
+        ticker = {"price": 100, "high": 120, "low": 80, "observed_at": stamp, "provider": "Fixture"}
+        evidence = {"klines": [{"high": 101, "low": 99, "close": 100}], "derivatives": None, "orderbook": None, "trades": None, "sentiment": {"value": 50}, "stablecoins": {"total": 1}}
+        session = SessionState()
+        with patch.object(self.router.local_llm, "is_available", return_value=False), patch.object(runner.local_llm, "is_available", return_value=False), patch.object(runner.zerokey, "get_all_evidence", return_value=evidence) as fetch, patch.object(runner.zerokey, "get_spot_ticker", return_value=ticker), patch.object(runner.zerokey, "get_cpi", return_value=None), patch.object(runner.zerokey, "get_fomc", return_value=None), patch.object(runner.zerokey, "get_large_flow_activity", return_value=None):
+            first = runner.execute(self.router.parse("BTC H1 sekarang gimana?", session), session)
+            self.assertIn("BTC", first)
+            count = fetch.call_count
+            packet = session.last_research_packet
+            original = (packet.price, packet.decision, packet.stop_price, packet.tp1)
+            for query in ("Kenapa belum long?", "Kalau OI naik tapi funding negatif?", "Kalau resistance tadi ditembus?", "Jelaskan lebih sederhana.", "Gunakan bahasa Indonesia.", "Bagaimana FOMC memengaruhi skenario tadi?"):
+                request = self.router.parse(query, session)
+                self.assertIn(request.request_type, {"FOLLOW_UP", "PREFERENCE"}, query)
+                self.assertFalse(request.needs_topic_switch_confirmation)
+                answer = runner.execute(request, session)
+                self.assertIn("BTC", answer)
+                self.assertIn("H1", answer)
+                self.assertNotIn("Decision Factors", answer)
+                self.assertLess(len(answer), 2400)
+                self.assertIs(session.last_research_packet, packet)
+            self.assertEqual(fetch.call_count, count)
+            self.assertEqual(original, (packet.price, packet.decision, packet.stop_price, packet.tp1))
+            compare = self.router.parse("Bisa dibandingkan ETH?", session)
+            self.assertEqual(compare.request_type, "COMPARE")
+            self.assertEqual(compare.target_assets, ["BTC", "ETH"])
+            self.assertIn(format_price(session.last_quant_result.structure_levels["resistance"]), runner._render_explanation(session, "Kalau resistance tadi ditembus?"))
+            self.assertIn("deleveraging", runner._render_explanation(session, "Kalau funding naik tetapi OI turun?"))
+            self.assertNotIn("Funding negatif berarti", runner._render_explanation(session, "Kalau funding naik tetapi OI turun?"))
+
+    def test_ema_atr_and_data_integrity(self):
+        values = [100.0] * 21 + [110.0]
+        self.assertAlmostEqual(self.quant._ema(values, 8), 100 + 20 / 9)
+        candles = [{"time": i, "high": 101, "low": 99, "close": 100} for i in range(15)]
+        candles.append({"time": 15, "high": 110, "low": 99, "close": 109})
+        atr = self.quant._eval_volatility_regime(109, 110, 99, candles)
+        self.assertAlmostEqual(atr.details["atr"], (2 * 13 + 11) / 14)
+        future = {"time": 16, "close_time": (time.time() + 1000) * 1000, "high": 999, "low": 99, "close": 990}
+        clean, valid = self.quant._closed_candles(candles[::-1] + [future])
+        self.assertTrue(valid)
+        self.assertEqual(clean[-1]["close"], 109)
+        bad = {"high": float("nan"), "low": 1, "close": 3}
+        self.assertFalse(self.quant._closed_candles([bad])[1])
+        for stamp in (None, "2000-01-01T00:00:00Z", "2999-01-01T00:00:00Z"):
+            q = self.quant.evaluate("BTC", {"price": 100, "high": 130, "low": 90, "pct_change": 5, "observed_at": stamp}, klines=candles, market_type="perpetual")
+            self.assertEqual(q.decision, "NO_TRADE")
+            self.assertFalse(q.quality_gate_passed)
+        q = self.quant.evaluate("BTC", {"price": 100, "high": 130, "low": 90, "observed_at": datetime.now(timezone.utc).isoformat()}, klines=candles)
+        self.assertEqual(q.evidence_count, 1)
+        self.assertFalse(q.quality_gate_passed)
+        self.assertEqual(self.quant._eval_context_sentiment(None, None).quality, 0)
+
+    def test_derivative_provider_units(self):
+        row = {"symbol": "BTCUSDT", "price": 102, "index": 100, "funding_rate": -0.02, "open_interest": 1000000, "market": "Fixture"}
+        with patch.object(self.zerokey, "_get_json", side_effect=[None, [row]]):
+            data = self.zerokey.get_derivatives("BTC")
+        self.assertAlmostEqual(data["funding_rate"], -0.0002)
+        self.assertEqual(data["basis_bps"], 200)
+        self.assertEqual(data["open_interest_unit"], "USD")
+        ev = self.quant._eval_derivatives_basis(102, 0, data)
+        self.assertIsNone(ev.details["open_interest_change_pct"])
 
     def test_language_followup_rerenders_without_fetch(self):
         runner = CryptoResearchRunner()
@@ -238,8 +303,8 @@ class TestProductInteraction(unittest.TestCase):
                     self.assertIsNone(engine.generate_narrative(facts), phrase)
             with patch.object(engine, "_run_llama", return_value="BTC WAIT; harga di atas Fibonacci.") as inference:
                 self.assertIsNotNone(engine.generate_narrative(facts))
-                self.assertEqual(inference.call_args.kwargs["temp"], 0.55)
-                self.assertEqual(inference.call_args.kwargs["top_p"], 0.90)
+                self.assertEqual(inference.call_args.kwargs["temp"], 0.4)
+                self.assertEqual(inference.call_args.kwargs["top_p"], 0.8)
                 self.assertEqual(inference.call_args.kwargs["top_k"], 20)
                 self.assertEqual(inference.call_args.kwargs["presence_penalty"], 1.2)
             with patch.object(engine, "_run_llama", return_value='{"request_type":"ANALYZE","asset":"BTC"}') as inference:
@@ -418,7 +483,7 @@ class TestProductInteraction(unittest.TestCase):
 
         # Bearish cross near resistance -> material
         klines_stoch_ob = []
-        for _ in range(13):
+        for _ in range(14):
             klines_stoch_ob.append({"high": 100.0, "low": 50.0, "close": 85.0})
         klines_stoch_ob.append({"high": 100.0, "low": 50.0, "close": 95.0})
         klines_stoch_ob.append({"high": 100.0, "low": 50.0, "close": 98.0})

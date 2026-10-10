@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 import time
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -101,6 +102,10 @@ class QuantDecisionResult:
     arbitrage_item: dict[str, Any] = field(default_factory=dict)
     cycle_item: dict[str, Any] = field(default_factory=dict)
     lunar_item: dict[str, Any] = field(default_factory=dict)
+    data_freshness: str = "UNVERIFIED"
+    contradictions: list[str] = field(default_factory=list)
+    evidence_families: dict[str, str] = field(default_factory=dict)
+    structure_levels: dict[str, float] = field(default_factory=dict)
 
 
 class QuantEngine:
@@ -127,8 +132,16 @@ class QuantEngine:
         has_position_context: bool = False,
     ) -> QuantDecisionResult:
         price = validate_finite_number(spot_ticker.get("price"), min_val=0.0) or 0.0
-        high = validate_finite_number(spot_ticker.get("high"), min_val=0.0) or (price * 1.02)
-        low = validate_finite_number(spot_ticker.get("low"), min_val=0.0) or (price * 0.98)
+        high = validate_finite_number(spot_ticker.get("high"), min_val=0.0) or price
+        low = validate_finite_number(spot_ticker.get("low"), min_val=0.0) or price
+        range_valid = 0 < low <= price <= high and high > low
+        freshness = self._freshness(spot_ticker.get("observed_at"))
+        klines, candles_valid = self._closed_candles(klines)
+        bar_seconds = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800, "H1": 3600,
+                       "H4": 14400, "H6": 21600, "H12": 43200, "D1": 86400, "W1": 604800}.get(timeframe, 3600)
+        last_close = (klines[-1].get("close_time") or klines[-1].get("time")) if klines else None
+        candle_age = (time.time() - last_close / 1000) if isinstance(last_close, (int, float)) else None
+        candles_fresh = candle_age is not None and 0 <= candle_age <= bar_seconds * 2
         volume = validate_finite_number(spot_ticker.get("volume"), min_val=0.0) or 0.0
         quote_vol = validate_finite_number(spot_ticker.get("quote_volume"), min_val=0.0) or (volume * price)
         pct_change = validate_finite_number(spot_ticker.get("pct_change")) or 0.0
@@ -140,6 +153,11 @@ class QuantEngine:
         s2 = pivot - (high - low)
         atr_approx = (high - low) * 0.5
         atr_buffer = max(price * 0.005, atr_approx * 0.5)
+
+        orderbook = orderbook if self._freshness((orderbook or {}).get("observed_at")) == "FRESH" else None
+        trades = trades if self._freshness((trades or {}).get("observed_at")) == "FRESH" else None
+        derivatives = derivatives if self._freshness((derivatives or {}).get("observed_at")) == "FRESH" else None
+        sentiment = sentiment if self._freshness((sentiment or {}).get("timestamp"), max_age=172800) == "FRESH" else None
 
         # 1. Base Evidence Blocks
         ev_trend = self._eval_trend_momentum(price, high, low, pct_change, klines, timeframe)
@@ -221,10 +239,14 @@ class QuantEngine:
         elif len(sources_list) <= 1:
             composite_quality = max(0.20, composite_quality - 0.05)
 
-        active_count = len([e for e in evidence_map.values() if e.quality >= 0.35])
+        # Price-derived confluence is one family, not several independent votes.
+        independent = {"Price": ev_trend, "Microstructure": ev_micro,
+                       "Derivatives": ev_deriv, "Context": ev_context}
+        active_count = sum(e.quality >= 0.35 for e in independent.values())
         quality_gate_passed = (
             active_count >= self.MIN_INDEPENDENT_EVIDENCE_COUNT
             and composite_quality >= self.MIN_COMPOSITE_QUALITY
+            and freshness == "FRESH" and range_valid and candles_valid and candles_fresh
         )
 
         if composite_quality >= 0.70 and active_count >= 4:
@@ -234,10 +256,12 @@ class QuantEngine:
         else:
             data_quality = "LOW"
         confidence = data_quality
+        if freshness != "FRESH" or not range_valid or not candles_valid or not candles_fresh:
+            data_quality = confidence = "LOW"
 
         regime = ev_vol.details.get("regime", "CHOPPY")
         atr = ev_vol.details.get("atr", atr_approx)
-        atr_buffer = max(price * 0.005, atr * 0.5)
+        atr_buffer = max(price * 0.005, atr * 0.5 if atr > 0 else (high - low) * 0.3)
 
         # --- Evaluate Candidate LONG ---
         long_stop = round(s1 - atr_buffer, 4 if price < 10 else 2)
@@ -312,7 +336,7 @@ class QuantEngine:
                 decision = "BUY"
                 chosen = cand_long
                 setup_quality = "STRONG"
-            elif composite_score <= -0.25:
+            elif composite_score <= -0.25 and quality_gate_passed:
                 decision = "REDUCE" if has_position_context else "AVOID_ENTRY"
                 chosen = None
                 setup_quality = "MODERATE"
@@ -353,9 +377,9 @@ class QuantEngine:
             rr_str = "-"
 
             if not quality_gate_passed:
-                decision_reason = "Data consensus across public providers is insufficient for live risk allocation."
-                watch_trigger = "Wait for additional independent exchange feeds to establish price consensus."
-                why_now = "Konsensus data antar bursa publik belum mencapai batas kualitas minimum."
+                decision_reason = f"Price freshness {freshness}; candle integrity/freshness {'OK' if candles_valid and candles_fresh else 'DATA_GAP'}; {active_count} independent evidence families. Fresh, valid data and at least three families are required."
+                watch_trigger = "Verify fresh price, closed candles and independent order-flow/positioning/context evidence."
+                why_now = f"Harga {freshness}; candle {'valid/segar' if candles_valid and candles_fresh else 'belum valid/segar'}; {active_count} keluarga bukti independen. Konfluensi harga bukan konfirmasi independen."
             elif not long_rr_passed and not short_rr_passed:
                 decision_reason = f"Reward-to-risk at current price (Long 1:{long_rr:.2f}, Short 1:{short_rr:.2f}) does not meet 1:1.50 minimum gate."
                 watch_trigger = f"Wait for a structurally valid pullback or resistance reaction at {self._fmt_px(r1)} with sufficient R:R."
@@ -414,6 +438,15 @@ class QuantEngine:
             composite_score=composite_score,
             klines=klines,
         )
+        if not range_valid or not candles_valid:
+            bullish_val = bearish_val = None
+        contradictions = []
+        if ev_trend.direction_score * ev_micro.direction_score < -0.05:
+            contradictions.append("Trend and observed order flow disagree; require a closed-candle trigger with flow confirmation.")
+        if ev_trend.direction_score * ev_deriv.direction_score < -0.05 and deriv_available:
+            contradictions.append("Price trend and funding positioning disagree; crowded funding is a risk, not a reversal confirmation.")
+        if ev_micro.details.get("order_book_imbalance", 0) * ev_micro.details.get("trade_flow_imbalance", 0) < -0.02:
+            contradictions.append("Resting book and executed trade flow disagree; book liquidity alone does not confirm buying/selling.")
 
         why = {
             "Trend": f"{ev_trend.summary} ({ev_trend.direction_score:+.2f})",
@@ -491,19 +524,73 @@ class QuantEngine:
             arbitrage_item=arbitrage_item,
             cycle_item=cycle_item,
             lunar_item=lunar_item,
+            data_freshness=freshness,
+            contradictions=contradictions,
+            evidence_families={k: e.summary for k, e in independent.items() if e.quality >= 0.35},
+            structure_levels={"support": s1, "resistance": r1, "pivot": pivot},
         )
+
+    @staticmethod
+    def _freshness(observed_at: Any, max_age: float = 180) -> str:
+        try:
+            if isinstance(observed_at, (int, float)) or str(observed_at).isdigit():
+                stamp = datetime.fromtimestamp(float(observed_at), timezone.utc)
+            else:
+                stamp = datetime.fromisoformat(str(observed_at).replace("Z", "+00:00"))
+            if stamp.tzinfo is None:
+                return "UNVERIFIED"
+            age = (datetime.now(timezone.utc) - stamp).total_seconds()
+            return "FRESH" if -5 <= age <= max_age else "STALE" if age > max_age else "FUTURE"
+        except (TypeError, ValueError, OverflowError, OSError):
+            return "UNVERIFIED"
+
+    @staticmethod
+    def _closed_candles(candles: list[dict[str, Any]] | None) -> tuple[list[dict[str, Any]], bool]:
+        accepted = []
+        valid = True
+        now_ms = time.time() * 1000
+        seen = set()
+        for candle in sorted(candles or [], key=lambda c: validate_finite_number(c.get("time")) or 0):
+            end = validate_finite_number(candle.get("close_time"))
+            start = validate_finite_number(candle.get("time"))
+            if candle.get("is_closed") is False or (end is not None and end > now_ms) or (start is not None and start > now_ms):
+                continue
+            values = [validate_finite_number(candle.get(k), min_val=0) for k in ("high", "low", "close")]
+            high, low, close = values
+            opening = validate_finite_number(candle.get("open", close), min_val=0)
+            if None in values or opening is None or not 0 < low <= min(opening, close) <= max(opening, close) <= high:
+                valid = False
+                continue
+            stamp = candle.get("time")
+            if stamp is not None and stamp in seen:
+                valid = False
+                continue
+            if stamp is not None:
+                seen.add(stamp)
+            accepted.append({**candle, "high": high, "low": low, "close": close, "open": opening,
+                             "volume": validate_finite_number(candle.get("volume"), min_val=0) or 0.0})
+        return accepted, valid
+
+    @staticmethod
+    def _ema(values: list[float], period: int) -> float:
+        alpha = 2.0 / (period + 1)
+        result = values[0]
+        for value in values[1:]:
+            result += alpha * (value - result)
+        return result
 
     def _eval_trend_momentum(
         self, price: float, high: float, low: float, pct_change: float, klines: list[dict[str, Any]] | None, timeframe: str = "H1"
     ) -> EvidenceBlockResult:
-        if klines and len(klines) >= 10:
+        ema8 = ema21 = None
+        if klines and len(klines) >= 21:
             closes = [c["close"] for c in klines]
             h1_ret = (closes[-1] - closes[-2]) / closes[-2] if len(closes) >= 2 else 0.0
             h4_ret = (closes[-1] - closes[-5]) / closes[-5] if len(closes) >= 5 else 0.0
 
-            ema8 = sum(closes[-8:]) / 8.0
-            ema21 = sum(closes[-21:]) / len(closes[-21:])
-            ema_bias = 0.5 if ema8 > ema21 else -0.5
+            ema8 = self._ema(closes, 8)
+            ema21 = self._ema(closes, 21)
+            ema_bias = 0.5 if ema8 > ema21 else -0.5 if ema8 < ema21 else 0.0
 
             range_span = high - low
             loc = (price - low) / range_span if range_span > 0 else 0.5
@@ -522,7 +609,8 @@ class QuantEngine:
             direction_score=round(score, 2),
             quality=quality,
             summary=summary,
-            details={"score": round(score, 2), "pct_change": pct_change, "timeframe": timeframe},
+            details={"score": round(score, 2), "pct_change": pct_change, "timeframe": timeframe,
+                     "ema8": ema8, "ema21": ema21, "return_horizon": "1 and 4 bars; not independent higher-timeframe candles"},
         )
 
     def _eval_volatility_regime(
@@ -530,17 +618,18 @@ class QuantEngine:
     ) -> EvidenceBlockResult:
         range_pct = ((high - low) / low * 100.0) if low > 0 else 0.0
 
-        atr = (high - low) * 0.6
-        if klines and len(klines) >= 14:
+        atr = 0.0
+        if klines and len(klines) >= 15:
             tr_list = []
-            for i in range(1, min(15, len(klines))):
+            for i in range(1, len(klines)):
                 c_prev = klines[i - 1]["close"]
                 h_cur = klines[i]["high"]
                 l_cur = klines[i]["low"]
                 tr = max(h_cur - l_cur, abs(h_cur - c_prev), abs(l_cur - c_prev))
                 tr_list.append(tr)
-            if tr_list:
-                atr = sum(tr_list) / len(tr_list)
+            atr = sum(tr_list[:14]) / 14
+            for tr in tr_list[14:]:
+                atr = (atr * 13 + tr) / 14
 
         if range_pct > 8.0:
             regime = "VOLATILE"
@@ -562,9 +651,10 @@ class QuantEngine:
         return EvidenceBlockResult(
             name="Volatility / Regime",
             direction_score=round(score, 2),
-            quality=0.80,
+            quality=0.80 if atr > 0 else 0.30,
             summary=summary,
-            details={"regime": regime, "atr": atr, "range_pct": range_pct},
+            details={"regime": regime, "atr": atr, "range_pct": range_pct,
+                     "atr_status": "WILDER_14" if atr > 0 else "DATA_GAP"},
         )
 
     def _eval_microstructure_liquidity(
@@ -577,31 +667,26 @@ class QuantEngine:
         trades: dict[str, Any] | None,
         spot_ticker: dict[str, Any],
     ) -> EvidenceBlockResult:
-        vol_score = 0.0
         if quote_vol > 500_000_000:
             liq_label = "Tier 1 Liquid"
-            vol_score = 0.20 if pct_change >= 0 else -0.20
         elif quote_vol > 50_000_000:
             liq_label = "Moderate Liquid"
-            vol_score = 0.10 if pct_change >= 0 else -0.10
         elif quote_vol > 5_000_000:
             liq_label = "Low Liquidity"
-            vol_score = -0.10
         else:
             liq_label = "Illiquid / Thin"
-            vol_score = -0.30
 
         ob_imbalance = 0.0
         microprice_dev = 0.0
         has_ob = False
-        if orderbook and "imbalance" in orderbook:
+        if orderbook and validate_finite_number(orderbook.get("imbalance"), min_val=-1, max_val=1) is not None:
             has_ob = True
             ob_imbalance = float(orderbook.get("imbalance") or 0.0)
-            microprice_dev = float(orderbook.get("microprice_dev_bps") or 0.0)
+            microprice_dev = validate_finite_number(orderbook.get("microprice_dev_bps")) or 0.0
 
         trade_flow = 0.0
         trade_status = "DATA_GAP"
-        if trades and trades.get("status") == "OK":
+        if trades and trades.get("status") == "OK" and validate_finite_number(trades.get("trade_flow_imbalance"), min_val=-1, max_val=1) is not None:
             trade_status = "CONFIRMED"
             trade_flow = float(trades.get("trade_flow_imbalance") or 0.0)
 
@@ -623,11 +708,11 @@ class QuantEngine:
             quality = 0.70
             summary = f"Trade flow imbalance {trade_flow:+.2f} ({liq_label})"
         else:
-            micro_score = vol_score
-            quality = 0.55
-            summary = f"Volume confirmed ({liq_label})"
+            micro_score = 0.0
+            quality = 0.0
+            summary = f"Order book / trade flow DATA_GAP ({liq_label}); turnover is not order flow"
 
-        combined_score = max(-1.0, min(1.0, (vol_score * 0.3) + (micro_score * 0.7)))
+        combined_score = max(-1.0, min(1.0, micro_score))
 
         return EvidenceBlockResult(
             name="Microstructure / Liquidity",
@@ -656,11 +741,13 @@ class QuantEngine:
                 details={},
             )
 
-        funding_rate = float(derivatives.get("funding_rate") or 0.0)
-        zscore = float(derivatives.get("funding_zscore") or 0.0)
-        basis = float(derivatives.get("basis") or 0.0)
-        basis_bps = float(derivatives.get("basis_bps") or (basis / price * 10000.0 if price > 0 else 0.0))
-        oi = float(derivatives.get("open_interest") or 0.0)
+        funding_rate = validate_finite_number(derivatives.get("funding_rate"))
+        if funding_rate is None:
+            return EvidenceBlockResult("Derivatives / Basis", 0, 0, "Funding DATA_GAP")
+        zscore = validate_finite_number(derivatives.get("funding_zscore")) or 0.0
+        basis = validate_finite_number(derivatives.get("basis")) or 0.0
+        basis_bps = validate_finite_number(derivatives.get("basis_bps")) or 0.0
+        oi = validate_finite_number(derivatives.get("open_interest"), min_val=0)
 
         if funding_rate > 0.0004 or zscore > 2.0:
             score = -0.55
@@ -694,22 +781,25 @@ class QuantEngine:
                 "basis": basis,
                 "basis_bps": round(basis_bps, 2),
                 "open_interest": oi,
+                "open_interest_unit": derivatives.get("open_interest_unit", "UNKNOWN"),
+                "open_interest_change_pct": None,
             },
         )
 
     def _eval_context_sentiment(
         self, sentiment: dict[str, Any] | None, stablecoins: dict[str, Any] | None, is_major: bool = True
     ) -> EvidenceBlockResult:
-        if not sentiment:
+        fng_val = validate_finite_number((sentiment or {}).get("value"), min_val=0, max_val=100)
+        if fng_val is None:
             return EvidenceBlockResult(
                 name="Context / Sentiment",
                 direction_score=0.0,
-                quality=0.50,
-                summary="Sentiment neutral / default",
+                quality=0.0,
+                summary="Sentiment DATA_GAP",
                 details={},
             )
 
-        fng_val = int(sentiment.get("value", 50))
+        fng_val = int(fng_val)
         fng_cls = sentiment.get("classification", "Neutral")
 
         if fng_val >= 75:
@@ -1117,7 +1207,7 @@ class QuantEngine:
         r1: float,
     ) -> tuple[EvidenceBlockResult, dict[str, Any], dict[str, Any]]:
         """Calculates Stochastic %K/%D and evaluates materiality based on crosses and structure."""
-        if not klines or len(klines) < 14 or price <= 0:
+        if not klines or len(klines) < 17 or price <= 0:
             item = {
                 "available": False,
                 "material": False,
@@ -1137,13 +1227,13 @@ class QuantEngine:
                 item,
             )
 
-        window = klines[-16:]
+        window = klines[-17:]
         highs = [float(c.get("high") if c.get("high") is not None else c.get("close", 0)) for c in window]
         lows = [float(c.get("low") if c.get("low") is not None else c.get("close", 0)) for c in window]
         closes = [float(c.get("close", 0)) for c in window]
 
         k_vals = []
-        for offset in (2, 1, 0):
+        for offset in (3, 2, 1, 0):
             sub_h = highs[len(highs) - 14 - offset : len(highs) - offset]
             sub_l = lows[len(lows) - 14 - offset : len(lows) - offset]
             c_val = closes[len(closes) - 1 - offset]
@@ -1153,10 +1243,10 @@ class QuantEngine:
             k = ((c_val - ll) / rng) * 100.0 if rng > 0 else 50.0
             k_vals.append(k)
 
-        prev_k = k_vals[1] if len(k_vals) >= 2 else k_vals[0]
-        curr_k = k_vals[2] if len(k_vals) >= 3 else k_vals[0]
-        curr_d = sum(k_vals) / len(k_vals)
-        prev_d = (k_vals[0] + k_vals[1]) / 2.0 if len(k_vals) >= 2 else prev_k
+        prev_k = k_vals[-2]
+        curr_k = k_vals[-1]
+        curr_d = sum(k_vals[-3:]) / 3
+        prev_d = sum(k_vals[:3]) / 3
 
         bull_cross = prev_k <= prev_d and curr_k > curr_d
         bear_cross = prev_k >= prev_d and curr_k < curr_d

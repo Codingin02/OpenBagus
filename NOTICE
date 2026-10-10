@@ -1,0 +1,6 @@
+OpenBagus
+Copyright Ahmad Bagus Idkholus Surur
+
+Optional third-party components retain their own notices and licenses.
+Puter.js SDK and Qwen3-4B: Apache-2.0. llama.cpp and DuckDB: MIT.
+Their binaries/packages are not distributed in this source repository.

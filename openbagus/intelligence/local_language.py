@@ -65,6 +65,13 @@ class NarrativeFacts:
     bullish_trigger_state: str = "UNKNOWN"
     bearish_trigger_level: float | None = None
     bearish_trigger_state: str = "UNKNOWN"
+    data_freshness: str = "UNVERIFIED"
+    contradictions: list[str] = field(default_factory=list)
+    evidence_families: dict[str, str] = field(default_factory=dict)
+    entry_zone: str = ""
+    stop_price: float | None = None
+    target_price: float | None = None
+    data_quality: str = "UNKNOWN"
 
 
 def format_price(value: float) -> str:
@@ -257,10 +264,24 @@ class LocalLanguageEngine:
 
         self.model_path = Path(custom_model) if custom_model else (model_path or MODEL_FILE)
         self.llama_bin = Path(custom_llama) if custom_llama else (llama_bin or LLAMA_SERVER_EXE)
+        from openbagus.intelligence.puter import PuterBackend
+        self.cloud = PuterBackend()
+        self.selected_backend = "local"
 
     def is_available(self) -> bool:
         """Returns True only if both llama-server and the canonical model exist."""
+        return self.cloud.enabled or self._local_available()
+
+    def _local_available(self) -> bool:
         return self.llama_bin.is_file() and self.model_path.is_file()
+
+    def _complete(self, prompt: str, **options: Any) -> str | None:
+        cloud = self.cloud.complete(prompt, options.get("temp", 0.0), options.get("max_tokens", 128))
+        if cloud:
+            self.selected_backend = "puter"
+            return cloud
+        self.selected_backend = "local"
+        return self._run_llama(prompt, **options)
 
     def get_runtime_state(self) -> str:
         """Returns runtime state: ACTIVE, FALLBACK, or UNAVAILABLE."""
@@ -333,7 +354,7 @@ class LocalLanguageEngine:
         timeout: float = 45.0,
     ) -> str | None:
         """Runs inference through one process-local loopback llama-server."""
-        if not self.is_available():
+        if not self._local_available():
             return None
         marker = "<|im_end|>\n<|im_start|>assistant\n"
         if marker in prompt and "/no_think" not in prompt:
@@ -381,7 +402,7 @@ class LocalLanguageEngine:
         last_asset = ctx.get("last_asset") or "null"
         last_market = ctx.get("last_market") or "PERPETUAL"
         last_tf = ctx.get("last_timeframe") or "H1"
-        recent_turns = ctx.get("recent_turns") or []
+        recent_turns = [] if self.cloud.enabled else (ctx.get("recent_turns") or [])
         history = "\n".join(
             f"User: {turn.get('user', '')}\nAssistant: {turn.get('assistant', '')[:240]}"
             for turn in recent_turns[-4:] if isinstance(turn, dict)
@@ -409,7 +430,7 @@ class LocalLanguageEngine:
             "<|im_start|>assistant\n"
         )
 
-        output = self._run_llama(system_instruction, max_tokens=128, temp=0.0, top_p=1.0, top_k=1)
+        output = self._complete(system_instruction, max_tokens=128, temp=0.0, top_p=1.0, top_k=1)
         if not output:
             return None
 
@@ -544,6 +565,13 @@ class LocalLanguageEngine:
                 bullish_trigger_state=getattr(getattr(packet, "bullish_validation", None), "trigger_state", "UNKNOWN"),
                 bearish_trigger_level=getattr(getattr(packet, "bearish_validation", None), "trigger_level", None),
                 bearish_trigger_state=getattr(getattr(packet, "bearish_validation", None), "trigger_state", "UNKNOWN"),
+                data_freshness=getattr(packet, "data_freshness", "UNVERIFIED"),
+                contradictions=getattr(packet, "contradictions", []),
+                evidence_families=getattr(packet, "evidence_families", {}),
+                entry_zone=getattr(packet, "entry_zone", ""),
+                stop_price=getattr(packet, "stop_price", None),
+                target_price=getattr(packet, "tp1", None),
+                data_quality=getattr(packet, "data_quality", "UNKNOWN"),
             )
         if facts.fibonacci_level is not None:
             facts.price_vs_fib = "ABOVE" if facts.price > facts.fibonacci_level else ("BELOW" if facts.price < facts.fibonacci_level else "AT")
@@ -558,7 +586,7 @@ class LocalLanguageEngine:
             f"1. You MUST keep the decision '{facts.decision}' and asset '{facts.asset}'.\n"
             "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts.\n"
             "Unconfirmed or UNKNOWN triggers are future conditions, never completed breakouts/breakdowns. Use conditional language.\n"
-            "3. Sound like an objective institutional consultant giving high-conviction decision support, not an AI bot.\n"
+            "3. Use short plain paragraphs, matching the question. Confidence categories describe data quality, not calibrated odds. Never invent whale activity, event dates or performance.\n"
             "4. Do NOT repeat formulaic phrases or dump a full report when the user asks a narrow follow-up.<|im_end|>\n"
             f"<|im_start|>user\nQuestion: {user_query or 'Explain the current research view.'}\nFacts from QuantEngine:\n"
             f"- Asset: {facts.asset} ({facts.timeframe})\n"
@@ -569,6 +597,11 @@ class LocalLanguageEngine:
             f"- Quant Decision: {facts.decision}\n"
             f"- Market Regime: {facts.regime}\n"
             f"- Reason: {facts.reason} (RR: {facts.reward_risk_str})\n"
+            f"- Data freshness: {facts.data_freshness}\n"
+            f"- Data quality: {facts.data_quality} (never upgrade this category)\n"
+            f"- Entry: {facts.entry_zone}; stop: {facts.stop_price}; target: {facts.target_price}\n"
+            f"- Independent evidence: {json.dumps(facts.evidence_families)}\n"
+            f"- Contradictions: {json.dumps(facts.contradictions)}\n"
             f"- Bullish Validation: {facts.bullish_trigger}\n"
             f"- Bearish Validation: {facts.bearish_trigger}\n"
             f"- Bullish trigger level/state: {facts.bullish_trigger_level} / {facts.bullish_trigger_state}\n"
@@ -587,8 +620,8 @@ class LocalLanguageEngine:
             current_prompt = prompt if attempt == 0 else prompt.replace(
                 "STRICT RULES:\n", "STRICT RULES:\nPrevious wording failed factual validation. Use only the supplied facts and conditional trigger language.\n",
             )
-            res = self._run_llama(
-                current_prompt, max_tokens=400, temp=0.55, top_p=0.90,
+            res = self._complete(
+                current_prompt, max_tokens=400, temp=0.4, top_p=0.8,
                 top_k=20, presence_penalty=1.2,
             )
             if res:
@@ -609,6 +642,22 @@ class LocalLanguageEngine:
 
         # Semantic Grounding Guard 1: Fibonacci relative position contradiction
         lower_narrative = clean_narrative.lower()
+        from openbagus.delivery.safety import scan_text
+        if not scan_text(clean_narrative)["passed"]:
+            return False
+        if re.search(r"\b(?:win.?rate|accuracy|probability|peluang|akurasi)\b.{0,30}\d+\s*%|\b(?:whales?\s+(?:buying|selling|accumulat)|paus\s+(?:membeli|menjual|akumulasi))", lower_narrative):
+            return False
+        if re.search(r"(?:decision|keputusan|recommendation)\s*[:=]?\s*(?:long|short|buy)\b", lower_narrative) and facts.decision in {"WAIT", "NO_TRADE", "AVOID_ENTRY"}:
+            return False
+        if facts.data_quality.upper() == "LOW" and re.search(r"kualitas\s+data\s+(?:tinggi|baik|memadai)|(?:high|good|adequate)\s+(?:data\s+)?quality|data\s+quality\s*[:=]?\s*high|konsistensi\s+pasar", lower_narrative):
+            return False
+        if facts.data_freshness not in {"FRESH", "UNVERIFIED"} and re.search(r"data\s+(?:segar|fresh)|fresh\s+data", lower_narrative):
+            return False
+        for name, expected in ((r"stop(?: loss)?|sl|invalidasi", facts.stop_price), (r"target|tp1", facts.target_price)):
+            for claim in re.finditer(r"(?:" + name + r")\s*(?:at|di|pada|:|=)?\s*\$([0-9,]+(?:\.[0-9]+)?)", lower_narrative):
+                # Conditional scenarios have their own levels, not an active stop/target.
+                if expected is not None and float(claim.group(1).replace(",", "")) != expected:
+                    return False
         confirmed_up = r"(?:crossed|closed|broke|broken)\s+above|breakout\s+(?:confirmed|has\s+occurred)|sudah\s+(?:menembus|breakout|close\s+di\s+atas)|telah\s+(?:menembus|breakout)"
         confirmed_down = r"(?:crossed|closed|broke|broken)\s+below|breakdown\s+(?:confirmed|has\s+occurred)|sudah\s+(?:breakdown|close\s+di\s+bawah|menembus\s+(?:ke\s+)?bawah)|telah\s+(?:breakdown|menembus\s+bawah)"
         if facts.bullish_trigger_state != "CONFIRMED" and re.search(confirmed_up, lower_narrative):
@@ -623,7 +672,7 @@ class LocalLanguageEngine:
                 return False
 
         # Semantic Grounding Guard 2: Hallucinated date / temporal horizon
-        raw_facts = f"{facts.price} {format_price(facts.price)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)}"
+        raw_facts = f"{facts.price} {format_price(facts.price)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)} {facts.evidence_families} {facts.contradictions} {facts.entry_zone} {facts.stop_price} {facts.target_price}"
         for phrase in ("akhir bulan", "end of month", "bulan depan", "next month", "minggu depan", "next week"):
             if phrase in lower_narrative and phrase not in " ".join(facts.event_dates).lower():
                 return False

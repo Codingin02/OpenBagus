@@ -58,6 +58,9 @@ class ResearchPacket:
     macro_item: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
     large_flow_item: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
     experimental_lunar: dict[str, Any] = field(default_factory=lambda: {"available": False, "material": False, "direction": "NEUTRAL", "quality": 0.0, "values": {}})
+    data_freshness: str = "UNVERIFIED"
+    contradictions: list[str] = field(default_factory=list)
+    evidence_families: dict[str, str] = field(default_factory=dict)
 
 
 def _fmt_price(val: float | None) -> str:
@@ -136,6 +139,8 @@ class CryptoResearchRunner:
                     return "Language preference requires an active session."
                 session.language = "ID" if req.preference_action == "language_id" else "EN"
                 if session.last_quant_result and session.last_research_packet:
+                    if session.explanation_depth == "simple":
+                        return self._render_explanation(session, "jelaskan sederhana" if session.language == "ID" else "explain simply")
                     packet = session.last_research_packet
                     return self._render_section_25_view(session.last_quant_result, packet=packet,
                         market_type="perpetual" if packet.market == "PERPETUAL" else "spot",
@@ -271,6 +276,8 @@ class CryptoResearchRunner:
         # 7. Conversational Follow-up on Previous Levels / Trade Setup
         if req.request_type in ("FOLLOW_UP", "EXPLAIN_LEVELS"):
             if session and session.last_quant_result and session.last_asset == req.asset:
+                if req.request_type == "FOLLOW_UP" and session.last_research_packet:
+                    return self._render_explanation(session, req.raw_query)
                 return self._render_followup_levels_explanation(session.last_quant_result, req.raw_query)
 
         if req.needs_asset:
@@ -321,8 +328,8 @@ class CryptoResearchRunner:
                     "symbol": symbol,
                     "price": price_usd,
                     "open": None,
-                    "high": price_usd * 1.02,
-                    "low": price_usd * 0.98,
+                    "high": price_usd,
+                    "low": price_usd,
                     "volume": vol_usd,
                     "quote_volume": vol_usd,
                     "pct_change": 0.0,
@@ -343,8 +350,8 @@ class CryptoResearchRunner:
                         "symbol": symbol,
                         "price": p,
                         "open": r.get("open"),
-                        "high": r.get("high") or (p * 1.02),
-                        "low": r.get("low") or (p * 0.98),
+                        "high": r.get("high") or p,
+                        "low": r.get("low") or p,
                         "volume": r.get("volume") or 0.0,
                         "quote_volume": r.get("volume") or 0.0,
                         "pct_change": 0.0,
@@ -473,6 +480,9 @@ class CryptoResearchRunner:
             macro_item=macro_item,
             large_flow_item=lf_item,
             experimental_lunar=q.lunar_item,
+            data_freshness=q.data_freshness,
+            contradictions=q.contradictions,
+            evidence_families=q.evidence_families,
         )
 
         # Update session memory
@@ -556,6 +566,8 @@ class CryptoResearchRunner:
         if self.local_llm.is_available():
             try:
                 narrative = self.local_llm.generate_narrative(packet, user_query=raw_query, language=lang)
+                if session:
+                    session.language_backend = self.local_llm.selected_backend
             except (ValueError, TypeError, AttributeError):
                 narrative = None
 
@@ -565,8 +577,7 @@ class CryptoResearchRunner:
                 if q.decision in ("NO_TRADE", "WAIT", "AVOID_ENTRY", "REDUCE"):
                     narrative = (
                         f"Pada timeframe {q.timeframe}, struktur pergerakan harga {q.asset} saat ini berada dalam rezim {q.regime.lower()} di sekitar {_fmt_price(q.price)}. "
-                        f"{q.decision_reason} "
-                        f"Research View: {q.decision}; tidak ada instruksi eksekusi. "
+                        f"{q.why_now or q.decision_reason} "
                         f"Bias bullish memerlukan konfirmasi {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}, "
                         f"sementara pembatalan dan skenario short terbuka jika {q.bearish_validation.trigger_condition if q.bearish_validation else 'support patah'}."
                     )
@@ -581,7 +592,6 @@ class CryptoResearchRunner:
                     narrative = (
                         f"On the {q.timeframe} timeframe, {q.asset} price structure is currently in a {q.regime.lower()} regime around {_fmt_price(q.price)}. "
                         f"{q.decision_reason} "
-                        f"Research View: {q.decision}; no execution instruction. "
                         f"Bullish continuation requires confirmed {q.bullish_validation.trigger_condition if q.bullish_validation else 'breakout'}, "
                         f"while downside risk opens if {q.bearish_validation.trigger_condition if q.bearish_validation else 'support breaks'}."
                     )
@@ -604,6 +614,8 @@ class CryptoResearchRunner:
         packet.narrative = narrative
         lines.append("")
         lines.append(narrative)
+        if q.contradictions:
+            lines.append("\n" + ("Bukti belum searah: " if lang == "id" else "Conflicting evidence: ") + " ".join(q.contradictions))
 
         # Execution or conditional activation levels
         if q.decision in ("BUY", "LONG", "SHORT") and q.stop_price and q.tp1:
@@ -614,14 +626,14 @@ class CryptoResearchRunner:
             lines.append(f"Reward:Risk    {q.reward_risk_str}")
             if market_type.lower() == "perpetual":
                 lines.append(f"Leverage       {q.leverage_ceiling}")
-        elif q.bullish_validation or q.bearish_validation:
+        elif (q.bullish_validation or q.bearish_validation) and (len(raw_query.split()) <= 1 or re.search(r"\b(?:long|short|position|posisi|entry|stop|risk|setup)\b", raw_query, re.I)):
             lines.append("")
             lines.append("Conditional setup:")
             for label, prefix, scenario in (("Bullish", "Long valid if :", q.bullish_validation), ("Bearish", "Short valid if:", q.bearish_validation)):
                 if scenario:
                     lines.append(f"  {label} scenario ({scenario.scenario_type})")
                     lines.append(f"  {prefix} {scenario.trigger_condition}. Entry: {scenario.entry_zone}, Stop: {_fmt_price(scenario.stop_price)}, Target: {_fmt_price(scenario.tp1)} (R:R {scenario.reward_risk_str})")
-        elif q.decision in {"WAIT", "NO_TRADE", "AVOID_ENTRY", "REDUCE"}:
+        elif q.decision in {"WAIT", "NO_TRADE", "AVOID_ENTRY", "REDUCE"} and not (q.bullish_validation or q.bearish_validation):
             lines.append("\nConditional setup: tidak ada candidate dengan geometri dan RR struktural yang memadai." if lang == "id" else "\nConditional setup: no candidate passes structural geometry and RR requirements.")
 
         # C6. Conditional Evidence (only factors with sufficient MATERIALITY appear in normal output)
@@ -666,6 +678,57 @@ class CryptoResearchRunner:
             lines.append(f"\nSources: {', '.join(q.sources)}")
 
         return "\n".join(lines)
+
+    def _render_explanation(self, session: SessionState, query: str) -> str:
+        q, packet = session.last_quant_result, session.last_research_packet
+        lower = query.lower()
+        if re.search(r"sederhana|simple|simply", lower):
+            session.explanation_depth = "simple"
+        lang = session.language.lower() if session.language in {"ID", "EN"} else ("en" if re.search(r"\b(?:why|what|how|explain)\b", lower) else "id")
+        if "funding" in lower or re.search(r"\boi\b", lower):
+            oi_down = re.search(r"\boi\b\s+(?:is\s+|sedang\s+)?(?:turun|menurun|falling|declining|down)\b", lower)
+            funding_up = re.search(r"\bfunding\b\s+(?:is\s+|sedang\s+)?(?:naik|meningkat|rising|up)\b", lower)
+            negative = re.search(r"funding\s+(?:tetap\s+|is\s+)?(?:negatif|negative)", lower)
+            if oi_down and funding_up:
+                text = ("Funding naik saat OI turun berarti biaya posisi berubah ketika kontrak terbuka justru berkurang. Ini dapat mencerminkan penutupan posisi atau deleveraging, bukan konfirmasi long baru. Funding yang naik belum tentu sudah positif atau crowded. Cocokkan venue, waktu dan satuan OI, lalu cek apakah harga bertahan dengan dukungan spot/flow."
+                        if lang == "id" else "Rising funding with falling OI means positioning costs change while outstanding contracts shrink. This may reflect closing positions or deleveraging, not fresh-long confirmation. Rising funding is not necessarily positive or crowded. Align venue, time and OI units, then check price and spot/flow support.")
+            else:
+                text = ("OI mengukur jumlah kontrak terbuka, bukan arah posisi. " if lang == "id" else "OI measures outstanding contracts, not a direction. ")
+                if negative:
+                    text += ("Funding negatif berarti short membayar long. OI yang bertambah dapat mencerminkan hedging atau short baru, bukan bukti otomatis squeeze. " if lang == "id" else "Negative funding means shorts pay longs. Growing OI may reflect hedging or new shorts, not an automatic squeeze. ")
+                else:
+                    text += ("Funding positif berarti long membayar short; negatif berarti kebalikannya. Nilai funding saja tidak membuktikan crowding atau perubahan OI. " if lang == "id" else "Positive funding means longs pay shorts; negative funding reverses this. Funding alone proves neither crowding nor an OI change. ")
+                text += ("Bandingkan perubahan OI pada venue dan satuan yang sama, lalu cari konfirmasi harga dan transaksi agresif." if lang == "id" else "Compare OI changes on the same venue and unit, then require price and aggressive-flow confirmation.")
+            text += " " + ("Ini pertanyaan hipotesis, bukan observasi OI baru untuk " if lang == "id" else "This is a hypothetical, not a new OI observation for ") + q.asset + "."
+        elif "fomc" in lower or "cpi" in lower:
+            text = ("Kejutan kebijakan Fed dapat mengubah dollar, yield dan likuiditas crypto. Untuk skenario ini, tunggu reaksi harga setelah rilis: jangan menganggap kondisi sebelum event tetap berlaku. " if lang == "id" else "A Fed policy surprise can change the dollar, yields and crypto liquidity. Wait for the post-release price reaction; pre-event conditions may no longer apply. ")
+            text += packet.event_risk or ("Jadwal dan hasil event belum terverifikasi dalam snapshot ini." if lang == "id" else "The event date and outcome are unverified in this snapshot.")
+        elif "resistance" in lower or "support" in lower:
+            scenario = q.bearish_validation if "support" in lower else q.bullish_validation
+            level = q.structure_levels.get("support" if "support" in lower else "resistance")
+            if scenario:
+                text = ("Level struktur sebelumnya tetap " if lang == "id" else "The previous structural level remains ") + _fmt_price(level or scenario.trigger_level or scenario.entry_price) + ". "
+                text += ("Menembus sesaat belum cukup: perlukan candle tertutup dan konfirmasi flow. Snapshot ini tidak membuktikan breakout baru. " if lang == "id" else "A brief cross is insufficient: require a closed candle and flow confirmation. This snapshot does not prove a new breakout. ")
+                if scenario.scenario_type in {"Breakout", "Breakdown"}:
+                    text += f"{scenario.trigger_condition}. Entry {scenario.entry_zone}; stop {_fmt_price(scenario.stop_price)}; target {_fmt_price(scenario.tp1)}; R:R {scenario.reward_risk_str}."
+                else:
+                    text += (f"Candidate lama adalah {scenario.scenario_type} di {scenario.entry_zone}, bukan entry breakout/breakdown baru. Geometri dan RR setelah tembus perlu dihitung ulang dengan data baru." if lang == "id" else f"The prior candidate is a {scenario.scenario_type} at {scenario.entry_zone}, not a new breakout/breakdown entry. Revalidate geometry and RR on fresh data after a cross.")
+            else:
+                text = ("Level sebelumnya " if lang == "id" else "Previous level ") + _fmt_price(level) + ". " if level else ""
+                text += "Belum ada level pemicu dengan geometri dan RR valid." if lang == "id" else "No trigger currently has valid geometry and RR."
+        else:
+            text = (q.why_now or q.decision_reason) if lang == "id" else q.decision_reason
+            if session.explanation_depth == "simple":
+                text = ("Belum ada alasan cukup untuk entry. Harga saja tidak cukup: data harus segar, bukti searah, dan jarak target harus sepadan dengan risiko." if lang == "id" else "There is not enough evidence for an entry. Price alone is insufficient: data must be fresh, evidence aligned, and reward proportionate to risk.") if q.decision in {"WAIT", "NO_TRADE"} else text
+            if q.candidate_long and not q.candidate_long.rr_gate_passed:
+                text += f" Long R:R {q.candidate_long.reward_risk_str}."
+            if q.contradictions:
+                text += " " + " ".join(q.contradictions)
+        # Narrow follow-ups use only the relevant deterministic facts; no market refetch.
+        header = f"{q.asset} / {q.timeframe} / {q.decision}"
+        stale = QuantEngine._freshness(session.last_research_at) != "FRESH"
+        suffix = ("Snapshot lama; level ini bukan konfirmasi harga terbaru." if lang == "id" else "Older snapshot; these levels are not a current price confirmation.") if stale else ""
+        return "\n\n".join(part for part in (header, text, suffix) if part)
 
     def _render_capital_view(
         self,

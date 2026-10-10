@@ -139,3 +139,8 @@ reports/runtime/**
 !reports/runtime/.gitkeep
 reports/runtime/app_dist/**
 
+# Optional language SDK and user-owned feedback/auth data
+node_modules/
+cloud/
+feedback/
+
