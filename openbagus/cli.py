@@ -65,6 +65,11 @@ MODES = (
     "cache",
     "privacy",
     "reset",
+    "gmail",
+    "whatsapp",
+    "autonomy",
+    "alerts",
+    "delivery",
 )
 
 BANNER = r"""
@@ -620,6 +625,270 @@ def _run_setup() -> int:
     return 0
 
 
+def _run_gmail(sub_args: list[str]) -> int:
+    from openbagus.delivery.gmail import GmailOAuthTransport
+    transport = GmailOAuthTransport()
+    action = sub_args[0].lower() if sub_args else "status"
+
+    if action == "status":
+        status = transport.get_status()
+        print("\n=== OpenBagus Gmail OAuth Delivery ===")
+        print(f"Status:            {status['status']}")
+        print(f"Client Configured: {status['client_configured']}")
+        print(f"Connected:         {status['connected']}")
+        if status.get("email"):
+            print(f"Authorized Email:  {status['email']}")
+        print(f"Scope:             {status.get('scope')}")
+        print(f"Detail:            {status.get('detail')}")
+        print()
+        return 0
+
+    if action == "connect":
+        print("Launching Google OAuth 2.0 authorization in browser...")
+        res = transport.connect(open_browser=True)
+        if res.get("status") == "SUCCESS":
+            print(f"[PASS] {res.get('detail')}")
+            return 0
+        else:
+            print(f"[FAIL] {res.get('detail')}")
+            return 1
+
+    if action == "disconnect":
+        res = transport.disconnect()
+        print(f"[PASS] {res.get('detail')}")
+        return 0
+
+    if action == "test":
+        status = transport.get_status()
+        if not status.get("connected"):
+            print("[FAIL] Gmail not connected. Run 'openbagus gmail connect' first.")
+            return 1
+        recipient = sub_args[1] if len(sub_args) > 1 else (status.get("email") or "")
+        if not recipient:
+            print("[FAIL] Recipient required: openbagus gmail test <email>")
+            return 1
+        res = transport.send_message(
+            recipient=recipient,
+            subject="OpenBagus Test Notification",
+            text_body="This is an automated test message from your OpenBagus assistant verifying official Gmail API delivery.",
+        )
+        if res.get("status") == "SENT":
+            print(f"[PASS] Test email sent to {recipient}. Message ID: {res.get('message_id')}")
+            return 0
+        else:
+            print(f"[FAIL] Delivery failed: {res.get('detail')}")
+            return 1
+
+    if action == "send":
+        if len(sub_args) < 4:
+            print("Usage: openbagus gmail send <recipient> <subject> <body>")
+            return 1
+        recipient = sub_args[1]
+        subject = sub_args[2]
+        body = " ".join(sub_args[3:])
+        res = transport.send_message(recipient=recipient, subject=subject, text_body=body)
+        if res.get("status") == "SENT":
+            print(f"[PASS] Email sent to {recipient}. Message ID: {res.get('message_id')}")
+            return 0
+        else:
+            print(f"[FAIL] Delivery failed: {res.get('detail')}")
+            return 1
+
+    print("Usage: openbagus gmail status|connect|disconnect|test|send")
+    return 1
+
+
+def _run_whatsapp(sub_args: list[str]) -> int:
+    from openbagus.delivery.whatsapp_personal import (
+        PersonalWhatsAppTransport,
+        BaileysExperimentalTransport,
+    )
+    transport = PersonalWhatsAppTransport()
+    action = sub_args[0].lower() if sub_args else "status"
+
+    if action == "status":
+        status = transport.get_status()
+        baileys_status = BaileysExperimentalTransport().get_status()
+        print("\n=== OpenBagus Personal WhatsApp Delivery ===")
+        print(f"Transport:         {status['mode']}")
+        print(f"Status:            {status['status']}")
+        print(f"Phone:             {status.get('phone') or 'Not configured'}")
+        print(f"Detail:            {status['detail']}")
+        print("\n--- Experimental Multi-Device QR (Baileys) ---")
+        print(f"Classification:    {baileys_status['classification']}")
+        print(f"Enabled:           {baileys_status['enabled']} (Disabled by default)")
+        print(f"Risk Notice:       {baileys_status['warning']}")
+        print()
+        return 0
+
+    if action == "connect":
+        if len(sub_args) < 2:
+            print("Usage: openbagus whatsapp connect <phone_number>")
+            return 1
+        phone = sub_args[1]
+        res = transport.connect(phone)
+        if res.get("status") == "CONNECTED":
+            print(f"[PASS] {res.get('detail')}")
+            return 0
+        else:
+            print(f"[FAIL] {res.get('detail')}")
+            return 1
+
+    if action == "disconnect":
+        res = transport.disconnect()
+        print(f"[PASS] {res.get('detail')}")
+        return 0
+
+    if action == "compose":
+        text = " ".join(sub_args[1:]) if len(sub_args) > 1 else "OpenBagus Market Update"
+        res = transport.compose(text=text)
+        print(f"[{res.get('status')}] {res.get('detail')}")
+        return 0
+
+    print("Usage: openbagus whatsapp status|connect|disconnect|compose")
+    return 1
+
+
+def _run_autonomy(sub_args: list[str]) -> int:
+    from openbagus.monitoring.autonomous import AutonomousMonitoringRuntime
+    runtime = AutonomousMonitoringRuntime()
+    action = sub_args[0].lower() if sub_args else "status"
+
+    if action == "status":
+        st = runtime.get_status()
+        print("\n=== OpenBagus Autonomous Monitoring ===")
+        print(f"Status:          {st['status']}")
+        print(f"Global Enabled:  {st['global_enabled']}")
+        print(f"Paused:          {st['paused']}")
+        print(f"Active Rules:    {st['active_rules_count']} of {st['total_rules_count']}")
+        if st.get("recent_alerts"):
+            print("\nRecent Alerts:")
+            for a in st["recent_alerts"]:
+                print(f"  [{a['timestamp']}] {a['asset']} ({a['decision']}): {a['headline']}")
+        else:
+            print("\nRecent Alerts:   None")
+        print()
+        return 0
+
+    if action in ("on", "enable", "start"):
+        res = runtime.enable()
+        print(f"[PASS] {res['detail']}")
+        return 0
+
+    if action in ("off", "disable", "stop"):
+        res = runtime.disable()
+        print(f"[PASS] {res['detail']}")
+        return 0
+
+    if action == "pause":
+        res = runtime.pause()
+        print(f"[PASS] {res['detail']}")
+        return 0
+
+    if action == "resume":
+        res = runtime.resume()
+        print(f"[PASS] {res['detail']}")
+        return 0
+
+    if action in ("eval", "tick"):
+        events = runtime.evaluate_tick()
+        print(f"[PASS] Evaluated rules. {len(events)} alert(s) triggered.")
+        for ev in events:
+            print(f"  -> [{ev.asset}] {ev.headline}")
+        return 0
+
+    print("Usage: openbagus autonomy status|on|off|pause|resume|eval")
+    return 1
+
+
+def _run_alerts(sub_args: list[str]) -> int:
+    from openbagus.monitoring.autonomous import AutonomousMonitoringRuntime
+    runtime = AutonomousMonitoringRuntime()
+    action = sub_args[0].lower() if sub_args else "list"
+
+    if action in ("list", "ls"):
+        rules = runtime.store.list_rules()
+        print("\n=== Active Monitoring Rules ===")
+        if not rules:
+            print("  No monitoring rules configured. Use 'openbagus alerts add <asset> [condition] [timeframe]'.")
+        else:
+            for r in rules:
+                stat = "ENABLED" if r.enabled else "DISABLED"
+                last_trig = r.last_triggered_at or "Never"
+                print(f"  [{r.rule_id}] {r.asset} ({r.timeframe}) - {r.condition} -> {stat} (Channels: {', '.join(r.channels)}, Last: {last_trig})")
+        print()
+        return 0
+
+    if action == "add":
+        if len(sub_args) < 2:
+            print("Usage: openbagus alerts add <asset> [condition] [timeframe] [channels]")
+            return 1
+        asset = sub_args[1].upper()
+        condition = sub_args[2].upper() if len(sub_args) > 2 else "ACTIONABLE_SETUP"
+        timeframe = sub_args[3].upper() if len(sub_args) > 3 else "H1"
+        channels = [c.strip() for c in sub_args[4].split(",")] if len(sub_args) > 4 else ["outbox"]
+        rule = runtime.add_alert_rule(asset=asset, timeframe=timeframe, condition=condition, channels=channels)
+        print(f"[PASS] Created alert rule {rule.rule_id} for {rule.asset} ({rule.condition}, {rule.timeframe}).")
+        return 0
+
+    if action in ("remove", "rm", "del"):
+        if len(sub_args) < 2:
+            print("Usage: openbagus alerts remove <rule_id>")
+            return 1
+        rule_id = sub_args[1]
+        ok = runtime.remove_alert_rule(rule_id)
+        if ok:
+            print(f"[PASS] Removed alert rule {rule_id}.")
+            return 0
+        else:
+            print(f"[FAIL] Rule {rule_id} not found.")
+            return 1
+
+    if action == "history":
+        alerts = runtime.store.list_recent_alerts(limit=20)
+        print("\n=== Alert History ===")
+        if not alerts:
+            print("  No alert history recorded.")
+        else:
+            for a in alerts:
+                print(f"  [{a['timestamp']}] {a['asset']} ({a['decision']}) - {a['headline']}")
+        print()
+        return 0
+
+    print("Usage: openbagus alerts list|add|remove|history")
+    return 1
+
+
+def _run_delivery(sub_args: list[str]) -> int:
+    action = sub_args[0].lower() if sub_args else "status"
+    if action == "status":
+        from openbagus.delivery.gmail import GmailOAuthTransport
+        from openbagus.delivery.whatsapp_personal import PersonalWhatsAppTransport, BaileysExperimentalTransport
+        env = RuntimeEnv(REPO_ROOT)
+        smtp_cfg = SmtpConfig.from_runtime_env(env)
+        smtp_enabled = (env.get("OPENBAGUS_EMAIL_LIVE_ENABLED", "false") or "false").lower() in {"1", "true", "yes", "on"}
+        smtp_state = "READY" if smtp_cfg.ready and smtp_enabled else "INVALID" if smtp_cfg.errors else "NOT CONFIGURED"
+
+        wa_cloud = WhatsAppCloudConfig.from_runtime_env(env)
+        wa_cloud_state = "READY" if wa_cloud.ready and wa_cloud.template_name else "TEMPLATE REQUIRED" if wa_cloud.ready else "INVALID" if wa_cloud.errors else "NOT CONFIGURED"
+
+        gmail_status = GmailOAuthTransport().get_status()["status"]
+        wa_personal_status = PersonalWhatsAppTransport().get_status()["status"]
+        baileys_status = BaileysExperimentalTransport().get_status()["status"]
+
+        print("\n=== OpenBagus Unified Delivery Overview ===")
+        print(f"1. SMTP Email:               {smtp_state}")
+        print(f"2. Official Gmail OAuth:      {gmail_status}")
+        print(f"3. Meta WhatsApp Cloud API:   {wa_cloud_state}")
+        print(f"4. Personal WhatsApp Compose: {wa_personal_status}")
+        print(f"5. Baileys Experimental QR:   {baileys_status} (Disabled by default)")
+        print()
+        return 0
+
+    print("Usage: openbagus delivery status")
+    return 1
+
+
 def _delivery_exit_code(steps: list[dict[str, Any]]) -> int:
     statuses = {str(step.get("status", "")) for step in steps}
     if any(status.startswith(("FAILED", "RUNTIME_FAILED", "SEND_FAILED")) or status in {"ANALYSIS_MISSING", "UNSUPPORTED_MODE"} for status in statuses):
@@ -770,7 +1039,12 @@ class OpenBagusShell(cmd.Cmd):
         print("  /setup                    configure optional API keys or email")
         print("  /doctor [network]         run local diagnostics (use /doctor network for live ping)")
         print("  /email                    manage optional email draft/check")
-        print("  /send email|whatsapp|all  send the current research result")
+        print("  /gmail [cmd]              manage official Google OAuth Gmail delivery")
+        print("  /whatsapp [cmd]           manage personal WhatsApp compose")
+        print("  /autonomy [cmd]           control autonomous monitoring runtime")
+        print("  /alerts [cmd]             manage monitoring and alert rules")
+        print("  /delivery [status]        unified delivery channels overview")
+        print("  /send email|gmail|wa|all  send the current research result")
         print("  /version                  show OpenBagus version")
         print("  /clear                    clear the terminal screen")
         print("  /exit                     close OpenBagus\n")
@@ -1000,10 +1274,30 @@ class OpenBagusShell(cmd.Cmd):
             return
         _run_pipeline(_namespace("email", email_action=action, confirm_live_send=confirmation))
 
+    def do_gmail(self, arg: str) -> None:
+        parts = shlex.split(arg) if arg.strip() else []
+        _run_gmail(parts)
+
+    def do_whatsapp(self, arg: str) -> None:
+        parts = shlex.split(arg) if arg.strip() else []
+        _run_whatsapp(parts)
+
+    def do_autonomy(self, arg: str) -> None:
+        parts = shlex.split(arg) if arg.strip() else []
+        _run_autonomy(parts)
+
+    def do_alerts(self, arg: str) -> None:
+        parts = shlex.split(arg) if arg.strip() else []
+        _run_alerts(parts)
+
+    def do_delivery(self, arg: str) -> None:
+        parts = shlex.split(arg) if arg.strip() else []
+        _run_delivery(parts)
+
     def do_send(self, arg: str) -> None:
         channel = arg.strip().lower()
-        if channel not in {"email", "whatsapp", "all"}:
-            print("Usage: /send email|whatsapp|all")
+        if channel not in {"email", "gmail", "whatsapp", "wa", "all"}:
+            print("Usage: /send email|gmail|whatsapp|all")
             return
         if not self.session.last_quant_result or not self.session.last_research_packet:
             print("No research result is available to send.")
@@ -1032,7 +1326,19 @@ class OpenBagusShell(cmd.Cmd):
                     results["Email"] = "AUTH FAILED"
                 except (OSError, smtplib.SMTPException):
                     results["Email"] = "SEND FAILED"
-        if channel in {"whatsapp", "all"}:
+        if channel in {"gmail"}:
+            from openbagus.delivery.gmail import GmailOAuthTransport
+            gmail_trans = GmailOAuthTransport()
+            if not gmail_trans.is_connected():
+                results["Gmail"] = "NOT CONNECTED (Run '/gmail connect')"
+            else:
+                user_email = (gmail_trans.token_store.load() or {}).get("email", "")
+                if user_email:
+                    res = gmail_trans.send_message(recipient=user_email, subject=rendered["subject"], text_body=rendered["text"], html_body=rendered["html"])
+                    results["Gmail"] = res.get("status", "FAILED")
+                else:
+                    results["Gmail"] = "RECIPIENT UNKNOWN"
+        if channel in {"whatsapp", "wa", "all"}:
             config = WhatsAppCloudConfig.from_runtime_env(runtime_env)
             status = WhatsAppCloudTransport(config).send(rendered["whatsapp"])["status"]
             results["WhatsApp"] = status.removeprefix("WHATSAPP_").replace("_", " ")
@@ -1047,12 +1353,21 @@ class OpenBagusShell(cmd.Cmd):
         if re.search(r"(?:kirim hasil ini ke email|email this analysis|send this to email)", lower):
             self.do_send("email")
             return
-        if re.search(r"(?:kirim hasil ini ke whatsapp|send to whatsapp|wa hasil ini)", lower):
+        if re.search(r"(?:kirim (?:hasil ini )?ke gmail|send (?:this )?to gmail)", lower):
+            self.do_send("gmail")
+            return
+        if re.search(r"(?:kirim hasil ini ke whatsapp|send to whatsapp|wa hasil ini|kirim ke wa)", lower):
             self.do_send("whatsapp")
             return
         if re.search(r"kirim ke email dan whatsapp", lower):
             self.do_send("all")
             return
+        if re.search(r"^(?:pantau|monitor|alert)\s+([a-zA-Z0-9]+)$", lower):
+            m = re.search(r"^(?:pantau|monitor|alert)\s+([a-zA-Z0-9]+)$", lower)
+            if m:
+                target_asset = m.group(1).upper()
+                self.do_alerts(f"add {target_asset}")
+                return
         req = self.router.parse(cleaned, session=self.session)
 
         # Strict Asset Context Switch Confirmation (Section B)
@@ -1229,6 +1544,21 @@ def main(argv: list[str] | None = None) -> int:
             for k, v in res.items():
                 print(f"  {k:<30} {v}")
             return 0
+        if args.mode == "gmail":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            return _run_gmail(sub_args)
+        if args.mode == "whatsapp":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            return _run_whatsapp(sub_args)
+        if args.mode == "autonomy":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            return _run_autonomy(sub_args)
+        if args.mode == "alerts":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            return _run_alerts(sub_args)
+        if args.mode == "delivery":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            return _run_delivery(sub_args)
         return _run_pipeline(args)
 
     query_text = " ".join(arguments)

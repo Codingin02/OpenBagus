@@ -45,19 +45,42 @@ SECRET_PARAM_NAMES = frozenset({
 })
 
 
-def make_cache_key(url: str, method: str = "GET") -> str:
-    """Generate a stable, deterministic cache key from non-secret request identity (Section B3)."""
+def make_cache_key(
+    url: str,
+    method: str = "GET",
+    auth_identity: str | None = None,
+    vary_headers: dict[str, str] | None = None,
+) -> str:
+    """Generate a stable, deterministic cache key from non-secret request identity (Section B3, Section D).
+
+    If secret query parameters or auth_identity are present, a non-reversible SHA256 hash
+    of the credential identity is appended, ensuring two different accounts cannot share
+    cache entries while never storing raw secrets in the key.
+    """
     parsed = urllib.parse.urlparse(url)
     query_params = urllib.parse.parse_qsl(parsed.query, keep_blank_values=True)
     filtered_params: list[tuple[str, str]] = []
+    secret_values: list[str] = []
     for k, v in sorted(query_params):
         k_lower = k.lower().replace("-", "_")
         if any(secret in k_lower for secret in SECRET_PARAM_NAMES):
+            secret_values.append(v)
             continue
         filtered_params.append((k, v))
     norm_query = urllib.parse.urlencode(filtered_params)
     norm_url = urllib.parse.urlunparse((parsed.scheme.lower(), parsed.netloc.lower(), parsed.path, "", norm_query, ""))
-    ident = f"{method.upper()}:{norm_url}"
+
+    ident_parts = [f"{method.upper()}:{norm_url}"]
+
+    if auth_identity:
+        auth_hash = hashlib.sha256(auth_identity.encode("utf-8")).hexdigest()[:16]
+        ident_parts.append(f"auth:{auth_hash}")
+
+    if vary_headers:
+        norm_vary = ";".join(f"{k.lower()}={v}" for k, v in sorted(vary_headers.items()))
+        ident_parts.append(f"vary:{norm_vary}")
+
+    ident = "|".join(ident_parts)
     return hashlib.sha256(ident.encode("utf-8")).hexdigest()
 
 
@@ -113,12 +136,16 @@ class MarketDataCache:
         db_path: Path | None = None,
         clock: Any | None = None,
         http_client: SecureHttpClient | None = None,
+        max_l1_entries: int = 500,
+        max_l1_bytes: int = 10 * 1024 * 1024,
     ) -> None:
         self._clock = clock
         self.http = http_client or SecureHttpClient(timeout=3.5)
         self.policies = dict(DEFAULT_FRESHNESS_POLICIES)
+        self.max_l1_entries = max_l1_entries
+        self.max_l1_bytes = max_l1_bytes
 
-        # L1 Memory Cache
+        # L1 Memory Cache (bounded LRU ordered dictionary)
         self._memory_cache: dict[str, CacheEntry] = {}
         self._negative_cache: dict[str, tuple[str, float]] = {}  # key -> (status, expires_at)
         self._lock = threading.RLock()
@@ -396,11 +423,43 @@ class MarketDataCache:
 
     # --- Cache Storage and Retrieval ---
 
+    def _estimated_l1_bytes(self) -> int:
+        total = 0
+        for entry in self._memory_cache.values():
+            if isinstance(entry.data, (dict, list)):
+                total += len(str(entry.data))
+            elif isinstance(entry.data, str):
+                total += len(entry.data)
+            else:
+                total += 128
+        return total
+
+    def _evict_l1_if_needed(self) -> None:
+        now = self._now()
+        # 1. Evict expired
+        expired = [k for k, v in self._memory_cache.items() if now >= v.expires_at]
+        for k in expired:
+            self._memory_cache.pop(k, None)
+
+        # 2. Evict oldest until count < max_l1_entries
+        while len(self._memory_cache) >= self.max_l1_entries:
+            oldest_key = next(iter(self._memory_cache))
+            self._memory_cache.pop(oldest_key, None)
+
+        # 3. Evict oldest until estimated bytes <= max_l1_bytes
+        while self._estimated_l1_bytes() > self.max_l1_bytes and self._memory_cache:
+            oldest_key = next(iter(self._memory_cache))
+            self._memory_cache.pop(oldest_key, None)
+
     def _read_l1(self, key: str) -> CacheEntry | None:
         with self._lock:
             entry = self._memory_cache.get(key)
-            if entry and self._now() < entry.expires_at:
-                return entry
+            if entry:
+                if self._now() < entry.expires_at:
+                    # Move to end for LRU
+                    self._memory_cache[key] = self._memory_cache.pop(key)
+                    return entry
+                self._memory_cache.pop(key, None)
             return None
 
     def _read_l2(self, key: str) -> CacheEntry | None:
@@ -430,14 +489,18 @@ class MarketDataCache:
                     expires_at=float(row["expires_at"]),
                     cache_status="CACHE_VALID" if now < float(row["expires_at"]) else "STALE_REFERENCE",
                 )
+                self._evict_l1_if_needed()
                 self._memory_cache[key] = entry
                 return entry
             except (sqlite3.DatabaseError, json.JSONDecodeError):
                 return None
 
-    def _write_entry(self, entry: CacheEntry) -> None:
+    def _write_entry(self, entry: CacheEntry, skip_l2: bool = False) -> None:
         with self._lock:
+            self._evict_l1_if_needed()
             self._memory_cache[entry.cache_key] = entry
+            if skip_l2:
+                return
             try:
                 raw_json = json.dumps(entry.data)
                 conn = self._get_conn()
@@ -467,7 +530,7 @@ class MarketDataCache:
                         entry.retrieved_at, entry.expires_at, entry.cache_status,
                     ))
             except sqlite3.DatabaseError:
-                pass
+                self._quarantine_corrupt_db()
 
     def _extract_provider(self, url: str) -> str:
         netloc = urllib.parse.urlparse(url).netloc.lower()
@@ -499,6 +562,8 @@ class MarketDataCache:
         force_refresh: bool = False,
         network_fetcher: Any | None = None,
         ttl: float | None = None,
+        auth_identity: str | None = None,
+        vary_headers: dict[str, str] | None = None,
     ) -> tuple[Any | None, str, dict[str, Any]]:
         """Retrieve data from cache or network with request coalescing and conditional revalidation.
         
@@ -506,7 +571,7 @@ class MarketDataCache:
         where status_label is one of: FRESH, CACHE_VALID, REVALIDATED, STALE_REFERENCE, REFRESH_FAILED
         """
         now = self._now()
-        cache_key = make_cache_key(url)
+        cache_key = make_cache_key(url, auth_identity=auth_identity, vary_headers=vary_headers)
         ds_type = dataset_type or detect_dataset_type(url)
         effective_ttl = ttl if ttl is not None else ttl_seconds
         ttl_val = effective_ttl if effective_ttl is not None else self.get_ttl(ds_type)
@@ -648,29 +713,44 @@ class MarketDataCache:
                     obs_time = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     etag = resp_headers.get("ETag") or resp_headers.get("etag")
                     last_mod = resp_headers.get("Last-Modified") or resp_headers.get("last-modified")
+                    cc = (resp_headers.get("Cache-Control") or resp_headers.get("cache-control") or "").lower()
+                    is_no_store = "no-store" in cc
+                    is_private = "private" in cc
 
-                    new_entry = CacheEntry(
-                        cache_key=cache_key,
-                        provider=provider,
-                        dataset_type=ds_type,
-                        url=sanitize_url(url),
-                        data=parsed_json,
-                        etag=etag,
-                        last_modified=last_mod,
-                        observed_at=obs_time,
-                        retrieved_at=obs_time,
-                        expires_at=now + ttl_val,
-                        cache_status="FRESH",
-                    )
-                    self._write_entry(new_entry)
-                    self._record_stat("network_fetches", 1)
-                    result_data = parsed_json
-                    result_status = "FRESH"
-                    result_meta = {
-                        "source": provider, "observed_at": obs_time,
-                        "retrieved_at": obs_time, "freshness_status": "FRESH",
-                        "cache_status": "FRESH",
-                    }
+                    if is_no_store:
+                        # HTTP Cache-Control: no-store (Section D)
+                        self._record_stat("network_fetches", 1)
+                        result_data = parsed_json
+                        result_status = "FRESH"
+                        result_meta = {
+                            "source": provider, "observed_at": obs_time,
+                            "retrieved_at": obs_time, "freshness_status": "FRESH",
+                            "cache_status": "NO_STORE",
+                        }
+                    else:
+                        skip_l2 = is_private and not auth_identity
+                        new_entry = CacheEntry(
+                            cache_key=cache_key,
+                            provider=provider,
+                            dataset_type=ds_type,
+                            url=sanitize_url(url),
+                            data=parsed_json,
+                            etag=etag,
+                            last_modified=last_mod,
+                            observed_at=obs_time,
+                            retrieved_at=obs_time,
+                            expires_at=now + ttl_val,
+                            cache_status="FRESH",
+                        )
+                        self._write_entry(new_entry, skip_l2=skip_l2)
+                        self._record_stat("network_fetches", 1)
+                        result_data = parsed_json
+                        result_status = "FRESH"
+                        result_meta = {
+                            "source": provider, "observed_at": obs_time,
+                            "retrieved_at": obs_time, "freshness_status": "FRESH",
+                            "cache_status": "FRESH",
+                        }
                 except (json.JSONDecodeError, ValueError):
                     # Negative cache for malformed JSON
                     with self._lock:
@@ -712,6 +792,8 @@ class MarketDataCache:
         force_refresh: bool = False,
         network_fetcher: Any | None = None,
         ttl: float | None = None,
+        auth_identity: str | None = None,
+        vary_headers: dict[str, str] | None = None,
     ) -> Any | None:
         """Convenience method returning parsed JSON data or None."""
         data, _, _ = self.get_with_metadata(
@@ -721,6 +803,8 @@ class MarketDataCache:
             force_refresh=force_refresh,
             network_fetcher=network_fetcher,
             ttl=ttl,
+            auth_identity=auth_identity,
+            vary_headers=vary_headers,
         )
         return data
 

@@ -273,7 +273,9 @@ class SessionState:
             "leverage_ceiling": getattr(p, "leverage_ceiling", "1x"),
             "sources": getattr(p, "sources", []),
             "narrative": getattr(p, "narrative", ""),
-            "data_freshness": "CACHE_VALID",
+            "data_freshness": getattr(p, "data_freshness", "UNVERIFIED"),
+            "observed_at": getattr(p, "observed_at", getattr(p, "price_as_of", "")),
+            "retrieved_at": getattr(p, "retrieved_at", ""),
             "currency": getattr(p, "currency", "USD"),
             "asset_type": getattr(p, "asset_type", "CRYPTO"),
             "price_as_of": getattr(p, "price_as_of", ""),
@@ -302,7 +304,7 @@ class SessionState:
                 leverage_ceiling=d.get("leverage_ceiling", "1x"),
                 sources=d.get("sources", []),
                 narrative=d.get("narrative", ""),
-                data_freshness=d.get("data_freshness", "CACHE_VALID"),
+                data_freshness=d.get("data_freshness", "HISTORICAL_SNAPSHOT"),
                 currency=d.get("currency", "USD"),
                 asset_type=d.get("asset_type", "CRYPTO"),
                 price_as_of=d.get("price_as_of", ""),
@@ -323,7 +325,9 @@ class SessionState:
             "regime": getattr(q, "regime", "Compressed"),
             "confidence": getattr(q, "confidence", "Moderate"),
             "decision_reason": getattr(q, "decision_reason", ""),
-            "data_freshness": "CACHE_VALID",
+            "data_freshness": getattr(q, "data_freshness", "UNVERIFIED"),
+            "observed_at": getattr(q, "observed_at", ""),
+            "retrieved_at": getattr(q, "retrieved_at", ""),
             "data_quality": getattr(q, "data_quality", "HIGH"),
             "setup_quality": getattr(q, "setup_quality", "NEUTRAL"),
             "reward_risk": getattr(q, "reward_risk", None),
@@ -368,7 +372,7 @@ class SessionState:
                 composite_quality=float(d.get("composite_quality", 0.0)),
                 rr_gate_passed=bool(d.get("rr_gate_passed", False)),
                 quality_gate_passed=bool(d.get("quality_gate_passed", False)),
-                data_freshness=d.get("data_freshness", "CACHE_VALID"),
+                data_freshness=d.get("data_freshness", "HISTORICAL_SNAPSHOT"),
                 data_quality=d.get("data_quality", "HIGH"),
                 setup_quality=d.get("setup_quality", "NEUTRAL"),
                 decision_reason=d.get("decision_reason", ""),
@@ -376,6 +380,23 @@ class SessionState:
             )
         except Exception:
             return None
+
+    def is_actionable_fresh(self, max_age_seconds: float = 300.0) -> bool:
+        """Determines if the active research packet has fresh market evidence for a new actionable trade."""
+        if not self.last_research_packet or not self.last_quant_result:
+            return False
+        freshness = getattr(self.last_research_packet, "data_freshness", "UNVERIFIED")
+        if freshness in ("HISTORICAL_SNAPSHOT", "UNVERIFIED", "EXPIRED", "STALE_REFERENCE"):
+            return False
+        if not self.last_research_at:
+            return False
+        try:
+            import datetime
+            t = datetime.datetime.strptime(self.last_research_at, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+            now = datetime.datetime.now(datetime.timezone.utc)
+            return (now - t).total_seconds() <= max_age_seconds
+        except Exception:
+            return False
 
     def to_dict(self) -> dict[str, Any]:
         import time
@@ -426,19 +447,29 @@ class SessionState:
 
         p_data = data.get("last_research_packet")
         self.last_research_packet = self._deserialize_packet(p_data) if p_data else None
+        if self.last_research_packet:
+            self.last_research_packet.data_freshness = "HISTORICAL_SNAPSHOT"
 
         q_data = data.get("last_quant_result")
         self.last_quant_result = self._deserialize_quant(q_data) if q_data else None
+        if self.last_quant_result:
+            self.last_quant_result.data_freshness = "HISTORICAL_SNAPSHOT"
 
         self.research_history = {}
         for sym, item in data.get("research_history", {}).items():
+            p_hist = self._deserialize_packet(item.get("packet")) if item.get("packet") else None
+            q_hist = self._deserialize_quant(item.get("quant")) if item.get("quant") else None
+            if p_hist:
+                p_hist.data_freshness = "HISTORICAL_SNAPSHOT"
+            if q_hist:
+                q_hist.data_freshness = "HISTORICAL_SNAPSHOT"
             self.research_history[sym] = {
                 "timeframe": item.get("timeframe", "H1"),
                 "market": item.get("market", "PERPETUAL"),
                 "query": item.get("query", ""),
                 "at": item.get("at", ""),
-                "packet": self._deserialize_packet(item.get("packet")) if item.get("packet") else None,
-                "quant": self._deserialize_quant(item.get("quant")) if item.get("quant") else None,
+                "packet": p_hist,
+                "quant": q_hist,
             }
 
     def save_persistent(self, path: Path | None = None) -> bool:

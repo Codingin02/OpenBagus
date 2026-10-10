@@ -181,31 +181,144 @@ def format_privacy_status(repo_root: Path | None = None) -> str:
     return "\n".join(lines)
 
 
-def _safe_remove(path: Path, appdata: Path, repo_root: Path) -> bool:
-    """Safely delete a file or directory ensuring it strictly resides in OpenBagus-managed paths (Section E5)."""
+# --- Windows DPAPI Sensitive Credential Protection (Section E) ---
+
+def encrypt_secret_dpapi(secret: str) -> str:
+    """Encrypt sensitive string using Windows DPAPI, returning base64. On non-Windows, returns base64 raw."""
+    import base64
+    import sys
+    if sys.platform == "win32":
+        try:
+            import ctypes
+            import ctypes.wintypes
+
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [("cbData", ctypes.wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+            raw = secret.encode("utf-8")
+            b_in = (ctypes.c_byte * len(raw))(*raw)
+            blob_in = DATA_BLOB(len(raw), b_in)
+            blob_out = DATA_BLOB()
+            if ctypes.windll.crypt32.CryptProtectData(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+                out = bytes(ctypes.string_at(blob_out.pbData, blob_out.cbData))
+                ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+                return "dpapi:" + base64.b64encode(out).decode("ascii")
+        except Exception:
+            pass
+    return "raw:" + base64.b64encode(secret.encode("utf-8")).decode("ascii")
+
+
+def decrypt_secret_dpapi(stored: str) -> str:
+    """Decrypt a secret string stored via encrypt_secret_dpapi."""
+    import base64
+    import sys
+    if stored.startswith("dpapi:") and sys.platform == "win32":
+        try:
+            import ctypes
+            import ctypes.wintypes
+
+            class DATA_BLOB(ctypes.Structure):
+                _fields_ = [("cbData", ctypes.wintypes.DWORD), ("pbData", ctypes.POINTER(ctypes.c_byte))]
+
+            raw = base64.b64decode(stored[6:])
+            b_in = (ctypes.c_byte * len(raw))(*raw)
+            blob_in = DATA_BLOB(len(raw), b_in)
+            blob_out = DATA_BLOB()
+            if ctypes.windll.crypt32.CryptUnprotectData(ctypes.byref(blob_in), None, None, None, None, 0, ctypes.byref(blob_out)):
+                out = bytes(ctypes.string_at(blob_out.pbData, blob_out.cbData))
+                ctypes.windll.kernel32.LocalFree(blob_out.pbData)
+                return out.decode("utf-8")
+        except Exception:
+            return ""
+    elif stored.startswith("raw:"):
+        return base64.b64decode(stored[4:]).decode("utf-8")
+    return stored
+
+
+class RemoveResult:
+    """Represents deletion outcome with precise status semantics (Section E)."""
+
+    def __init__(self, status: str, detail: str = "") -> None:
+        self.status = status
+        self.detail = detail
+
+    def __bool__(self) -> bool:
+        return self.status in ("DELETED", "EMPTY")
+
+    def __str__(self) -> str:
+        return self.status
+
+    def __repr__(self) -> str:
+        return f"RemoveResult('{self.status}', '{self.detail}')"
+
+    def __eq__(self, other: Any) -> bool:
+        if isinstance(other, bool):
+            return bool(self) == other
+        return self.status == str(other)
+
+
+def _safe_remove(path: Path, appdata: Path, repo_root: Path) -> RemoveResult:
+    """Safely delete a file or directory ensuring it strictly resides in OpenBagus-managed paths (Section E5).
+
+    Verifies actual removal and returns precise status: DELETED, EMPTY, FAILED_LOCKED, FAILED_PERMISSION, BOUNDARY_VIOLATION.
+    """
     try:
         resolved = path.resolve()
-        # Verify boundary: MUST be inside appdata OR repo_root/reports/runtime OR repo_root/.env
-        is_in_appdata = resolved.is_relative_to(appdata.resolve())
-        is_runtime_report = resolved.is_relative_to((repo_root / "reports/runtime").resolve())
-        is_local_env = resolved == (repo_root / ".env").resolve() or resolved == (repo_root / "config/openbagus_local_flags.json").resolve()
+        appdata_res = appdata.resolve()
+        repo_res = repo_root.resolve()
+        runtime_res = (repo_root / "reports/runtime").resolve()
+
+        # Strict boundary check: MUST be inside appdata OR repo_root/reports/runtime OR repo_root/.env
+        is_in_appdata = resolved.is_relative_to(appdata_res)
+        is_runtime_report = resolved.is_relative_to(runtime_res)
+        is_local_env = resolved == (repo_res / ".env") or resolved == (repo_res / "config/openbagus_local_flags.json")
 
         if not (is_in_appdata or is_runtime_report or is_local_env):
-            return False  # Boundary violation blocked!
+            return RemoveResult("BOUNDARY_VIOLATION", f"Path {path} is outside allowed OpenBagus roots.")
 
-        # Never touch git directories
-        if ".git" in str(resolved).lower() or resolved == repo_root.resolve():
-            return False
+        # Never touch git directories or repository root
+        if ".git" in str(resolved).lower() or resolved == repo_res:
+            return RemoveResult("BOUNDARY_VIOLATION", "Cannot delete Git repository root or metadata.")
+
+        if not resolved.exists() and not resolved.is_symlink():
+            return RemoveResult("EMPTY", "Path does not exist on disk.")
 
         if resolved.is_file() or resolved.is_symlink():
-            resolved.unlink(missing_ok=True)
-            return True
+            try:
+                resolved.unlink()
+            except PermissionError as exc:
+                return RemoveResult("FAILED_LOCKED", str(exc))
+            except OSError as exc:
+                return RemoveResult("FAILED_PERMISSION", str(exc))
         elif resolved.is_dir():
-            shutil.rmtree(resolved, ignore_errors=True)
-            return True
-    except (OSError, ValueError):
-        pass
-    return False
+            err_holder: list[Exception] = []
+
+            def on_error(fn: Any, p: str, exc: Any) -> None:
+                if isinstance(exc, tuple) and exc[1]:
+                    err_holder.append(exc[1])
+                elif isinstance(exc, Exception):
+                    err_holder.append(exc)
+
+            try:
+                shutil.rmtree(resolved, onexc=lambda fn, p, exc: err_holder.append(exc))
+            except TypeError:
+                shutil.rmtree(resolved, onerror=on_error)
+
+            if err_holder:
+                first_err = err_holder[0]
+                if isinstance(first_err, PermissionError):
+                    return RemoveResult("FAILED_LOCKED", str(first_err))
+                return RemoveResult("FAILED_PERMISSION", str(first_err))
+
+        # Real verification check: verify target is actually gone from filesystem
+        if resolved.exists():
+            return RemoveResult("FAILED_LOCKED", f"File remained present after deletion: {resolved}")
+
+        return RemoveResult("DELETED", f"Successfully removed {resolved}")
+    except PermissionError as exc:
+        return RemoveResult("FAILED_LOCKED", str(exc))
+    except Exception as exc:
+        return RemoveResult("FAILED_PERMISSION", str(exc))
 
 
 def clear_privacy_data(repo_root: Path | None = None) -> dict[str, str]:
@@ -217,24 +330,24 @@ def clear_privacy_data(repo_root: Path | None = None) -> dict[str, str]:
     # 1. Clear Persistent Harness
     harness_path = appdata / "harness"
     if harness_path.exists():
-        _safe_remove(harness_path, appdata, root)
-        results["Harness Context"] = "CLEARED"
+        res = _safe_remove(harness_path, appdata, root)
+        results["Harness Context"] = "CLEARED" if res else res.status
     else:
         results["Harness Context"] = "EMPTY"
 
     # 2. Clear Feedback
     fb_path = appdata / "feedback"
     if fb_path.exists():
-        _safe_remove(fb_path, appdata, root)
-        results["Feedback Store"] = "CLEARED"
+        res = _safe_remove(fb_path, appdata, root)
+        results["Feedback Store"] = "CLEARED" if res else res.status
     else:
         results["Feedback Store"] = "EMPTY"
 
     # 3. Clear Cloud Token
     cloud_path = appdata / "cloud"
     if cloud_path.exists():
-        _safe_remove(cloud_path, appdata, root)
-        results["Cloud Auth"] = "CLEARED"
+        res = _safe_remove(cloud_path, appdata, root)
+        results["Cloud Auth"] = "CLEARED" if res else res.status
     else:
         results["Cloud Auth"] = "EMPTY"
 
@@ -270,8 +383,8 @@ def execute_full_reset(repo_root: Path | None = None, delete_models: bool = Fals
 
     for key, path, label in targets:
         if path.exists():
-            success = _safe_remove(path, appdata, root)
-            results[label] = "DELETED" if success else "FAILED_LOCKED"
+            res = _safe_remove(path, appdata, root)
+            results[label] = res.status
         else:
             results[label] = "NOT_PRESENT"
 
