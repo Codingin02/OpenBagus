@@ -76,6 +76,12 @@ ALLOWED_INTENTS = (
     "CACHE_COMMAND",
     "PRIVACY_COMMAND",
     "RESET_COMMAND",
+    "ARBITRAGE",
+    "MACRO_EVENT",
+    "ASIAN_PREOPEN",
+    "LUNAR_CYCLE",
+    "BENCHMARK",
+    "SECTOR_IMPACT",
 )
 
 REQUEST_TYPES = (
@@ -110,6 +116,12 @@ REQUEST_TYPES = (
     "CACHE_COMMAND",
     "PRIVACY_COMMAND",
     "RESET_COMMAND",
+    "ARBITRAGE",
+    "MACRO_EVENT",
+    "ASIAN_PREOPEN",
+    "LUNAR_CYCLE",
+    "BENCHMARK",
+    "SECTOR_IMPACT",
     "UNKNOWN",
 )
 
@@ -721,6 +733,8 @@ class IntentRouter:
             return None
         if re.search(r"\b(?:usd|dolar|dollar|euro|eur|yen|jpy|gbp|pound|sterling)\b", lower) and re.search(r"\b(?:idr|rupiah)\b", lower):
             return None
+        if re.search(r"\b(?:pasar\s+asia|asian\s+market|pre-?open\s+(?:ihsg|idx)?|sebelum\s+ihsg\s+buka|bursa\s+asia)\b", lower):
+            return IntentRequest("ASIAN_PREOPEN", "ASIAN_PREOPEN", raw_query=text, relation_to_context="UNRELATED")
         tokens = re.findall(r"(?:IDX:)?[A-Za-z][A-Za-z0-9]*(?:\.JK)?", text)
         resolved = []
         for token in tokens:
@@ -786,8 +800,11 @@ class IntentRouter:
         if restore and session and target.symbol in session.research_history:
             tf = session.research_history[target.symbol]["timeframe"]
 
+        sector_impact = bool(re.search(r"\b(?:china|tiongkok)\b", lower) and re.search(r"\b(?:dampak|pengaruh|impact|manufaktur|manufacturing)\b", lower))
         if ownership_req:
             req_type = "EQUITY_OWNERSHIP"
+        elif sector_impact:
+            req_type = "SECTOR_IMPACT"
         elif visualize:
             req_type = "VISUALIZE"
         elif backtest:
@@ -805,10 +822,10 @@ class IntentRouter:
         else:
             req_type = "EQUITY_ANALYSIS"
 
-        non_research_bypass = bool(chart or quote or ownership_req or visualize or backtest or report_word or report_html)
+        non_research_bypass = bool(chart or quote or ownership_req or visualize or backtest or report_word or report_html or sector_impact)
         switch = bool(not non_research_bypass and session and session.last_asset and session.last_asset != target.symbol
                       and not lower.startswith("/switch"))
-        intent = "CHART" if chart else ("VISUALIZE" if visualize else ("BACKTEST" if backtest else "ANALYZE"))
+        intent = "SECTOR_IMPACT" if sector_impact else ("CHART" if chart else ("VISUALIZE" if visualize else ("BACKTEST" if backtest else "ANALYZE")))
         return IntentRequest(intent, req_type, asset=target.symbol,
             target_assets=[target.symbol], asset_id=target.id, asset_type=target.asset_type, market="idx",
             raw_query=text, timeframe=tf, relation_to_context="SWITCH" if switch else "CONTINUE",
@@ -854,6 +871,42 @@ class IntentRouter:
         ):
             return IntentRequest(intent="EXECUTION_REQUEST", request_type="EXECUTION_REQUEST",
                                  raw_query=text, relation_to_context="UNRELATED")
+
+        # Global macroeconomic event schedule & release inquiry
+        if ((re.search(r"\b(?:nfp|non-?farm|cpi|inflasi|ppi|fomc|fed\s+rate|suku\s+bunga|bi-?rate|rdg)\b", lower)
+                and re.search(r"\b(?:kapan|jam\s+berapa|jadwal|rilis|release|malam\s+ini|dampak|schedule|meeting|minutes)\b", lower))
+                or re.search(r"\b(?:fomc\s+rate\s+decision|jadwal\s+(?:nfp|cpi|fomc)|rilis\s+(?:nfp|cpi))\b", lower)):
+            return IntentRequest(intent="MACRO_EVENT", request_type="MACRO_EVENT",
+                                 asset=session.last_asset if session else "BTC",
+                                 raw_query=text, relation_to_context="CONTINUE")
+
+        # Asian Pre-Open morning market inquiry
+        if re.search(r"\b(?:pasar\s+asia|asian\s+market|pre-?open|sebelum\s+ihsg\s+buka|bursa\s+asia)\b", lower):
+            return IntentRequest(intent="ASIAN_PREOPEN", request_type="ASIAN_PREOPEN",
+                                 raw_query=text, relation_to_context="UNRELATED")
+
+        # Hardware compute acceleration & benchmark profiler inquiry
+        if re.search(r"\b(?:benchmark|akselerasi\s+hardware|hardware\s+compute|speedup|komputasi\s+quantum)\b", lower):
+            return IntentRequest(intent="BENCHMARK", request_type="BENCHMARK",
+                                 raw_query=text, relation_to_context="UNRELATED")
+
+        # Experimental lunar cycle / moon phase inquiry (0% decision weight)
+        if re.search(r"\b(?:fase\s+bulan|siklus\s+lunar|lunar\s+cycle|moon\s+phase|bulan\s+purnama|full\s+moon|new\s+moon)\b", lower):
+            coins = re.findall(r"\b(?:btc|bitcoin|eth|ethereum|sol|solana|ondo|xrp|doge|usdt|cardano)\b", lower)
+            coin_aliases = {"bitcoin": "BTC", "ethereum": "ETH", "solana": "SOL", "cardano": "ADA"}
+            target_asset = coin_aliases.get(coins[0], coins[0].upper()) if coins else (session.last_asset if session and session.last_asset else "BTC")
+            return IntentRequest(intent="LUNAR_CYCLE", request_type="LUNAR_CYCLE",
+                                 asset=target_asset, target_assets=[target_asset],
+                                 raw_query=text, relation_to_context="CONTINUE")
+
+        # Cross-exchange arbitrage & dislocation inquiry
+        if re.search(r"\b(?:arbitrase|arbitrage|cross\s+venue|cross\s+exchange|dislocation|dislokasi)\b", lower):
+            coins = re.findall(r"\b(?:btc|bitcoin|eth|ethereum|sol|solana|ondo|xrp|doge|usdt|cardano)\b", lower)
+            coin_aliases = {"bitcoin": "BTC", "ethereum": "ETH", "solana": "SOL", "cardano": "ADA"}
+            target_asset = coin_aliases.get(coins[0], coins[0].upper()) if coins else (session.last_asset if session and session.last_asset else "BTC")
+            return IntentRequest(intent="ARBITRAGE", request_type="ARBITRAGE",
+                                 asset=target_asset, target_assets=[target_asset],
+                                 timeframe=detected_tf, raw_query=text, relation_to_context="CONTINUE")
 
         category_names = {c.lower(): c for c in TAXONOMY_CATEGORIES if c.lower() != "bitcoin"}
         category_names.update({"other": "Other / Unknown", "others": "Other / Unknown",
@@ -1043,6 +1096,20 @@ class IntentRouter:
                 a_obj, _ = self.assets.resolve_asset(target_o)
                 sym = a_obj.symbol if a_obj else target_o.upper()
                 return IntentRequest(intent="EQUITY_OWNERSHIP", request_type="EQUITY_OWNERSHIP", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("arbitrage") or cmd.startswith("arb"):
+                a_arg = cmd.replace("arbitrage", "", 1).replace("arb", "", 1).strip()
+                target_a = a_arg.upper() if a_arg else (session.last_asset if session and session.last_asset else "BTC")
+                return IntentRequest(intent="ARBITRAGE", request_type="ARBITRAGE", asset=target_a, target_assets=[target_a], timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("macro"):
+                return IntentRequest(intent="MACRO_EVENT", request_type="MACRO_EVENT", asset=session.last_asset if session else "BTC", raw_query=text)
+            if cmd.startswith("preopen") or cmd.startswith("asia"):
+                return IntentRequest(intent="ASIAN_PREOPEN", request_type="ASIAN_PREOPEN", raw_query=text)
+            if cmd.startswith("lunar") or cmd.startswith("moon"):
+                l_arg = cmd.replace("lunar", "", 1).replace("moon", "", 1).strip()
+                target_l = l_arg.upper() if l_arg else (session.last_asset if session and session.last_asset else "BTC")
+                return IntentRequest(intent="LUNAR_CYCLE", request_type="LUNAR_CYCLE", asset=target_l, target_assets=[target_l], raw_query=text)
+            if cmd.startswith("benchmark"):
+                return IntentRequest(intent="BENCHMARK", request_type="BENCHMARK", raw_query=text)
 
         # -------------------------------------------------------------
         # 2. Obvious System / Preference / Feedback Requests (Deterministic)

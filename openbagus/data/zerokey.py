@@ -714,3 +714,51 @@ class ZeroKeyMarketData:
         if rate and converted is not None:
             result.update(rate=rate, converted=converted, date=data["date"], error=None)
         return result
+
+    def get_macro_events(self, as_of: datetime | str | None = None) -> list[dict[str, Any]]:
+        """Returns macroeconomic event calendar with point-in-time enforcement."""
+        from openbagus.intelligence.macro.events import MacroEventEngine
+        engine = MacroEventEngine()
+        events = engine.get_events(as_of)
+        return [e.__dict__ for e in events]
+
+    def get_asian_preopen_briefing(
+        self,
+        dt_wib: datetime | None = None,
+        market_quotes: dict[str, float] | None = None,
+    ) -> dict[str, Any]:
+        """Provides Asian pre-open market intelligence and sector exposure for IDX."""
+        from openbagus.domains.equities.asian_preopen import AsianPreOpenIntelligence
+        engine = AsianPreOpenIntelligence()
+        briefing = engine.build_preopen_briefing(dt_wib=dt_wib, market_quotes=market_quotes)
+        return {
+            "observed_at_wib": briefing.observed_at_wib,
+            "observation_window": briefing.observation_window,
+            "idx_market_state": briefing.idx_market_state,
+            "regional_sentiment": briefing.regional_sentiment,
+            "fx_usd_idr_status": briefing.fx_usd_idr_status,
+            "commodity_summary": briefing.commodity_summary,
+            "headline": briefing.headline,
+            "narrative": briefing.narrative,
+            "session_clocks": [c.__dict__ for c in briefing.session_clocks],
+            "sector_impacts": [s.__dict__ for s in briefing.sector_impacts],
+        }
+
+    def get_lunar_phase(self, dt: datetime | None = None) -> dict[str, Any]:
+        """Provides lunar phase with strict 0% decision weight."""
+        from openbagus.intelligence.astro import LunarCycleResearch
+        info = LunarCycleResearch.get_lunar_phase(dt)
+        return info.__dict__
+
+    def get_arbitrage_analysis(self, symbol: str, declared_notional: float = 1000.0) -> dict[str, Any]:
+        """Computes executable depth-weighted arbitrage across available venues."""
+        from openbagus.domains.crypto.arbitrage import ArbitrageEngine
+        ticker = self.get_spot_ticker(symbol)
+        quotes = (ticker or {}).get("cross_venue_quotes", {})
+        engine = ArbitrageEngine()
+        opp = engine.evaluate_cross_venue_arbitrage(
+            symbol=symbol,
+            venues=quotes,
+            declared_notional=declared_notional,
+        )
+        return opp.__dict__

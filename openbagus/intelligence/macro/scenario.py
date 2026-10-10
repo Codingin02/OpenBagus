@@ -145,9 +145,14 @@ def build_scenario_thesis(
         "symbol": symbol,
         "status": "OK" if analysis_status == "OK" else "DEGRADED_ANALYSIS",
         "scenario_probability": probabilities,
+        "heuristic_weights": probabilities,
+        "probability_calibration": "HEURISTIC_WEIGHTS_UNCALIBRATED",
+        "probability_type": "heuristic_weight",
+        "calibration_note": "Values represent normalized heuristic scenario weights, not empirical calibrated probabilities.",
         "scenarios": {
             name: {
                 "probability": probabilities[name],
+                "heuristic_weight": probabilities[name],
                 "thesis_summary": scenario_defs[name]["thesis_summary"],
                 "target_zone": scenario_defs[name]["target_zone"],
                 "valuation_assumptions": {

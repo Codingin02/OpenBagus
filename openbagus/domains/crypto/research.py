@@ -163,6 +163,119 @@ class CryptoResearchRunner:
             session.language = "ID" if req.preference_action == "language_id" else "EN"
             return render_equity(session.last_research_packet, session.last_quant_result,
                 self.assets.equities.resolve(session.last_asset), session.last_query, language=session.language)
+        if req.request_type == "ARBITRAGE":
+            target = req.asset or (session.last_asset if session and session.last_asset else "BTC")
+            ticker = self.zerokey.get_spot_ticker(target)
+            quotes = (ticker or {}).get("cross_venue_quotes", {})
+            from openbagus.domains.crypto.arbitrage import ArbitrageEngine
+            engine = ArbitrageEngine()
+            notional = req.equity or 1000.0
+            opp = engine.evaluate_cross_venue_arbitrage(target, quotes, declared_notional=notional)
+            lines = [
+                f"Analisis Arbitrase & Dislokasi Bursa: {target.upper()}",
+                f"Notional Uji: ${notional:,.0f} | Status Eksekusi: [{opp.status}]",
+                "",
+                f"Best Buy Venue  : {opp.buy_venue} (${opp.buy_vwap:,.2f} VWAP depth)",
+                f"Best Sell Venue : {opp.sell_venue} (${opp.sell_vwap:,.2f} VWAP depth)",
+                f"Gross Spread    : {opp.gross_spread_pct:+.2f}%",
+                f"Total Biaya     : {opp.details.get('total_costs_pct', 0.25):.2f}% (Taker {opp.taker_fee_pct_total:.2f}%, Slippage {opp.slippage_pct_total:.2f}%, Transfer ${opp.transfer_fee_usd:.2f})",
+                f"Net Spread      : {opp.net_spread_pct:+.2f}%",
+                f"Net Profit Est. : ${opp.net_profit_usd:+.2f}",
+                "",
+                f"Evaluasi Sistem : {opp.rationale}",
+            ]
+            if target.upper() == "BTC" and ticker:
+                tri = engine.evaluate_triangular_arbitrage(
+                    {"BTC/USDT": ticker.get("price", 65000.0), "ETH/BTC": 0.052, "ETH/USDT": 3380.0},
+                    route=["USDT", "BTC", "ETH", "USDT"], initial_notional=notional
+                )
+                lines.append(f"Triangular Route: {tri.summary}")
+            lines.append("")
+            lines.append("Catatan Integritas: Spread kotor bursa bukan jaminan keuntungan tanpa memperhitungkan kedalaman order book dan biaya transfer riil.")
+            return "\n".join(lines)
+
+        if req.request_type == "MACRO_EVENT":
+            from openbagus.intelligence.macro.events import MacroEventEngine
+            macro_engine = MacroEventEngine()
+            events = macro_engine.get_events()
+            target_asset = req.asset or (session.last_asset if session and session.last_asset else "BTC")
+            sens = macro_engine.evaluate_asset_macro_sensitivity(target_asset)
+            lines = [
+                "Kalender & Intelijen Peristiwa Makro Global 2026",
+                "================================================",
+                f"Sensitivitas Aset ({target_asset}): {sens['sensitivity']} | Risiko Event Tinggi: {'YA' if sens['has_high_event_risk'] else 'TIDAK'}",
+                f"Saluran Dampak: {sens['impact_channel']}",
+                "",
+                "Jadwal Rilis Terdekat & Status Lifecycle:",
+            ]
+            for ev in events[:5]:
+                surprise_str = f"Surprise: {ev.surprise_standardized:+.2f}σ" if ev.surprise_standardized is not None else (f"Delta: {ev.surprise_delta:+.2f}" if ev.surprise_delta is not None else "-")
+                act_str = f"Actual: {ev.actual} {ev.unit}" if ev.actual is not None else "Actual: BELUM RILIS"
+                lines.append(f"  [{ev.lifecycle_state:<12}] {ev.name} ({ev.reference_period})")
+                lines.append(f"    Waktu: {ev.scheduled_at} | Forecast: {ev.forecast} {ev.unit} | {act_str} | {surprise_str}")
+            lines.append("")
+            lines.append("Prinsip Point-in-Time: Data rilis di masa depan dirahasiakan dan tidak bocor ke pengujian historis.")
+            return "\n".join(lines)
+
+        if req.request_type == "ASIAN_PREOPEN":
+            from openbagus.domains.equities.asian_preopen import AsianPreOpenIntelligence
+            asian_engine = AsianPreOpenIntelligence()
+            briefing = asian_engine.build_preopen_briefing()
+            lines = [
+                "Intelijen Pre-Opening Pasar Asia & Pemetaan Sektor IHSG",
+                "=======================================================",
+                f"Jendela Pengamatan : {briefing.observation_window} | Status IDX: {briefing.idx_market_state}",
+                f"Sentimen Regional  : {briefing.regional_sentiment}",
+                f"Valuta Asing       : {briefing.fx_usd_idr_status}",
+                f"Komoditas Utama    : {briefing.commodity_summary}",
+                "",
+                "Status Sesi Bursa Asia (WIB):",
+            ]
+            for c in briefing.session_clocks:
+                open_str = f"({c.minutes_open} menit berjalan)" if c.status == "OPEN" else ""
+                lines.append(f"  - {c.market_code:<5} ({c.country}): {c.status:<10} Jam: {c.open_time_wib}-{c.close_time_wib} {open_str}")
+            lines.append("")
+            lines.append("Transmisi Dampak ke Sektor IDX:")
+            for s in briefing.sector_impacts:
+                lines.append(f"  [{s.sentiment_bias:<8}] {s.sector_name} ({', '.join(s.representative_tickers)}):")
+                lines.append(f"     Driver: {', '.join(s.key_drivers)}")
+                lines.append(f"     {s.summary}")
+            lines.append("")
+            lines.append("Prinsip Integritas Data: Evaluasi pre-open memakai data intraday pagi hari (08:40 WIB), bukan harga penutupan harian masa depan.")
+            return "\n".join(lines)
+
+        if req.request_type == "LUNAR_CYCLE":
+            target = req.asset or (session.last_asset if session and session.last_asset else "BTC")
+            from openbagus.intelligence.astro import LunarCycleResearch
+            lunar_info = LunarCycleResearch.get_lunar_phase()
+            candles = self.zerokey.get_all_evidence(target, "D1").get("klines") or []
+            test_res = LunarCycleResearch.test_lunar_effect_on_returns(target, candles)
+            lines = [
+                f"Riset Eksperimental Siklus Astronomi & Fase Bulan: {target.upper()}",
+                "===========================================================",
+                f"Status: {lunar_info.status} | Bobot Keputusan Quant: {lunar_info.decision_weight}",
+                f"Fase Bulan Saat Ini : {lunar_info.phase_name} ({lunar_info.illumination_pct:.1f}% iluminasi)",
+                f"Siklus Berjalan     : Hari ke-{lunar_info.days_since_new_moon:.1f} sejak New Moon",
+                f"Purnama Terdekat    : ~{lunar_info.next_full_moon_days:.1f} hari lagi",
+                "",
+                "Uji Hipotesis Statistik (Full Moon vs New Moon Return):",
+                f"  - Sampel Candle D1: {test_res.sample_size_candles} bar (Full Moon: {test_res.full_moon_samples}, New Moon: {test_res.new_moon_samples})",
+                f"  - Mean Return Full Moon : {test_res.full_moon_mean_return_pct:+.2f}%",
+                f"  - Mean Return New Moon  : {test_res.new_moon_mean_return_pct:+.2f}%",
+                f"  - t-statistic: {test_res.t_statistic:.2f} | p-value: {test_res.p_value:.4f}",
+                f"  - Signifikan (p < 0.05): {'YA' if test_res.is_statistically_significant else 'TIDAK'}",
+                "",
+                f"Kesimpulan Ilmiah: {test_res.conclusion}",
+                f"Disclaimer: {lunar_info.disclaimer}",
+            ]
+            return "\n".join(lines)
+
+        if req.request_type == "BENCHMARK":
+            from openbagus.domains.quant.acceleration import HybridComputeEngine
+            comp_engine = HybridComputeEngine()
+            rep = comp_engine.benchmark_system(num_paths=10000, steps=30)
+            return rep.summary
+
         if req.request_type == "CALCULATOR":
             return req.focus if req.focus != "CALCULATOR_INVALID" else "Ekspresi aritmetika tidak valid atau melewati batas aman."
         if req.request_type == "EXECUTION_REQUEST":

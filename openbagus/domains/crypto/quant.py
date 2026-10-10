@@ -558,6 +558,12 @@ class QuantEngine:
             contradictions.append("Price trend and funding positioning disagree; crowded funding is a risk, not a reversal confirmation.")
         if ev_micro.details.get("order_book_imbalance", 0) * ev_micro.details.get("trade_flow_imbalance", 0) < -0.02:
             contradictions.append("Resting book and executed trade flow disagree; book liquidity alone does not confirm buying/selling.")
+        if ev_trend.direction_score > 0.20 and stoch_details.get("k", 50) >= 80:
+            contradictions.append(f"Bullish trend with Stochastic overbought (%K={stoch_details.get('k', 0):.1f}); momentum extended near resistance.")
+        elif ev_trend.direction_score < -0.20 and stoch_details.get("k", 50) <= 20:
+            contradictions.append(f"Bearish trend with Stochastic oversold (%K={stoch_details.get('k', 0):.1f}); downward momentum extended near support.")
+        if disloc_details.get("arbitrage_status") == "EXECUTION_RISK":
+            contradictions.append("Cross-venue bid-ask spread is abnormally wide; execution slippage risk is elevated.")
 
         why = {
             "Trend": f"{ev_trend.summary} ({ev_trend.direction_score:+.2f})",
@@ -1207,7 +1213,7 @@ class QuantEngine:
     def _eval_cross_exchange_dislocation(
         self, spot_ticker: dict[str, Any], price: float
     ) -> tuple[EvidenceBlockResult, dict[str, Any]]:
-        """Compares fresh cross-exchange quotes to detect price dispersion and market stress."""
+        """Compares fresh cross-exchange quotes to detect executable price dispersion and market stress."""
         quotes: dict[str, dict[str, Any]] = spot_ticker.get("cross_venue_quotes", {})
         if len(quotes) < 2:
             arb_empty_item = {
@@ -1248,13 +1254,20 @@ class QuantEngine:
                 {"available": False},
             )
 
+        from openbagus.domains.crypto.arbitrage import ArbitrageEngine
+        arb_engine = ArbitrageEngine()
+        opp = arb_engine.evaluate_cross_venue_arbitrage(
+            symbol=spot_ticker.get("symbol", "CRYPTO"),
+            venues=quotes,
+            declared_notional=1000.0,
+        )
+
         min_px = min(valid_prices)
         max_px = max(valid_prices)
         sorted_p = sorted(valid_prices)
         med_px = sorted_p[len(sorted_p) // 2]
         dispersion_pct = ((max_px - min_px) / med_px) * 100.0 if med_px > 0 else 0.0
 
-        # Estimated cost = taker fee (~0.10% each side = 0.20%) + slippage (0.05%) = 0.25%
         estimated_cost_pct = 0.25
         estimated_net_spread_pct = round(dispersion_pct - estimated_cost_pct, 3)
 
@@ -1265,11 +1278,9 @@ class QuantEngine:
         else:
             dislocation_cls = "HIGH"
 
-        best_venue = next((k for k, v in quotes.items() if v["price"] == min_px), "Market")
-        summary = f"Dispersion {dispersion_pct:.2f}% ({dislocation_cls}), best venue: {best_venue}"
+        best_venue = opp.buy_venue if opp.buy_venue != "N/A" else next((k for k, v in quotes.items() if v["price"] == min_px), "Market")
+        summary = f"Dispersion {dispersion_pct:.2f}% ({dislocation_cls}), best venue: {best_venue} [{opp.status}]"
 
-        # Materiality rule (Section D4):
-        # Spread is materially larger than expected fee + slippage
         is_material = bool(len(valid_prices) >= 2 and estimated_net_spread_pct > 0.10)
 
         arbitrage_item = {
@@ -1283,6 +1294,8 @@ class QuantEngine:
                 "estimated_net_spread_pct": estimated_net_spread_pct,
                 "best_venue": best_venue,
                 "is_arbitrage_opportunity": is_material,
+                "arbitrage_status": opp.status,
+                "rationale": opp.rationale,
                 "summary": summary if is_material else "",
             },
         }
@@ -1292,7 +1305,8 @@ class QuantEngine:
             "venues_count": len(valid_prices),
             "dispersion_pct": round(dispersion_pct, 2),
             "dislocation_status": dislocation_cls,
-            "estimated_net_spread_pct": estimated_net_spread_pct,
+            "arbitrage_status": opp.status,
+            "estimated_net_spread_pct": round(opp.net_spread_pct, 3),
             "best_venue": best_venue,
             "median_price": med_px,
             "item": arbitrage_item,
@@ -1511,10 +1525,13 @@ class QuantEngine:
 
     def _eval_astrology_diagnostic(self) -> tuple[dict[str, Any], dict[str, Any]]:
         """Provides experimental astrology/lunar factor strictly decoupled with 0% decision weight."""
+        from openbagus.intelligence.astro import LunarCycleResearch
+        lunar_info = LunarCycleResearch.get_lunar_phase()
         astro_diagnostic = {
             "status": "EXPERIMENTAL",
             "decision_weight": "0%",
-            "lunar_phase": "Calculated (Diagnostic)",
+            "lunar_phase": lunar_info.phase_name,
+            "illumination_pct": lunar_info.illumination_pct,
             "impact": "NONE",
         }
         lunar_item = {
@@ -1523,8 +1540,9 @@ class QuantEngine:
             "direction": "NEUTRAL",
             "quality": 0.0,
             "values": {
-                "lunar_phase": "Waxing Gibbous",
-                "summary": "Experimental only — not used by Quant decision.",
+                "lunar_phase": lunar_info.phase_name,
+                "illumination_pct": lunar_info.illumination_pct,
+                "summary": f"{lunar_info.phase_name} ({lunar_info.illumination_pct:.0f}% iluminasi) — Riset eksperimental; bobot 0%.",
                 "weight": 0.0,
             },
         }

@@ -133,6 +133,41 @@ def run_equity_research(runner, req, session=None) -> str:
         q = runner.quant.evaluate_equity(asset.symbol, data, policy, timeframe=req.timeframe,
             has_position_context=req.has_position_context, is_index=asset.asset_type == "INDEX_ID")
         packet = None
+
+    if req.request_type == "SECTOR_IMPACT":
+        lines = [
+            f"Analisis Transmisi Makro & Dampak Sektoral: Data Manufaktur China -> {asset.symbol} (Sektor {asset.sector_code})",
+            "",
+            "1. Rantai Transmisi Permintaan Global (Demand Transmission):",
+            "   - China menyerap >50% pasokan logam industri dunia, terutama untuk pabrik baja nirkarat (stainless steel) dan rantai baterai EV.",
+            "   - Data Purchasing Managers' Index (PMI) manufaktur China yang ekspansif meningkatkan proyeksi konsumsi bijih nikel dan feronikel.",
+            "   - Ekspektasi ini ditransmisikan langsung ke harga acuan LME Nickel dan Shanghai Futures Exchange (SHFE).",
+            "",
+            f"2. Eksposur & Sensitivitas Emiten ({asset.symbol}):",
+            f"   - {asset.symbol} memiliki portofolio komoditas tambang terintegrasi (bijih nikel, feronikel, bauksit, dan emas).",
+            "   - Kenaikan harga nikel global berpotensi mengangkat Average Selling Price (ASP), namun transmisi ke laba bersih tetap dibatasi oleh royalti progresif, biaya energi smelter, dan nilai tukar USD/IDR.",
+            "",
+            f"3. Struktur Teknikal & Level Kuantitatif {asset.symbol} ({q.timeframe}):",
+            f"   - Harga Terakhir: Rp{q.price:,.0f} | Keputusan Quant: {q.decision} ({q.regime})",
+            f"   - Catatan Risiko: {q.decision_reason}",
+        ]
+        if q.bullish_validation:
+            b = q.bullish_validation
+            lines.append(f"   - Skenario Validasi: Trigger {b.trigger_condition}, Target Rp{b.tp1:,.0f}, Stop Rp{b.stop_price:,.0f} (RR {b.reward_risk_str}).")
+        lines.append("")
+        lines.append(f"Data Freshness: {q.data_freshness}; Sumber: {data.get('source', 'Katalog IDX')}.")
+        output = "\n".join(lines)
+        if session:
+            session.last_asset = asset.symbol
+            session.market_type = q.market
+            session.timeframe = q.timeframe
+            session.last_quant_result = q
+            session.last_query = req.raw_query
+            session.last_research_at = datetime.now(timezone.utc).isoformat()
+            if session.is_persistence_enabled():
+                session.save_persistent()
+        return output
+
     statement = data.get("fundamentals")
     now = datetime.now(timezone.utc)
     if statement and timestamp(statement["published_at"]) > now:
