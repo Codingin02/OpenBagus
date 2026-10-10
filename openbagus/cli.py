@@ -29,6 +29,9 @@ from openbagus.delivery.runner import run_final_delivery
 from openbagus.delivery.safety import scan_payload
 from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
 from openbagus.domains.crypto.research import CryptoResearchRunner
+from openbagus.domains.equities.catalog import EquityCatalog, SECTORS, source_url
+from openbagus.domains.equities.data import EquityData
+from openbagus.domains.equities.policy import EquityMarketPolicy
 from openbagus.intelligence.intent import IntentRouter, SessionState
 from openbagus.intelligence.local_language import LocalLanguageEngine
 from openbagus.storage.historical import HistoricalStorageRuntime
@@ -196,7 +199,7 @@ def _run_doctor(*, network: bool, as_json: bool) -> int:
     platform_config = _read_json(REPO_ROOT / "config/openbagus.example.json")
     active = platform_config.get("active_domains")
     disabled = platform_config.get("disabled_domains", [])
-    add("PASS" if active == ["crypto"] and "equities" in disabled else "FAIL", "Domains", "crypto active; equities disabled")
+    add("PASS" if active == ["crypto", "equities_indonesia"] and "foreign_equities" in disabled else "FAIL", "Domains", "crypto + Indonesian equities; foreign equities disabled")
 
     catalog = CryptoAssetCatalog(REPO_ROOT)
     catalog_count = len(catalog.assets)
@@ -271,7 +274,7 @@ def _run_status(session: SessionState | None = None) -> int:
     print("")
     print("Runtime")
     print(f"  Version           {__version__}")
-    print("  Active Domain     crypto (equities disabled)")
+    print("  Active Domains    crypto + equities_indonesia (IDX permitted imports)")
     print("  Mode              research-only (no live trading)")
     if session and session.last_quant_result:
         q = session.last_quant_result
@@ -324,6 +327,11 @@ def _run_assets(query: str = "") -> int:
         print(f"{idx:<4} {a.symbol:<8} {a.name:<26} {rank:<8} {cat:<15}")
     print("-" * 65)
     print("Type any coin symbol directly to analyze (e.g. 'ETH').")
+    equity_catalog = EquityCatalog(REPO_ROOT)
+    stocks = [a for a in equity_catalog.assets if not query_clean or query_clean.lower() in f"{a.symbol} {a.name} {a.categories[0]}".lower()]
+    print("IDX catalog (partial, expandable through permitted import):")
+    for asset in stocks:
+        print(f"  {asset.id:<17} {asset.name:<26} {asset.categories[0]}")
     return 0
 
 
@@ -334,6 +342,9 @@ def _run_categories() -> int:
     print("====================================")
     for cat, count in sorted(counts.items(), key=lambda x: -x[1]):
         print(f"  {cat:<24} ({count} assets in catalog)")
+    print("IDX-IC (separate sector taxonomy):")
+    for code, (name, indonesian) in SECTORS.items():
+        print(f"  {code}: {name} / {indonesian}")
     print("\nUse '/assets <category>' to view assets (e.g. '/assets defi', '/assets layer2').")
     return 0
 
@@ -598,8 +609,9 @@ def _delivery_exit_code(steps: list[dict[str, Any]]) -> int:
 def _run_pipeline(args: argparse.Namespace) -> int:
     mode = "crypto-daily" if args.mode == "crypto" else args.mode
     if mode == "idx-daily":
-        print("EQUITY_DOMAIN_DISABLED: active domain is crypto")
-        return 2
+        router = IntentRouter(repo_root=REPO_ROOT)
+        print(CryptoResearchRunner(REPO_ROOT).execute(router.parse(args.query or "IHSG daily"), SessionState()))
+        return 0
     if mode == "manual-desk" and (not args.query or not re.search(r"(?<!\w)OpenBagus(?!\w)", args.query)):
         print("BLOCKED_MANUAL_TRIGGER: manual-desk requires the exact trigger 'OpenBagus'.")
         return 2
@@ -636,8 +648,8 @@ def _run_pipeline(args: argparse.Namespace) -> int:
     consolidated = {
         "platform": "OpenBagus",
         "engine_version": "openbagus.final_runner.v3",
-        "active_domain": "crypto",
-        "disabled_domains": ["equities"],
+        "active_domains": ["crypto", "equities_indonesia"],
+        "disabled_domains": ["foreign_equities"],
         "generated_at_utc": _utc_now(),
         "started_at_utc": started,
         "mode": mode,
@@ -717,6 +729,10 @@ class OpenBagusShell(cmd.Cmd):
         print("  /switch <asset>           switch active research context directly")
         print("  /sources [on|off]         toggle display of data sources in research outputs")
         print("  /chart [asset] [tf]       open real browser chart in TradingView or GeckoTerminal")
+        print("  /visualize [asset]        open native interactive HTML dashboard (candlestick, radar, sunburst)")
+        print("  /backtest [asset]         run walk-forward backtest with realistic costs & promotion gate")
+        print("  /report word|html [asset] generate Word (.docx with native chart) or HTML report")
+        print("  /ownership [asset]        show verified shareholder ownership structure (IDX/KSEI)")
         print("  /status                   show platform runtime and provider status")
         print("  /providers                show data providers and coverage (or /providers --check)")
         print("  /assets [query]           search crypto asset universe (e.g. /assets eth, /assets defi)")
@@ -799,6 +815,34 @@ class OpenBagusShell(cmd.Cmd):
     def do_chart(self, arg: str) -> None:
         cmd_str = arg.strip()
         req = self.router.parse(f"/chart {cmd_str}" if cmd_str else "/chart", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_visualize(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/visualize {cmd_str}" if cmd_str else "/visualize", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_backtest(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/backtest {cmd_str}" if cmd_str else "/backtest", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_report(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/report {cmd_str}" if cmd_str else "/report", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_ownership(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/ownership {cmd_str}" if cmd_str else "/ownership", session=self.session)
         res = self.researcher.execute(req, session=self.session)
         print(res)
         print()
@@ -955,7 +999,8 @@ class OpenBagusShell(cmd.Cmd):
             print()
             return
         if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART"
+            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART",
+            "VISUALIZE", "BACKTEST", "REPORT_WORD", "REPORT_HTML", "EQUITY_OWNERSHIP", "EQUITY_ANALYSIS", "EQUITY_QUOTE", "EQUITY_SECTOR"
         ):
             result = self.researcher.execute(req, session=self.session)
             self.session.add_turn(cleaned, result[:300])
@@ -968,6 +1013,40 @@ class OpenBagusShell(cmd.Cmd):
 
 def main(argv: list[str] | None = None) -> int:
     arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == "import-idx":
+        parser = argparse.ArgumentParser(prog="openbagus import-idx")
+        parser.add_argument("kind", choices=("catalog", "market", "ohlcv", "rules", "ownership"))
+        parser.add_argument("path", type=Path)
+        parser.add_argument("--metadata", type=Path)
+        args = parser.parse_args(arguments[1:])
+        try:
+            if args.kind == "catalog":
+                result = EquityCatalog(REPO_ROOT).import_file(args.path)
+            elif args.kind == "ownership":
+                from openbagus.domains.equities.ownership import import_ownership_file
+                result = import_ownership_file(args.path, REPO_ROOT)
+            elif args.kind == "rules":
+                if args.path.stat().st_size > 1_000_000:
+                    raise ValueError("Rules import exceeds size limit")
+                data = json.loads(args.path.read_text(encoding="utf-8"))
+                EquityMarketPolicy.validate_rules(data)
+                if not scan_payload(data)["passed"]:
+                    raise ValueError("Unsafe rules metadata")
+                directory = REPO_ROOT / "data/equities"
+                directory.mkdir(parents=True, exist_ok=True)
+                (directory / "rules.json").write_text(json.dumps(data, indent=2), encoding="utf-8")
+                result = "effective-dated market rules"
+            elif args.kind == "ohlcv":
+                if not args.metadata:
+                    raise ValueError("CSV OHLCV requires --metadata path")
+                result = EquityData(REPO_ROOT).import_ohlcv(args.path, args.metadata)
+            else:
+                result = EquityData(REPO_ROOT).import_file(args.path)
+            print(f"IMPORTED: {result}; local permitted data only")
+            return 0
+        except (OSError, ValueError, TypeError, KeyError) as exc:
+            print(f"IMPORT_BLOCKED: {type(exc).__name__}")
+            return 2
     if not arguments:
         if sys.stdin.isatty() and sys.stdout.isatty():
             OpenBagusShell().cmdloop()

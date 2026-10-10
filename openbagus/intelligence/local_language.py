@@ -72,11 +72,16 @@ class NarrativeFacts:
     stop_price: float | None = None
     target_price: float | None = None
     data_quality: str = "UNKNOWN"
+    currency: str = "USD"
+    asset_type: str = "CRYPTO"
+    fundamentals: dict[str, Any] = field(default_factory=dict)
 
 
-def format_price(value: float) -> str:
+def format_price(value: float, currency: str = "USD") -> str:
     """Format USD values without discarding small-price precision."""
     from decimal import Decimal
+    if currency == "IDR":
+        return f"Rp{value:,.0f}"
     if abs(value) >= 1:
         return f"${value:,.2f}"
     return "$" + format(Decimal(str(value)), "f")
@@ -113,7 +118,7 @@ SYSTEM_PROFILE: dict[str, str] = {
     "core": "Local deterministic QuantEngine (Microstructure & Risk)",
     "data": "Online Zero-Key public providers (16 active) + optional keyed providers",
     "language_layer": "Local Qwen3-4B Q4_K_M via managed llama.cpp server",
-    "active_domain": "Crypto (Equities disabled)",
+    "active_domain": "Crypto + Indonesian Equities (IDX permitted imports)",
     "trading_execution": "Not implemented (research and risk analysis only)",
     "secrets": "Stored locally only (zero telemetry, zero cloud model inference)",
     "environment": "Local native Python / Windows terminal",
@@ -572,6 +577,9 @@ class LocalLanguageEngine:
                 stop_price=getattr(packet, "stop_price", None),
                 target_price=getattr(packet, "tp1", None),
                 data_quality=getattr(packet, "data_quality", "UNKNOWN"),
+                currency=getattr(packet, "currency", "USD"),
+                asset_type=getattr(packet, "asset_type", "CRYPTO"),
+                fundamentals=getattr(packet, "fundamentals", {}).get("ratios", {}),
             )
         if facts.fibonacci_level is not None:
             facts.price_vs_fib = "ABOVE" if facts.price > facts.fibonacci_level else ("BELOW" if facts.price < facts.fibonacci_level else "AT")
@@ -580,7 +588,7 @@ class LocalLanguageEngine:
 
         prompt = (
             f"<|im_start|>system\n"
-            f"You are a senior quantitative crypto research consultant. Answer the user's actual question in {lang_label}, naturally and concisely.\n"
+            f"You are a quantitative financial research consultant. Answer the user's actual question in {lang_label}, naturally and concisely.\n"
             "Use this ontology only when relevant: spot, perpetual, long, short, entry, invalidation, stop loss, TP, reward:risk, basis, funding, open interest, CVD, order flow, liquidity, volatility, support/resistance, market structure, Fibonacci confluence, Stochastic, patterns, cross-venue dislocation, arbitrage, large flow, whale context, CPI, FOMC, DXY, US10Y, VIX, gold, oil, DeFi, DEX, stablecoins.\n"
             "STRICT RULES:\n"
             f"1. You MUST keep the decision '{facts.decision}' and asset '{facts.asset}'.\n"
@@ -590,8 +598,10 @@ class LocalLanguageEngine:
             "4. Do NOT repeat formulaic phrases or dump a full report when the user asks a narrow follow-up.<|im_end|>\n"
             f"<|im_start|>user\nQuestion: {user_query or 'Explain the current research view.'}\nFacts from QuantEngine:\n"
             f"- Asset: {facts.asset} ({facts.timeframe})\n"
-            f"- Price: {format_price(facts.price)}\n"
-            f"- Market: {facts.market}\n"
+            f"- Price: {format_price(facts.price, facts.currency)}; currency {facts.currency}; asset type {facts.asset_type}\n"
+            f"- Reported fundamental ratios (not estimates): {json.dumps(facts.fundamentals)}\n"
+            + ("- IDX cash equities: no perpetual LONG/SHORT, leverage, funding or liquidation claims. Respect BUY/HOLD/WAIT/AVOID_ENTRY/REDUCE exactly.\n" if facts.asset_type != "CRYPTO" else "")
+            + f"- Market: {facts.market}\n"
             f"- RR Long: {facts.rr_long}; RR Short: {facts.rr_short}; Gate passed: {facts.rr_gate_passed}\n"
             f"- Event dates: {', '.join(facts.event_dates) or 'none'}\n"
             f"- Quant Decision: {facts.decision}\n"
@@ -633,6 +643,8 @@ class LocalLanguageEngine:
     @staticmethod
     def _narrative_is_grounded(facts: NarrativeFacts, clean_narrative: str) -> bool:
         upper_text = clean_narrative.upper()
+        if facts.asset_type != "CRYPTO" and re.search(r"\$\s*\d|\b(?:long|short|leverage|funding|liquidation)\b", clean_narrative, re.I):
+            return False
         if facts.decision in ("NO_TRADE", "WAIT"):
             if "BUY NOW" in upper_text or "SEGERA BELI" in upper_text or "ENTRY SEKARANG" in upper_text:
                 return False
@@ -654,7 +666,7 @@ class LocalLanguageEngine:
         if facts.data_freshness not in {"FRESH", "UNVERIFIED"} and re.search(r"data\s+(?:segar|fresh)|fresh\s+data", lower_narrative):
             return False
         for name, expected in ((r"stop(?: loss)?|sl|invalidasi", facts.stop_price), (r"target|tp1", facts.target_price)):
-            for claim in re.finditer(r"(?:" + name + r")\s*(?:at|di|pada|:|=)?\s*\$([0-9,]+(?:\.[0-9]+)?)", lower_narrative):
+            for claim in re.finditer(r"(?:" + name + r")\s*(?:at|di|pada|:|=)?\s*(?:\$|rp\s*)([0-9,]+(?:\.[0-9]+)?)", lower_narrative):
                 # Conditional scenarios have their own levels, not an active stop/target.
                 if expected is not None and float(claim.group(1).replace(",", "")) != expected:
                     return False
@@ -672,7 +684,7 @@ class LocalLanguageEngine:
                 return False
 
         # Semantic Grounding Guard 2: Hallucinated date / temporal horizon
-        raw_facts = f"{facts.price} {format_price(facts.price)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)} {facts.evidence_families} {facts.contradictions} {facts.entry_zone} {facts.stop_price} {facts.target_price}"
+        raw_facts = f"{facts.price} {format_price(facts.price, facts.currency)} {facts.fibonacci_level} {facts.rr_long} {facts.rr_short} {facts.reward_risk_str} {facts.bullish_trigger} {facts.bearish_trigger} {facts.reason} {facts.fibonacci_confluence} {facts.pattern_name} {facts.stochastic_summary} {facts.arbitrage_summary} {facts.frequency} {facts.macro_event} {facts.large_flow_summary} {' '.join(facts.event_dates)} {facts.evidence_families} {facts.contradictions} {facts.entry_zone} {facts.stop_price} {facts.target_price} {facts.fundamentals}"
         for phrase in ("akhir bulan", "end of month", "bulan depan", "next month", "minggu depan", "next week"):
             if phrase in lower_narrative and phrase not in " ".join(facts.event_dates).lower():
                 return False

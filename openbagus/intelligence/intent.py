@@ -36,6 +36,8 @@ from openbagus.domains.crypto.catalog import (
     TAXONOMY_CATEGORIES,
 )
 from openbagus.intelligence.local_language import LocalLanguageEngine
+from openbagus.data.assets import AssetRegistry
+from openbagus.domains.equities.catalog import SECTORS
 
 ALLOWED_INTENTS = (
     "ANALYZE",
@@ -61,6 +63,11 @@ ALLOWED_INTENTS = (
     "HARNESS",
     "SETUP_CONFIG",
     "CHART",
+    "VISUALIZE",
+    "BACKTEST",
+    "REPORT_WORD",
+    "REPORT_HTML",
+    "EQUITY_OWNERSHIP",
     "FIAT_FX",
     "CALCULATOR",
     "CRYPTO_QUOTE",
@@ -84,6 +91,14 @@ REQUEST_TYPES = (
     "HARNESS",
     "SETUP_CONFIG",
     "CHART",
+    "VISUALIZE",
+    "BACKTEST",
+    "REPORT_WORD",
+    "REPORT_HTML",
+    "EQUITY_OWNERSHIP",
+    "EQUITY_ANALYSIS",
+    "EQUITY_QUOTE",
+    "EQUITY_SECTOR",
     "FIAT_FX",
     "CALCULATOR",
     "CRYPTO_QUOTE",
@@ -170,6 +185,7 @@ class SessionState:
     conversational_turns: list[dict[str, str]] = field(default_factory=list)
     language_backend: str = "local"
     explanation_depth: str = "normal"
+    research_history: dict[str, dict[str, Any]] = field(default_factory=dict)
 
     def add_turn(self, user_text: str, assistant_text: str) -> None:
         self.conversational_turns.append({"user": user_text, "assistant": assistant_text})
@@ -195,6 +211,7 @@ class SessionState:
         self.conversational_turns = []
         self.recent_preferences = {}
         self.explanation_depth = "normal"
+        self.research_history = {}
 
     def status_display(self) -> str:
         lines = [
@@ -241,9 +258,12 @@ class IntentRequest:
     amount: float = 1.0
     has_position_context: bool = False
     asset_id: str | None = None
+    asset_type: str = "CRYPTO"
 
     @property
     def domain(self) -> str:
+        if self.asset_type in {"EQUITY_ID", "INDEX_ID"}:
+            return "EQUITIES_INDONESIA"
         if self.request_type in {"HARNESS", "SETUP_CONFIG"}:
             return "SYSTEM_INFO"
         if self.request_type == "SCREEN":
@@ -354,15 +374,125 @@ class IntentRouter:
     def __init__(self, catalog: CryptoAssetCatalog | None = None, repo_root: Path | None = None) -> None:
         self.root = repo_root or get_repo_root()
         self.catalog = catalog or CryptoAssetCatalog(self.root)
+        self.assets = AssetRegistry(self.root, self.catalog)
         self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def parse(self, text: str, session: SessionState | None = None) -> IntentRequest:
-        request = self._parse(text, session)
+        request = self._idx_request(text, session) or self._parse(text, session)
         request.has_position_context = bool(re.search(
             r"\b(?:aku\s+pegang|saya\s+(?:pegang|sudah\s+beli)|posisi\s+\w+\s+saya|"
             r"(?:i\s+(?:already\s+)?hold|i\s+own|my\s+position)|should\s+i\s+reduce|"
             r"jual\s+sebagian|kurangi\s+posisi)\b", text, re.IGNORECASE))
+        if request.asset_type == "EQUITY_ID" and re.search(r"\b(?:modal|budget|capital|risk|risiko)\b", text, re.I):
+            budget = re.search(r"(?:modal|budget|capital)\s*(?:rp|idr)\s*([0-9]+(?:\.[0-9]+)?)", text, re.I)
+            risk = re.search(r"(?:risk|risiko)\s*([0-9]+(?:\.[0-9]+)?)\s*%", text, re.I)
+            request.equity = float(budget.group(1)) if budget else None
+            request.risk_pct = float(risk.group(1)) if risk else None
+            request.focus = "capital"
+        if session and request.asset in session.research_history and re.search(r"\b(?:balik|kembali|back)\b", text, re.I):
+            saved = session.research_history[request.asset]
+            request.timeframe = saved["timeframe"]
+            request.market = saved["market"]
         return request
+
+    def _idx_request(self, text: str, session: SessionState | None) -> IntentRequest | None:
+        lower = text.lower().strip()
+        if re.search(r"\b(?:card|kartu|payment|execute|purchase)\b", lower):
+            return None
+        if re.search(r"\b(?:usd|dolar|dollar|euro|eur|yen|jpy|gbp|pound|sterling)\b", lower) and re.search(r"\b(?:idr|rupiah)\b", lower):
+            return None
+        tokens = re.findall(r"(?:IDX:)?[A-Za-z][A-Za-z0-9]*(?:\.JK)?", text)
+        resolved = []
+        for token in tokens:
+            asset, ambiguous = self.assets.resolve_asset(token)
+            if ambiguous and self.assets.equities.resolve(token):
+                return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
+                    clarification_prompt=f"Symbol {token} ambigu; gunakan IDX:{token.upper()} atau nama crypto lengkap.")
+            if asset and asset.symbol not in [a.symbol for a in resolved]:
+                resolved.append(asset)
+        equities = [a for a in resolved if a.asset_type != "CRYPTO"]
+        for asset in self.assets.equities.assets:
+            if re.search(r"(?<!\w)" + re.escape(asset.name.lower()) + r"(?!\w)", lower) and asset.symbol not in [a.symbol for a in resolved]:
+                resolved.append(asset)
+                equities.append(asset)
+        current = self.assets.equities.resolve(session.last_asset or "") if session else None
+        if current and not equities and resolved and re.search(r"\b(?:bandingkan|compare|vs|versus)\b", lower):
+            return IntentRequest("COMPARE", "COMPARE", asset=current.symbol, asset_2=resolved[0].symbol,
+                target_assets=[current.symbol, resolved[0].symbol], raw_query=text, market="idx", timeframe=session.timeframe,
+                asset_type=current.asset_type, relation_to_context="CONTINUE")
+        if not equities:
+            if re.search(r"\b(?:nasdaq|nyse)[:\s]|\b(?:aapl|msft|nvda|tsla)\b", lower) and not re.search(r"\b(?:crypto|kripto|token)\b", lower):
+                return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
+                    clarification_prompt="Foreign equities di luar scope; gunakan ticker IDX terverifikasi atau konteks crypto eksplisit.")
+            if any(token.upper().endswith(".JK") for token in tokens):
+                return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
+                    clarification_prompt="SOURCE GAP: ticker .JK belum ada di catalog terverifikasi. Impor identitas IDX berizin.")
+            if re.search(r"\b(?:idx\s+sektor|banking\s+indonesia|sektor\s+(?:energi|keuangan|perbankan))\b", lower):
+                aliases = {"energi": "A", "perbankan": "G", "banking": "G", "keuangan": "G"}
+                sector = next((code for code, names in SECTORS.items() if any(n.lower() in lower for n in names)), None)
+                sector = sector or next((code for key, code in aliases.items() if key in lower), None)
+                return IntentRequest("CATEGORY", "EQUITY_SECTOR", raw_query=text, category=sector,
+                    asset_type="EQUITY_ID", relation_to_context="UNRELATED")
+            if current and not resolved and re.search(r"\b(?:kenapa|mengapa|why|rate|suku bunga|rupiah|nikel|nickel|emas|gold|tadi|sederhana|simpl|fundamental|valuasi)\b", lower):
+                tf, _ = _parse_timeframe(text, default_tf=session.timeframe)
+                return IntentRequest("ANALYZE", "FOLLOW_UP", asset=current.symbol, raw_query=text,
+                    asset_type=current.asset_type, timeframe=tf, market="idx", relation_to_context="CONTINUE")
+            if re.search(r"\b(?:saham|stock|equity|idx)\b", lower):
+                return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
+                    clarification_prompt="SOURCE GAP: identitas IDX belum terverifikasi. Impor catalog resmi/berizin; saham asing di luar scope.")
+            return None
+        tf, _ = _parse_timeframe(text, default_tf="D1")
+        if re.search(r"hari ini|today", lower) and not re.search(r"\b(?:[mh]\d+|intraday|short term)\b", lower):
+            tf = "D1"
+        target = equities[0]
+        if re.search(r"\b(?:banding|bandingkan|compare|vs|versus)\b", lower) or len(equities) > 1:
+            if len(resolved) == 1 and session and session.last_asset:
+                active, _ = self.assets.resolve_asset(session.last_asset)
+                if active and active.symbol != target.symbol:
+                    resolved.insert(0, active)
+            if len(resolved) >= 2:
+                return IntentRequest("COMPARE", "COMPARE", asset=resolved[0].symbol, asset_2=resolved[1].symbol,
+                    target_assets=[a.symbol for a in resolved[:2]], raw_query=text, timeframe=tf, market="idx",
+                    asset_type=target.asset_type, relation_to_context="CONTINUE")
+        chart = bool(re.search(r"\b(?:chart|grafik|chat|char)\b", lower) or re.search(r"lihat\s+saham", lower))
+        visualize = bool(re.search(r"\b(?:visualize|visualisasi)\b", lower))
+        backtest = bool(re.search(r"\b(?:backtest|uji\s+strategi)\b", lower))
+        report_word = bool(re.search(r"\b(?:report\s+word|laporan\s+word|docx)\b", lower))
+        report_html = bool(re.search(r"\b(?:report\s+html|laporan\s+html)\b", lower))
+        ownership_req = bool(re.search(r"\b(?:ownership|kepemilikan|pemegang\s+saham|shareholders?)\b", lower))
+        quote = bool(re.search(r"\b(?:harga|berapa|price)\b", lower)) and not re.search(r"anal|risk|risiko|pengaruh", lower)
+        explanatory = current and current.symbol == target.symbol and re.search(r"kenapa|mengapa|why|pengaruh|dampak|fundamental", lower)
+        restore = bool(re.search(r"balik|kembali|back", lower))
+        if restore and session and target.symbol in session.research_history:
+            tf = session.research_history[target.symbol]["timeframe"]
+
+        if ownership_req:
+            req_type = "EQUITY_OWNERSHIP"
+        elif visualize:
+            req_type = "VISUALIZE"
+        elif backtest:
+            req_type = "BACKTEST"
+        elif report_word:
+            req_type = "REPORT_WORD"
+        elif report_html:
+            req_type = "REPORT_HTML"
+        elif chart:
+            req_type = "CHART"
+        elif quote:
+            req_type = "EQUITY_QUOTE"
+        elif explanatory:
+            req_type = "FOLLOW_UP"
+        else:
+            req_type = "EQUITY_ANALYSIS"
+
+        non_research_bypass = bool(chart or quote or ownership_req or visualize or backtest or report_word or report_html)
+        switch = bool(not non_research_bypass and session and session.last_asset and session.last_asset != target.symbol
+                      and not lower.startswith("/switch"))
+        intent = "CHART" if chart else ("VISUALIZE" if visualize else ("BACKTEST" if backtest else "ANALYZE"))
+        return IntentRequest(intent, req_type, asset=target.symbol,
+            target_assets=[target.symbol], asset_id=target.id, asset_type=target.asset_type, market="idx",
+            raw_query=text, timeframe=tf, relation_to_context="SWITCH" if switch else "CONTINUE",
+            needs_topic_switch_confirmation=switch, switch_target_asset=target.symbol if switch else None)
 
     def _parse(self, text: str, session: SessionState | None = None) -> IntentRequest:
         cleaned = text.strip()
@@ -434,6 +564,41 @@ class IntentRouter:
                                  asset=asset.symbol if asset else None, raw_query=text,
                                  relation_to_context="UNRELATED")
 
+        vis_match = re.fullmatch(r"(?:visualize|visualisasi)\s+([A-Za-z0-9/]+)", lower)
+        if vis_match:
+            asset, _ = self.assets.resolve_asset(vis_match.group(1))
+            sym = asset.symbol if asset else vis_match.group(1).upper()
+            return IntentRequest(intent="VISUALIZE", request_type="VISUALIZE",
+                                 asset=sym, raw_query=text, relation_to_context="UNRELATED")
+
+        bt_match = re.fullmatch(r"(?:backtest|uji\s+strategi)\s+([A-Za-z0-9/]+)", lower)
+        if bt_match:
+            asset, _ = self.assets.resolve_asset(bt_match.group(1))
+            sym = asset.symbol if asset else bt_match.group(1).upper()
+            return IntentRequest(intent="BACKTEST", request_type="BACKTEST",
+                                 asset=sym, raw_query=text, relation_to_context="UNRELATED")
+
+        rep_match = re.fullmatch(r"(?:report\s+word|report\s+docx|laporan\s+word|docx)\s+([A-Za-z0-9/]+)", lower)
+        if rep_match:
+            asset, _ = self.assets.resolve_asset(rep_match.group(1))
+            sym = asset.symbol if asset else rep_match.group(1).upper()
+            return IntentRequest(intent="REPORT_WORD", request_type="REPORT_WORD",
+                                 asset=sym, raw_query=text, relation_to_context="UNRELATED")
+
+        rep_html_match = re.fullmatch(r"(?:report\s+html|laporan\s+html)\s+([A-Za-z0-9/]+)", lower)
+        if rep_html_match:
+            asset, _ = self.assets.resolve_asset(rep_html_match.group(1))
+            sym = asset.symbol if asset else rep_html_match.group(1).upper()
+            return IntentRequest(intent="REPORT_HTML", request_type="REPORT_HTML",
+                                 asset=sym, raw_query=text, relation_to_context="UNRELATED")
+
+        own_match = re.fullmatch(r"(?:ownership|kepemilikan|shareholders?)\s+([A-Za-z0-9/]+)", lower)
+        if own_match:
+            asset, _ = self.assets.resolve_asset(own_match.group(1))
+            sym = asset.symbol if asset else own_match.group(1).upper()
+            return IntentRequest(intent="EQUITY_OWNERSHIP", request_type="EQUITY_OWNERSHIP",
+                                 asset=sym, raw_query=text, relation_to_context="UNRELATED")
+
         is_analysis = re.search(r"\b(?:analisa|analisis|analysis|analyze|review|risk|risiko|position|posisi|long|short|setup)\b", lower)
         quote_match = re.search(r"\b(?:harga|price|berapa)\s+([A-Za-z0-9/]+)", lower)
         amount_match = re.search(r"\b(\d+(?:\.\d+)?)\s+([A-Za-z][A-Za-z0-9/]*)\s+(?:berapa|to|in)", lower)
@@ -504,11 +669,41 @@ class IntentRouter:
             if cmd.startswith("chart"):
                 chart_arg = cmd.replace("chart", "", 1).strip()
                 if chart_arg:
-                    a_obj, _ = self.catalog.resolve_asset(chart_arg)
+                    a_obj, _ = self.assets.resolve_asset(chart_arg)
                     if a_obj:
                         return IntentRequest(intent="CHART", request_type="CHART", asset=a_obj.symbol, timeframe=detected_tf, raw_query=text)
                 target_sym = session.last_asset if (session and session.last_asset) else "BTC"
                 return IntentRequest(intent="CHART", request_type="CHART", asset=target_sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("visualize"):
+                v_arg = cmd.replace("visualize", "", 1).strip()
+                target_v = v_arg or (session.last_asset if session else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_v)
+                sym = a_obj.symbol if a_obj else target_v.upper()
+                return IntentRequest(intent="VISUALIZE", request_type="VISUALIZE", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("backtest"):
+                b_arg = cmd.replace("backtest", "", 1).strip()
+                target_b = b_arg or (session.last_asset if session else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_b)
+                sym = a_obj.symbol if a_obj else target_b.upper()
+                return IntentRequest(intent="BACKTEST", request_type="BACKTEST", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("report word") or cmd.startswith("report docx"):
+                r_arg = cmd.replace("report word", "", 1).replace("report docx", "", 1).strip()
+                target_r = r_arg or (session.last_asset if session else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_r)
+                sym = a_obj.symbol if a_obj else target_r.upper()
+                return IntentRequest(intent="REPORT_WORD", request_type="REPORT_WORD", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("report html") or cmd.startswith("report"):
+                r_arg = cmd.replace("report html", "", 1).replace("report", "", 1).strip()
+                target_r = r_arg or (session.last_asset if session else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_r)
+                sym = a_obj.symbol if a_obj else target_r.upper()
+                return IntentRequest(intent="REPORT_HTML", request_type="REPORT_HTML", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("ownership"):
+                o_arg = cmd.replace("ownership", "", 1).strip()
+                target_o = o_arg or (session.last_asset if session else "BBCA")
+                a_obj, _ = self.assets.resolve_asset(target_o)
+                sym = a_obj.symbol if a_obj else target_o.upper()
+                return IntentRequest(intent="EQUITY_OWNERSHIP", request_type="EQUITY_OWNERSHIP", asset=sym, timeframe=detected_tf, raw_query=text)
 
         # -------------------------------------------------------------
         # 2. Obvious System / Preference / Feedback Requests (Deterministic)

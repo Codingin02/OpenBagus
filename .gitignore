@@ -66,6 +66,7 @@ logs/*.jsonl
 
 # Machine-specific & local archives
 .local-archive/
+data/equities/
 
 # Caches & Runtime State
 .cache/

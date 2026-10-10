@@ -1,16 +1,18 @@
 # OpenBagus
 
-A conversational crypto research CLI with public market data, deterministic Python analysis, and optional local or cloud language assistance. Crypto is active; equities are disabled.
+A unified financial research CLI for cryptocurrency and Indonesian equities, with deterministic Python analysis and optional local or cloud language assistance. One installation and conversation; no market selector.
 
 ## Core Features
 
 - Public spot/perpetual quotes, OHLCV, order books, trade flow, funding and basis; online asset and DEX-pool discovery.
+- Indonesian equities, IDX-IC sector taxonomy, technical/fundamental analysis and macro/commodity context through verified, permitted local imports. Authorized automatic live IDX prices are not yet available.
 - One QuantEngine owns decisions, structural entry/stop/target geometry and reward:risk. Missing or stale evidence blocks active setups.
 - Asset/timeframe continuity, explicit research-context switching, comparisons and cached explanatory follow-ups in Indonesian or English.
 - Optional confluence appears when material, not as a fixed indicator checklist.
 - Local reports/dashboard and optional SMTP or official WhatsApp Cloud API delivery.
 
 See [Crypto Capabilities](docs/CRYPTO_CAPABILITIES.md) for sources, formulas and limitations. Quality categories are not calibrated probabilities. No out-of-sample win rate or profitability is claimed.
+See [Indonesian Equities](docs/INDONESIAN_EQUITIES_CAPABILITIES.md) for source rights, import formats, coverage and conditional trade scenarios. Foreign equities remain outside scope.
 
 ## Quick Start
 
@@ -41,6 +43,12 @@ BTC vs ETH
 1 BTC berapa dolar?
 1 USD berapa IDR?
 /chart ETH
+BBCA daily
+ANTM pengaruh nikel bagaimana?
+Banking Indonesia
+IDX sektor energi
+BTC vs BBCA
+/chart BBCA
 ```
 
 `/help`, `/assets`, `/categories`, `/status`, `/providers`, `/harness` and `/switch ETH` expose existing CLI functions. The manual trigger is exactly `OpenBagus`.

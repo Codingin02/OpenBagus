@@ -80,8 +80,8 @@ class PwaDashboardRenderer:
         return {
             "platform": "OpenBagus",
             "active_domain": "crypto",
-            "available_domains": ["crypto"],
-            "disabled_domains": ["equities"],
+            "available_domains": ["crypto", "equities_indonesia"],
+            "disabled_domains": ["foreign_equities"],
             "generated_at_utc": analysis.get("generated_at_utc", "N/A"),
             "status": analysis.get("data_freshness_summary", {}).get("overall_analysis_status", "OK"),
             "asset_views": asset_views,

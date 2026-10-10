@@ -331,7 +331,7 @@ class TestLocalLanguageIntelligence(unittest.TestCase):
         """Verifies system profile facts are accurate and strictly non-hallucinated."""
         self.assertEqual(SYSTEM_PROFILE["name"], "OpenBagus")
         self.assertEqual(SYSTEM_PROFILE["creator"], "Ahmad Bagus Idkholus Surur")
-        self.assertEqual(SYSTEM_PROFILE["active_domain"], "Crypto (Equities disabled)")
+        self.assertEqual(SYSTEM_PROFILE["active_domain"], "Crypto + Indonesian Equities (IDX permitted imports)")
         self.assertEqual(SYSTEM_PROFILE["trading_execution"], "Not implemented (research and risk analysis only)")
 
         resp_id = self.engine.answer_system_question("siapa pembuat OpenBagus?", language="id")

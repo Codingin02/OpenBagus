@@ -58,6 +58,38 @@ class CryptoAsset:
     market_pair: str = ""
     chain: str = "Native"
 
+    @property
+    def asset_type(self) -> str:
+        return "CRYPTO"
+
+    @property
+    def canonical_symbol(self) -> str:
+        return self.symbol
+
+    @property
+    def display_name(self) -> str:
+        return self.name
+
+    @property
+    def exchange_or_chain(self) -> str:
+        return self.chain
+
+    @property
+    def currency(self) -> str:
+        return "USD"
+
+    @property
+    def sector_or_category(self) -> str:
+        return self.categories[0]
+
+    @property
+    def industry(self) -> str:
+        return ""
+
+    @property
+    def data_capabilities(self) -> list[str]:
+        return ["public_quote", "public_ohlcv"]
+
     def matches(self, term: str) -> bool:
         norm = term.strip().lower()
         if not norm:

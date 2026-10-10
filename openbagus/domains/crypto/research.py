@@ -18,6 +18,7 @@ from openbagus.domains.crypto.catalog import CryptoAsset, CryptoAssetCatalog
 from openbagus.domains.crypto.quant import QuantDecisionResult, QuantEngine
 from openbagus.intelligence.intent import IntentRequest, SessionState
 from openbagus.intelligence.local_language import LocalLanguageEngine, format_price
+from openbagus.data.assets import AssetRegistry
 
 
 @dataclass
@@ -61,6 +62,13 @@ class ResearchPacket:
     data_freshness: str = "UNVERIFIED"
     contradictions: list[str] = field(default_factory=list)
     evidence_families: dict[str, str] = field(default_factory=dict)
+    currency: str = "USD"
+    asset_type: str = "CRYPTO"
+    fundamentals: dict[str, Any] = field(default_factory=dict)
+    events: list[dict[str, Any]] = field(default_factory=list)
+    price_as_of: str = ""
+    ownership: Any = None
+    backtest: Any = None
 
 
 def _fmt_price(val: float | None) -> str:
@@ -92,12 +100,69 @@ class CryptoResearchRunner:
     def __init__(self, repo_root: Path | None = None) -> None:
         self.root = repo_root or get_repo_root()
         self.catalog = CryptoAssetCatalog(self.root)
+        self.assets = AssetRegistry(self.root, self.catalog)
         self.registry = ProviderRegistry(self.root)
         self.zerokey = ZeroKeyMarketData(timeout=3.5)
         self.quant = QuantEngine()
         self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def execute(self, req: IntentRequest, session: SessionState | None = None) -> str:
+        if session and session.last_research_packet:
+            packet = session.last_research_packet
+            session.research_history[packet.asset] = {"packet": packet, "quant": session.last_quant_result,
+                "timeframe": packet.timeframe, "market": packet.market, "query": session.last_query,
+                "at": session.last_research_at}
+            if len(session.research_history) > 4:
+                session.research_history.pop(next(iter(session.research_history)))
+        if req.request_type == "CHART" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
+            asset = self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "")
+            from openbagus.domains.equities.data import EquityData
+            from openbagus.reporting.visualizer import generate_html_report
+            data = EquityData(self.root).load(asset.symbol)
+            candles = data.get("candles", [])
+            if candles:
+                html_path = generate_html_report(asset.symbol, candles, root=self.root, timeframe=req.timeframe)
+                try:
+                    opened = webbrowser.open(html_path.as_uri())
+                except Exception:
+                    opened = False
+                return f"{'Opening native chart' if opened else 'Local chart'} {asset.symbol}: {html_path}"
+            url = f"https://www.tradingview.com/chart/?symbol=IDX:{asset.symbol}"
+            try:
+                opened = webbrowser.open(url)
+            except Exception:
+                opened = False
+            return f"{'Opening' if opened else 'Chart link'} {asset.symbol}: {url}"
+        if req.request_type == "COMPARE" and any(self.assets.equities.resolve(a) for a in req.target_assets):
+            pieces = []
+            for symbol in req.target_assets[:2]:
+                asset, _ = self.assets.resolve_asset(symbol)
+                equity = asset and asset.asset_type != "CRYPTO"
+                child = IntentRequest("ANALYZE", "EQUITY_ANALYSIS" if equity else "ASSET_ANALYSIS",
+                    asset=symbol, timeframe="D1" if equity else (session.timeframe if session and session.last_asset == symbol else "H1"),
+                    raw_query=req.raw_query, market="idx" if equity else "spot", asset_type=asset.asset_type if asset else "CRYPTO")
+                cached = session.research_history.get(symbol) if session else None
+                if cached:
+                    pieces.append(f"{symbol} ({cached['packet'].currency}): {cached['quant'].decision}; {cached['quant'].decision_reason}")
+                else:
+                    pieces.append(self.execute(child, SessionState(language=session.language if session else "ID")))
+            if session:
+                session.last_comparison_assets = req.target_assets[:2]
+            return "\n\n".join(pieces) + "\n\nHarga USD dan IDR tidak dibandingkan langsung; tidak ada ranking return tanpa periode/data yang sebanding."
+        if session and req.asset in session.research_history and re.search(r"\b(?:balik|kembali|back)\b", req.raw_query, re.I):
+            saved = session.research_history[req.asset]
+            session.last_asset, session.timeframe, session.market_type = req.asset, saved["timeframe"], saved["market"]
+            session.last_quant_result, session.last_research_packet = saved["quant"], saved["packet"]
+            session.last_query, session.last_research_at = saved["query"], saved["at"]
+            return f"Kembali ke {req.asset} {session.timeframe}; snapshot {saved['at'] or 'UNVERIFIED'}, bukan refresh harga.\n" + (saved["packet"].narrative or saved["quant"].decision_reason)
+        if req.asset_type in {"EQUITY_ID", "INDEX_ID"}:
+            from openbagus.domains.equities.research import run_equity_research
+            return run_equity_research(self, req, session)
+        if req.request_type == "PREFERENCE" and session and session.last_research_packet and session.last_research_packet.asset_type != "CRYPTO" and req.preference_action in {"language_id", "language_en"}:
+            from openbagus.domains.equities.research import render_equity
+            session.language = "ID" if req.preference_action == "language_id" else "EN"
+            return render_equity(session.last_research_packet, session.last_quant_result,
+                self.assets.equities.resolve(session.last_asset), session.last_query, language=session.language)
         if req.request_type == "CALCULATOR":
             return req.focus if req.focus != "CALCULATOR_INVALID" else "Ekspresi aritmetika tidak valid atau melewati batas aman."
         if req.request_type == "EXECUTION_REQUEST":
@@ -115,6 +180,59 @@ class CryptoResearchRunner:
                 return "SOURCE GAP: harga crypto belum tersedia."
             return (f"{req.amount:g} {req.asset} = {_fmt_price(req.amount * ticker['price'])}\n"
                     f"Updated: {ticker.get('observed_at', 'DATA GAP')}\nSource: {ticker.get('provider', 'SOURCE GAP')}")
+        if req.request_type == "EQUITY_OWNERSHIP":
+            from openbagus.domains.equities.research import run_equity_research
+            return run_equity_research(self, req, session)
+        if req.request_type in ("VISUALIZE", "REPORT_HTML") and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
+            from openbagus.domains.equities.research import run_equity_research
+            return run_equity_research(self, req, session)
+        if req.request_type == "REPORT_WORD" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
+            from openbagus.domains.equities.research import run_equity_research
+            return run_equity_research(self, req, session)
+        if req.request_type == "BACKTEST" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
+            from openbagus.domains.equities.research import run_equity_research
+            return run_equity_research(self, req, session)
+        if req.request_type in ("VISUALIZE", "REPORT_HTML"):
+            target = req.asset or (session.last_asset if session else "BTC")
+            tf = req.timeframe or (session.timeframe if session else "H1")
+            evidence = self.zerokey.get_all_evidence(target, tf)
+            candles = evidence.get("klines") or []
+            ticker = self.zerokey.get_spot_ticker(target)
+            q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
+            from openbagus.reporting.visualizer import generate_html_report
+            html_path = generate_html_report(target, candles, quant_result=q, root=self.root, timeframe=tf)
+            try:
+                webbrowser.open(html_path.as_uri())
+            except Exception:
+                pass
+            return f"Laporan visualisasi interaktif {target} ({tf}) berhasil dibuat:\n{html_path}\n(Candlestick, Radar Multi-Factor, Hierarchical Sunburst, Correlation Heatmap)"
+        if req.request_type == "REPORT_WORD":
+            target = req.asset or (session.last_asset if session else "BTC")
+            tf = req.timeframe or (session.timeframe if session else "H1")
+            ticker = self.zerokey.get_spot_ticker(target)
+            candles = self.zerokey.get_all_evidence(target, tf).get("klines") or []
+            q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
+            from openbagus.reporting.word_report import generate_word_report
+            docx_path = generate_word_report(target, quant_result=q, root=self.root, timeframe=tf)
+            return f"Laporan Microsoft Word (.docx) {target} ({tf}) berhasil dibuat:\n{docx_path}\n(Memuat chart DrawingML native dengan embedded workbook Excel)"
+        if req.request_type == "BACKTEST":
+            target = req.asset or (session.last_asset if session else "BTC")
+            tf = req.timeframe or (session.timeframe if session else "H1")
+            candles = self.zerokey.get_all_evidence(target, tf).get("klines") or []
+            if len(candles) < 25:
+                return f"SOURCE GAP: Data OHLCV historis {target} ({len(candles)} bar) tidak mencukupi untuk backtest (minimal 25 bar)."
+            from openbagus.domains.quant.backtesting import BacktestRunner
+            bt_runner = BacktestRunner(initial_capital=10_000.0, asset_type="CRYPTO", buy_fee=0.0005, sell_fee=0.0005, lot_size=1)
+            bt_res = bt_runner.run(target, candles, timeframe=tf)
+            ticker = self.zerokey.get_spot_ticker(target)
+            q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
+            from openbagus.reporting.visualizer import generate_html_report
+            html_path = generate_html_report(target, candles, quant_result=q, backtest_result=bt_res, root=self.root, timeframe=tf)
+            try:
+                webbrowser.open(html_path.as_uri())
+            except Exception:
+                pass
+            return bt_res.summary_table() + f"\n\nLaporan visual backtest disimpan di:\n{html_path}"
         if req.request_type == "COMMAND":
             from openbagus import cli
             if req.system_query == "help":

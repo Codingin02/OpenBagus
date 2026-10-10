@@ -117,6 +117,117 @@ class QuantEngine:
     def __init__(self, hard_leverage_max: int = DEFAULT_HARD_LEVERAGE_MAX) -> None:
         self.hard_leverage_max = hard_leverage_max
 
+    def evaluate_equity(self, symbol: str, data: dict, policy: Any, *, timeframe: str = "D1",
+                        has_position_context: bool = False, is_index: bool = False,
+                        now: Any = None) -> QuantDecisionResult:
+        from datetime import datetime, timezone
+        from openbagus.domains.equities.data import timestamp
+
+        now = now or datetime.now(timezone.utc)
+        quote = data.get("quote", {})
+        price = validate_finite_number(quote.get("price"), min_val=0) or 0.0
+        fresh = policy.freshness(quote, now)
+        gaps = list(data.get("gaps", []))
+        if not price:
+            gaps.append("Harga IDR belum tersedia")
+        if fresh != "FRESH":
+            gaps.append(f"Data Freshness: {fresh}; bukan harga aktif terverifikasi")
+        if data.get("timeframe") != timeframe:
+            gaps.append(f"OHLCV {data.get('timeframe', 'UNAVAILABLE')} tidak mendukung {timeframe}")
+        bars = []
+        for bar in data.get("candles", []):
+            end = timestamp(bar["close_at"])
+            if end <= now:
+                bars.append({**{k: float(bar[k]) for k in ("open", "high", "low", "close", "volume")},
+                             "time": timestamp(bar["open_at"]).timestamp() * 1000,
+                             "close_time": end.timestamp() * 1000, "is_closed": True})
+        bars, valid = self._closed_candles(bars)
+        if len(bars) < 21 or not valid:
+            gaps.append("Minimal 21 closed OHLCV diperlukan")
+        horizon_seconds = {"M1": 60, "M5": 300, "M15": 900, "M30": 1800,
+                           "H1": 3600, "H4": 14400, "D1": 86400, "W1": 604800}.get(timeframe, 0)
+        latest_age = (now.timestamp() - bars[-1]["close_time"] / 1000) if bars else float("inf")
+        if not horizon_seconds or latest_age > horizon_seconds * (5 if timeframe in {"D1", "W1"} else 2):
+            gaps.append("Closed candles stale; technical levels are historical only")
+        if data.get("adjustment") == "unadjusted" and data.get("unresolved_corporate_actions") is not False:
+            gaps.append("Split/dividen/rights adjustment belum terkonfirmasi")
+        if data.get("listing_status") != "ACTIVE" or data.get("board") not in {"MAIN", "DEVELOPMENT", "NEW_ECONOMY"}:
+            gaps.append("Listing/suspension/board belum memenuhi regular-market guard")
+        if data.get("market_segment", "regular") != "regular":
+            gaps.append("Setup aktif hanya untuk pasar reguler, bukan tunai/negosiasi/FCA")
+        session = policy.session_status(now)
+        if session != "OPEN":
+            gaps.append(f"Market session: {session}")
+        source = data.get("source")
+        q = QuantDecisionResult(symbol, "IDX INDEX" if is_index else "IDX CASH EQUITY", "WAIT",
+            "UNVERIFIED", "LOW", price, "N/A", None, None, None, None, "N/A", "N/A", 0,
+            {}, [source] if source else [], 0, 0.0, 0.0, False, False, timeframe=timeframe,
+            data_quality="LOW", data_freshness=fresh)
+        if bars and price:
+            high, low = bars[-1]["high"], bars[-1]["low"]
+            trend = self._eval_trend_momentum(price, high, low, 0, bars, timeframe)
+            vol = self._eval_volatility_regime(price, high, low, bars)
+            support = min(b["low"] for b in bars[-20:])
+            resistance = max(b["high"] for b in bars[-20:])
+            q.structure_levels = {"support": support, "resistance": resistance}
+            q.regime = "UPTREND" if trend.direction_score > 0.2 else ("DOWNTREND" if trend.direction_score < -0.2 else "RANGE")
+            q.factor_contributions = {"EMA": str(trend.details), "ATR": str(vol.details)}
+            average_volume = sum(b["volume"] for b in bars[-21:-1]) / min(20, max(1, len(bars) - 1))
+            relative_volume = bars[-1]["volume"] / average_volume if average_volume > 0 else None
+            q.microstructure = {"relative_volume": relative_volume, "volume_unit": "shares",
+                                "atr": vol.details.get("atr"), "institutional_flow": "UNAVAILABLE"}
+            q.evidence_families = {"Price": q.regime, "Volume": "CONFIRMED" if relative_volume and relative_volume >= 1.2 else "UNCONFIRMED"}
+            q.evidence_count = int(trend.quality >= 0.35) + int(relative_volume is not None)
+            benchmark = data.get("benchmark_candles", [])
+            if benchmark and len(benchmark) == len(data.get("candles", [])) and len(bars) == len(benchmark):
+                aligned = all(a["close_at"] == b.get("close_at") for a, b in zip(data["candles"], benchmark))
+                if aligned and len(benchmark) >= 21:
+                    b0, b1 = benchmark[-21], benchmark[-1]
+                    if float(b0["close"]) > 0 and timestamp(b1["close_at"]) <= now:
+                        q.microstructure["relative_strength_vs_IHSG_pct"] = ((bars[-1]["close"] / bars[-21]["close"] - 1)
+                            - (float(b1["close"]) / float(b0["close"]) - 1)) * 100
+            if is_index:
+                gaps.append("Indeks bukan saham yang dapat dibeli langsung; outlook saja")
+            if not gaps:
+                try:
+                    reference = float(quote["previous_close"])
+                    lower, upper = float(quote["price_limit_low"]), float(quote["price_limit_high"])
+                    fees = data["fees"]
+                    buy_fee, sell_fee = float(fees["buy"]), float(fees["sell"])
+                    if not all(math.isfinite(v) for v in (reference, lower, upper, buy_fee, sell_fee)) or not 0 < lower <= price <= upper or not 0 <= min(buy_fee, sell_fee) <= max(buy_fee, sell_fee) < 1:
+                        raise ValueError("Price bounds/costs unavailable")
+                    entry = policy.round_price(price, reference, up=True)
+                    stop = policy.round_price(support, reference, up=False)
+                    target = policy.round_price(resistance, reference, up=False)
+                    risk = entry - stop + entry * buy_fee + stop * sell_fee
+                    reward = target - entry - entry * buy_fee - target * sell_fee
+                    rr = reward / risk if risk > 0 else 0.0
+                    if lower <= stop < entry < target <= upper and rr >= self.MINIMUM_REWARD_RISK:
+                        q.bullish_validation = ValidationScenario("BUY", "Harga bertahan di atas support dengan volume >= 1.2x rata-rata 20 bar",
+                            "Relative volume >= 1.2", "Order flow belum tersedia", "Tidak berlaku untuk cash equity",
+                            f"Rp{entry:,.0f}", stop, target, target, rr, f"1:{rr:.2f}", entry_price=entry,
+                            scenario_type="Structural continuation", rr_gate_passed=True, trigger_level=entry, trigger_state="UNCONFIRMED")
+                    q.quality_gate_passed = True
+                    q.data_quality = "MODERATE"
+                    if q.regime == "UPTREND" and relative_volume and relative_volume >= 1.2 and q.bullish_validation:
+                        q.decision = "BUY"
+                        q.entry_zone, q.stop_price, q.tp1 = f"Rp{entry:,.0f}", stop, target
+                        q.reward_risk, q.reward_risk_str, q.rr_gate_passed = rr, f"1:{rr:.2f}", True
+                        q.setup_quality = "MODERATE"
+                        q.bullish_validation.trigger_state = "CONFIRMED"
+                    elif q.regime == "DOWNTREND":
+                        q.decision = "REDUCE" if has_position_context else "AVOID_ENTRY"
+                    elif has_position_context:
+                        q.decision = "HOLD"
+                    else:
+                        gaps.append("Volume, arah tren atau RR struktural belum mendukung entry")
+                except (ValueError, TypeError, KeyError, ZeroDivisionError):
+                    gaps.append("Fraksi harga, batas harga instrumen atau biaya belum terverifikasi")
+        q.decision_reason = "; ".join(gaps) if gaps else "Struktur, volume dan batas risiko mendukung research view; bukan order."
+        q.why_now = q.decision_reason
+        q.why = {"risk": q.decision_reason}
+        return q
+
     def evaluate(
         self,
         symbol: str,

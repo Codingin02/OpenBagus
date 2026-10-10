@@ -1,10 +1,11 @@
 {
   "platform_name": "OpenBagus",
   "active_domains": [
-    "crypto"
+    "crypto",
+    "equities_indonesia"
   ],
   "disabled_domains": [
-    "equities"
+    "foreign_equities"
   ],
   "research_only": true,
   "numeric_decision_core": "Python Quant Engine",

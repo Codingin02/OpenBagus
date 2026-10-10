@@ -35,7 +35,8 @@ class LocalFileOutboxAdapter:
 
 def render_research_delivery(quant: Any, packet: Any, *, include_sources: bool = False) -> dict[str, str]:
     def price(value: Any) -> str:
-        return "N/A" if value is None else f"${float(value):,.8f}".rstrip("0").rstrip(".")
+        prefix = "Rp" if getattr(packet, "currency", "USD") == "IDR" else "$"
+        return "N/A" if value is None else prefix + f"{float(value):,.8f}".rstrip("0").rstrip(".")
 
     reason = str(getattr(packet, "decision_reason", "") or getattr(quant, "decision_reason", "") or "Data belum cukup untuk tesis yang lebih kuat.")
     narrative = str(getattr(packet, "narrative", "") or getattr(quant, "narrative", "") or "").strip()
@@ -43,6 +44,7 @@ def render_research_delivery(quant: Any, packet: Any, *, include_sources: bool =
         f"OpenBagus - {quant.asset} - {quant.timeframe}", "",
         f"Decision: {quant.decision}", f"Price: {price(quant.price)}", f"Market: {getattr(packet, 'market', quant.market)}",
         f"Updated: {datetime.now(timezone.utc).isoformat(timespec='seconds')}",
+        f"Market data as-of: {getattr(packet, 'price_as_of', '') or 'UNVERIFIED'} | Freshness: {getattr(packet, 'data_freshness', 'UNVERIFIED')}",
         f"Reason: {reason}",
     ]
     if narrative and narrative != reason:

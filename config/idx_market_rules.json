@@ -1,0 +1,14 @@
+{
+  "source": "https://www.idx.id/id/produk-layanan/jam-dan-mekanisme-perdagangan/",
+  "rule_reference": "II-A Kep-00136/BEI/09-2026",
+  "effective_from": null,
+  "effective_until": null,
+  "timezone": "Asia/Jakarta",
+  "lot_size": 100,
+  "tick_bands": [[200, 1], [500, 2], [2000, 5], [5000, 10], [null, 25]],
+  "regular_sessions": {"mon_thu": [["09:00:00", "12:00:00"], ["13:30:00", "15:49:59"]], "fri": [["09:00:00", "11:30:00"], ["14:00:00", "15:49:59"]]},
+  "cash_sessions": {"mon_thu": [["09:00:00", "12:00:00"]], "fri": [["09:00:00", "11:30:00"]]},
+  "negotiated_sessions": {"mon_thu": [["09:00:00", "12:00:00"], ["13:30:00", "16:30:00"]], "fri": [["09:00:00", "11:30:00"], ["14:00:00", "16:30:00"]]},
+  "calendar": {},
+  "note": "Reference snapshot only. Import permitted effective dates/calendar and instrument-specific price bounds before actionable analysis. No automatic IDX scraping."
+}
