@@ -69,12 +69,14 @@ class OwnershipStructure:
     denominator_type: str
     top_shareholders: list[ShareholderRecord] = field(default_factory=list)
     public_shareholders_pct: float = 0.0
-    domestic_pct: float = 0.0
-    foreign_pct: float = 0.0
+    domestic_pct: float | None = None
+    foreign_pct: float | None = None
     investor_type_breakdown: dict[str, float] = field(default_factory=dict)
     reconciled: bool = True
     reconciliation_notes: str = ""
     denominator_explanation: str = ""
+    verification_status: str = "UNVERIFIED"
+    regulatory_free_float_pct: float | None = None
 
     def to_dict(self) -> dict:
         return {
@@ -86,18 +88,20 @@ class OwnershipStructure:
             "shares_outstanding": self.shares_outstanding,
             "denominator_type": self.denominator_type,
             "top_shareholders": [s.to_dict() for s in self.top_shareholders],
-            "public_shareholders_pct": round(self.public_shareholders_pct, 4),
-            "domestic_pct": round(self.domestic_pct, 4),
-            "foreign_pct": round(self.foreign_pct, 4),
+            "public_shareholders_pct": round(self.public_shareholders_pct, 4) if self.public_shareholders_pct is not None else 0.0,
+            "domestic_pct": round(self.domestic_pct, 4) if self.domestic_pct is not None else None,
+            "foreign_pct": round(self.foreign_pct, 4) if self.foreign_pct is not None else None,
             "investor_type_breakdown": {k: round(v, 4) for k, v in self.investor_type_breakdown.items()},
             "reconciled": self.reconciled,
             "reconciliation_notes": self.reconciliation_notes,
             "denominator_explanation": self.denominator_explanation,
+            "verification_status": self.verification_status,
+            "regulatory_free_float_pct": self.regulatory_free_float_pct,
         }
 
 
-# Verified public disclosure seeds for major IDX blue chips (source: IDX & KSEI official monthly filings)
-VERIFIED_OWNERSHIP_SEEDS: dict[str, dict] = {
+# Synthetic test fixtures for automated testing ONLY. Never loaded as production fallback.
+SYNTHETIC_OWNERSHIP_TEST_FIXTURES: dict[str, dict] = {
     "BBCA": {
         "issuer": "PT Bank Central Asia Tbk",
         "ticker": "BBCA",
@@ -264,6 +268,28 @@ VERIFIED_OWNERSHIP_SEEDS: dict[str, dict] = {
 }
 
 
+def get_synthetic_test_ownership(symbol: str) -> OwnershipStructure | None:
+    """Returns a synthetic test ownership structure for test suites only. Never called in production."""
+    sym = symbol.strip().upper()
+    if sym in SYNTHETIC_OWNERSHIP_TEST_FIXTURES:
+        seed = SYNTHETIC_OWNERSHIP_TEST_FIXTURES[sym]
+        return reconcile_ownership(
+            ticker=seed["ticker"],
+            issuer=seed["issuer"],
+            reporting_date=seed["reporting_date"],
+            publication_date=seed["publication_date"],
+            source=seed["source"],
+            shares_outstanding=seed["shares_outstanding"],
+            raw_top_holders=seed["top_shareholders"],
+            domestic_pct=seed.get("domestic_pct"),
+            foreign_pct=seed.get("foreign_pct"),
+            investor_types=seed.get("investor_type_breakdown"),
+            denominator_type=seed.get("denominator_type", DENOMINATOR_SHARES_OUTSTANDING),
+            verification_status="UNVERIFIED",
+        )
+    return None
+
+
 def reconcile_ownership(
     ticker: str,
     issuer: str,
@@ -276,32 +302,54 @@ def reconcile_ownership(
     foreign_pct: float | None = None,
     investor_types: dict[str, float] | None = None,
     denominator_type: str = DENOMINATOR_SHARES_OUTSTANDING,
+    verification_status: str = "UNVERIFIED",
+    regulatory_free_float_pct: float | None = None,
 ) -> OwnershipStructure:
-    """Reconciles shareholder disclosures into a consistent, non-overlapping ownership model.
-    
-    Ensures:
-    1. Top holders sum is subtracted from 100% to produce an explicit public float remainder.
-    2. Missing holders are never labeled as individual named entities.
-    3. Domestic and Foreign percentages sum to 100% within rounding tolerance.
-    4. Denominator semantics (shares outstanding vs registered holdings) are explicitly documented.
-    """
+    """Reconciles shareholder disclosures into a consistent, mathematically sound ownership model."""
+    if not source or not str(source).strip():
+        raise ValueError("Source documentation URL or reference is required")
     if shares_outstanding <= 0:
         raise ValueError("Shares outstanding must be positive")
-    
+    if denominator_type not in (DENOMINATOR_SHARES_OUTSTANDING, DENOMINATOR_REGISTERED_HOLDINGS):
+        raise ValueError(f"Unknown denominator type: {denominator_type}")
+
     top_holders: list[ShareholderRecord] = []
     top_pct_sum = 0.0
+    seen_holders: set[str] = set()
 
     for h in raw_top_holders:
         name = str(h.get("shareholder", "")).strip()
+        if not name:
+            raise ValueError("Shareholder name cannot be empty")
+        name_key = name.lower()
+        if name_key in seen_holders:
+            raise ValueError(f"Duplicate shareholder record '{name}' detected in ownership disclosure")
+        seen_holders.add(name_key)
+
         itype = str(h.get("investor_type", "Others")).strip()
         shares = float(h.get("shares_held", 0.0))
         pct = float(h.get("percentage", 0.0))
-        
-        # If percentage was missing or zero, compute from shares outstanding
+
+        if shares < 0:
+            raise ValueError(f"Share holdings cannot be negative for holder '{name}'")
+        if pct < 0.0 or pct > 100.0:
+            raise ValueError(f"Shareholder percentage {pct}% is outside valid bounds [0, 100] for '{name}'")
+
+        h_denom = h.get("denominator_type")
+        if h_denom and h_denom != denominator_type:
+            raise ValueError(f"Mixed denominator types cannot be combined: holder '{name}' uses '{h_denom}' vs structure '{denominator_type}'")
+
+        # Mathematical agreement check
         if pct <= 0 and shares > 0:
             pct = (shares / shares_outstanding) * 100.0
         elif shares <= 0 and pct > 0:
             shares = (pct / 100.0) * shares_outstanding
+        elif shares > 0 and pct > 0:
+            expected_pct = (shares / shares_outstanding) * 100.0
+            if abs(expected_pct - pct) > 1.0:
+                raise ValueError(
+                    f"Conflicting shares ({shares:,.0f}) and percentage ({pct:.2f}%) for holder '{name}'; expected ~{expected_pct:.2f}%"
+                )
 
         top_pct_sum += pct
         top_holders.append(
@@ -316,38 +364,43 @@ def reconcile_ownership(
                 percentage=round(pct, 4),
                 denominator_type=denominator_type,
                 source=source,
-                verification_status="VERIFIED",
+                verification_status=verification_status,
             )
         )
 
-    public_pct = max(0.0, 100.0 - top_pct_sum)
+    if top_pct_sum > 100.01:
+        raise ValueError(f"Total shareholder percentages ({top_pct_sum:.2f}%) exceed 100%")
 
-    # Reconcile Domestic vs Foreign
-    dom = domestic_pct if domestic_pct is not None else 0.0
-    forn = foreign_pct if foreign_pct is not None else 0.0
-    if dom + forn <= 0:
-        dom = 60.0
-        forn = 40.0
-    else:
-        tot_df = dom + forn
-        if abs(tot_df - 100.0) > 0.01:
-            dom = (dom / tot_df) * 100.0
-            forn = (forn / tot_df) * 100.0
+    unclassified_remainder = max(0.0, round(100.0 - top_pct_sum, 4))
+
+    # Domestic vs Foreign: do not default to 60/40!
+    dom = domestic_pct
+    forn = foreign_pct
+    if dom is not None and forn is not None:
+        if dom + forn > 100.01:
+            raise ValueError(f"Domestic ({dom:.2f}%) and Foreign ({forn:.2f}%) sum exceeds 100%")
 
     inv_breakdown = dict(investor_types or {})
     if not inv_breakdown:
         inv_breakdown = {
-            "Top Controlling / Strategic": round(top_pct_sum, 2),
-            "Public (<5%)": round(public_pct, 2),
+            "Top Disclosed Holders (>5%)": round(top_pct_sum, 2),
+            "Unclassified Remainder (<5%)": round(unclassified_remainder, 2),
         }
 
     denom_note = (
         "Persentase dihitung terhadap total saham beredar (shares outstanding). "
-        "Laporan kepemilikan >5% mencakup pemegang saham utama/pengendali. "
-        "Sisa kepemilikan dialokasikan sebagai publik (<5%), bukan pemegang perorangan terselubung."
+        "Laporan kepemilikan >5% mencakup pemegang saham utama/pengendali yang dilaporkan. "
+        "Sisa kepemilikan merupakan sisa yang tidak terklasifikasi (<5%), bukan free float regulasi yang disahkan atau pemegang perorangan terselubung."
         if denominator_type == DENOMINATOR_SHARES_OUTSTANDING
         else "Persentase dihitung terhadap total efek terdaftar dalam KSEI (registered holdings)."
     )
+
+    reconciliation_notes = (
+        f"Reconciled {len(top_holders)} major holder(s) totalling {top_pct_sum:.2f}%; "
+        f"unclassified remainder {unclassified_remainder:.2f}%."
+    )
+    if regulatory_free_float_pct is not None:
+        reconciliation_notes += f" Disclosed regulatory free float: {regulatory_free_float_pct:.2f}%."
 
     return OwnershipStructure(
         ticker=ticker,
@@ -358,18 +411,20 @@ def reconcile_ownership(
         shares_outstanding=shares_outstanding,
         denominator_type=denominator_type,
         top_shareholders=top_holders,
-        public_shareholders_pct=public_pct,
+        public_shareholders_pct=unclassified_remainder,
         domestic_pct=dom,
         foreign_pct=forn,
         investor_type_breakdown=inv_breakdown,
         reconciled=True,
-        reconciliation_notes=f"Reconciled {len(top_holders)} major holder(s) totalling {top_pct_sum:.2f}%; public float {public_pct:.2f}%.",
+        reconciliation_notes=reconciliation_notes,
         denominator_explanation=denom_note,
+        verification_status=verification_status,
+        regulatory_free_float_pct=regulatory_free_float_pct,
     )
 
 
 def load_ownership(symbol: str, root: Path) -> OwnershipStructure | None:
-    """Loads ownership structure for a symbol from local files or verified seeds."""
+    """Loads ownership structure for a symbol from local imported files only."""
     sym = symbol.strip().upper()
     file_path = root / f"data/equities/ownership/{sym}.json"
     if file_path.exists():
@@ -387,25 +442,11 @@ def load_ownership(symbol: str, root: Path) -> OwnershipStructure | None:
                 foreign_pct=data.get("foreign_pct"),
                 investor_types=data.get("investor_type_breakdown"),
                 denominator_type=data.get("denominator_type", DENOMINATOR_SHARES_OUTSTANDING),
+                verification_status="USER_IMPORTED",
+                regulatory_free_float_pct=data.get("regulatory_free_float_pct"),
             )
         except Exception:
             pass
-
-    if sym in VERIFIED_OWNERSHIP_SEEDS:
-        seed = VERIFIED_OWNERSHIP_SEEDS[sym]
-        return reconcile_ownership(
-            ticker=seed["ticker"],
-            issuer=seed["issuer"],
-            reporting_date=seed["reporting_date"],
-            publication_date=seed["publication_date"],
-            source=seed["source"],
-            shares_outstanding=seed["shares_outstanding"],
-            raw_top_holders=seed["top_shareholders"],
-            domestic_pct=seed.get("domestic_pct"),
-            foreign_pct=seed.get("foreign_pct"),
-            investor_types=seed.get("investor_type_breakdown"),
-            denominator_type=seed.get("denominator_type", DENOMINATOR_SHARES_OUTSTANDING),
-        )
 
     return None
 
@@ -443,6 +484,7 @@ def import_ownership_file(path: Path, root: Path) -> str:
             source=source,
             shares_outstanding=shares_out,
             raw_top_holders=top_holders,
+            verification_status="USER_IMPORTED",
         )
     else:
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -461,6 +503,8 @@ def import_ownership_file(path: Path, root: Path) -> str:
             foreign_pct=data.get("foreign_pct"),
             investor_types=data.get("investor_type_breakdown"),
             denominator_type=data.get("denominator_type", DENOMINATOR_SHARES_OUTSTANDING),
+            verification_status="USER_IMPORTED",
+            regulatory_free_float_pct=data.get("regulatory_free_float_pct"),
         )
 
     out_dir = root / "data/equities/ownership"

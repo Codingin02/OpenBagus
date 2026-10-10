@@ -5,8 +5,8 @@ import unittest
 from pathlib import Path
 
 from openbagus.domains.crypto.quant import QuantDecisionResult
-from openbagus.domains.equities.ownership import OwnershipStructure, ShareholderRecord
-from openbagus.domains.quant.backtesting import BacktestResult, BacktestTrade
+from openbagus.domains.equities.ownership import get_synthetic_test_ownership
+from openbagus.domains.quant.backtesting import BacktestRunner
 from openbagus.reporting.visualizer import generate_html_report
 
 
@@ -44,8 +44,7 @@ class TestVisualization(unittest.TestCase):
             decision_reason="Trend confirmation with RSI recovery.",
             timeframe="D1",
         )
-        from openbagus.domains.equities.ownership import load_ownership
-        self.ownership = load_ownership("BBCA", Path("."))
+        self.ownership = get_synthetic_test_ownership("BBCA")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -66,25 +65,72 @@ class TestVisualization(unittest.TestCase):
 
         # Zero CDN / external script dependencies (100% offline)
         for external in ["https://cdn", "https://cdnjs", "unpkg.com", "jsdelivr.net", "http://", "https://"]:
-            # Note: only allow harmless schema or doctype, no script/link src
             self.assertNotIn(f'src="{external}', content.lower())
             self.assertNotIn(f'href="{external}', content.lower())
 
         # Essential Canvas and Visualizer IDs
         self.assertIn("candleCanvas", content)
-        self.assertIn("radarCanvas", content)
         self.assertIn("sunburstCanvas", content)
-        self.assertIn("heatmapCanvas", content)
 
-        # Asset metadata embedded
+        # Asset metadata and verified top shareholder embedded
         self.assertIn("BBCA", content)
         self.assertIn("D1", content)
         self.assertIn("PT Dwimuria", content)
 
+        # Verify no hardcoded 16.6 placeholders
+        self.assertNotIn("16.6", content)
+
+    def test_unverified_radar_and_heatmap_omitted_without_data(self):
+        # When neither verified ratios (< 3 dimensions) nor multi-asset return series exist:
+        # Radar and Heatmap must display explicit omission notices, NOT fabricated values.
+        html_file = generate_html_report(
+            asset="BBCA",
+            candles=self.candles,
+            quant_result=None,
+            packet=None,
+            ownership=None,
+            root=self.root,
+            timeframe="D1",
+        )
+        content = html_file.read_text(encoding="utf-8")
+        self.assertIn("Radar Omitted", content)
+        self.assertIn("Heatmap Omitted", content)
+        # Ensure static unverified values are not present
+        self.assertNotIn("[65.0, 50.0, 70.0, 60.0, 75.0, 68.0]", content)
+        self.assertNotIn("16.6", content)
+
+    def test_heatmap_rendered_when_multi_asset_returns_provided(self):
+        # 20 bars for 2 assets
+        candles_bbca = [
+            {"open_at": f"2026-01-{i+1:02d}T09:00:00Z", "open": 100.0 + i, "high": 105.0 + i, "low": 98.0 + i, "close": 102.0 + i, "volume": 1000}
+            for i in range(20)
+        ]
+        candles_bbri = [
+            {"open_at": f"2026-01-{i+1:02d}T09:00:00Z", "open": 50.0 + i * 0.5, "high": 52.0 + i * 0.5, "low": 49.0 + i * 0.5, "close": 51.0 + i * 0.5, "volume": 2000}
+            for i in range(20)
+        ]
+        multi_candles = {"BBCA": candles_bbca, "BBRI": candles_bbri}
+        html_file = generate_html_report(
+            asset="BBCA",
+            candles=candles_bbca,
+            root=self.root,
+            timeframe="D1",
+            multi_asset_candles=multi_candles,
+        )
+        content = html_file.read_text(encoding="utf-8")
+        self.assertIn("heatmapCanvas", content)
+        self.assertNotIn("Heatmap Omitted", content)
+
     def test_backtest_curve_rendering_in_html(self):
-        from openbagus.domains.quant.backtesting import BacktestRunner
         candles = [
-            {"open_at": f"2026-01-{(i%28)+1:02d}T09:00:00Z", "open": 100.0 + i * 5, "high": 105.0 + i * 5, "low": 98.0 + i * 5, "close": 104.0 + i * 5, "volume": 1000}
+            {
+                "open_at": f"2026-{1 if i < 28 else 2:02d}-{(i%28)+1:02d}T09:00:00Z",
+                "open": 100.0 + i * 5,
+                "high": 105.0 + i * 5,
+                "low": 98.0 + i * 5,
+                "close": 104.0 + i * 5,
+                "volume": 1000,
+            }
             for i in range(30)
         ]
         bt = BacktestRunner().run("BBCA", candles, timeframe="D1")
@@ -99,7 +145,7 @@ class TestVisualization(unittest.TestCase):
         self.assertTrue(html_file.exists())
         content = html_file.read_text(encoding="utf-8")
         self.assertIn("backtestCanvas", content)
-        self.assertIn("Walk-Forward Backtest", content)
+        self.assertIn("Walk-Forward Backtesting", content)
 
 
 if __name__ == "__main__":

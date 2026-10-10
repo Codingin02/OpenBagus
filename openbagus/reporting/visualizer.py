@@ -46,6 +46,7 @@ def generate_html_report(
     backtest_result: Any = None,
     root: Path | None = None,
     timeframe: str = "D1",
+    multi_asset_candles: dict[str, list[dict[str, Any]]] | None = None,
 ) -> Path:
     """Generates an all-in-one interactive HTML research dashboard."""
     reports_dir = get_reports_dir(root)
@@ -82,63 +83,87 @@ def generate_html_report(
     # Prepare Sunburst data (either ownership hierarchy or IDX sector hierarchy)
     sunburst_data = []
     if ownership and ownership.top_shareholders:
-        sunburst_data.append({"id": "ROOT", "parent": "", "label": f"{ownership.ticker} 100%", "value": 100.0})
-        sunburst_data.append({"id": "DOM", "parent": "ROOT", "label": f"Domestic ({ownership.domestic_pct:.1f}%)", "value": ownership.domestic_pct})
-        sunburst_data.append({"id": "FOR", "parent": "ROOT", "label": f"Foreign ({ownership.foreign_pct:.1f}%)", "value": ownership.foreign_pct})
+        sunburst_data.append({"id": "ROOT", "parent": "", "label": f"{ownership.ticker} Disclosed", "value": 100.0})
+        dom_val = ownership.domestic_pct if ownership.domestic_pct is not None else 0.0
+        for_val = ownership.foreign_pct if ownership.foreign_pct is not None else 0.0
+        if dom_val > 0:
+            sunburst_data.append({"id": "DOM", "parent": "ROOT", "label": f"Domestic ({dom_val:.1f}%)", "value": dom_val})
+        if for_val > 0:
+            sunburst_data.append({"id": "FOR", "parent": "ROOT", "label": f"Foreign ({for_val:.1f}%)", "value": for_val})
         for i, s in enumerate(ownership.top_shareholders):
-            pid = "DOM" if "Domestic" in s.investor_type or "Government" in s.investor_type else "FOR"
+            pid = "DOM" if ("Domestic" in s.investor_type or "Government" in s.investor_type) else ("FOR" if "Foreign" in s.investor_type else "ROOT")
+            parent_id = pid if (pid == "ROOT" or (pid == "DOM" and dom_val > 0) or (pid == "FOR" and for_val > 0)) else "ROOT"
             sunburst_data.append({
                 "id": f"H_{i}",
-                "parent": pid,
+                "parent": parent_id,
                 "label": f"{s.shareholder[:20]} ({s.percentage:.1f}%)",
                 "value": s.percentage,
             })
         if ownership.public_shareholders_pct > 0:
             sunburst_data.append({
                 "id": "PUB",
-                "parent": "DOM",
-                "label": f"Public <5% ({ownership.public_shareholders_pct:.1f}%)",
+                "parent": "ROOT",
+                "label": f"Unclassified Remainder ({ownership.public_shareholders_pct:.1f}%)",
                 "value": ownership.public_shareholders_pct,
             })
     else:
-        # Sector taxonomy hierarchy
-        sunburst_data.append({"id": "ROOT", "parent": "", "label": "IDX Capital Market", "value": 100.0})
-        for code, (en_name, id_name) in list(SECTORS.items())[:6]:
+        # Sector taxonomy hierarchy from EquityCatalog asset counts (never synthetic 16.6)
+        from openbagus.domains.equities.catalog import EquityCatalog
+        catalog = EquityCatalog(root or Path("."))
+        sector_counts: dict[str, int] = {}
+        for a in catalog.assets:
+            if a.sector_code:
+                sector_counts[a.sector_code] = sector_counts.get(a.sector_code, 0) + 1
+        total_assets = sum(sector_counts.values()) or 1
+        sunburst_data.append({"id": "ROOT", "parent": "", "label": "IDX Catalog Universe", "value": float(total_assets)})
+        for code, cnt in sector_counts.items():
+            en_name = SECTORS.get(code, (code, code))[0]
             sunburst_data.append({
                 "id": code,
                 "parent": "ROOT",
-                "label": f"{code}: {en_name}",
-                "value": 16.6,
+                "label": f"{code}: {en_name} ({cnt})",
+                "value": float(cnt),
             })
 
-    # Prepare Radar Chart data (6 normalized multi-factor dimensions)
-    radar_labels = ["Profitability", "Valuation", "Balance Sheet", "Growth", "Momentum", "Safety / Risk"]
-    radar_values = [65.0, 50.0, 70.0, 60.0, 75.0, 68.0]
-    if quant_result:
-        # Derive quantitative values
-        if quant_result.regime == "UPTREND":
-            radar_values[4] = 85.0
-        elif quant_result.regime == "DOWNTREND":
-            radar_values[4] = 30.0
-        if quant_result.decision == "BUY":
-            radar_values[5] = 80.0
-        elif quant_result.decision == "REDUCE":
-            radar_values[5] = 35.0
+    # Prepare Radar Chart data: only construct if >= 3 verified dimensions exist
+    radar_labels: list[str] = []
+    radar_values: list[float] = []
+    dimensions: list[tuple[str, float]] = []
 
-    if packet and packet.fundamentals and packet.fundamentals.get("ratios"):
+    if packet and getattr(packet, "fundamentals", None) and packet.fundamentals.get("ratios"):
         ratios = packet.fundamentals["ratios"]
         if "ROE_pct" in ratios:
-            radar_values[0] = min(100.0, max(20.0, ratios["ROE_pct"] * 3.5))
+            dimensions.append(("Profitability (ROE)", min(100.0, max(0.0, float(ratios["ROE_pct"]) * 4.0))))
+        elif "NIM_pct" in ratios:
+            dimensions.append(("Profitability (NIM)", min(100.0, max(0.0, float(ratios["NIM_pct"]) * 16.0))))
+
         if "PBV" in ratios:
-            # Lower PBV is higher score on valuation
-            radar_values[1] = min(100.0, max(20.0, 100.0 - (ratios["PBV"] * 18.0)))
+            pbv = float(ratios["PBV"])
+            dimensions.append(("Valuation (PBV)", min(100.0, max(10.0, 100.0 - pbv * 18.0))))
+        elif "PER" in ratios:
+            per = float(ratios["PER"])
+            dimensions.append(("Valuation (PER)", min(100.0, max(10.0, 100.0 - per * 3.5))))
+
         if "Debt_to_Equity" in ratios:
-            # Lower DER is stronger balance sheet
-            radar_values[2] = min(100.0, max(20.0, 100.0 - (ratios["Debt_to_Equity"] * 30.0)))
-        if "NIM_pct" in ratios:
-            radar_values[0] = min(100.0, max(40.0, ratios["NIM_pct"] * 16.0))
-        if "CAR_pct" in ratios:
-            radar_values[2] = min(100.0, max(50.0, ratios["CAR_pct"] * 3.8))
+            der = float(ratios["Debt_to_Equity"])
+            dimensions.append(("Balance Sheet (DER)", min(100.0, max(10.0, 100.0 - der * 30.0))))
+        elif "CAR_pct" in ratios:
+            car = float(ratios["CAR_pct"])
+            dimensions.append(("Balance Sheet (CAR)", min(100.0, max(20.0, car * 4.0))))
+
+    if quant_result:
+        if hasattr(quant_result, "composite_score") and quant_result.composite_score is not None:
+            dimensions.append(("Momentum / Signal", min(100.0, max(0.0, float(quant_result.composite_score) * 100.0))))
+        if hasattr(quant_result, "composite_quality") and quant_result.composite_quality is not None:
+            dimensions.append(("Signal Quality", min(100.0, max(0.0, float(quant_result.composite_quality) * 100.0))))
+        if hasattr(quant_result, "reward_risk") and quant_result.reward_risk is not None and quant_result.reward_risk > 0:
+            rr = float(quant_result.reward_risk)
+            dimensions.append(("Reward / Risk", min(100.0, max(20.0, rr * 33.3))))
+
+    has_radar = len(dimensions) >= 3
+    if has_radar:
+        radar_labels = [d[0] for d in dimensions]
+        radar_values = [round(d[1], 1) for d in dimensions]
 
     # Prepare Backtest Chart data
     backtest_equity = []
@@ -147,16 +172,64 @@ def generate_html_report(
         backtest_equity = backtest_result.equity_curve
         backtest_dd = backtest_result.drawdown_curve
 
-    # Correlation / Sector Heatmap matrix
-    heatmap_assets = ["BBCA", "BBRI", "BMRI", "TLKM", "ASII", "ANTM"]
-    heatmap_matrix = [
-        [1.00, 0.78, 0.74, 0.42, 0.51, 0.31],
-        [0.78, 1.00, 0.82, 0.46, 0.49, 0.33],
-        [0.74, 0.82, 1.00, 0.44, 0.53, 0.35],
-        [0.42, 0.46, 0.44, 1.00, 0.38, 0.22],
-        [0.51, 0.49, 0.53, 0.38, 1.00, 0.45],
-        [0.31, 0.33, 0.35, 0.22, 0.45, 1.00],
-    ]
+    # Correlation / Sector Heatmap matrix: empirical Pearson correlation only
+    has_heatmap = False
+    heatmap_assets: list[str] = []
+    heatmap_matrix: list[list[float]] = []
+
+    if multi_asset_candles and len(multi_asset_candles) >= 2:
+        asset_returns: dict[str, list[float]] = {}
+        for sym, c_list in multi_asset_candles.items():
+            if len(c_list) >= 15:
+                closes_sym = [float(c.get("close", 0.0)) for c in c_list]
+                rets = [(closes_sym[k] - closes_sym[k - 1]) / closes_sym[k - 1] for k in range(1, len(closes_sym)) if closes_sym[k - 1] > 0]
+                if len(rets) >= 14:
+                    asset_returns[sym] = rets
+
+        valid_symbols = list(asset_returns.keys())
+        if len(valid_symbols) >= 2:
+            min_len = min(len(asset_returns[s]) for s in valid_symbols)
+            if min_len >= 14:
+                has_heatmap = True
+                heatmap_assets = valid_symbols
+                for s1 in valid_symbols:
+                    row = []
+                    r1 = asset_returns[s1][-min_len:]
+                    m1 = sum(r1) / min_len
+                    s1_std = math.sqrt(sum((x - m1) ** 2 for x in r1))
+                    for s2 in valid_symbols:
+                        r2 = asset_returns[s2][-min_len:]
+                        m2 = sum(r2) / min_len
+                        s2_std = math.sqrt(sum((y - m2) ** 2 for y in r2))
+                        if s1_std > 0 and s2_std > 0:
+                            cov = sum((r1[k] - m1) * (r2[k] - m2) for k in range(min_len))
+                            corr = max(-1.0, min(1.0, cov / (s1_std * s2_std)))
+                        else:
+                            corr = 1.0 if s1 == s2 else 0.0
+                        row.append(round(corr, 2))
+                    heatmap_matrix.append(row)
+
+    if has_radar:
+        radar_card_content = """<canvas id="radarCanvas" height="340"></canvas>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">
+      Higher values reflect stronger fundamentals, balance sheet health, or favorable trend alignment.
+    </div>"""
+    else:
+        radar_card_content = """<div style="color:var(--muted);padding:50px 16px;text-align:center;font-size:13px;line-height:1.6">
+      <strong>Radar Omitted</strong><br/>
+      Insufficient verified financial ratios (&lt; 3 dimensions) to construct defensible radar polygon without synthetic assumptions.
+    </div>"""
+
+    if has_heatmap:
+        heatmap_card_content = """<canvas id="heatmapCanvas" height="300"></canvas>
+    <div style="font-size:11px;color:var(--muted);margin-top:8px">
+      Evaluates diversification potential. Red/Orange indicates high correlation; Blue indicates divergence.
+    </div>"""
+    else:
+        heatmap_card_content = """<div style="color:var(--muted);padding:50px 16px;text-align:center;font-size:13px;line-height:1.6">
+      <strong>Heatmap Omitted</strong><br/>
+      Requires &ge; 2 verified overlapping return series (&ge; 15 bars) to calculate empirical Pearson correlation without synthetic placeholders.
+    </div>"""
 
     html_content = f"""<!DOCTYPE html>
 <html lang="en">
@@ -341,10 +414,7 @@ footer {{
       <span class="card-title">Multi-Factor Quantitative Radar</span>
       <span style="font-size:12px;color:var(--muted)">Normalized 0-100</span>
     </div>
-    <canvas id="radarCanvas" height="340"></canvas>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">
-      Higher values reflect stronger fundamentals, balance sheet health, or favorable trend alignment.
-    </div>
+    {radar_card_content}
   </div>
 
   <!-- Ownership / Sector Sunburst -->
@@ -365,10 +435,7 @@ footer {{
       <span class="card-title">Cross-Asset Correlation Heatmap</span>
       <span style="font-size:12px;color:var(--muted)">Pairwise Correlation</span>
     </div>
-    <canvas id="heatmapCanvas" height="300"></canvas>
-    <div style="font-size:11px;color:var(--muted);margin-top:8px">
-      Evaluates diversification potential. Red/Orange indicates high correlation; Blue indicates divergence.
-    </div>
+    {heatmap_card_content}
   </div>
 
   <!-- Backtest & Performance Section -->
@@ -430,14 +497,21 @@ footer {{
             <td>Domestic: {ownership.domestic_pct:.1f}% | Foreign: {ownership.foreign_pct:.1f}%</td>
             <td>Reconciled against {ownership.shares_outstanding:,.0f} shares outstanding</td>
             <td>{ownership.source}</td>
-          </tr>''' if ownership else ''}
+          </tr>''' if ownership and ownership.domestic_pct is not None and ownership.foreign_pct is not None else ''}
           {f'''<tr>
             <td>Ownership</td>
-            <td>Public Float (<5%)</td>
+            <td>Unclassified Remainder (<5%)</td>
             <td>{ownership.public_shareholders_pct:.2f}%</td>
             <td>Explicit remainder; zero fabricated beneficial holders</td>
             <td>KSEI / IDX Disclosure</td>
           </tr>''' if ownership else ''}
+          {f"".join([f'''<tr>
+            <td>Top Shareholder</td>
+            <td>{s.shareholder}</td>
+            <td>{s.percentage:.2f}% ({s.shares_held:,.0f} shares)</td>
+            <td>{s.investor_type}</td>
+            <td>{s.source or ownership.source}</td>
+          </tr>''' for s in ownership.top_shareholders]) if ownership and ownership.top_shareholders else ''}
         </tbody>
       </table>
     </div>
@@ -451,6 +525,8 @@ footer {{
 
 <script>
 // Data Injection
+const hasRadar = {json.dumps(has_radar)};
+const hasHeatmap = {json.dumps(has_heatmap)};
 const candles = {json.dumps(clean_candles)};
 const radarLabels = {json.dumps(radar_labels)};
 const radarValues = {json.dumps(radar_values)};
@@ -565,7 +641,9 @@ function renderCandles() {{
 
 // 2. Radar Chart Renderer
 function renderRadar() {{
+  if (!hasRadar) return;
   const canvas = document.getElementById('radarCanvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width = canvas.parentElement.clientWidth - 32;
   const h = canvas.height = 340;
@@ -720,7 +798,9 @@ function renderSunburst() {{
 
 // 4. Heatmap Renderer
 function renderHeatmap() {{
+  if (!hasHeatmap) return;
   const canvas = document.getElementById('heatmapCanvas');
+  if (!canvas) return;
   const ctx = canvas.getContext('2d');
   const w = canvas.width = canvas.parentElement.clientWidth - 32;
   const h = canvas.height = 300;
@@ -826,16 +906,16 @@ function renderBacktest() {{
 
 window.onload = function() {{
   renderCandles();
-  renderRadar();
+  if (hasRadar) renderRadar();
   renderSunburst();
-  renderHeatmap();
+  if (hasHeatmap) renderHeatmap();
   renderBacktest();
 }};
 window.onresize = function() {{
   renderCandles();
-  renderRadar();
+  if (hasRadar) renderRadar();
   renderSunburst();
-  renderHeatmap();
+  if (hasHeatmap) renderHeatmap();
   renderBacktest();
 }};
 </script>

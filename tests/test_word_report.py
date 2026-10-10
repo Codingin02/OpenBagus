@@ -1,12 +1,13 @@
 """Unit tests for Microsoft Word (.docx) native report generator with editable Office charts."""
 
+import io
 import tempfile
 import unittest
 import zipfile
 from pathlib import Path
 
 from openbagus.domains.crypto.quant import QuantDecisionResult
-from openbagus.domains.equities.ownership import load_ownership
+from openbagus.domains.equities.ownership import get_synthetic_test_ownership
 from openbagus.reporting.word_report import generate_word_report
 
 
@@ -39,7 +40,7 @@ class TestWordReport(unittest.TestCase):
             decision_reason="Bullish breakout above resistance with volume expansion.",
             timeframe="D1",
         )
-        self.ownership = load_ownership("BBCA", Path("."))
+        self.ownership = get_synthetic_test_ownership("BBCA")
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -89,14 +90,13 @@ class TestWordReport(unittest.TestCase):
 
             # Check embedded Excel workbook
             xlsx_bytes = z.read("word/embeddings/Microsoft_Excel_Worksheet1.xlsx")
-            import io
             with zipfile.ZipFile(io.BytesIO(xlsx_bytes), "r") as xz:
                 xnames = xz.namelist()
                 self.assertIn("[Content_Types].xml", xnames)
                 self.assertIn("xl/workbook.xml", xnames)
                 self.assertIn("xl/worksheets/sheet1.xml", xnames)
 
-    def test_crypto_word_report_without_ownership(self):
+    def test_crypto_word_report_without_ownership_omits_drawingml(self):
         crypto_quant = QuantDecisionResult(
             asset="BTC",
             market="perpetual",
@@ -131,11 +131,22 @@ class TestWordReport(unittest.TestCase):
         )
         self.assertTrue(docx_file.exists())
         with zipfile.ZipFile(docx_file, "r") as z:
+            names = z.namelist()
+            # Unverified chart parts should be omitted
+            self.assertNotIn("word/charts/chart1.xml", names)
+            self.assertNotIn("word/embeddings/Microsoft_Excel_Worksheet1.xlsx", names)
+
+            # Required base OpenXML parts remain fully valid
+            self.assertIn("[Content_Types].xml", names)
+            self.assertIn("_rels/.rels", names)
+            self.assertIn("word/document.xml", names)
+
             doc = z.read("word/document.xml").decode("utf-8")
             self.assertIn("BTC", doc)
             self.assertIn("NO_TRADE", doc)
-            # Ownership section is omitted for crypto
+            self.assertNotIn("<w:drawing>", doc)
             self.assertNotIn("Shareholder Ownership Disclosure", doc)
+            self.assertIn("Chart Omitted", doc)
 
 
 if __name__ == "__main__":
