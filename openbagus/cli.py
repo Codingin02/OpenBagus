@@ -34,6 +34,12 @@ from openbagus.domains.equities.data import EquityData
 from openbagus.domains.equities.policy import EquityMarketPolicy
 from openbagus.intelligence.intent import IntentRouter, SessionState
 from openbagus.intelligence.local_language import LocalLanguageEngine
+from openbagus.storage.data_control import (
+    FULL_RESET_CONFIRMATION_PHRASE,
+    clear_privacy_data,
+    execute_full_reset,
+    format_privacy_status,
+)
 from openbagus.storage.historical import HistoricalStorageRuntime
 from openbagus.storage.spreadsheet import SpreadsheetExporter
 
@@ -56,6 +62,9 @@ MODES = (
     "version",
     "harness",
     "idx-daily",
+    "cache",
+    "privacy",
+    "reset",
 )
 
 BANNER = r"""
@@ -594,6 +603,20 @@ def _run_setup() -> int:
     except (EOFError, KeyboardInterrupt):
         approved = False
     print(PuterBackend().configure(consent=approved))
+
+    if sys.stdin.isatty():
+        print("Persistent Harness allows OpenBagus to remember your research context across restarts.")
+        print("  - Data remains strictly on your computer and is not uploaded.")
+        print("  - You can inspect or clear it at any time with /harness clear.")
+        try:
+            h_consent = input("Save conversation context locally between sessions? (Y/N): ").strip().lower() == "y"
+        except (EOFError, KeyboardInterrupt, StopIteration):
+            h_consent = False
+        SessionState.set_persistence_enabled(h_consent)
+        if h_consent:
+            print("[PASS] Local Harness persistence enabled.")
+        else:
+            print("[PASS] Harness memory set to ephemeral (cleared on exit).")
     return 0
 
 
@@ -698,6 +721,7 @@ class OpenBagusShell(cmd.Cmd):
         self.router = IntentRouter(repo_root=REPO_ROOT)
         self.researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
         self.session = SessionState()
+        self.session.load_if_enabled()
 
     def preloop(self) -> None:
         color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
@@ -705,6 +729,9 @@ class OpenBagusShell(cmd.Cmd):
         print(banner)
         print("Ask anything about a crypto asset.")
         print("Type a coin, symbol, or question. /help for commands.\n")
+        if self.session.last_asset:
+            print(f"[Restored persistent session context: {self.session.last_asset} ({self.session.timeframe or '1d'})]")
+            print(f"Type 'lanjutkan {self.session.last_asset} tadi' to continue or switch to a new asset.\n")
 
     def emptyline(self) -> None:
         return None
@@ -725,7 +752,10 @@ class OpenBagusShell(cmd.Cmd):
         print("  /feedback <type> <text>    explicit correction, opt-in local storage")
         print("  /improve status|off|clear|export  review and control local feedback")
         print("  /help                     show this help screen")
-        print("  /harness [clear]          show or clear ephemeral session memory")
+        print("  /harness [on|off|save|clear] show or control persistent session memory")
+        print("  /cache [status|clear|refresh <asset>|policy] inspect or manage market cache")
+        print("  /privacy [status|clear]    inspect or clear local privacy data")
+        print("  /reset all                 full reset of local OpenBagus data (requires confirmation)")
         print("  /switch <asset>           switch active research context directly")
         print("  /sources [on|off]         toggle display of data sources in research outputs")
         print("  /chart [asset] [tf]       open real browser chart in TradingView or GeckoTerminal")
@@ -754,12 +784,59 @@ class OpenBagusShell(cmd.Cmd):
         print("    BTC vs ETH")
 
     def do_harness(self, arg: str) -> None:
-        cmd_str = arg.strip().lower()
-        if cmd_str in ("clear", "reset"):
+        sub = arg.strip().lower()
+        if sub in ("clear", "reset"):
             self.session.clear()
+            self.session.clear_persistent()
             print("[PASS] Harness session memory cleared.")
+        elif sub in ("on", "enable", "true"):
+            self.session.set_persistence_enabled(True)
+            self.session.save_persistent()
+            print("[PASS] Local Harness persistence enabled.")
+        elif sub in ("off", "disable", "false"):
+            self.session.set_persistence_enabled(False)
+            print("[PASS] Local Harness persistence disabled for future sessions. Note: existing saved context remains until cleared with '/harness clear'.")
+        elif sub in ("save", "store"):
+            self.session.save_persistent()
+            print("[PASS] Current Harness context saved locally.")
         else:
             print(self.session.status_display())
+
+    def do_cache(self, arg: str) -> None:
+        req = self.router.parse(f"/cache {arg}".strip(), session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_privacy(self, arg: str) -> None:
+        req = self.router.parse(f"/privacy {arg}".strip(), session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_reset(self, arg: str) -> None:
+        sub = arg.strip().lower()
+        if sub != "all":
+            print("Perintah reset menghapus semua data lokal OpenBagus.")
+            print("Gunakan: /reset all")
+            return
+        print("\nPERINGATAN: Tindakan ini akan menghapus semua cache pasar, riwayat konteks harness,")
+        print("laporan lokal, konfigurasi flags, dan data feedback di komputer ini.")
+        print(f"Untuk melanjutkan, ketik persis: {FULL_RESET_CONFIRMATION_PHRASE}")
+        try:
+            confirm = input("Konfirmasi: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print("\n[Reset dibatalkan.]\n")
+            return
+        if confirm != FULL_RESET_CONFIRMATION_PHRASE:
+            print("[Reset dibatalkan: Frasa konfirmasi tidak sesuai.]\n")
+            return
+        self.session.clear()
+        res = execute_full_reset(REPO_ROOT)
+        print("\n[RESET SELESAI]")
+        for k, v in res.items():
+            print(f"  {k:<30} {v}")
+        print()
 
     def do_feedback(self, arg: str) -> None:
         from openbagus.intelligence.feedback import FeedbackStore
@@ -877,17 +954,26 @@ class OpenBagusShell(cmd.Cmd):
         os.system("cls" if os.name == "nt" else "clear")
 
     def do_exit(self, _arg: str) -> bool:
-        self.session.clear()
+        if self.session.is_persistence_enabled():
+            self.session.save_persistent()
+        else:
+            self.session.clear()
         LocalLanguageEngine.shutdown_runtime()
         return True
 
     def do_quit(self, _arg: str) -> bool:
-        self.session.clear()
+        if self.session.is_persistence_enabled():
+            self.session.save_persistent()
+        else:
+            self.session.clear()
         LocalLanguageEngine.shutdown_runtime()
         return True
 
     def do_EOF(self, _arg: str) -> bool:
-        self.session.clear()
+        if self.session.is_persistence_enabled():
+            self.session.save_persistent()
+        else:
+            self.session.clear()
         LocalLanguageEngine.shutdown_runtime()
         print()
         return True
@@ -1078,11 +1164,70 @@ def main(argv: list[str] | None = None) -> int:
         if args.mode == "harness":
             sub = " ".join(args.extra).lower() if getattr(args, "extra", None) else (" ".join(arguments[1:]).lower() if len(arguments) > 1 else "")
             s = SessionState()
+            s.load_if_enabled()
             if "clear" in sub or "reset" in sub:
                 s.clear()
+                s.clear_persistent()
                 print("[PASS] Harness session memory cleared.")
+            elif "on" in sub:
+                s.set_persistence_enabled(True)
+                s.save_persistent()
+                print("[PASS] Local Harness persistence enabled.")
+            elif "off" in sub:
+                s.set_persistence_enabled(False)
+                print("[PASS] Local Harness persistence disabled for future sessions.")
+            elif "save" in sub:
+                s.save_persistent()
+                print("[PASS] Current Harness context saved locally.")
             else:
                 print(s.status_display())
+            return 0
+        if args.mode == "cache":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            from openbagus.data.cache import MarketDataCache
+            cache = MarketDataCache.get_instance()
+            action = sub_args[0].lower() if sub_args else "status"
+            if action == "clear":
+                del_count = cache.clear_cache()
+                print(f"[PASS] Cleared {del_count} cached market entries.")
+            elif action == "refresh":
+                target_sym = sub_args[1].upper() if len(sub_args) > 1 else "BTC"
+                del_count = cache.refresh_asset(target_sym)
+                print(f"[PASS] Invalidated {del_count} cached entries for {target_sym}. Next request will fetch fresh data.")
+            elif action == "policy":
+                print(cache.format_policy_display())
+            else:
+                print(cache.format_status_display())
+            return 0
+        if args.mode == "privacy":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            action = sub_args[0].lower() if sub_args else "status"
+            if action == "clear":
+                res = clear_privacy_data(REPO_ROOT)
+                print("[PASS] Privacy data cleared:\n" + "\n".join(f"  {k}: {v}" for k, v in res.items()))
+            else:
+                print(format_privacy_status(REPO_ROOT))
+            return 0
+        if args.mode == "reset":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            action = sub_args[0].lower() if sub_args else ""
+            if action != "all":
+                print("Usage: openbagus reset all")
+                return 1
+            print("\nPERINGATAN: Tindakan ini akan menghapus semua data lokal OpenBagus.")
+            print(f"Ketik persis: {FULL_RESET_CONFIRMATION_PHRASE}")
+            try:
+                confirm = input("Konfirmasi: ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print("\n[Reset dibatalkan.]")
+                return 1
+            if confirm != FULL_RESET_CONFIRMATION_PHRASE:
+                print("[Reset dibatalkan: Frasa konfirmasi tidak sesuai.]")
+                return 1
+            res = execute_full_reset(REPO_ROOT)
+            print("\n[RESET SELESAI]")
+            for k, v in res.items():
+                print(f"  {k:<30} {v}")
             return 0
         return _run_pipeline(args)
 
@@ -1090,14 +1235,18 @@ def main(argv: list[str] | None = None) -> int:
     router = IntentRouter(repo_root=REPO_ROOT)
     researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
     session = SessionState()
+    session.load_if_enabled()
     req = router.parse(query_text, session=session)
     if req.needs_asset:
         print(req.clarification_prompt or "Which asset do you want to analyze?")
         return 0
     if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART"
+        "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART",
+        "CACHE_COMMAND", "PRIVACY_COMMAND", "RESET_COMMAND", "VISUALIZE", "BACKTEST", "REPORT_WORD", "REPORT_HTML"
     ):
         result = researcher.execute(req, session=session)
+        if session.is_persistence_enabled():
+            session.save_persistent()
         print(result)
         return 0
 

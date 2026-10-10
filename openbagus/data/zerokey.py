@@ -8,42 +8,25 @@ import urllib.parse
 from datetime import datetime, timezone
 from typing import Any
 
+from openbagus.data.cache import MarketDataCache
 from openbagus.data.http import SecureHttpClient, validate_finite_number
 
 
 class ZeroKeyMarketData:
-    def __init__(self, timeout: float = 3.5) -> None:
+    def __init__(
+        self,
+        timeout: float = 3.5,
+        http_client: SecureHttpClient | None = None,
+        cache: MarketDataCache | None = None,
+    ) -> None:
         self.timeout = timeout
-        self._cache: dict[str, tuple[float, Any]] = {}
-        self._dead_hosts: dict[str, float] = {}
-        self.http = SecureHttpClient(timeout=timeout)
+        self.http = http_client or SecureHttpClient(timeout=timeout)
+        self.cache = cache or MarketDataCache.get_instance()
 
     def _get_json(self, url: str, ttl_seconds: float = 15.0) -> Any | None:
-        now = time.time()
-        if url in self._cache:
-            ts, cached_data = self._cache[url]
-            if now - ts < ttl_seconds:
-                return cached_data
-
-        netloc = urllib.parse.urlparse(url).netloc
-        fail_ts = self._dead_hosts.get(netloc)
-        if fail_ts and (now - fail_ts < 60.0):
-            return None
-
-        raw, status, _ = self.http.fetch_raw(url)
-        if status in ("TIMEOUT", "UNREACHABLE", "SECURITY_REJECTED", "DISALLOWED_HOST"):
-            self._dead_hosts[netloc] = now
-            return None
-
-        if not raw or status != "REACHABLE":
-            return None
-
-        try:
-            data = json.loads(raw)
-            self._cache[url] = (now, data)
-            return data
-        except (json.JSONDecodeError, ValueError):
-            return None
+        if self.http is not self.cache.http:
+            self.cache.http = self.http
+        return self.cache.get_json(url, ttl_seconds=ttl_seconds)
 
     def get_spot_ticker(self, symbol: str) -> dict[str, Any] | None:
         sym = symbol.upper().replace("/USD", "").replace("-USD", "").replace("USDT", "")

@@ -126,8 +126,13 @@ def run_equity_research(runner, req, session=None) -> str:
     if req.request_type == "FOLLOW_UP" and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol:
         return render_equity(session.last_research_packet, session.last_quant_result, asset, req.raw_query,
                              language=session.language, show_sources=session.show_sources)
-    q = runner.quant.evaluate_equity(asset.symbol, data, policy, timeframe=req.timeframe,
-        has_position_context=req.has_position_context, is_index=asset.asset_type == "INDEX_ID")
+    if req.request_type in ("VISUALIZE", "REPORT_HTML", "REPORT_WORD") and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol and session.last_quant_result:
+        q = session.last_quant_result
+        packet = session.last_research_packet
+    else:
+        q = runner.quant.evaluate_equity(asset.symbol, data, policy, timeframe=req.timeframe,
+            has_position_context=req.has_position_context, is_index=asset.asset_type == "INDEX_ID")
+        packet = None
     statement = data.get("fundamentals")
     now = datetime.now(timezone.utc)
     if statement and timestamp(statement["published_at"]) > now:
@@ -155,22 +160,27 @@ def run_equity_research(runner, req, session=None) -> str:
                                  *[e["source"] for e in events]]))
     from openbagus.domains.equities.ownership import load_ownership
     own = load_ownership(asset.symbol, runner.root)
-    packet = ResearchPacket(asset.symbol, q.market, q.timeframe, q.price, q.decision, q.data_quality, q.setup_quality,
-        regime=q.regime, decision_reason=q.decision_reason, reward_risk_str=q.reward_risk_str,
-        rr_gate_passed=q.rr_gate_passed, entry_zone=q.entry_zone, stop_price=q.stop_price, tp1=q.tp1,
-        leverage_ceiling="N/A", bullish_validation=q.bullish_validation, sources=sources,
-        data_freshness=q.data_freshness, evidence_families=q.evidence_families,
-        currency="IDR", asset_type=asset.asset_type, fundamentals=financials, events=events,
-        price_as_of=data.get("quote", {}).get("as_of", ""), ownership=own)
-    output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",
-                           show_sources=session.show_sources if session else False)
-    if data.get("quote") or statement:
-        narrative = runner.local_llm.generate_narrative(packet, user_query=req.raw_query,
-            language="en" if session and session.language == "EN" else "id")
-        if narrative:
-            output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",
-                                   show_sources=session.show_sources if session else False, narrative=narrative)
-    packet.narrative = output
+    if packet is None:
+        packet = ResearchPacket(asset.symbol, q.market, q.timeframe, q.price, q.decision, q.data_quality, q.setup_quality,
+            regime=q.regime, decision_reason=q.decision_reason, reward_risk_str=q.reward_risk_str,
+            rr_gate_passed=q.rr_gate_passed, entry_zone=q.entry_zone, stop_price=q.stop_price, tp1=q.tp1,
+            leverage_ceiling="N/A", bullish_validation=q.bullish_validation, sources=sources,
+            data_freshness=q.data_freshness, evidence_families=q.evidence_families,
+            currency="IDR", asset_type=asset.asset_type, fundamentals=financials, events=events,
+            price_as_of=data.get("quote", {}).get("as_of", ""), ownership=own)
+        output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",
+                               show_sources=session.show_sources if session else False)
+        if data.get("quote") or statement:
+            narrative = runner.local_llm.generate_narrative(packet, user_query=req.raw_query,
+                language="en" if session and session.language == "EN" else "id")
+            if narrative:
+                output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",
+                                       show_sources=session.show_sources if session else False, narrative=narrative)
+        packet.narrative = output
+    else:
+        output = packet.narrative or render_equity(packet, q, asset, req.raw_query,
+                                                  language=session.language if session else "ID",
+                                                  show_sources=session.show_sources if session else False)
     if req.request_type in ("VISUALIZE", "REPORT_HTML"):
         from openbagus.domains.equities.ownership import load_ownership
         from openbagus.reporting.visualizer import generate_html_report
@@ -205,4 +215,6 @@ def run_equity_research(runner, req, session=None) -> str:
         session.last_asset, session.market_type, session.timeframe = asset.symbol, q.market, q.timeframe
         session.last_quant_result, session.last_research_packet = q, packet
         session.last_query, session.last_research_at = req.raw_query, now.isoformat()
+        if session.is_persistence_enabled():
+            session.save_persistent()
     return output

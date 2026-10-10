@@ -195,10 +195,14 @@ class CryptoResearchRunner:
         if req.request_type in ("VISUALIZE", "REPORT_HTML"):
             target = req.asset or (session.last_asset if session else "BTC")
             tf = req.timeframe or (session.timeframe if session else "H1")
-            evidence = self.zerokey.get_all_evidence(target, tf)
-            candles = evidence.get("klines") or []
-            ticker = self.zerokey.get_spot_ticker(target)
-            q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
+            if session and session.last_research_packet and session.last_research_packet.asset == target and session.last_quant_result:
+                q = session.last_quant_result
+                candles = session.last_research_packet.ohlcv or self.zerokey.get_all_evidence(target, tf).get("klines") or []
+            else:
+                evidence = self.zerokey.get_all_evidence(target, tf)
+                candles = evidence.get("klines") or []
+                ticker = self.zerokey.get_spot_ticker(target)
+                q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.visualizer import generate_html_report
             html_path = generate_html_report(target, candles, quant_result=q, root=self.root, timeframe=tf)
             try:
@@ -209,9 +213,12 @@ class CryptoResearchRunner:
         if req.request_type == "REPORT_WORD":
             target = req.asset or (session.last_asset if session else "BTC")
             tf = req.timeframe or (session.timeframe if session else "H1")
-            ticker = self.zerokey.get_spot_ticker(target)
-            candles = self.zerokey.get_all_evidence(target, tf).get("klines") or []
-            q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
+            if session and session.last_research_packet and session.last_research_packet.asset == target and session.last_quant_result:
+                q = session.last_quant_result
+            else:
+                ticker = self.zerokey.get_spot_ticker(target)
+                candles = self.zerokey.get_all_evidence(target, tf).get("klines") or []
+                q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.word_report import generate_word_report
             docx_path = generate_word_report(target, quant_result=q, root=self.root, timeframe=tf)
             return f"Laporan Microsoft Word (.docx) {target} ({tf}) berhasil dibuat:\n{docx_path}\n(Memuat chart DrawingML native dengan embedded workbook Excel)"
@@ -301,7 +308,7 @@ class CryptoResearchRunner:
                 "gerbang konsensus data dan rasio Reward:Risk >= 1:1.50 sebelum memicu sinyal."
             )
 
-        # 3. Harness / Session memory handling (Section 18, 19)
+        # 3. Harness / Session memory handling (Section 18, 19, Section D, E)
         if req.request_type == "HARNESS":
             if req.system_query == "continuity_check" and session and session.last_asset:
                 lines = [
@@ -315,8 +322,49 @@ class CryptoResearchRunner:
             if req.preference_action == "clear_harness":
                 if session:
                     session.clear()
-                return "[PASS] Harness session memory cleared."
-            return session.status_display() if session else "OpenBagus Harness\n\nStatus          ACTIVE\nSession Memory  LOCAL / EPHEMERAL\nClear on Exit   YES"
+                    session.clear_persistent()
+                return "[PASS] Harness session memory and persisted context cleared."
+            if req.preference_action == "save_harness":
+                if session:
+                    session.save_persistent()
+                return "[PASS] Current Harness context saved locally."
+            if req.preference_action == "enable_harness":
+                if session:
+                    session.set_persistence_enabled(True)
+                    session.save_persistent()
+                return "[PASS] Local Harness persistence enabled."
+            if req.preference_action == "disable_harness":
+                if session:
+                    session.set_persistence_enabled(False)
+                return "[PASS] Local Harness persistence disabled for future sessions. Note: existing saved context remains until cleared with '/harness clear'."
+            return session.status_display() if session else "OpenBagus Harness\n\nContext       NO ACTIVE CONTEXT\nMemory        LOCAL · EPHEMERAL"
+
+        if req.request_type == "CACHE_COMMAND":
+            from openbagus.data.cache import MarketDataCache
+            cache = MarketDataCache.get_instance()
+            if req.focus == "clear":
+                del_count = cache.clear_cache()
+                return f"[PASS] Cleared {del_count} cached market entries."
+            if req.focus == "refresh":
+                target_sym = req.system_query or (session.last_asset if session else "BTC")
+                del_count = cache.refresh_asset(target_sym)
+                return f"[PASS] Invalidated {del_count} cached entries for {target_sym.upper()}. Next request will fetch fresh data."
+            if req.focus == "policy":
+                return cache.format_policy_display()
+            return cache.format_status_display()
+
+        if req.request_type == "PRIVACY_COMMAND":
+            from openbagus.storage.data_control import clear_privacy_data, format_privacy_status
+            if req.focus == "clear":
+                res = clear_privacy_data(self.root)
+                if session:
+                    session.clear()
+                    session.clear_persistent()
+                return "[PASS] Privacy data cleared:\n" + "\n".join(f"  {k}: {v}" for k, v in res.items())
+            return format_privacy_status(self.root)
+
+        if req.request_type == "RESET_COMMAND":
+            return "Untuk reset data lokal, jalankan perintah '/reset all' secara interaktif di terminal."
 
         # 3b. Real Browser Chart request (Section A)
         if req.request_type == "CHART":
@@ -614,6 +662,8 @@ class CryptoResearchRunner:
             session.last_candidate_short = q.candidate_short
             session.last_query = req.raw_query
             session.last_research_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            if session.is_persistence_enabled():
+                session.save_persistent()
 
         if req.focus == "capital":
             return self._render_capital_view(symbol, name, q, req.equity, req.risk_pct)
@@ -834,6 +884,8 @@ class CryptoResearchRunner:
             else:
                 text = ("Level sebelumnya " if lang == "id" else "Previous level ") + _fmt_price(level) + ". " if level else ""
                 text += "Belum ada level pemicu dengan geometri dan RR valid." if lang == "id" else "No trigger currently has valid geometry and RR."
+        elif re.search(r"\b(?:lanjut(?:kan)?|continue)\b", lower):
+            text = ("Melanjutkan riset sebelumnya: " if lang == "id" else "Continuing previous research: ") + (packet.narrative or q.decision_reason)
         else:
             text = (q.why_now or q.decision_reason) if lang == "id" else q.decision_reason
             if session.explanation_depth == "simple":

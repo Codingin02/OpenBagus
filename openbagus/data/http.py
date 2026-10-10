@@ -143,18 +143,18 @@ class SecureHttpClient:
             raise DisallowedHostError(f"Host '{host}' is not in allowed provider list")
         return parsed
 
-    def fetch_raw(
+    def fetch_with_metadata(
         self,
         url: str,
         headers: dict[str, str] | None = None,
         timeout: float | None = None,
         max_bytes: int | None = None,
-    ) -> tuple[str | None, str, float]:
+    ) -> tuple[str | None, str, float, dict[str, str]]:
         t0 = time.time()
         try:
             self.validate_target_url(url)
-        except (InsecureSchemeError, DisallowedHostError) as exc:
-            return None, "DISALLOWED_HOST", round((time.time() - t0) * 1000, 1)
+        except (InsecureSchemeError, DisallowedHostError):
+            return None, "DISALLOWED_HOST", round((time.time() - t0) * 1000, 1), {}
 
         req_headers = {
             "User-Agent": self.user_agent,
@@ -169,6 +169,7 @@ class SecureHttpClient:
 
         try:
             with self.opener.open(req, timeout=call_timeout) as resp:
+                resp_headers = {k: v for k, v in resp.headers.items()}
                 chunks: list[bytes] = []
                 total = 0
                 while True:
@@ -177,34 +178,49 @@ class SecureHttpClient:
                         break
                     total += len(chunk)
                     if total > call_limit:
-                        return None, "PAYLOAD_TOO_LARGE", round((time.time() - t0) * 1000, 1)
+                        return None, "PAYLOAD_TOO_LARGE", round((time.time() - t0) * 1000, 1), resp_headers
                     chunks.append(chunk)
 
                 raw = b"".join(chunks).decode("utf-8", errors="replace")
                 elapsed_ms = round((time.time() - t0) * 1000, 1)
-                return raw, "REACHABLE", elapsed_ms
+                return raw, "REACHABLE", elapsed_ms, resp_headers
 
         except ssl.SSLError:
-            return None, "SECURITY_REJECTED", round((time.time() - t0) * 1000, 1)
+            return None, "SECURITY_REJECTED", round((time.time() - t0) * 1000, 1), {}
         except (TimeoutError, socket.timeout):
-            return None, "TIMEOUT", round((time.time() - t0) * 1000, 1)
+            return None, "TIMEOUT", round((time.time() - t0) * 1000, 1), {}
         except urllib.error.HTTPError as exc:
             elapsed_ms = round((time.time() - t0) * 1000, 1)
+            err_headers = {k: v for k, v in exc.headers.items()} if exc.headers else {}
+            if exc.code == 304:
+                return None, "NOT_MODIFIED", elapsed_ms, err_headers
             if exc.code == 429:
-                return None, "RATE_LIMITED", elapsed_ms
+                return None, "RATE_LIMITED", elapsed_ms, err_headers
             if exc.code in (401, 403):
-                return None, "AUTHENTICATION_FAILED", elapsed_ms
-            return None, f"HTTP_{exc.code}", elapsed_ms
+                return None, "AUTHENTICATION_FAILED", elapsed_ms, err_headers
+            return None, f"HTTP_{exc.code}", elapsed_ms, err_headers
         except urllib.error.URLError as exc:
             elapsed_ms = round((time.time() - t0) * 1000, 1)
             r_str = str(exc.reason).lower()
             if "timeout" in r_str or "timed out" in r_str:
-                return None, "TIMEOUT", elapsed_ms
+                return None, "TIMEOUT", elapsed_ms, {}
             if any(k in r_str for k in ("connection reset", "refused", "10054", "10061", "10013", "forbidden")):
-                return None, "BLOCKED", elapsed_ms
-            return None, "UNREACHABLE", elapsed_ms
+                return None, "BLOCKED", elapsed_ms, {}
+            return None, "UNREACHABLE", elapsed_ms, {}
         except Exception:
-            return None, "UNREACHABLE", round((time.time() - t0) * 1000, 1)
+            return None, "UNREACHABLE", round((time.time() - t0) * 1000, 1), {}
+
+    def fetch_raw(
+        self,
+        url: str,
+        headers: dict[str, str] | None = None,
+        timeout: float | None = None,
+        max_bytes: int | None = None,
+    ) -> tuple[str | None, str, float]:
+        raw, status, elapsed_ms, _ = self.fetch_with_metadata(
+            url, headers=headers, timeout=timeout, max_bytes=max_bytes
+        )
+        return raw, status, elapsed_ms
 
     def get_json(
         self,

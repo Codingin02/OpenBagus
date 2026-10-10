@@ -73,6 +73,9 @@ ALLOWED_INTENTS = (
     "CRYPTO_QUOTE",
     "EXECUTION_REQUEST",
     "COMMAND",
+    "CACHE_COMMAND",
+    "PRIVACY_COMMAND",
+    "RESET_COMMAND",
 )
 
 REQUEST_TYPES = (
@@ -104,6 +107,9 @@ REQUEST_TYPES = (
     "CRYPTO_QUOTE",
     "EXECUTION_REQUEST",
     "COMMAND",
+    "CACHE_COMMAND",
+    "PRIVACY_COMMAND",
+    "RESET_COMMAND",
     "UNKNOWN",
 )
 
@@ -159,6 +165,7 @@ COMPREHENSIVE_STOP_WORDS = {
     "support", "resistance", "snr", "pivot", "pivots", "level", "levels", "risk", "resiko",
     "risiko", "drawdown", "tp", "sl", "target", "profit", "loss", "review", "analyze",
     "analysis", "analisa", "analisis", "attractive", "view", "opinion", "recommendation",
+    "wait", "hold",
 }
 
 
@@ -191,6 +198,8 @@ class SessionState:
         self.conversational_turns.append({"user": user_text, "assistant": assistant_text})
         if len(self.conversational_turns) > 4:
             self.conversational_turns = self.conversational_turns[-4:]
+        if self.is_persistence_enabled():
+            self.save_persistent()
 
     def clear(self) -> None:
         self.last_asset = None
@@ -213,18 +222,298 @@ class SessionState:
         self.explanation_depth = "normal"
         self.research_history = {}
 
+    @staticmethod
+    def get_harness_dir() -> Path:
+        from openbagus.intelligence.local_language import get_local_appdata_dir
+        p = get_local_appdata_dir() / "harness"
+        p.mkdir(parents=True, exist_ok=True)
+        return p
+
+    @classmethod
+    def is_persistence_enabled(cls) -> bool:
+        consent_file = cls.get_harness_dir() / "consent.json"
+        if consent_file.exists():
+            try:
+                import json
+                data = json.loads(consent_file.read_text(encoding="utf-8"))
+                return bool(data.get("persistent_harness_enabled", False))
+            except Exception:
+                return False
+        return False
+
+    @classmethod
+    def set_persistence_enabled(cls, enabled: bool) -> None:
+        import json
+        import time
+        consent_file = cls.get_harness_dir() / "consent.json"
+        consent_file.write_text(
+            json.dumps({"persistent_harness_enabled": enabled, "updated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())}, indent=2),
+            encoding="utf-8",
+        )
+
+    def _serialize_packet(self, p: Any) -> dict[str, Any] | None:
+        if not p:
+            return None
+        return {
+            "asset": getattr(p, "asset", ""),
+            "market": getattr(p, "market", "SPOT"),
+            "timeframe": getattr(p, "timeframe", "H1"),
+            "price": getattr(p, "price", 0.0),
+            "decision": getattr(p, "decision", "WAIT"),
+            "data_quality": getattr(p, "data_quality", "HIGH"),
+            "setup_quality": getattr(p, "setup_quality", "NEUTRAL"),
+            "regime": getattr(p, "regime", "Compressed"),
+            "decision_reason": getattr(p, "decision_reason", ""),
+            "reward_risk_str": getattr(p, "reward_risk_str", "N/A"),
+            "rr_gate_passed": getattr(p, "rr_gate_passed", False),
+            "entry_zone": getattr(p, "entry_zone", ""),
+            "stop_price": getattr(p, "stop_price", None),
+            "tp1": getattr(p, "tp1", None),
+            "tp2": getattr(p, "tp2", None),
+            "leverage_ceiling": getattr(p, "leverage_ceiling", "1x"),
+            "sources": getattr(p, "sources", []),
+            "narrative": getattr(p, "narrative", ""),
+            "data_freshness": "CACHE_VALID",
+            "currency": getattr(p, "currency", "USD"),
+            "asset_type": getattr(p, "asset_type", "CRYPTO"),
+            "price_as_of": getattr(p, "price_as_of", ""),
+            "fundamentals": getattr(p, "fundamentals", {}),
+        }
+
+    def _deserialize_packet(self, d: dict[str, Any]) -> Any:
+        try:
+            from openbagus.domains.crypto.research import ResearchPacket
+            return ResearchPacket(
+                asset=d.get("asset", ""),
+                market=d.get("market", "SPOT"),
+                timeframe=d.get("timeframe", "H1"),
+                price=float(d.get("price", 0.0)),
+                decision=d.get("decision", "WAIT"),
+                data_quality=d.get("data_quality", "HIGH"),
+                setup_quality=d.get("setup_quality", "NEUTRAL"),
+                regime=d.get("regime", "Compressed"),
+                decision_reason=d.get("decision_reason", ""),
+                reward_risk_str=d.get("reward_risk_str", "N/A"),
+                rr_gate_passed=bool(d.get("rr_gate_passed", False)),
+                entry_zone=d.get("entry_zone", ""),
+                stop_price=d.get("stop_price"),
+                tp1=d.get("tp1"),
+                tp2=d.get("tp2"),
+                leverage_ceiling=d.get("leverage_ceiling", "1x"),
+                sources=d.get("sources", []),
+                narrative=d.get("narrative", ""),
+                data_freshness=d.get("data_freshness", "CACHE_VALID"),
+                currency=d.get("currency", "USD"),
+                asset_type=d.get("asset_type", "CRYPTO"),
+                price_as_of=d.get("price_as_of", ""),
+                fundamentals=d.get("fundamentals", {}),
+            )
+        except Exception:
+            return None
+
+    def _serialize_quant(self, q: Any) -> dict[str, Any] | None:
+        if not q:
+            return None
+        return {
+            "asset": getattr(q, "asset", ""),
+            "market": getattr(q, "market", "spot"),
+            "timeframe": getattr(q, "timeframe", "H1"),
+            "price": getattr(q, "price", 0.0),
+            "decision": getattr(q, "decision", "WAIT"),
+            "regime": getattr(q, "regime", "Compressed"),
+            "confidence": getattr(q, "confidence", "Moderate"),
+            "decision_reason": getattr(q, "decision_reason", ""),
+            "data_freshness": "CACHE_VALID",
+            "data_quality": getattr(q, "data_quality", "HIGH"),
+            "setup_quality": getattr(q, "setup_quality", "NEUTRAL"),
+            "reward_risk": getattr(q, "reward_risk", None),
+            "reward_risk_str": getattr(q, "reward_risk_str", "N/A"),
+            "leverage_ceiling": getattr(q, "leverage_ceiling", "1x"),
+            "leverage_num": getattr(q, "leverage_num", 1),
+            "why": getattr(q, "why", {}),
+            "evidence_count": getattr(q, "evidence_count", 0),
+            "composite_score": getattr(q, "composite_score", 0.0),
+            "composite_quality": getattr(q, "composite_quality", 0.0),
+            "rr_gate_passed": getattr(q, "rr_gate_passed", False),
+            "quality_gate_passed": getattr(q, "quality_gate_passed", False),
+            "entry_zone": getattr(q, "entry_zone", ""),
+            "stop_price": getattr(q, "stop_price", None),
+            "tp1": getattr(q, "tp1", None),
+            "tp2": getattr(q, "tp2", None),
+            "sources": getattr(q, "sources", []),
+        }
+
+    def _deserialize_quant(self, d: dict[str, Any]) -> Any:
+        try:
+            from openbagus.domains.crypto.quant import QuantDecisionResult
+            return QuantDecisionResult(
+                asset=d.get("asset", ""),
+                market=d.get("market", "spot"),
+                decision=d.get("decision", "WAIT"),
+                regime=d.get("regime", "Compressed"),
+                confidence=d.get("confidence", "Moderate"),
+                price=float(d.get("price", 0.0)),
+                entry_zone=d.get("entry_zone", ""),
+                stop_price=d.get("stop_price"),
+                tp1=d.get("tp1"),
+                tp2=d.get("tp2"),
+                reward_risk=float(d.get("reward_risk", 1.0)) if d.get("reward_risk") else None,
+                reward_risk_str=d.get("reward_risk_str", "N/A"),
+                leverage_ceiling=d.get("leverage_ceiling", "1x"),
+                leverage_num=int(d.get("leverage_num", 1)),
+                why=d.get("why", {}),
+                sources=d.get("sources", []),
+                evidence_count=int(d.get("evidence_count", 0)),
+                composite_score=float(d.get("composite_score", 0.0)),
+                composite_quality=float(d.get("composite_quality", 0.0)),
+                rr_gate_passed=bool(d.get("rr_gate_passed", False)),
+                quality_gate_passed=bool(d.get("quality_gate_passed", False)),
+                data_freshness=d.get("data_freshness", "CACHE_VALID"),
+                data_quality=d.get("data_quality", "HIGH"),
+                setup_quality=d.get("setup_quality", "NEUTRAL"),
+                decision_reason=d.get("decision_reason", ""),
+                timeframe=d.get("timeframe", "H1"),
+            )
+        except Exception:
+            return None
+
+    def to_dict(self) -> dict[str, Any]:
+        import time
+        hist_serialized: dict[str, Any] = {}
+        for sym, item in self.research_history.items():
+            hist_serialized[sym] = {
+                "timeframe": item.get("timeframe", "H1"),
+                "market": item.get("market", "PERPETUAL"),
+                "query": item.get("query", ""),
+                "at": item.get("at", ""),
+                "packet": self._serialize_packet(item.get("packet")),
+                "quant": self._serialize_quant(item.get("quant")),
+            }
+        return {
+            "saved_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+            "last_asset": self.last_asset,
+            "last_asset_2": self.last_asset_2,
+            "last_comparison_assets": list(self.last_comparison_assets),
+            "timeframe": self.timeframe,
+            "market_type": self.market_type,
+            "last_intent": self.last_intent,
+            "last_query": self.last_query,
+            "last_research_at": self.last_research_at,
+            "language": self.language,
+            "show_sources": self.show_sources,
+            "explanation_depth": self.explanation_depth,
+            "conversational_turns": list(self.conversational_turns),
+            "recent_preferences": dict(self.recent_preferences),
+            "last_research_packet": self._serialize_packet(self.last_research_packet),
+            "last_quant_result": self._serialize_quant(self.last_quant_result),
+            "research_history": hist_serialized,
+        }
+
+    def from_dict(self, data: dict[str, Any]) -> None:
+        self.last_asset = data.get("last_asset")
+        self.last_asset_2 = data.get("last_asset_2")
+        self.last_comparison_assets = data.get("last_comparison_assets", [])
+        self.timeframe = data.get("timeframe", "H1")
+        self.market_type = data.get("market_type", "PERPETUAL")
+        self.last_intent = data.get("last_intent", "ANALYZE")
+        self.last_query = data.get("last_query", "")
+        self.last_research_at = data.get("last_research_at")
+        self.language = data.get("language", "AUTO")
+        self.show_sources = bool(data.get("show_sources", False))
+        self.explanation_depth = data.get("explanation_depth", "normal")
+        self.conversational_turns = data.get("conversational_turns", [])
+        self.recent_preferences = data.get("recent_preferences", {})
+
+        p_data = data.get("last_research_packet")
+        self.last_research_packet = self._deserialize_packet(p_data) if p_data else None
+
+        q_data = data.get("last_quant_result")
+        self.last_quant_result = self._deserialize_quant(q_data) if q_data else None
+
+        self.research_history = {}
+        for sym, item in data.get("research_history", {}).items():
+            self.research_history[sym] = {
+                "timeframe": item.get("timeframe", "H1"),
+                "market": item.get("market", "PERPETUAL"),
+                "query": item.get("query", ""),
+                "at": item.get("at", ""),
+                "packet": self._deserialize_packet(item.get("packet")) if item.get("packet") else None,
+                "quant": self._deserialize_quant(item.get("quant")) if item.get("quant") else None,
+            }
+
+    def save_persistent(self, path: Path | None = None) -> bool:
+        target = path or (self.get_harness_dir() / "session_context.json")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        import json
+        payload = self.to_dict()
+        tmp_target = target.with_name(f"{target.name}.tmp")
+        try:
+            tmp_target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            tmp_target.replace(target)
+            return True
+        except OSError:
+            return False
+
+    def load_persistent(self, path: Path | None = None) -> bool:
+        target = path or (self.get_harness_dir() / "session_context.json")
+        if not target.exists():
+            return False
+        import json
+        try:
+            data = json.loads(target.read_text(encoding="utf-8"))
+            self.from_dict(data)
+            self.clear_on_exit = False
+            return True
+        except (OSError, json.JSONDecodeError):
+            return False
+
+    def clear_persistent(self, path: Path | None = None) -> bool:
+        target = path or (self.get_harness_dir() / "session_context.json")
+        if target.exists():
+            try:
+                target.unlink(missing_ok=True)
+                return True
+            except OSError:
+                return False
+        return True
+
+    def load_if_enabled(self) -> bool:
+        if self.is_persistence_enabled():
+            return self.load_persistent()
+        return False
+
     def status_display(self) -> str:
+        ctx_asset = self.last_asset or "NONE"
+        ctx_str = f"{ctx_asset} · {self.market_type} · {self.timeframe}" if self.last_asset else "NO ACTIVE CONTEXT"
+        mem_mode = "LOCAL · PERSISTENT" if self.is_persistence_enabled() else "LOCAL · EPHEMERAL"
+        snap_status = "N/A"
+        provider_name = "N/A"
+        if self.last_research_packet:
+            snap_status = getattr(self.last_research_packet, "data_freshness", "CACHE_VALID") or "CACHE_VALID"
+            sources = getattr(self.last_research_packet, "sources", [])
+            provider_name = sources[0] if sources else "Binance"
+        elif self.last_quant_result:
+            snap_status = getattr(self.last_quant_result, "data_freshness", "CACHE_VALID") or "CACHE_VALID"
+            sources = getattr(self.last_quant_result, "sources", [])
+            provider_name = sources[0] if sources else "Binance"
+
+        clear_exit = "NO" if self.is_persistence_enabled() else "YES"
+        src_status = "ON" if self.show_sources else "OFF"
+
         lines = [
             "OpenBagus Harness",
             "",
-            "Status          ACTIVE",
-            f"Current Asset   {self.last_asset or 'NONE'}",
-            f"Market          {self.market_type}",
+            f"Context       {ctx_str}",
+            f"Current Asset   {ctx_asset}",
             f"Timeframe       {self.timeframe}",
-            "Session Memory  LOCAL / EPHEMERAL",
-            f"Sources         {'ON' if self.show_sources else 'OFF'}",
-            f"Turns Cached    {len(self.conversational_turns)}/4",
-            f"Clear on Exit   {'YES' if self.clear_on_exit else 'NO'}",
+            f"Market          {self.market_type}",
+            f"Sources         {src_status}",
+            f"Clear on Exit   {clear_exit}",
+            f"Memory        {mem_mode}",
+            f"Last Research {self.last_research_at or 'N/A'}",
+            f"Data Snapshot {snap_status}",
+            f"Provider      {provider_name}",
+            f"Saved Turns   {len(self.conversational_turns)}/4",
         ]
         return "\n".join(lines)
 
@@ -648,6 +937,25 @@ class IntentRouter:
                 return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", timeframe=detected_tf, raw_query=text)
             if cmd in ("harness clear", "harness reset"):
                 return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", preference_action="clear_harness", timeframe=detected_tf, raw_query=text)
+            if cmd in ("harness save",):
+                return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", preference_action="save_harness", timeframe=detected_tf, raw_query=text)
+            if cmd in ("harness on",):
+                return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", preference_action="enable_harness", timeframe=detected_tf, raw_query=text)
+            if cmd in ("harness off",):
+                return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", preference_action="disable_harness", timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("cache"):
+                c_parts = cmd.split(maxsplit=2)
+                sub = c_parts[1] if len(c_parts) > 1 else "status"
+                extra = c_parts[2] if len(c_parts) > 2 else ""
+                return IntentRequest(intent="SYSTEM_INFO", request_type="CACHE_COMMAND", focus=sub, raw_query=text, system_query=extra)
+            if cmd.startswith("privacy"):
+                p_parts = cmd.split(maxsplit=1)
+                sub = p_parts[1] if len(p_parts) > 1 else "status"
+                return IntentRequest(intent="SYSTEM_INFO", request_type="PRIVACY_COMMAND", focus=sub, raw_query=text)
+            if cmd.startswith("reset"):
+                r_parts = cmd.split(maxsplit=1)
+                sub = r_parts[1] if len(r_parts) > 1 else "all"
+                return IntentRequest(intent="SYSTEM_INFO", request_type="RESET_COMMAND", focus=sub, raw_query=text)
             if cmd.startswith("switch"):
                 switch_arg = cleaned[1:].replace("switch", "", 1).strip()
                 if switch_arg:
@@ -927,7 +1235,9 @@ class IntentRouter:
         # Follow-up on previous asset without naming a new coin
         if session and session.last_asset:
             other_assets = [a.symbol for a in self.catalog.assets
-                            if a.symbol != session.last_asset and re.search(r"\b" + re.escape(a.symbol) + r"\b", text, re.I)]
+                            if a.symbol != session.last_asset
+                            and a.symbol.lower() not in COMPREHENSIVE_STOP_WORDS
+                            and re.search(r"\b" + re.escape(a.symbol) + r"\b", text, re.I)]
             explanatory = (
                 re.search(r"\b(?:kalau|jika|what if|how|bagaimana)\b.*\b(?:funding|oi|resistance|support|fomc|cpi|tadi)\b", lower)
                 or re.search(r"\b(?:jelas(?:kan|in)|explain)\b.*\b(?:sederhana|simple|simply)\b", lower)
@@ -949,6 +1259,7 @@ class IntentRouter:
             ]
             followup_outlook_triggers = [
                 "gimana prospeknya", "prospeknya", "kondisinya", "pandangan", "analisanya",
+                "lanjutkan", "lanjut", "continue", "lanjutkan riset", "lanjut riset",
             ]
             is_level_followup = any(trig in lower for trig in followup_level_triggers)
             is_pos_followup = any(trig in lower for trig in followup_position_triggers)

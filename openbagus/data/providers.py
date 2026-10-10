@@ -654,8 +654,11 @@ class ProviderRegistry:
                 return str(val).strip()
         return None
 
-    def validate_key(self, provider_id: str, key: str | None = None) -> str:
-        """Validate API key for provider. Returns VALID, INVALID, RATE_LIMITED, UNREACHABLE, MISSING, UNSUPPORTED."""
+    def validate_key(self, provider_id: str, key: str | None = None, force: bool = False) -> str:
+        """Validate API key for provider with credential-state caching (Section C).
+
+        Returns VALID, INVALID, RATE_LIMITED, UNREACHABLE, MISSING, UNSUPPORTED.
+        """
         p = self.get(provider_id)
         if not p:
             return "UNSUPPORTED"
@@ -667,18 +670,39 @@ class ProviderRegistry:
         validator = VALIDATORS.get(provider_id)
         if not validator:
             return "UNSUPPORTED"
+
+        key_hash = hashlib.sha256(val.encode()).hexdigest()
+        from openbagus.data.cache import MarketDataCache
+        cache = MarketDataCache.get_instance()
+
+        if not force:
+            cached_state = cache.get_credential_state(provider_id, key_hash)
+            if cached_state:
+                _KEY_VALIDATION_STATE[(provider_id, key_hash)] = cached_state
+                return cached_state
+            if (provider_id, key_hash) in _KEY_VALIDATION_STATE:
+                return _KEY_VALIDATION_STATE[(provider_id, key_hash)]
+
         state = validator(val)
-        _KEY_VALIDATION_STATE[(provider_id, hashlib.sha256(val.encode()).hexdigest())] = state
+        _KEY_VALIDATION_STATE[(provider_id, key_hash)] = state
+        cache.set_credential_state(provider_id, key_hash, state, error_category="" if state == "VALID" else state)
         return state
 
     def key_validation_counts(self) -> dict[str, int]:
+        from openbagus.data.cache import MarketDataCache
+        cache = MarketDataCache.get_instance()
+        cached_states = cache.get_all_credential_states()
         counts = {"present": 0, "valid": 0, "invalid": 0, "unverified": 0}
         for provider in self.list_configured_apis():
             key = self.get_key(provider.id)
             if not key:
                 continue
             counts["present"] += 1
-            state = _KEY_VALIDATION_STATE.get((provider.id, hashlib.sha256(key.encode()).hexdigest()))
+            key_hash = hashlib.sha256(key.encode()).hexdigest()
+            state = _KEY_VALIDATION_STATE.get((provider.id, key_hash))
+            if not state and provider.id in cached_states and cached_states[provider.id].get("key_hash") == key_hash:
+                state = cached_states[provider.id].get("status")
+                _KEY_VALIDATION_STATE[(provider.id, key_hash)] = state
             counts["valid" if state == "VALID" else "invalid" if state == "INVALID" else "unverified"] += 1
         return counts
 
@@ -718,7 +742,7 @@ class ProviderRegistry:
             with concurrent.futures.ThreadPoolExecutor(max_workers=12) as ex:
                 pub_futs = {ex.submit(self.check_reachability, p.id, 2.0): p.id for p in self.list_public() if p.ping_url}
                 key_futs = {
-                    ex.submit(self.validate_key, p.id, self.get_key(p.id)): p.id
+                    ex.submit(self.validate_key, p.id, self.get_key(p.id), True): p.id
                     for p in self.providers.values()
                     if not p.public_access and self.get_key(p.id)
                 }
@@ -757,6 +781,9 @@ class ProviderRegistry:
         keyed_providers = [p for p in self.providers.values() if not p.public_access]
         keyed_order = ("DERIVATIVES", "ONCHAIN", "MACRO", "MARKET")
 
+        from openbagus.data.cache import MarketDataCache
+        cache = MarketDataCache.get_instance()
+
         for cat in keyed_order:
             cat_providers = [p for p in keyed_providers if classify_provider_capability(p) == cat]
             if not cat_providers:
@@ -769,7 +796,9 @@ class ProviderRegistry:
                 elif run_live_check:
                     status = live_status.get(p.id, "INVALID")
                 else:
-                    status = "UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED"
+                    key_hash = hashlib.sha256(k.encode()).hexdigest()
+                    cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
+                    status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
                 lines.append(f"  {p.display_name:<30} {status}")
             lines.append("")
 
