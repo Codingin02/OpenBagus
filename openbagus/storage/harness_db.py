@@ -7,6 +7,7 @@ Decouples unbounded long-term local storage from bounded in-memory LLM context.
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -87,6 +88,65 @@ class HarnessStorage:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_harness_turns_asset ON turns(asset);"
             )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_harness_turns_intent ON turns(intent);"
+            )
+
+            # FTS5 full-text search table with external content sync
+            try:
+                conn.execute(
+                    """
+                    CREATE VIRTUAL TABLE IF NOT EXISTS turns_fts USING fts5(
+                        user_text,
+                        assistant_text,
+                        asset,
+                        intent,
+                        content='turns',
+                        content_rowid='id'
+                    );
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS turns_ai AFTER INSERT ON turns BEGIN
+                        INSERT INTO turns_fts(rowid, user_text, assistant_text, asset, intent)
+                        VALUES (new.id, new.user_text, new.assistant_text, new.asset, new.intent);
+                    END;
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS turns_ad AFTER DELETE ON turns BEGIN
+                        INSERT INTO turns_fts(turns_fts, rowid, user_text, assistant_text, asset, intent)
+                        VALUES ('delete', old.id, old.user_text, old.assistant_text, old.asset, old.intent);
+                    END;
+                    """
+                )
+                conn.execute(
+                    """
+                    CREATE TRIGGER IF NOT EXISTS turns_au AFTER UPDATE ON turns BEGIN
+                        INSERT INTO turns_fts(turns_fts, rowid, user_text, assistant_text, asset, intent)
+                        VALUES ('delete', old.id, old.user_text, old.assistant_text, old.asset, old.intent);
+                        INSERT INTO turns_fts(rowid, user_text, assistant_text, asset, intent)
+                        VALUES (new.id, new.user_text, new.assistant_text, new.asset, new.intent);
+                    END;
+                    """
+                )
+                # Sync any pre-existing rows into FTS5
+                cur_fts = conn.execute("SELECT COUNT(*) FROM turns_fts;")
+                fts_c = cur_fts.fetchone()[0]
+                cur_turns = conn.execute("SELECT COUNT(*) FROM turns;")
+                turns_c = cur_turns.fetchone()[0]
+                if fts_c < turns_c:
+                    conn.execute(
+                        """
+                        INSERT INTO turns_fts(rowid, user_text, assistant_text, asset, intent)
+                        SELECT id, user_text, assistant_text, asset, intent FROM turns
+                        WHERE id NOT IN (SELECT rowid FROM turns_fts);
+                        """
+                    )
+            except Exception:
+                pass
 
     def save_turn(
         self,
@@ -215,21 +275,131 @@ class HarnessStorage:
                 for r in rows
             ]
 
-    def search(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
-        q = f"%{query.strip().lower()}%"
+    def search(
+        self,
+        query: str,
+        limit: int = 50,
+        asset: str | None = None,
+        session_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        raw_q = query.strip()
+        if not raw_q and not asset and not session_id:
+            return self.get_history(limit=limit)
+
+        results: list[dict[str, Any]] = []
+
+        # 1. Attempt FTS5 full-text search with BM25 ranking when query terms exist
+        tokens = [re.sub(r"[^\w]", "", t) for t in raw_q.split() if re.sub(r"[^\w]", "", t)]
+        if tokens:
+            fts_expr = " OR ".join(tokens)
+            try:
+                with self._connection() as conn:
+                    conditions = ["turns_fts MATCH ?"]
+                    params: list[Any] = [fts_expr]
+                    if asset:
+                        conditions.append("lower(turns.asset) = ?")
+                        params.append(asset.lower())
+                    if session_id:
+                        conditions.append("turns.session_id = ?")
+                        params.append(session_id)
+                    params.append(limit)
+
+                    where_clause = " AND ".join(conditions)
+                    sql = f"""
+                        SELECT turns.id, turns.session_id, turns.created_at, turns.user_text,
+                               turns.assistant_text, turns.asset, turns.market, turns.intent
+                        FROM turns
+                        JOIN turns_fts ON turns.id = turns_fts.rowid
+                        WHERE {where_clause}
+                        ORDER BY rank ASC, turns.id DESC
+                        LIMIT ?;
+                    """
+                    cur = conn.execute(sql, params)
+                    rows = cur.fetchall()
+                    for r in rows:
+                        results.append({
+                            "id": r["id"],
+                            "session_id": r["session_id"],
+                            "at": r["created_at"],
+                            "user": r["user_text"],
+                            "assistant": r["assistant_text"],
+                            "asset": r["asset"],
+                            "market": r["market"],
+                            "intent": r["intent"],
+                        })
+            except Exception:
+                results = []
+
+        # 2. Fallback to SQL LIKE matching if FTS5 returned no matches or failed
+        if not results:
+            like_q = f"%{raw_q.lower()}%" if raw_q else "%"
+            with self._connection() as conn:
+                conditions = [
+                    "(lower(user_text) LIKE ? OR lower(assistant_text) LIKE ? OR lower(COALESCE(asset, '')) LIKE ? OR lower(COALESCE(intent, '')) LIKE ?)"
+                ]
+                params = [like_q, like_q, like_q, like_q]
+                if asset:
+                    conditions.append("lower(COALESCE(asset, '')) = ?")
+                    params.append(asset.lower())
+                if session_id:
+                    conditions.append("session_id = ?")
+                    params.append(session_id)
+                params.append(limit)
+
+                where_clause = " AND ".join(conditions)
+                sql = f"""
+                    SELECT id, session_id, created_at, user_text, assistant_text, asset, market, intent
+                    FROM turns
+                    WHERE {where_clause}
+                    ORDER BY id DESC
+                    LIMIT ?;
+                """
+                cur = conn.execute(sql, params)
+                rows = cur.fetchall()
+                for r in rows:
+                    results.append({
+                        "id": r["id"],
+                        "session_id": r["session_id"],
+                        "at": r["created_at"],
+                        "user": r["user_text"],
+                        "assistant": r["assistant_text"],
+                        "asset": r["asset"],
+                        "market": r["market"],
+                        "intent": r["intent"],
+                    })
+
+        return results
+
+    def recall_by_query(self, query: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Recalls historical turns specifically answering user questions about past interactions."""
+        clean_q = re.sub(
+            r"\b(?:apa|yang|kita|bahas|kemarin|tadi|minggu|lalu|pernah|ingat|waktu|itu|kamu|bilang|soal|tentang|analisis|saham)\b",
+            "",
+            query,
+            flags=re.I,
+        ).strip()
+        search_kw = clean_q or query
+        return self.search(search_kw, limit=limit)
+
+    def get_last_turns_for_asset(self, asset: str, limit: int = 5) -> list[dict[str, Any]]:
+        """Fetches the most recent turns specifically for an asset."""
+        return self.search("", asset=asset, limit=limit)
+
+    def get_last_user_corrections(self, limit: int = 5) -> list[dict[str, Any]]:
+        """Fetches turns where the user corrected an asset or statement."""
         with self._connection() as conn:
             cur = conn.execute(
                 """
                 SELECT id, session_id, created_at, user_text, assistant_text, asset, market, intent
                 FROM turns
-                WHERE lower(user_text) LIKE ?
-                   OR lower(assistant_text) LIKE ?
-                   OR lower(COALESCE(asset, '')) LIKE ?
-                   OR lower(COALESCE(intent, '')) LIKE ?
+                WHERE lower(intent) = 'correction'
+                   OR lower(user_text) LIKE '%bukan%'
+                   OR lower(user_text) LIKE '%maksudku%'
+                   OR lower(user_text) LIKE '%salah%'
                 ORDER BY id DESC
                 LIMIT ?;
                 """,
-                (q, q, q, q, limit),
+                (limit,),
             )
             rows = cur.fetchall()
             return [
@@ -263,6 +433,8 @@ class HarnessStorage:
             "oldest_turn_at": oldest,
             "newest_turn_at": newest,
             "db_path": str(self.db_path),
+            "retention_policy": "UNLIMITED",
+            "last_save_status": "SAVED" if total_turns > 0 else "EMPTY",
         }
 
     def migrate_from_json(self, json_path: Path | None = None) -> int:
@@ -309,12 +481,33 @@ class HarnessStorage:
                     inserted += 1
         return inserted
 
-    def clear(self, all_history: bool = True, session_id: str | None = None) -> None:
-        with self._connection() as conn:
-            if all_history:
-                conn.execute("DELETE FROM turns;")
-                conn.execute("DELETE FROM sessions;")
-            elif session_id:
-                conn.execute("DELETE FROM turns WHERE session_id = ?;", (session_id,))
-                conn.execute("DELETE FROM sessions WHERE session_id = ?;", (session_id,))
-            conn.execute("VACUUM;")
+    def clear(self, all_history: bool = True, session_id: str | None = None) -> bool:
+        try:
+            with self._connection() as conn:
+                if all_history:
+                    conn.execute("DELETE FROM turns;")
+                    conn.execute("DELETE FROM sessions;")
+                    try:
+                        conn.execute("DELETE FROM turns_fts;")
+                    except Exception:
+                        pass
+                elif session_id:
+                    conn.execute("DELETE FROM turns WHERE session_id = ?;", (session_id,))
+                    conn.execute("DELETE FROM sessions WHERE session_id = ?;", (session_id,))
+                    try:
+                        conn.execute("DELETE FROM turns_fts WHERE rowid NOT IN (SELECT id FROM turns);")
+                    except Exception:
+                        pass
+                # Explicit verification of deletion state
+                if all_history:
+                    t_count = conn.execute("SELECT COUNT(*) FROM turns;").fetchone()[0]
+                    s_count = conn.execute("SELECT COUNT(*) FROM sessions;").fetchone()[0]
+                    if t_count > 0 or s_count > 0:
+                        return False
+                elif session_id:
+                    t_count = conn.execute("SELECT COUNT(*) FROM turns WHERE session_id = ?;", (session_id,)).fetchone()[0]
+                    if t_count > 0:
+                        return False
+            return True
+        except Exception:
+            return False

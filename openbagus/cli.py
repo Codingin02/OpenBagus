@@ -1545,13 +1545,31 @@ class OpenBagusShell(cmd.Cmd):
             print(f"  Rentang Waktu: {stats.get('oldest_turn_at') or 'N/A'} s/d {stats.get('newest_turn_at') or 'N/A'}")
             print(f"  Retensi      : UNLIMITED (dibatasi hanya oleh kapasitas fisik disk)")
             return
-        if sub in ("clear", "reset"):
+        if sub in ("clear-context", "clear active", "clear_context"):
             self.session.clear()
-            self.session.clear_persistent()
-            print("[PASS] Harness session memory cleared.")
-        elif sub == "clear active":
-            self.session.clear()
-            print("[PASS] Active in-memory session cleared. Durable disk archive preserved.")
+            print("[PASS] Working context dibersihkan. Arsip disk tetap utuh.")
+            return
+        elif sub in ("clear-session", "clear_session"):
+            if self.session.clear_persistent(scope="session"):
+                self.session.clear()
+                print("[PASS] Sesi percakapan aktif berhasil dihapus dari Harness.")
+            else:
+                print("[FAIL] Gagal menghapus sesi percakapan dari Harness.")
+            return
+        elif sub in ("clear-all", "clear_all"):
+            if self.session.clear_persistent(scope="all"):
+                self.session.clear()
+                print("[PASS] Seluruh arsip riwayat percakapan di Harness berhasil dihapus.")
+            else:
+                print("[FAIL] Gagal menghapus seluruh arsip Harness.")
+            return
+        elif sub in ("clear", "reset"):
+            if self.session.clear_persistent(scope="all"):
+                self.session.clear()
+                print("[PASS] Harness session memory and persistent history cleared.")
+            else:
+                print("[FAIL] Failed to clear persistent Harness history.")
+            return
         elif sub in ("on", "enable", "true"):
             self.session.set_persistence_enabled(True)
             self.session.save_persistent()

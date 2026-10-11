@@ -176,6 +176,15 @@ class CryptoResearchRunner:
                 context = "Tidak ada konfirmasi clear saat startup. Pada exit tersedia Save/Clear/Cancel; persistence tetap opt-in."
             elif req.focus == "greeting" or "menyapa" in req.raw_query.lower():
                 context = "Pengguna sedang menyapa. Balas sapaan singkat; belum meminta analisis atau perubahan instrumen."
+            elif req.focus == "casual":
+                context = "Pengguna sedang berbicara santai (misalnya santai menunggu pasar). Jawab dengan santai, ramah, dan alami. Jangan keluarkan analisis teknikal panjang kecuali diminta."
+            elif req.focus == "sector_exploration":
+                sec_code = req.category or "umum"
+                from openbagus.domains.equities.catalog import SECTORS
+                sec_info = f" ({SECTORS[sec_code][0]})" if sec_code in SECTORS else ""
+                context = f"Pengguna sedang mengeksplorasi saham sektor {sec_code}{sec_info}. Sambut minatnya, tanyakan emiten mana yang ingin dianalisis (misal rasio valuasi atau fundamental)."
+            elif req.focus == "market_exploration":
+                context = "Pengguna ingin melihat gambaran pasar modal Indonesia secara umum. Tanyakan sektor atau emiten apa yang ingin dibahas lebih lanjut."
             else:
                 context = (f"Topik: {session.current_topic if session else 'percakapan'}. "
                     f"Jawaban terakhir: {session.conversational_turns[-1]['assistant'][:500] if session and session.conversational_turns else 'belum ada'}. "
@@ -186,8 +195,61 @@ class CryptoResearchRunner:
                         "Langkah tersedia: /help idx, impor CSV dengan open_at,close_at,open,high,low,close,volume "
                         "serta metadata sumber/izin/timezone/satuan/adjustment. Akui feedback dan jelaskan langkah konkret ini.")
             answer = self.local_llm.answer_conversation(req.raw_query, context,
-                language="en" if session and session.language == "EN" else "id")
-            return answer or ("Halo. Mau membahas saham IDX, crypto, atau kurs?" if req.focus == "greeting" else context)
+                language="en" if session and session.language == "EN" else "id", session=session)
+            fallback_map = {
+                "greeting": "Halo. Mau membahas saham IDX, crypto, atau kurs?",
+                "casual": "Santai dulu, pasar memang kadang butuh kesabaran menunggu setup yang terkonfirmasi.",
+                "sector_exploration": f"Menarik, sektor {req.category or 'IDX'} punya beberapa penggerak penting. Ada saham spesifik yang ingin dianalisis valuasinya?",
+                "market_exploration": "Pasar modal Indonesia memiliki 11 sektor IDX-IC. Mau mulai eksplorasi dari sektor atau emiten mana?",
+            }
+            return answer or fallback_map.get(req.focus, context)
+
+        if req.request_type == "HISTORICAL_RECALL":
+            try:
+                from openbagus.storage.harness_db import HarnessStorage
+                storage = HarnessStorage(SessionState.get_harness_dir() / "harness_history.db")
+                results = storage.recall_by_query(req.raw_query, limit=5)
+            except Exception:
+                results = []
+            if not results and session:
+                results = session.conversational_turns[-5:]
+            if results:
+                lines = ["Arsip Percakapan Terverifikasi di Harness:"]
+                for r in results:
+                    u_t = r.get("user", "")
+                    a_t = r.get("assistant", "")
+                    at_time = r.get("at", "")[:19].replace("T", " ")
+                    lines.append(f"[{at_time}] User: {u_t}\nOpenBagus: {a_t[:250]}...")
+                context_recall = "\n\n".join(lines)
+                if self.local_llm and self.local_llm.is_available():
+                    ans = self.local_llm.answer_conversation(
+                        req.raw_query, context_recall,
+                        language="en" if session and session.language == "EN" else "id", session=session
+                    )
+                    if ans:
+                        return ans
+                return context_recall
+            return "Belum ada catatan percakapan atau analisis sebelumnya yang tersimpan di arsip Harness lokal."
+
+        if req.request_type == "SCENARIO":
+            sym = req.asset or (session.last_asset if session else None) or "Aset"
+            price = getattr(session.last_research_packet, "price", None) if session and session.last_research_packet else None
+            price = price or (session.last_quant_result.price if session and session.last_quant_result else None)
+            pct_m = re.search(r"(\d+(?:\.\d+)?)\s*%", req.raw_query)
+            pct = float(pct_m.group(1)) if pct_m else 3.0
+            is_down = "turun" in req.raw_query.lower() or "drop" in req.raw_query.lower()
+            delta_pct = -pct if is_down else pct
+            if price:
+                sim_price = price * (1.0 + delta_pct / 100.0)
+                curr = getattr(session.last_research_packet, "currency", "USD") if session and session.last_research_packet else "USD"
+                stop = getattr(session.last_research_packet, "stop_price", None) if session and session.last_research_packet else None
+                inv_note = ""
+                if stop and is_down and sim_price <= stop:
+                    inv_note = f" Skenario ini akan menembus batas invalidasi / stop level di {curr} {stop:,.2f}."
+                return (f"Simulasi skenario deterministik untuk {sym}: jika harga bergerak {delta_pct:+.1f}%, "
+                        f"maka harga dari observasi awal {curr} {price:,.2f} menjadi {curr} {sim_price:,.2f}.{inv_note}\n"
+                        f"(Kalkulasi skenario matematis; bukan ramalan pergerakan pasar).")
+            return f"Belum ada observasi harga terverifikasi untuk {sym} untuk menghitung simulasi pergerakan {delta_pct:+.1f}%."
         if req.request_type == "COMMODITY":
             if session:
                 session.current_topic, session.current_topic_kind = "nickel", "commodity"
@@ -242,7 +304,7 @@ class CryptoResearchRunner:
             session.research_history[packet.asset] = {"packet": packet, "quant": session.last_quant_result,
                 "timeframe": packet.timeframe, "market": packet.market, "query": session.last_query,
                 "at": session.last_research_at}
-            if len(session.research_history) > 4:
+            if len(session.research_history) > 100:
                 session.research_history.pop(next(iter(session.research_history)))
         if req.request_type in ("CHART", "VISUALIZE") and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "") and "external" not in req.raw_query.lower():
             from openbagus.domains.equities.research import run_equity_research
@@ -515,6 +577,20 @@ class CryptoResearchRunner:
             return bt_res.summary_table() + f"\n\nLaporan visual backtest disimpan di:\n{html_path}"
         if req.request_type == "COMMAND":
             from openbagus import cli
+            if req.system_query == "harness_clear_context":
+                if session:
+                    session.clear()
+                return "[PASS] Working context dibersihkan. Arsip riwayat permanen tetap utuh."
+            if req.system_query == "harness_clear_session":
+                if session and session.clear_persistent(scope="session"):
+                    session.clear()
+                    return "[PASS] Sesi percakapan aktif berhasil dihapus dari Harness."
+                return "[FAIL] Gagal menghapus sesi percakapan dari Harness."
+            if req.system_query == "harness_clear_all":
+                if session and session.clear_persistent(scope="all"):
+                    session.clear()
+                    return "[PASS] Seluruh arsip riwayat percakapan di Harness berhasil dihapus."
+                return "[FAIL] Gagal menghapus seluruh arsip Harness."
             if req.system_query == "help":
                 return "Commands: help, assets, categories, chart, status, providers, doctor, harness, setup."
             if req.system_query == "setup":

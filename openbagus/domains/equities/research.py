@@ -34,8 +34,11 @@ def equity_context(asset, query: str, packet: Any = None) -> str:
             res += f" Dilaporkan{period_str} Operating Margin {r['Operating_Margin_pct']:.2f}%."
         return res
     if asset.sector_code == "C":
-        return (f"Driver operasional {asset.symbol} (perindustrian) mencakup volume penjualan unit, "
-                "siklus belanja modal sektor konstruksi/tambang, dan efisiensi manufaktur.")
+        res = (f"Driver operasional {asset.symbol} (perindustrian) mencakup volume penjualan unit, "
+               "siklus belanja modal sektor konstruksi/tambang, dan efisiensi manufaktur.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Tercatat{period_str} OPM {r['Operating_Margin_pct']:.2f}%."
+        return res
     if asset.sector_code == "D":
         res = (f"Ketahanan laba {asset.symbol} (konsumen primer) ditentukan oleh elastisitas harga, "
                "volatilitas biaya input bahan baku, serta kemampuan mempertahankan Operating Margin.")
@@ -43,11 +46,17 @@ def equity_context(asset, query: str, packet: Any = None) -> str:
             res += f" Tercatat{period_str} Operating Margin {r['Operating_Margin_pct']:.2f}%."
         return res
     if asset.sector_code == "E":
-        return (f"Dinamika penjualan {asset.symbol} (konsumen non-primer) didorong oleh Same-Store-Sales-Growth (SSSG), "
-                "perputaran persediaan (inventory turnover), dan discretionary spending konsumen.")
+        res = (f"Dinamika penjualan {asset.symbol} (konsumen non-primer) didorong oleh Same-Store-Sales-Growth (SSSG), "
+               "perputaran persediaan (inventory turnover), dan discretionary spending konsumen.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Tercatat{period_str} OPM {r['Operating_Margin_pct']:.2f}%."
+        return res
     if asset.sector_code == "F":
-        return (f"Kinerja operasional {asset.symbol} (kesehatan/farmasi) ditentukan oleh bauran produk etikal vs generik, "
-                "ketergantungan impor bahan baku obat (BBO), dan stabilitas margin laba.")
+        res = (f"Kinerja operasional {asset.symbol} (kesehatan/farmasi) ditentukan oleh bauran produk etikal vs generik, "
+               "ketergantungan impor bahan baku obat (BBO), dan stabilitas margin laba.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Tercatat{period_str} OPM {r['Operating_Margin_pct']:.2f}% dan NPM {r.get('Net_Margin_pct', 0):.2f}%."
+        return res
     if asset.sector_code == "G":
         res = (f"Transmisi BI-Rate ke {asset.symbol} (perbankan) mempengaruhi biaya dana (CoF) dan repricing kredit terhadap NIM. ")
         if r and any(k in r for k in ("NIM_pct", "NPL_gross_pct", "CAR_pct")):
@@ -69,14 +78,23 @@ def equity_context(asset, query: str, packet: Any = None) -> str:
             res += f" Tercatat{period_str} DER {r['Debt_to_Equity']:.2f}x."
         return res
     if asset.sector_code == "I":
-        return (f"Kinerja fundamental {asset.symbol} (teknologi) dievaluasi dari monetisasi (take rate), "
-                "perbaikan Contribution Margin, dan runway kas menuju profitabilitas.")
+        res = (f"Kinerja fundamental {asset.symbol} (teknologi) dievaluasi dari monetisasi (take rate), "
+               "perbaikan Contribution Margin, dan runway kas menuju profitabilitas.")
+        if r and "Debt_to_Equity" in r:
+            res += f" Tercatat{period_str} DER {r['Debt_to_Equity']:.2f}x."
+        return res
     if asset.sector_code == "J":
-        return (f"Driver arus kas {asset.symbol} (infrastruktur/telco) didorong oleh ARPU, trafik data, "
-                "rasio Capex-to-Revenue, serta yield arus kas bebas (FCF).")
+        res = (f"Driver arus kas {asset.symbol} (infrastruktur/telco) didorong oleh ARPU, trafik data, "
+               "rasio Capex-to-Revenue, serta yield arus kas bebas (FCF).")
+        if r and "Debt_to_Equity" in r:
+            res += f" Tercatat{period_str} DER {r['Debt_to_Equity']:.2f}x."
+        return res
     if asset.sector_code == "K":
-        return (f"Efisiensi {asset.symbol} (transportasi & logistik) ditentukan oleh tingkat utilisasi armada (load factor), "
-                "rasio biaya bahan bakar terhadap pendapatan, dan perputaran aset.")
+        res = (f"Efisiensi {asset.symbol} (transportasi & logistik) ditentukan oleh tingkat utilisasi armada (load factor), "
+               "rasio biaya bahan bakar terhadap pendapatan, dan perputaran aset.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Tercatat{period_str} OPM {r['Operating_Margin_pct']:.2f}%."
+        return res
     return f"Evaluasi laba {asset.symbol} membutuhkan realisasi permintaan, biaya input, dan margin sesuai model bisnis emiten."
 
 
@@ -188,7 +206,49 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
             f"Ini kegagalan ketersediaan data, bukan keputusan WAIT setelah evaluasi pasar."
         )
 
-    # 1. Decision reason / causal reasoning follow-up (kenapa / why / alasan)
+    # 3. Discrepancy & Numeric Challenge (tapi aku lihat labanya kok beda ya / bukannya tadi salah)
+    if re.search(r"\b(?:beda|kok\s+beda|berbeda|selisih)\b", lower) and re.search(r"\b(?:laba|profit|angka|margin|omzet|pendapatan)\b", lower):
+        r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
+        period = packet.fundamentals.get("period", "terakhir") if packet and packet.fundamentals else "terakhir"
+        basis = packet.fundamentals.get("basis", "konsolidasian") if packet and packet.fundamentals else "konsolidasian"
+        srcs = packet.sources if packet and packet.sources else [asset.source]
+        lines = [
+            f"Tinjauan perbedaan angka laba {asset.symbol}:",
+            f"1. Basis Pelaporan: Data OpenBagus menggunakan laporan keuangan {period} ({basis}) bersumber dari {', '.join(srcs)}.",
+            f"2. Kemungkinan Perbedaan: Periksa apakah angka pembanding yang Anda lihat adalah (a) laba bersih tahun berjalan vs laba yang dapat diatribusikan ke pemilik entitas induk, (b) angka interim belum diaudit (misal Q1/Q2/Q3) vs angka tahunan (FY), atau (c) laba operasional (EBIT) vs laba bersih (Net Profit).",
+        ]
+        if r and "Net_Margin_pct" in r:
+            lines.append(f"3. Rasio Tercatat: Net Margin {r['Net_Margin_pct']:.2f}% dan Operating Margin {r.get('Operating_Margin_pct', 0):.2f}%.")
+        return "\n".join(lines)
+
+    # 4. Valuation focus follow-up (yang valuasinya aja dulu)
+    if re.search(r"\b(?:valuasi(?:nya)?\s+aja|valuasi(?:nya)?\s+dulu|fokus\s+valuasi)\b", lower):
+        r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
+        if r and any(k in r for k in ("PER", "PBV")):
+            lines = [f"Valuasi {asset.symbol} ({packet.fundamentals.get('period', '')}):"]
+            if "PER" in r:
+                lines.append(f"  - Price to Earnings (PER): {r['PER']:.2f}x")
+            if "PBV" in r:
+                lines.append(f"  - Price to Book Value (PBV): {r['PBV']:.2f}x")
+            if "ROE_pct" in r:
+                lines.append(f"  - Return on Equity (ROE): {r['ROE_pct']:.2f}%")
+            return "\n".join(lines)
+
+    # 5. Long-term horizon follow-up (terus kalau buat jangka panjang?)
+    if re.search(r"\b(?:jangka\s+panjang|long\s*term|simpan\s+lama|investasi\s+panjang)\b", lower):
+        r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
+        lines = [f"Perspektif Jangka Panjang {asset.symbol}:"]
+        if r:
+            if "ROE_pct" in r:
+                lines.append(f"  - Profitabilitas Modal (ROE): {r['ROE_pct']:.2f}% (kemampuan menghasilkan return)")
+            if "Debt_to_Equity" in r:
+                lines.append(f"  - Rasio Utang (DER): {r['Debt_to_Equity']:.2f}x (ketahanan solvabilitas neraca)")
+            if "Operating_Margin_pct" in r:
+                lines.append(f"  - Operating Margin: {r['Operating_Margin_pct']:.2f}% (daya saing operasional)")
+        lines.append(f"Keputusan quant jangka pendek/H1 ({quant.decision}) tidak otomatis mencerminkan prospek fundamental tahunan; periksa konsistensi arus kas dan pembagian dividen historis.")
+        return "\n".join(lines)
+
+    # 6. Decision reason / causal reasoning follow-up (kenapa / why / alasan)
     if re.search(r"\b(?:kenapa|mengapa|why|alasan|reason)\b", lower):
         status = quant.decision_status if quant.decision_status == "INSUFFICIENT_DATA_FOR_DECISION" else quant.decision
         resp = f"Alasan keputusan {status} pada {asset.symbol}: {quant.decision_reason}."
@@ -197,7 +257,7 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
             resp += f"\nSkenario validasi yang ditunggu: Trigger {b.trigger_condition}, Entry {b.entry_zone}, Invalidation Rp{b.stop_price:,.0f}, Target Rp{b.tp1:,.0f} (RR {b.reward_risk_str})."
         return resp
 
-    # 2. Financial ratios and margins follow-up
+    # 7. Financial ratios and margins follow-up
     if re.search(r"\b(?:margin|operating margin|net margin|npm|opm|laba|profit|der|roe|pbv|per|eps|car|nim|npl|rasio|fundamental|valuasi)\b", lower):
         r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
         if r:
@@ -223,20 +283,31 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
             return "\n".join(lines)
         return f"SOURCE GAP: Laporan keuangan bertanggal untuk {asset.symbol} belum tersedia di data lokal; rasio margin belum dapat diverifikasi."
 
-    # 4. Sources follow-up
+    # 8. Sources follow-up
     if re.search(r"\b(?:sumber|source|sources|darimana|origin)\b", lower):
         srcs = packet.sources if packet and packet.sources else [asset.source]
         fresh = packet.data_freshness if packet else quant.data_freshness
         as_of = packet.price_as_of if packet and packet.price_as_of else "UNAVAILABLE"
         return f"Data {asset.symbol} bersumber dari: {', '.join(srcs)}. Freshness: {fresh}; Harga as-of: {as_of}."
 
-    # 5. Local Qwen targeted response for conversational/complex queries
+    # 9. Local Qwen targeted response for conversational/complex queries
     if runner and runner.local_llm and runner.local_llm.is_available() and packet:
+        fact_lines = [
+            f"Asset: {asset.symbol} ({asset.name})",
+            f"Quant Decision: {quant.decision} ({quant.decision_reason})",
+            f"Timeframe: {getattr(quant, 'timeframe', 'D1')}, Freshness: {getattr(quant, 'data_freshness', 'RECENT')}",
+            f"Price: {getattr(quant, 'price', 'N/A')}",
+            f"Fundamentals: {packet.fundamentals.get('ratios', {}) if packet.fundamentals else {}}",
+            f"Sources: {', '.join(packet.sources or [asset.source])}",
+        ]
+        conv_resp = runner.local_llm.answer_conversation(query, "\n".join(fact_lines), language="en" if english else "id", session=session)
+        if conv_resp:
+            return conv_resp
         narrative = runner.local_llm.generate_narrative(packet, user_query=query, language="en" if english else "id")
         if narrative:
             return narrative
 
-    # 6. Direct concise fallback
+    # 10. Direct concise fallback
     return f"{asset.symbol} ({quant.timeframe}): {quant.decision_reason}. Freshness: {quant.data_freshness}."
 
 

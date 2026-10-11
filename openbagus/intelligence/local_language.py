@@ -143,12 +143,19 @@ ALLOWED_LLM_REQUEST_TYPES = {
     "CHART",
     "MARKET_OUTLOOK",
     "SETUP_CONFIG",
+    "CONVERSATION",
+    "HISTORICAL_RECALL",
     "UNKNOWN",
 }
 
 ALLOWED_RELATION_TYPES = {
     "CONTINUE",
+    "REFINE",
+    "CORRECT",
+    "COMPARE",
     "SWITCH",
+    "RESUME",
+    "RECALL",
     "UNRELATED",
     "UNCERTAIN",
 }
@@ -439,20 +446,26 @@ class LocalLanguageEngine:
 
         system_instruction = (
             "<|im_start|>system\n"
-            "You are the intent router for OpenBagus crypto research terminal.\n"
+            "You are the intent router for OpenBagus, a conversational financial research workstation (IDX Indonesian equities, crypto, FX, macro, commodities).\n"
             'Output JSON only: {"request_type": "...", "asset": "...", "relation_to_context": "..."}\n'
-            'Allowed request_type: ["POSITION", "ANALYZE", "CHART", "MARKET_OUTLOOK", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "HARNESS", "UNKNOWN"]\n'
-            'Allowed relation_to_context: ["CONTINUE", "SWITCH", "UNRELATED", "UNCERTAIN"]\n\n'
+            'Allowed request_type: ["ANALYZE", "POSITION", "COMPARE", "CHART", "MARKET_OUTLOOK", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "HARNESS", "CONVERSATION", "HISTORICAL_RECALL", "UNKNOWN"]\n'
+            'Allowed relation_to_context: ["CONTINUE", "REFINE", "CORRECT", "COMPARE", "SWITCH", "RESUME", "RECALL", "UNRELATED", "UNCERTAIN"]\n\n'
             "Rules:\n"
+            '- Recognize both Indonesian equities (BBCA, BBRI, BMRI, TLKM, ASII, KLBF, ICBP, ANTM) and cryptocurrencies (BTC, ETH, SOL).\n'
             '- "posisi btc", "long atau short", "nunggu atau cari long" -> {"request_type": "POSITION", "asset": "BTC", "relation_to_context": "SWITCH"}\n'
-            '- "kalau eth gimana", "analisa sol" -> {"request_type": "ANALYZE", "asset": "ETH", "relation_to_context": "SWITCH"}\n'
+            '- "analisa KLBF", "prospek ICBP gimana", "valuasi BBCA" -> {"request_type": "ANALYZE", "asset": "KLBF", "relation_to_context": "SWITCH"}\n'
+            '- "bandingkan BBCA dan BBRI" -> {"request_type": "COMPARE", "asset": "BBCA", "relation_to_context": "COMPARE"}\n'
+            '- "bukan BMRI tapi BBRI", "maksudku BBRI" -> {"request_type": "ANALYZE", "asset": "BBRI", "relation_to_context": "CORRECT"}\n'
+            '- "balik yang saham tadi", "lanjut yang kemarin" -> {"request_type": "ANALYZE", "asset": null, "relation_to_context": "RESUME"}\n'
             '- "tampilkan chart", "grafik eth" -> {"request_type": "CHART", "asset": "ETH", "relation_to_context": "SWITCH"}\n'
-            '- "kok no trade terus", "tolol nih" -> {"request_type": "FEEDBACK", "asset": null, "relation_to_context": "CONTINUE"}\n'
+            '- "kok no trade terus", "jawabanmu generic" -> {"request_type": "FEEDBACK", "asset": null, "relation_to_context": "CONTINUE"}\n'
             '- "siapa pembuatnya", "tentang sistem" -> {"request_type": "SYSTEM_INFO", "asset": null, "relation_to_context": "UNRELATED"}\n'
             '- "jangan tampilin sources", "hide sources" -> {"request_type": "PREFERENCE", "asset": null, "relation_to_context": "CONTINUE"}\n'
-            '- "ini masih nyambung sama btc nggak" -> {"request_type": "HARNESS", "asset": null, "relation_to_context": "CONTINUE"}\n'
-            '- "gimana cpi pengaruh ke btc" -> {"request_type": "MARKET_OUTLOOK", "asset": "BTC", "relation_to_context": "SWITCH"}\n'
-            "- NEVER classify slang or Indonesian words (lagi, ya, kok, terus, nih, dong) as crypto coins.<|im_end|>\n"
+            '- "apa yang kita bahas kemarin", "ingat analisis minggu lalu" -> {"request_type": "HISTORICAL_RECALL", "asset": null, "relation_to_context": "RECALL"}\n'
+            '- "halo apa kabar", "lagi lihat saham kesehatan" -> {"request_type": "CONVERSATION", "asset": null, "relation_to_context": "UNRELATED"}\n'
+            '- "tapi labanya kok beda ya", "kenapa gitu", "angka laba dari mana" -> {"request_type": "CONVERSATION", "asset": null, "relation_to_context": "CONTINUE"}\n'
+            '- "gimana cpi pengaruh ke pasar" -> {"request_type": "MARKET_OUTLOOK", "asset": null, "relation_to_context": "SWITCH"}\n'
+            "- NEVER classify Indonesian conversational words (lagi, ya, kok, terus, nih, dong, lah, gimana, apa, kenapa) as crypto or stock tickers.<|im_end|>\n"
             f"<|im_start|>user\nContext: last_asset={last_asset}, last_market={last_market}, last_tf={last_tf}.\n"
             f"Recent conversation:\n{history or 'none'}\n"
             f"Input: {text}<|im_end|>\n"
@@ -483,7 +496,7 @@ class LocalLanguageEngine:
                 relation = "UNCERTAIN"
 
             # Asset Safety: non-asset request types MUST NOT have assets
-            if req_type in ("FEEDBACK", "SYSTEM_INFO", "HARNESS", "PREFERENCE", "SETUP_CONFIG"):
+            if req_type in ("FEEDBACK", "SYSTEM_INFO", "HARNESS", "PREFERENCE", "SETUP_CONFIG", "CONVERSATION", "HISTORICAL_RECALL"):
                 data["asset"] = None
                 data["asset_2"] = None
 
@@ -883,18 +896,47 @@ class LocalLanguageEngine:
             ]
         return "\n".join(lines)
 
-    def answer_conversation(self, query: str, context: str, language: str = "id") -> str | None:
-        """Local-only short interaction; never a replacement for market evidence."""
+    def answer_conversation(self, query: str, context: str, language: str = "id", session: Any = None) -> str | None:
+        """Local-only conversational interaction; strictly grounded in verified facts and context."""
         from openbagus.core.guards import scan_text
         if not self._local_available() or not scan_text(query + context)["passed"]:
             return None
-        prompt = ("<|im_start|>system\nJawab dalam " + ("English" if language == "en" else "Bahasa Indonesia") +
-            ". Jawab maksud pengguna dalam 1-3 kalimat berdasarkan fakta konteks saja. "
+
+        # Adaptive token budget & instruction depth
+        q_lower = query.lower()
+        if any(k in q_lower for k in ("detail", "jelaskan", "lengkap", "rinci", "kenapa", "mengapa", "bandingkan")) or len(context) > 700:
+            budget = 400
+            depth_instruction = "Jawab pertanyaan pengguna secara terstruktur, jelas dan proporsional berdasarkan fakta konteks saja."
+        elif any(k in q_lower for k in ("singkat", "simple", "ringkas")):
+            budget = 150
+            depth_instruction = "Jawab maksud pengguna secara singkat dalam 1-2 kalimat berdasarkan fakta konteks saja."
+        else:
+            budget = 280
+            depth_instruction = "Jawab maksud pengguna secara langsung, wajar dan informatif berdasarkan fakta konteks saja."
+
+        recent_history = ""
+        if session and hasattr(session, "conversational_turns") and session.conversational_turns:
+            turns = session.conversational_turns[-3:]
+            hist_lines = []
+            for t in turns:
+                u = t.get("user", "")
+                a = t.get("assistant", "")
+                if u and a:
+                    hist_lines.append(f"User: {u[:200]}\nAssistant: {a[:200]}")
+            if hist_lines:
+                recent_history = "\nPercakapan sebelumnya:\n" + "\n".join(hist_lines)
+
+        lang_str = "English" if language == "en" else "Bahasa Indonesia"
+        prompt = (
+            f"<|im_start|>system\nJawab dalam {lang_str}. {depth_instruction} "
             "Jangan menciptakan harga, ticker, sumber, keputusan trading, janji refresh, atau menyatakan operasi sudah berhasil. "
-            "Tanpa Markdown. Tidak ada tindakan/configuration yang dijalankan.\nFakta: " + context[:2000] +
-            "<|im_end|>\n<|im_start|>user\n" + query[:600] + "<|im_end|>\n<|im_start|>assistant\n")
-        text = self._run_llama(prompt, max_tokens=150, temp=0.35, top_p=0.8, top_k=20)
-        if not text or not scan_text(text)["passed"] or len(text) > 1400:
+            "Tanpa Markdown tebal atau raw bullet berlebihan. Tidak ada tindakan/configuration yang dijalankan.\n"
+            f"Fakta: {context[:2500]}{recent_history}<|im_end|>\n"
+            f"<|im_start|>user\n{query[:600]}<|im_end|>\n"
+            "<|im_start|>assistant\n"
+        )
+        text = self._run_llama(prompt, max_tokens=budget, temp=0.35, top_p=0.8, top_k=20)
+        if not text or not scan_text(text)["passed"] or len(text) > 1600:
             return None
         if re.search(r"https?://|\b(?:BUY|SELL|LONG|SHORT)\b", text):
             return None
@@ -904,8 +946,12 @@ class LocalLanguageEngine:
             return None
         if "INSUFFICIENT_DATA_FOR_DECISION" in context and re.search(r"\bWAIT\b", text, re.I) and not re.search(r"(?:bukan|tidak|not).{0,45}\bWAIT\b", text, re.I):
             return None
-        allowed = set(re.findall(r"\d+(?:[.,]\d+)*", context))
-        if any(n not in allowed for n in re.findall(r"\d+(?:[.,]\d+)*", text)):
+
+        # Numbers check: strictly allow numbers present in context or query or recent history, plus simple enumeration 1..5
+        allowed = set(re.findall(r"\d+(?:[.,]\d+)*", context + " " + query + " " + recent_history))
+        text_numbers = set(re.findall(r"\d+(?:[.,]\d+)*", text))
+        substantive_numbers = {n for n in text_numbers if n not in {"1", "2", "3", "4", "5"}}
+        if any(n not in allowed for n in substantive_numbers):
             return None
         return text
 

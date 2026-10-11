@@ -218,6 +218,15 @@ class SessionState:
     research_history: dict[str, dict[str, Any]] = field(default_factory=dict)
     current_topic: str = ""
     current_topic_kind: str = ""
+    previous_topic: str = ""
+    previous_topic_kind: str = ""
+    last_equity_asset: str | None = None
+    last_crypto_asset: str | None = None
+    last_referenced_metric: dict[str, Any] = field(default_factory=dict)
+    last_user_correction: dict[str, Any] = field(default_factory=dict)
+    last_economic_event: str | None = None
+    last_pending_clarification: str | None = None
+    active_dialogue_state: str = ""
     last_successful_asset: str | None = None
     last_chart_asset: str | None = None
     last_fx_pair: str | None = None
@@ -234,7 +243,7 @@ class SessionState:
         if not scan_text(user_text + assistant_text)["passed"]:
             return
         now = datetime.now(timezone.utc)
-        turn_data = {"user": user_text[:1000], "assistant": assistant_text[:1500], "at": now.isoformat()}
+        turn_data = {"user": user_text, "assistant": assistant_text, "at": now.isoformat()}
         self.conversational_turns.append(turn_data)
 
         # Durable disk storage in SQLite (unbounded, physical disk storage only, strictly requires user consent)
@@ -281,9 +290,87 @@ class SessionState:
         self.explanation_depth = "normal"
         self.research_history = {}
 
+        self.previous_topic = ""
+        self.previous_topic_kind = ""
+        self.last_equity_asset = None
+        self.last_crypto_asset = None
+        self.last_referenced_metric = {}
+        self.last_user_correction = {}
+        self.last_economic_event = None
+        self.last_pending_clarification = None
+        self.active_dialogue_state = ""
+
         self.current_topic = self.current_topic_kind = self.last_operation = ""
         self.last_successful_asset = self.last_chart_asset = self.last_fx_pair = None
         self.last_commodity = self.last_backtest_asset = None
+
+    def record_topic(self, topic: str, kind: str = "research", asset: str | None = None) -> None:
+        """Updates topic stack preserving previous topic and categorizing asset types."""
+        if self.current_topic and self.current_topic != topic:
+            self.previous_topic = self.current_topic
+            self.previous_topic_kind = self.current_topic_kind
+        self.current_topic = topic
+        self.current_topic_kind = kind
+        target_asset = asset or (topic if kind in ("equity", "crypto", "asset") else None)
+        if target_asset:
+            self.last_asset = target_asset
+            if kind == "equity":
+                self.last_equity_asset = target_asset
+            elif kind == "crypto":
+                self.last_crypto_asset = target_asset
+            else:
+                try:
+                    from openbagus.domains.equities.catalog import EquityCatalog
+                    eq_cat = EquityCatalog.load_default()
+                    if eq_cat.resolve(target_asset):
+                        self.last_equity_asset = target_asset
+                    else:
+                        self.last_crypto_asset = target_asset
+                except Exception:
+                    pass
+
+    def record_metric_reference(self, name: str, value: Any, source: str, period: str = "") -> None:
+        """Records metric details for follow-up source and value challenges."""
+        self.last_referenced_metric = {
+            "name": name,
+            "value": value,
+            "source": source,
+            "period": period,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def record_user_correction(self, orig: str, corrected: str, note: str = "") -> None:
+        """Records a user correction to prevent repeating mistakes and preserve intent."""
+        self.last_user_correction = {
+            "original": orig,
+            "corrected": corrected,
+            "note": note,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def resolve_referent(self, phrase: str) -> str | None:
+        """Resolves conversational pronouns and informal references to specific assets."""
+        import re
+        p = phrase.lower().strip()
+        clean_p = re.sub(r"^(?:balik\s+(?:ke\s+)?|kembali\s+(?:ke\s+)?|tentang\s+|soal\s+|gimana\s+(?:dengan\s+)?|lihat\s+)", "", p).strip()
+        if re.search(r"\b(?:saham|emiten)\s+tadi\b", clean_p) or clean_p in ("saham tadi", "emiten tadi", "yang saham tadi", "sahamnya"):
+            return self.last_equity_asset or (self.last_asset if self.current_topic_kind == "equity" else self.previous_topic or None)
+        if re.search(r"\b(?:koin|crypto|kripto)\s+tadi\b", clean_p) or clean_p in ("koin tadi", "crypto tadi", "yang koin tadi"):
+            return self.last_crypto_asset or (self.last_asset if self.current_topic_kind == "crypto" else self.previous_topic or None)
+        if clean_p in ("yang sebelumnya", "yang kemarin", "yang tadi sebelum ini", "sebelumnya") or "sebelumnya" in clean_p:
+            return self.previous_topic or self.last_asset
+        if clean_p in ("dia", "itu", "ini", "yang tadi", "tadi", "emiten ini", "saham ini", "koin ini", "yang barusan") or "tadi" in clean_p:
+            return self.current_topic or self.last_asset
+        if clean_p in ("yang satunya", "yang kedua", "lawannya", "pembandingnya"):
+            if self.last_asset_2:
+                return self.last_asset_2
+            if len(self.last_comparison_assets) > 1:
+                return self.last_comparison_assets[1]
+        if clean_p in ("yang pertama",):
+            if self.last_comparison_assets:
+                return self.last_comparison_assets[0]
+            return self.last_asset
+        return None
 
     @staticmethod
     def get_harness_dir() -> Path:
@@ -493,8 +580,13 @@ class SessionState:
             "last_research_packet": self._serialize_packet(self.last_research_packet),
             "last_quant_result": self._serialize_quant(self.last_quant_result),
             "research_history": hist_serialized,
-            "topic_context": {k: getattr(self, k) for k in ("current_topic", "current_topic_kind",
-                "last_successful_asset", "last_chart_asset", "last_fx_pair", "last_commodity", "last_operation", "last_backtest_asset")},
+            "topic_context": {k: getattr(self, k) for k in (
+                "current_topic", "current_topic_kind", "previous_topic", "previous_topic_kind",
+                "last_equity_asset", "last_crypto_asset", "last_successful_asset", "last_chart_asset",
+                "last_fx_pair", "last_commodity", "last_operation", "last_backtest_asset",
+                "last_referenced_metric", "last_user_correction", "last_economic_event",
+                "last_pending_clarification", "active_dialogue_state",
+            )},
         }
 
     def from_dict(self, data: dict[str, Any]) -> None:
@@ -514,7 +606,13 @@ class SessionState:
         self.conversational_turns = data.get("conversational_turns", [])
         self.recent_preferences = data.get("recent_preferences", {})
         for key, value in data.get("topic_context", {}).items():
-            if key in {"current_topic", "current_topic_kind", "last_successful_asset", "last_chart_asset", "last_fx_pair", "last_commodity", "last_operation", "last_backtest_asset"}:
+            if key in {
+                "current_topic", "current_topic_kind", "previous_topic", "previous_topic_kind",
+                "last_equity_asset", "last_crypto_asset", "last_successful_asset", "last_chart_asset",
+                "last_fx_pair", "last_commodity", "last_operation", "last_backtest_asset",
+                "last_referenced_metric", "last_user_correction", "last_economic_event",
+                "last_pending_clarification", "active_dialogue_state",
+            }:
                 setattr(self, key, value)
         if not self.current_topic:
             self.current_topic, self.current_topic_kind = self.last_asset or "", "research"
@@ -552,6 +650,8 @@ class SessionState:
 
     def save_persistent(self, path: Path | None = None) -> bool:
         if self.last_asset and self.last_asset.lower() in {"hi", "halo", "hai", "hello"} and self.last_query.strip("?!. ").lower() == self.last_asset.lower():
+            return False
+        if not path and not self.is_persistence_enabled():
             return False
         target = path or (self.get_harness_dir() / "session_context.json")
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -612,20 +712,28 @@ class SessionState:
             pass
         return loaded
 
-    def clear_persistent(self, path: Path | None = None) -> bool:
+    def clear_persistent(self, path: Path | None = None, scope: str = "all") -> bool:
+        success = True
         target = path or (self.get_harness_dir() / "session_context.json")
         if target.exists():
             try:
                 target.unlink(missing_ok=True)
+                if target.exists():
+                    success = False
             except OSError:
-                pass
+                success = False
         try:
             from openbagus.storage.harness_db import HarnessStorage
             storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
-            storage.clear(all_history=True)
+            if scope == "session":
+                cleared = storage.clear(all_history=False, session_id=self.session_id)
+            else:
+                cleared = storage.clear(all_history=True)
+            if not cleared:
+                success = False
         except Exception:
-            pass
-        return True
+            success = False
+        return success
 
     def search_history(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
         """Search durable conversation archive across all past turns."""
@@ -659,6 +767,8 @@ class SessionState:
                 "db_size_str": "0 B",
                 "oldest_turn_at": None,
                 "newest_turn_at": None,
+                "retention_policy": "UNLIMITED",
+                "last_save_status": "EMPTY",
             }
 
     def load_if_enabled(self) -> bool:
@@ -685,23 +795,28 @@ class SessionState:
         src_status = "ON" if self.show_sources else "OFF"
 
         stats = self.get_storage_stats()
+        prev_top = self.previous_topic or "None"
+        curr_top = self.current_topic or ctx_asset
+        limit = max(4, min(50, int(self.recent_preferences.get("history_turn_limit", 20))))
         lines = [
             "OpenBagus Harness",
             "",
-            f"Context       {ctx_str}",
+            f"Context         {ctx_str}",
             f"Current Asset   {ctx_asset}",
             f"Timeframe       {self.timeframe}",
             f"Market          {self.market_type}",
             f"Sources         {src_status}",
             f"Clear on Exit   {clear_exit}",
-            f"Memory        {mem_mode}",
-            f"Last Research {self.last_research_at or 'N/A'}",
-            f"Data Snapshot {snap_status}",
-            f"Provider      {provider_name}",
-            f"Current Topic {self.current_topic or ctx_asset} ({self.current_topic_kind or 'research'})",
-            f"Last Operation {self.last_operation or 'N/A'}",
-            f"Recent Turns  {len(self.conversational_turns)} (LLM bounded window: last {min(4, len(self.conversational_turns))})",
-            f"Durable Archive {stats['total_turns']} turns ({stats['db_size_str']}) in SQLite storage",
+            f"Memory          {mem_mode}",
+            f"Persistence     {'ENABLED (ON)' if self.is_persistence_enabled() else 'DISABLED (OFF, ephemeral in-memory)'}",
+            f"Retention       {stats.get('retention_policy', 'UNLIMITED')} (disk-backed permanent storage)",
+            f"Sessions        {stats.get('total_sessions', 0)} sessions",
+            f"Total Saved     {stats.get('total_turns', 0):,} turns ({stats.get('db_size_str', '0 B')})",
+            f"Working Context {len(self.conversational_turns)} turns in-memory (sliding window up to {limit})",
+            f"Current Topic   {curr_top} ({self.current_topic_kind or 'general'})",
+            f"Previous Topic  {prev_top}",
+            f"Data Snapshot   {snap_status} ({provider_name})",
+            f"Last Save       {stats.get('last_save_status', 'SAVED')}",
         ]
         return "\n".join(lines)
 
@@ -876,8 +991,99 @@ class IntentRouter:
 
     def _interaction_request(self, text: str, session: SessionState | None) -> IntentRequest | None:
         lower = text.lower().strip().strip("?!. ")
-        if re.fullmatch(r"(?:hi|halo|hai|pagi|selamat malam|hello|hey)", lower):
+        if (re.fullmatch(r"(?:hi|halo|hai|pagi|selamat\s+(?:pagi|siang|sore|malam)|hello|hey|assalamualaikum)(?:\s+(?:bro|min|semua|openbagus|kawan))?", lower)
+            or lower in {"halo apa kabar", "selamat pagi", "selamat siang", "selamat sore", "selamat malam"}):
             return IntentRequest("CONVERSATION", "CONVERSATION", raw_query=text, focus="greeting")
+        if re.search(r"\b(?:hapus\s+percakapan\s+ini|clear\s+session)\b", lower):
+            return IntentRequest("COMMAND", "COMMAND", system_query="harness_clear_session", raw_query=text)
+        if re.search(r"\b(?:hapus\s+(?:semuanya\s+di\s+harness|semua\s+riwayat)|clear\s+all)\b", lower):
+            return IntentRequest("COMMAND", "COMMAND", system_query="harness_clear_all", raw_query=text)
+        if re.search(r"\b(?:lupakan\s+topik|clear\s+context|lupakan\s+(?:saham|koin|analisis)\s+tadi)\b", lower):
+            return IntentRequest("COMMAND", "COMMAND", system_query="harness_clear_context", raw_query=text)
+        if ((re.search(r"\b(?:kemarin|minggu\s+lalu|waktu\s+itu|sebelumnya)\b", lower)
+             and re.search(r"\b(?:apa\s+(?:yang\s+kita\s+)?bahas|lanjutkan|lanjut|ingat|bilang\s+apa|analisis\s+(?:saham|kripto|crypto)|koreksi\s+terakhir)\b", lower))
+            or lower in {"apa yang kita bahas kemarin", "apa yang kita bahas kemarin?", "lanjutkan yang kemarin", "lanjut yang kemarin"}):
+            focus = "resume" if "lanjut" in lower else "historical_recall"
+            rel = "RESUME" if "lanjut" in lower else "RECALL"
+            return IntentRequest("HARNESS", "HISTORICAL_RECALL", raw_query=text, focus=focus, relation_to_context=rel)
+        corr_m = re.search(r"\b(?:bukan\s+([A-Za-z0-9]+)\s+(?:tapi|maksudku)\s+([A-Za-z0-9]+)|(?:eh\s+)?maksudku\s+([A-Za-z0-9]+)(?:\s+bukan\s+([A-Za-z0-9]+))?)\b", text, re.I)
+        if corr_m:
+            groups = [g for g in corr_m.groups() if g]
+            target_tok = groups[1] if (len(groups) >= 2 and "bukan" in lower[:lower.find(groups[1].lower())]) else groups[0]
+            cand = self.assets.equities.resolve(target_tok) or next((a for a in self.catalog.assets if a.matches(target_tok)), None)
+            if cand:
+                if session:
+                    session.record_user_correction(session.last_asset or "", cand.symbol, note="user_correction")
+                    session.record_topic(cand.symbol, "equity" if cand.asset_type != "CRYPTO" else "crypto", asset=cand.symbol)
+                    session.last_asset = cand.symbol
+                    if cand.asset_type != "CRYPTO":
+                        session.last_equity_asset = cand.symbol
+                    else:
+                        session.last_crypto_asset = cand.symbol
+                req_t = "EQUITY_ANALYSIS" if cand.asset_type != "CRYPTO" else "ASSET_ANALYSIS"
+                return IntentRequest("ANALYZE", req_t, asset=cand.symbol, target_assets=[cand.symbol],
+                                     asset_type=cand.asset_type, raw_query=text,
+                                     market="idx" if cand.asset_type != "CRYPTO" else "spot",
+                                     relation_to_context="CORRECT")
+        if re.search(r"\b(?:balik|kembali)\s+(?:ke\s+)?(?:yang\s+)?(?:saham|koin|crypto|emiten)?\s*(?:tadi|sebelumnya)\b", lower) and session:
+            ref = session.resolve_referent(text)
+            if ref:
+                cand = self.assets.equities.resolve(ref) or next((a for a in self.catalog.assets if a.matches(ref)), None)
+                if cand:
+                    session.record_topic(cand.symbol, "equity" if cand.asset_type != "CRYPTO" else "crypto", asset=cand.symbol)
+                    session.last_asset = cand.symbol
+                    if cand.asset_type != "CRYPTO":
+                        session.last_equity_asset = cand.symbol
+                    else:
+                        session.last_crypto_asset = cand.symbol
+                    req_t = "EQUITY_ANALYSIS" if cand.asset_type != "CRYPTO" else "ASSET_ANALYSIS"
+                    return IntentRequest("ANALYZE", req_t, asset=cand.symbol, target_assets=[cand.symbol],
+                                         asset_type=cand.asset_type, raw_query=text,
+                                         market="idx" if cand.asset_type != "CRYPTO" else "spot",
+                                         relation_to_context="RESUME")
+        sector_explore_map = {
+            "kesehatan": "F", "farmasi": "F", "rumah sakit": "F",
+            "consumer": "D", "konsumen": "D", "makanan": "D", "rokok": "D",
+            "keuangan": "G", "bank": "G", "perbankan": "G",
+            "energi": "A", "tambang batubara": "A", "minyak": "A",
+            "barang baku": "B", "basic materials": "B",
+            "properti": "H", "real estate": "H",
+            "teknologi": "I", "tech": "I",
+            "infrastruktur": "J", "telco": "J",
+            "transportasi": "K", "logistik": "K",
+            "perindustrian": "C", "industri": "C",
+        }
+        if re.search(r"\b(?:no\s+trade|tolol|bego|bodoh|ngaco|kayak\s+bot|sampah|jelek|rusak|aneh\s+nih|kok\s+gini|summary\s+jelek)\b", lower):
+            return IntentRequest("FEEDBACK", "FEEDBACK", raw_query=text, focus="feedback",
+                                 asset=session.last_asset if session else None)
+        for kw, code in sector_explore_map.items():
+            if re.search(r"\b(?:aku\s+(?:lagi\s+)?(?:lihat|mau\s+lihat|penasaran)|lagi\s+lihat|mulai\s+dari)\b.*?\b" + re.escape(kw) + r"\b", lower):
+                if not any(self.assets.equities.resolve(w) for w in text.split()):
+                    if session:
+                        session.record_topic(f"Sektor {code} ({kw})", "sector")
+                    return IntentRequest("CONVERSATION", "CONVERSATION", raw_query=text,
+                                         focus="sector_exploration", category=code, asset_type="EQUITY_ID")
+        if re.search(r"\b(?:lagi\s+(?:pengen|mau)\s+lihat\s+market\s+indonesia|pengen\s+lihat\s+market\s+indonesia|pasar\s+modal\s+indonesia\s+gimana)\b", lower):
+            if not any(self.assets.equities.resolve(w) for w in text.split()):
+                return IntentRequest("CONVERSATION", "CONVERSATION", raw_query=text,
+                                     focus="market_exploration", asset_type="EQUITY_ID")
+        if re.search(r"\b(?:wkwk|haha|santai|ngopi|lelah|capek)\b", lower) and re.search(r"\b(?:nunggu|antri|market|nungguin|hold|hodl|btc|eth|crypto|saham)\b", lower):
+            return IntentRequest("CONVERSATION", "CONVERSATION", raw_query=text, focus="casual")
+        if (re.search(r"\b(?:kalau|jika|seandainya|gimana\s+kalau)\b", lower)
+            and re.search(r"\b(?:harga|price|level)\b.*?\b(?:turun|naik|drop|koreksi)\b|\b(?:turun|naik|drop|koreksi)\s+\d+(?:[.,]\d+)?\s*(?:%|persen|rupiah|dollar|usd)?\b", lower)
+            and session and session.last_asset
+            and not re.search(r"\b(?:bi\s+rate|suku\s+bunga|oi|open\s+interest|funding)\b", lower)):
+            return IntentRequest("SCENARIO", "SCENARIO", asset=session.last_asset, raw_query=text,
+                                 relation_to_context="CONTINUE",
+                                 asset_type=session.last_research_packet.asset_type if session.last_research_packet else "CRYPTO")
+        if re.search(r"\b(?:beda|kok\s+beda|salah|bukannya\s+tadi|kok\s+rr\s+cuma)\b", lower) and session and session.last_asset:
+            return IntentRequest("ANALYZE", "FOLLOW_UP", asset=session.last_asset, raw_query=text,
+                                 focus="numeric_challenge", relation_to_context="REFINE",
+                                 asset_type=session.last_research_packet.asset_type if session.last_research_packet else "CRYPTO")
+        if re.search(r"\b(?:angka\s+itu|data(?:nya)?|sumber(?:nya)?)\s+dari\s+mana\b|\bdarimana\b", lower) and session and session.last_asset:
+            return IntentRequest("ANALYZE", "FOLLOW_UP", asset=session.last_asset, raw_query=text,
+                                 focus="source_followup", relation_to_context="CONTINUE",
+                                 asset_type=session.last_research_packet.asset_type if session.last_research_packet else "CRYPTO")
         if lower in {"exit", "quit", "selesai", "sudah cukup", "akhiri sesi"}:
             return IntentRequest("COMMAND", "COMMAND", system_query="exit", raw_query=text)
         if re.search(r"\b(?:pakai|gunakan|bahasa|english|indonesia|jelaskan|jelasin)\b", lower) and re.search(r"bahasa indonesia|use english|in english|english please|indonesia aja", lower):
