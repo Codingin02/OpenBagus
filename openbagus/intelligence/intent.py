@@ -819,7 +819,10 @@ class IntentRouter:
             if not target and not topic and session and not explicit_unknown:
                 topic = session.current_topic if session.current_topic_kind in {"fx", "commodity"} else ""
                 target, _ = self.assets.resolve_asset(session.last_asset or "") if not topic else (None, [])
-            tf, _ = _parse_timeframe(text, default_tf=session.timeframe if session else "H1")
+            default_tf = session.timeframe if session else "H1"
+            if target and target.asset_type in {"EQUITY_ID", "INDEX_ID"} and (not session or session.last_asset != target.symbol):
+                default_tf = "D1"
+            tf, _ = _parse_timeframe(text, default_tf=default_tf)
             return IntentRequest(kind, kind, asset=target.symbol if target else None,
                 asset_type=target.asset_type if target else "CRYPTO", asset_id=target.id if target else None,
                 focus=topic or "general", topic="fx" if "/" in topic else ("commodity" if topic else None),
@@ -841,6 +844,8 @@ class IntentRouter:
             return None
         if re.search(r"\b(?:usd|dolar|dollar|euro|eur|yen|jpy|gbp|pound|sterling)\b", lower) and re.search(r"\b(?:idr|rupiah)\b", lower):
             return None
+        if lower in {c.lower() for c in TAXONOMY_CATEGORIES} and not (text.upper().startswith("IDX:") or text.upper().endswith(".JK")):
+            return None
         if re.search(r"\b(?:pasar\s+asia|asian\s+market|pre-?open\s+(?:ihsg|idx)?|sebelum\s+ihsg\s+buka|bursa\s+asia)\b", lower):
             return IntentRequest("ASIAN_PREOPEN", "ASIAN_PREOPEN", raw_query=text, relation_to_context="UNRELATED")
         tokens = re.findall(r"(?:IDX:)?[A-Za-z][A-Za-z0-9]*(?:\.JK)?", text)
@@ -857,10 +862,21 @@ class IntentRouter:
             if asset and asset.symbol not in [a.symbol for a in resolved]:
                 resolved.append(asset)
         equities = [a for a in resolved if a.asset_type != "CRYPTO"]
+        name_matched = []
         for asset in self.assets.equities.assets:
-            if re.search(r"(?<!\w)" + re.escape(asset.name.lower()) + r"(?!\w)", lower) and asset.symbol not in [a.symbol for a in resolved]:
-                resolved.append(asset)
-                equities.append(asset)
+            clean_name = re.sub(r"\b(?:pt|tbk)\b", "", asset.name, flags=re.I).strip(" .").lower()
+            if len(clean_name) > 4 and re.search(r"(?<!\w)" + re.escape(clean_name) + r"(?!\w)", lower):
+                name_matched.append(asset)
+        if name_matched:
+            name_matched.sort(key=lambda a: len(a.name), reverse=True)
+            for n_asset in name_matched:
+                if n_asset not in equities:
+                    equities.insert(0, n_asset)
+                    resolved.insert(0, n_asset)
+                else:
+                    equities.remove(n_asset)
+                    equities.insert(0, n_asset)
+
         current = self.assets.equities.resolve(session.last_asset or "") if session else None
         if current and not equities and resolved and re.search(r"\b(?:bandingkan|compare|vs|versus)\b", lower):
             return IntentRequest("COMPARE", "COMPARE", asset=current.symbol, asset_2=resolved[0].symbol,
@@ -1063,14 +1079,14 @@ class IntentRouter:
             return IntentRequest(intent="BACKTEST", request_type="BACKTEST",
                                  asset=sym, raw_query=text, relation_to_context="UNRELATED")
 
-        rep_match = re.fullmatch(r"(?:report\s+word|report\s+docx|laporan\s+word|docx)\s+([A-Za-z0-9/]+)", lower)
+        rep_match = re.fullmatch(r"(?:report\s+word|report\s+docx|laporan\s+word|docx|export\s+word|export\s+docx)\s+([A-Za-z0-9/]+)", lower)
         if rep_match:
             asset, _ = self.assets.resolve_asset(rep_match.group(1))
             sym = asset.symbol if asset else rep_match.group(1).upper()
             return IntentRequest(intent="REPORT_WORD", request_type="REPORT_WORD",
                                  asset=sym, raw_query=text, relation_to_context="UNRELATED")
 
-        rep_html_match = re.fullmatch(r"(?:report\s+html|laporan\s+html)\s+([A-Za-z0-9/]+)", lower)
+        rep_html_match = re.fullmatch(r"(?:report\s+html|laporan\s+html|export\s+html|export\s+web)\s+([A-Za-z0-9/]+)", lower)
         if rep_html_match:
             asset, _ = self.assets.resolve_asset(rep_html_match.group(1))
             sym = asset.symbol if asset else rep_html_match.group(1).upper()
@@ -1794,20 +1810,25 @@ class IntentRouter:
             if stripped_clean == "ADA":
                 asset = "ADA"
                 target_assets = ["ADA"]
-            elif len(words) == 1 and stripped_clean.lower() not in COMPREHENSIVE_STOP_WORDS and stripped_clean.lower() not in DEX_SLANG_EXCLUSIONS:
-                a_obj, amb = self.catalog.resolve_asset(words[0])
-                if a_obj:
-                    asset = a_obj.symbol
-                    target_assets = [a_obj.symbol]
-                elif amb:
-                    return IntentRequest(
-                        intent="ANALYZE",
-                        request_type="ASSET_ANALYSIS",
-                        is_ambiguous=True,
-                        candidates=[a.id for a in amb[:5]],
-                        timeframe=detected_tf,
-                        raw_query=text,
-                    )
+            else:
+                full_obj, _ = self.catalog.resolve_asset(query_no_tf.strip("? !."))
+                if full_obj:
+                    asset = full_obj.symbol
+                    target_assets = [full_obj.symbol]
+                elif len(words) == 1 and stripped_clean.lower() not in COMPREHENSIVE_STOP_WORDS and stripped_clean.lower() not in DEX_SLANG_EXCLUSIONS:
+                    a_obj, amb = self.catalog.resolve_asset(words[0])
+                    if a_obj:
+                        asset = a_obj.symbol
+                        target_assets = [a_obj.symbol]
+                    elif amb:
+                        return IntentRequest(
+                            intent="ANALYZE",
+                            request_type="ASSET_ANALYSIS",
+                            is_ambiguous=True,
+                            candidates=[a.id for a in amb[:5]],
+                            timeframe=detected_tf,
+                            raw_query=text,
+                        )
 
         # Multi-token scan strictly excluding COMPREHENSIVE_STOP_WORDS and DEX_SLANG_EXCLUSIONS
         if not asset:

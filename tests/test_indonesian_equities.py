@@ -161,6 +161,82 @@ class TestIndonesianEquities(unittest.TestCase):
         self.assertEqual(self.policy.position_size(1000, 900, 100_000, 2, .0015, .0025), 0)
         self.assertEqual(self.policy.position_size(1000, 900, 10_000_000, 2, .0015, .0025) % 100, 0)
 
+    def test_daily_csv_schema_identity_units_and_dates(self):
+        path = self.root / "daily.csv"
+        path.write_text("Date,Ticker,Open,High,Low,Close,Volume\n"
+                        "2025-01-08,RATU.JK,100,110,90,105,1200\n"
+                        "2025-01-08,BMRI.JK,200,210,190,205,2400\n", encoding="utf-8")
+        metadata = market_fixture("RATU")
+        metadata.pop("candles")
+        metadata.pop("quote")
+        store = EquityData(self.root)
+        data = store.read_ohlcv(path, metadata)
+        self.assertEqual(len(data["candles"]), 1)
+        self.assertEqual(data["candles"][0]["open_at"], "2025-01-08T00:00:00+07:00")
+        self.assertEqual(data["candles"][0]["close_at"], "2025-01-09T00:00:00+07:00")
+        self.assertEqual(data["candles"][0]["volume"], "1200")
+        self.assertNotIn("quote", data)
+        with self.assertRaises(ValueError):
+            store.read_ohlcv(path, {**metadata, "volume_unit": "lots"})
+        with self.assertRaises(ValueError):
+            store.read_ohlcv(path, {**metadata, "symbol": "BBCA"})
+        duplicate = copy.deepcopy(data)
+        duplicate["candles"].append({**duplicate["candles"][0], "open_at": "2025-01-08T01:00:00+07:00"})
+        with self.assertRaises(ValueError):
+            store.validate(duplicate)
+        future = copy.deepcopy(data)
+        start = datetime.now(timezone.utc) + timedelta(days=1)
+        future["candles"][0].update(open_at=start.isoformat(), close_at=(start + timedelta(days=1)).isoformat())
+        with self.assertRaises(ValueError):
+            store.validate(future)
+
+    def test_assisted_import_confirmation_and_preipo_guard(self):
+        from openbagus import cli
+        path = self.root / "daily.csv"
+        path.write_text("Date,Ticker,Open,High,Low,Close,Volume\n"
+                        "2025-01-08,RATU.JK,100,110,90,105,1200\n", encoding="utf-8")
+        shell = cli.OpenBagusShell()
+        answers = [str(path), "https://www.idx.co.id/", "shares", "unadjusted", "n", "y", "y"]
+        with patch.object(cli, "REPO_ROOT", self.root), patch.object(shell, "_ask", side_effect=answers), redirect_stdout(io.StringIO()) as output:
+            shell.do_data("import RATU")
+        self.assertIn("HISTORICAL_ANALYSIS_AVAILABLE", output.getvalue())
+        data = EquityData(self.root).load("RATU")
+        self.assertTrue(data["unresolved_corporate_actions"])
+        self.assertNotIn("quote", data)
+        original = (self.root / "data/equities/RATU.json").read_bytes()
+        with patch.object(cli, "REPO_ROOT", self.root), patch.object(shell, "_ask", side_effect=answers[:-1] + ["n"]), redirect_stdout(io.StringIO()):
+            shell.do_data("import RATU")
+        self.assertEqual((self.root / "data/equities/RATU.json").read_bytes(), original)
+        path.write_text(path.read_text().replace("2025-01-08", "2025-01-07"))
+        with patch.object(cli, "REPO_ROOT", self.root), patch.object(shell, "_ask", side_effect=answers), redirect_stdout(io.StringIO()) as output:
+            shell.do_data("import RATU")
+        self.assertIn("Impor gagal", output.getvalue())
+        self.assertEqual((self.root / "data/equities/RATU.json").read_bytes(), original)
+
+    def test_import_atomic_failure_preserves_cache(self):
+        store = EquityData(self.root)
+        data = market_fixture("BMRI")
+        store.store(data, "BMRI")
+        target = self.root / "data/equities/BMRI.json"
+        original = target.read_bytes()
+        with patch("openbagus.domains.equities.data.os.replace", side_effect=OSError("fixture failure")):
+            with self.assertRaises(OSError):
+                store.store(data, "BMRI")
+        self.assertEqual(target.read_bytes(), original)
+        self.assertEqual(list(target.parent.iterdir()), [target])
+
+    def test_backtest_rejects_unresolved_corporate_actions(self):
+        data = market_fixture("BMRI")
+        data["unresolved_corporate_actions"] = True
+        EquityData(self.root).store(data, "BMRI")
+        with patch("openbagus.domains.quant.backtesting.BacktestRunner.run", side_effect=AssertionError("Unsafe backtest")):
+            text = self.runner.execute(self.router.parse("backtest BMRI all time"), SessionState())
+        self.assertIn("backtest diblokir", text)
+        for query in ("backtest BMRI 3 tahun", "backtest BMRI all time", "visualize BMRI", "backtest RATU sejak IPO"):
+            req = self.router.parse(query, SessionState(last_asset="BTC", timeframe="H1"))
+            self.assertEqual(req.timeframe, "D1")
+        self.assertEqual(self.router.parse("backtest BMRI H1").timeframe, "H1")
+
     def test_equity_decision_geometry_and_stale_guards(self):
         data = market_fixture()
         q = self.quant.evaluate_equity("BBCA", data, self.policy, now=NOW)

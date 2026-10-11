@@ -202,10 +202,9 @@ class CryptoResearchRunner:
             candles, valid = self.quant._closed_candles(candles)
             if not candles or not valid:
                 return f"{req.asset}: OHLCV closed-bar yang valid belum tersedia untuk chart native {req.timeframe}. Gunakan /chart external {req.asset} untuk situs eksternal."
-            from openbagus.reporting.visualizer import generate_html_report
-            path = generate_html_report(req.asset, candles, root=self.root, timeframe=req.timeframe, currency="USD")
-            webbrowser.open(path.as_uri())
-            return f"Chart native {req.asset} {req.timeframe}: {path}; {len(candles)} closed bar."
+            from openbagus.reporting.terminal_chart import render_terminal_chart
+            q = session.last_quant_result if (session and session.last_quant_result and session.last_asset == req.asset) else None
+            return render_terminal_chart(req.asset, candles, timeframe=req.timeframe, currency="USD", quant_result=q)
         if session and session.last_research_packet:
             packet = session.last_research_packet
             session.research_history[packet.asset] = {"packet": packet, "quant": session.last_quant_result,
@@ -216,17 +215,13 @@ class CryptoResearchRunner:
         if req.request_type == "CHART" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "") and "external" not in req.raw_query.lower():
             asset = self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "")
             from openbagus.domains.equities.data import EquityData
-            from openbagus.reporting.visualizer import generate_html_report
-            data = EquityData(self.root).load(asset.symbol)
+            from openbagus.reporting.terminal_chart import render_terminal_chart
+            data = EquityData(self.root).load(asset.symbol, auto_fetch=True)
             candles = data.get("candles", [])
             if candles:
-                html_path = generate_html_report(asset.symbol, candles, root=self.root, timeframe=req.timeframe)
-                try:
-                    opened = webbrowser.open(html_path.as_uri())
-                except Exception:
-                    opened = False
-                return f"{'Opening native chart' if opened else 'Local chart'} {asset.symbol}: {html_path}"
-            return f"{asset.id}: belum ada OHLCV terverifikasi untuk chart native. Impor CSV berizin: python -m openbagus.cli import-idx ohlcv <CSV> --metadata <JSON>. Untuk situs eksternal gunakan /chart external {asset.symbol}."
+                q = session.last_quant_result if (session and session.last_quant_result and session.last_asset == asset.symbol) else None
+                return render_terminal_chart(asset.symbol, candles, timeframe=req.timeframe, currency="IDR", quant_result=q)
+            return f"{asset.id}: belum ada OHLCV terverifikasi untuk chart native. " + EquityData.import_guidance(asset.symbol)
         if req.request_type == "COMPARE" and any(self.assets.equities.resolve(a) for a in req.target_assets):
             pieces = []
             for symbol in req.target_assets[:2]:

@@ -50,6 +50,7 @@ class EquityAsset:
     exposures: list[str] = field(default_factory=list)
     hierarchy: list[str] = field(default_factory=list)
     listing_date: str = ""
+    shares_outstanding: float = 0.0
 
     @property
     def id(self) -> str:
@@ -76,7 +77,12 @@ class EquityAsset:
         return 9999
 
     def matches(self, value: str) -> bool:
-        return value.upper() in {self.symbol, self.id, f"{self.symbol}.JK"} or value.lower() == self.name.lower()
+        v = value.strip()
+        v_clean = re.sub(r"\b(pt|tbk)\b", "", v, flags=re.I).strip(" .").lower()
+        name_clean = re.sub(r"\b(pt|tbk)\b", "", self.name, flags=re.I).strip(" .").lower()
+        return (v.upper() in {self.symbol, self.id, f"{self.symbol}.JK"}
+                or v.lower() == self.name.lower()
+                or (bool(v_clean) and v_clean == name_clean))
 
 
 class EquityCatalog:
@@ -100,18 +106,32 @@ class EquityCatalog:
                        "IDXCYCLIC", "IDXHEALTH", "IDXFINANCE", "IDXPROPERT", "IDXTECHNO", "IDXINFRA", "IDXTRANS"):
             self.assets.append(EquityAsset(symbol, symbol, asset_type="INDEX_ID",
                 source="https://www.idx.co.id/id/produk/indeks/"))
-        antm = next(a for a in self.assets if a.symbol == "ANTM")
-        antm.exposures = ["nickel", "gold"]
-        try:
-            rows = json.loads(self.path.read_text(encoding="utf-8"))
-            self._merge([self._validate(row) for row in rows])
-        except (OSError, ValueError, TypeError, KeyError):
-            pass
+        antm = next((a for a in self.assets if a.symbol == "ANTM"), None)
+        if antm:
+            antm.exposures = ["nickel", "gold"]
+
+        loaded = False
+        if self.path.exists():
+            try:
+                rows = json.loads(self.path.read_text(encoding="utf-8"))
+                if rows:
+                    self._merge([self._validate(row) for row in rows])
+                    loaded = True
+            except (OSError, ValueError, TypeError, KeyError):
+                pass
+        if not loaded:
+            bundled = Path(__file__).parent / "idx_universe.json"
+            if bundled.exists():
+                try:
+                    rows = json.loads(bundled.read_text(encoding="utf-8"))
+                    self._merge([self._validate(row) for row in rows])
+                except (OSError, ValueError, TypeError, KeyError):
+                    pass
 
     @staticmethod
     def _validate(row: dict) -> EquityAsset:
         symbol = str(row.get("symbol", "")).upper()
-        if not re.fullmatch(r"[A-Z][A-Z0-9]{2,14}", symbol):
+        if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", symbol):
             raise ValueError("Invalid IDX symbol")
         if row.get("sector_code", "") not in {*SECTORS, ""} or row.get("asset_type", "EQUITY_ID") not in {"EQUITY_ID", "INDEX_ID"}:
             raise ValueError("Invalid IDX classification")
@@ -126,9 +146,13 @@ class EquityCatalog:
         if hierarchy and not all(isinstance(code, str) and code.startswith(row["sector_code"]) for code in hierarchy):
             raise ValueError("Hierarchy must use verified IDX-IC codes belonging to its sector")
         source_url(row.get("source", ""))
-        if not scan_text(json.dumps(row))["passed"]:
+        text_content = " ".join(str(v) for v in row.values() if isinstance(v, str))
+        if not scan_text(text_content)["passed"]:
             raise ValueError("Unsafe catalog metadata")
-        return EquityAsset(**row)
+        import dataclasses
+        valid_fields = {f.name for f in dataclasses.fields(EquityAsset)}
+        clean_row = {k: v for k, v in row.items() if k in valid_fields}
+        return EquityAsset(**clean_row)
 
     def _merge(self, assets: list[EquityAsset]) -> None:
         existing = {a.symbol: a for a in self.assets}
@@ -155,3 +179,52 @@ class EquityCatalog:
 
     def resolve(self, term: str) -> EquityAsset | None:
         return next((a for a in self.assets if a.matches(term.strip())), None)
+
+    def search(self, query: str, limit: int = 20) -> list[EquityAsset]:
+        q = query.strip().lower()
+        if not q:
+            return self.assets[:limit]
+        exact = [a for a in self.assets if a.symbol.lower() == q]
+        starts = [a for a in self.assets if a.symbol.lower().startswith(q) and a not in exact]
+        name_match = [a for a in self.assets if q in a.name.lower() and a not in exact and a not in starts]
+        industry_match = [a for a in self.assets if q in a.industry.lower() and a not in exact and a not in starts and a not in name_match]
+        results = exact + starts + name_match + industry_match
+        return results[:limit]
+
+    def by_sector(self, sector_query: str, limit: int = 50) -> list[EquityAsset]:
+        sq = sector_query.strip().upper()
+        if sq in SECTORS:
+            return [a for a in self.assets if a.sector_code == sq][:limit]
+        sq_lower = sector_query.strip().lower()
+        matched_codes = set()
+        for code, (en_name, id_name) in SECTORS.items():
+            if sq_lower in en_name.lower() or sq_lower in id_name.lower():
+                matched_codes.add(code)
+        if matched_codes:
+            return [a for a in self.assets if a.sector_code in matched_codes][:limit]
+        return [a for a in self.assets if sq_lower in a.industry.lower()][:limit]
+
+    def recent_ipos(self, since_year: int = 2024, limit: int = 30) -> list[EquityAsset]:
+        cutoff = f"{since_year}-01-01"
+        ipos = [a for a in self.assets if a.listing_date and a.listing_date >= cutoff and a.asset_type == "EQUITY_ID"]
+        ipos.sort(key=lambda a: a.listing_date, reverse=True)
+        return ipos[:limit]
+
+    def sync(self, force_download: bool = False) -> dict:
+        bundled = Path(__file__).parent / "idx_universe.json"
+        if bundled.exists():
+            rows = json.loads(bundled.read_text(encoding="utf-8"))
+            validated = [self._validate(r) for r in rows]
+            self._merge(validated)
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            self.path.write_text(json.dumps([asdict(a) for a in self.assets if a.effective_date], indent=2), encoding="utf-8")
+        equities_count = sum(1 for a in self.assets if a.asset_type == "EQUITY_ID")
+        indices_count = sum(1 for a in self.assets if a.asset_type == "INDEX_ID")
+        return {
+            "status": "SYNCED",
+            "total_assets": len(self.assets),
+            "equities_count": equities_count,
+            "indices_count": indices_count,
+            "path": str(self.path),
+        }
+

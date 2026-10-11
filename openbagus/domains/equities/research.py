@@ -152,6 +152,8 @@ def run_equity_research(runner, req, session=None) -> str:
             return f"{asset.id}: data tersedia {data['timeframe']}, bukan {req.timeframe}; impor timeframe yang sesuai."
         if len(candles) < 25:
             return f"{asset.id}: rentang '{req.raw_query}' menghasilkan {len(candles)} closed bar; minimal 25. " + EquityData.import_guidance(asset.symbol)
+        if data.get("unresolved_corporate_actions") is not False:
+            return f"{asset.id}: backtest diblokir; basis adjustment dan corporate actions belum dikonfirmasi sumber. Tidak menghitung return dari seri yang belum konsisten."
         bt_runner = BacktestRunner(
             initial_capital=100_000_000.0,
             asset_type="EQUITY_ID",
@@ -159,13 +161,7 @@ def run_equity_research(runner, req, session=None) -> str:
             sell_fee=float(data.get("fees", {}).get("sell", 0.0025)),
         )
         bt_res = bt_runner.run(asset.symbol, candles, timeframe=req.timeframe)
-        q_dummy = runner.quant.evaluate_equity(asset.symbol, data, policy, timeframe=req.timeframe)
-        html_path = generate_html_report(asset.symbol, candles, quant_result=q_dummy, backtest_result=bt_res, root=runner.root, timeframe=req.timeframe)
-        try:
-            webbrowser.open(html_path.as_uri())
-        except Exception:
-            pass
-        return bt_res.summary_table() + f"\n\nLaporan visual backtest disimpan di:\n{html_path}"
+        return bt_res.summary_table()
     if req.request_type == "FOLLOW_UP" and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol:
         return render_equity(session.last_research_packet, session.last_quant_result, asset, req.raw_query,
                              language=session.language, show_sources=session.show_sources)
@@ -261,24 +257,27 @@ def run_equity_research(runner, req, session=None) -> str:
         output = packet.narrative or render_equity(packet, q, asset, req.raw_query,
                                                   language=session.language if session else "ID",
                                                   show_sources=session.show_sources if session else False)
-    if req.request_type in ("VISUALIZE", "REPORT_HTML"):
+    if req.request_type in ("VISUALIZE", "CHART"):
+        from openbagus.reporting.terminal_chart import render_terminal_chart
+        candles = data.get("candles", [])
+        if candles:
+            output = render_terminal_chart(asset.symbol, candles, timeframe=req.timeframe, currency="IDR", quant_result=q)
+        else:
+            output = f"{asset.id} ({asset.name}): belum ada OHLCV untuk visualisasi native. " + EquityData.import_guidance(asset.symbol)
+        packet.narrative = output
+    elif req.request_type == "REPORT_HTML":
         from openbagus.domains.equities.ownership import load_ownership
         from openbagus.reporting.visualizer import generate_html_report
-        import webbrowser
         own = load_ownership(asset.symbol, runner.root)
         html_path = generate_html_report(asset.symbol, data.get("candles", []), q, packet, own, root=runner.root, timeframe=req.timeframe)
-        try:
-            webbrowser.open(html_path.as_uri())
-        except Exception:
-            pass
-        output = f"Laporan visualisasi interaktif {asset.symbol} ({req.timeframe}) berhasil dibuat:\n{html_path}\n\n(Telah mencakup Interactive Candlestick, Radar Multi-Factor, Hierarchical Sunburst, Correlation Heatmap, dan Kepemilikan)"
+        output = f"Laporan visualisasi interaktif {asset.symbol} ({req.timeframe}) berhasil diekspor ke:\n{html_path}\n\n(Telah mencakup Interactive Candlestick, Radar Multi-Factor, Hierarchical Sunburst, Correlation Heatmap, dan Kepemilikan)"
         packet.narrative = output
     elif req.request_type == "REPORT_WORD":
         from openbagus.domains.equities.ownership import load_ownership
         from openbagus.reporting.word_report import generate_word_report
         own = load_ownership(asset.symbol, runner.root)
         docx_path = generate_word_report(asset.symbol, q, packet, own, root=runner.root, timeframe=req.timeframe)
-        output = f"Laporan Microsoft Word (.docx) {asset.symbol} ({req.timeframe}) berhasil dibuat:\n{docx_path}\n\n(Memuat chart DrawingML native dengan embedded workbook Excel yang dapat diedit langsung di Word)"
+        output = f"Laporan Microsoft Word (.docx) {asset.symbol} ({req.timeframe}) berhasil diekspor ke:\n{docx_path}\n\n(Memuat chart DrawingML native dengan embedded workbook Excel yang dapat diedit langsung di Word)"
         packet.narrative = output
     if req.focus == "capital":
         if req.equity is not None and req.risk_pct is not None and q.stop_price is not None and q.bullish_validation:

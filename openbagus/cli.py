@@ -1066,6 +1066,59 @@ class OpenBagusShell(cmd.Cmd):
         print(prompt, end="", flush=True, file=getattr(self, "_prompt_output", sys.stdout))
         return input()
 
+    def do_data(self, arg: str) -> None:
+        parts = arg.strip().split()
+        if len(parts) == 2 and parts[0].lower() == "fetch":
+            store = EquityData(REPO_ROOT)
+            print(f"Mengambil data EOD online untuk {parts[1].upper()}...")
+            data = store.fetch_live_data(parts[1].upper(), range_str="1y", save=True)
+            if data.get("gaps"):
+                print(f"Gagal mengambil data: {data['gaps'][0]}")
+            else:
+                candles = data.get("candles", [])
+                quote = data.get("quote", {})
+                print(f"Berhasil mengunduh & memvalidasi {len(candles)} bar daily untuk {parts[1].upper()}.")
+                print(f"Harga Terakhir: Rp{quote.get('price', 0):,.0f} | Tanggal: {quote.get('as_of', '-')}")
+                print(f"Tersimpan di: {store.directory / f'{parts[1].upper()}.json'}")
+            return
+        if len(parts) != 2 or parts[0].lower() != "import":
+            print("Gunakan /data import <ticker IDX> (CSV lokal) atau /data fetch <ticker IDX> (online EOD).")
+            return
+        asset = EquityCatalog(REPO_ROOT).resolve(parts[1].upper())
+        if asset is None or asset.asset_type != "EQUITY_ID":
+            print("Identitas saham IDX belum terverifikasi.")
+            return
+        try:
+            path = Path(self._ask("Path CSV lokal: ").strip().strip('"')).expanduser()
+            source = self._ask("URL HTTPS sumber asli/provider data: ").strip()
+            volume_unit = self._ask("Satuan volume menurut dokumentasi sumber (shares): ").strip().lower()
+            adjustment = self._ask("Basis harga menurut sumber (adjusted/unadjusted): ").strip().lower()
+            actions_verified = self._ask("Dokumentasi sumber memastikan corporate actions/basis seri konsisten? (Y/N): ").strip().lower() == "y"
+            if self._ask("Anda memiliki izin menggunakan data ini untuk analisis lokal? (Y/N): ").strip().lower() != "y":
+                print("Impor dibatalkan; izin penggunaan belum dikonfirmasi.")
+                return
+            store = EquityData(REPO_ROOT)
+            data = store.read_ohlcv(path, {"symbol": asset.symbol, "source": source,
+                "authorized_use": True, "currency": "IDR", "volume_unit": volume_unit,
+                "timeframe": "D1", "adjustment": adjustment,
+                "retrieved_at": datetime.now(timezone.utc).isoformat(),
+                "unresolved_corporate_actions": not actions_verified})
+            if asset.listing_date and any(b["open_at"][:10] < asset.listing_date for b in data["candles"]):
+                raise ValueError("Observations precede the issuer listing date")
+            print(f"{asset.symbol} | IDX | IDR | D1 | {len(data['candles'])} bar")
+            print(f"Periode: {data['candles'][0]['open_at']} s.d. {data['candles'][-1]['close_at']}")
+            print(f"Sumber: {source}; volume: {volume_unit}; adjustment: {adjustment}")
+            print("Historis saja; tidak membuat current quote.")
+            print("Corporate actions: " + ("basis dikonfirmasi pengguna dari dokumentasi sumber" if actions_verified else "belum diverifikasi; backtest diblokir"))
+            print("Penyimpanan menggantikan dataset lokal ticker ini; file CSV asal tidak diubah.")
+            if self._ask("Simpan dataset yang ditampilkan? (Y/N): ").strip().lower() != "y":
+                print("Impor dibatalkan; dataset existing dipertahankan.")
+                return
+            store.store(data, asset.symbol)
+            print(f"HISTORICAL_ANALYSIS_AVAILABLE: {asset.symbol}; current market data belum terverifikasi.")
+        except (OSError, ValueError, KeyError, TypeError, EOFError) as exc:
+            print(f"Impor gagal ({type(exc).__name__}); periksa schema, unit, izin, tanggal dan OHLC. Dataset existing dipertahankan.")
+
     def do_help(self, arg: str) -> None:
         topic = (arg or "").strip().lower()
         if topic in ("news", "berita"):
@@ -1100,6 +1153,7 @@ class OpenBagusShell(cmd.Cmd):
             print("  dampak china manufacturing data ke sektor tambang idx antm")
             print("  BBCA vs BBRI")
             print("Data acquisition: user-owned/authorized JSON or CSV import; no automatic IDX price scraping.")
+            print("/data import BMRI - assisted CSV import with provenance/unit preview and confirmation.")
             print("python -m openbagus.cli import-idx market <JSON>")
             print("python -m openbagus.cli import-idx ohlcv <CSV> --metadata <JSON>")
             print('Metadata: {"symbol":"RATU","source":"https://<authorized-source>/document", "authorized_use":true, "currency":"IDR", "volume_unit":"shares", "timeframe":"D1", "adjustment":"adjusted", "retrieved_at":"<ISO timestamp with timezone>"}')
@@ -1209,12 +1263,14 @@ class OpenBagusShell(cmd.Cmd):
         print("     <ticker> [tf]          analyze asset directly (e.g. BTC H1, BBCA D1)")
         print("     /switch <asset>        switch active research focus")
         print("     /sources [on|off]      toggle display of verified data sources")
-        print("  2. Visualizations & Reports:")
-        print("     /chart [asset] [tf]    open TradingView or GeckoTerminal live chart")
-        print("     /visualize [asset]     open native interactive HTML dashboard")
-        print("     /report word [asset]   generate native Microsoft Word (.docx) report")
-        print("     /report html [asset]   generate comprehensive HTML research report")
-        print("  3. Ownership & Equities:")
+        print("  2. Native Terminal Visualization & Reports:")
+        print("     /chart [asset] [tf]    render native terminal candlestick & volume chart")
+        print("     /visualize [asset]     display native terminal chart with quantitative levels")
+        print("     /export html [asset]   export interactive HTML research report to disk")
+        print("     /export word [asset]   export native Microsoft Word (.docx) report to disk")
+        print("  3. Indonesian Equities & Universe:")
+        print("     /stocks [cmd]          explore full IDX universe (search, sector, info, ipo, fetch, sync)")
+        print("     /data [import|fetch]   import authorized local CSV or fetch live online EOD")
         print("     /ownership [asset]     view shareholder concentration & KSEI disclosures")
         print("  4. Quantitative Strategies & Validation:")
         print("     /backtest [asset]      run realistic walk-forward backtest")
@@ -1397,6 +1453,107 @@ class OpenBagusShell(cmd.Cmd):
     def do_ownership(self, arg: str) -> None:
         cmd_str = arg.strip()
         req = self.router.parse(f"/ownership {cmd_str}" if cmd_str else "/ownership", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_stocks(self, arg: str) -> None:
+        parts = arg.strip().split(maxsplit=1)
+        subcmd = parts[0].lower() if parts else ""
+        subarg = parts[1].strip() if len(parts) > 1 else ""
+        catalog = EquityCatalog(REPO_ROOT)
+        from openbagus.reporting.terminal_table import render_stocks_table
+
+        if not subcmd or subcmd == "summary":
+            total = len(catalog.assets)
+            eq_count = sum(1 for a in catalog.assets if a.asset_type == "EQUITY_ID")
+            idx_count = sum(1 for a in catalog.assets if a.asset_type == "INDEX_ID")
+            print("=== IDX Listed Universe Summary ===")
+            print(f"Total Instrumen: {total} (Saham Emiten: {eq_count}, Indeks/ETF: {idx_count})")
+            print(f"Katalog Sumber: {catalog.path} (Resmi Terverifikasi)")
+            print("Perintah yang tersedia:")
+            print("  /stocks search <query>    - Cari saham berdasarkan ticker, nama, atau industri")
+            print("  /stocks sector <sektor>   - Filter emiten berdasarkan sektor IDX-IC (A-K / nama)")
+            print("  /stocks info <ticker>     - Profil lengkap emiten dan tanggal pencatatan")
+            print("  /stocks ipo               - Daftar IPO terbaru (2024-2025)")
+            print("  /stocks fetch <ticker>    - Ambil data harga EOD terkini ke penyimpanan lokal")
+            print("  /stocks sync              - Sinkronkan katalog dengan universe resmi")
+            print()
+            sample = [a for a in catalog.assets if a.symbol in {"BBCA", "BBRI", "BMRI", "TLKM", "ASII", "ANTM", "RATU", "GOTO", "BRIS", "ADRO"}]
+            print(render_stocks_table(sample, title="Contoh Emiten Terverifikasi"))
+            print()
+        elif subcmd == "search":
+            if not subarg:
+                print("Format: /stocks search <ticker/nama/industri>")
+                return
+            results = catalog.search(subarg, limit=30)
+            print(render_stocks_table(results, title=f"Hasil Pencarian Saham '{subarg}'"))
+            print()
+        elif subcmd == "sector":
+            if not subarg:
+                print("Format: /stocks sector <kode A-K atau nama sektor, e.g. Energy, Financials, Perbankan>")
+                return
+            results = catalog.by_sector(subarg, limit=40)
+            print(render_stocks_table(results, title=f"Emiten Sektor '{subarg}'"))
+            print()
+        elif subcmd == "info":
+            if not subarg:
+                print("Format: /stocks info <ticker>")
+                return
+            asset = catalog.resolve(subarg)
+            if not asset:
+                print(f"Saham '{subarg}' tidak ditemukan di katalog IDX.")
+                return
+            lines = [
+                f"=== Profil Emiten IDX: {asset.symbol} ===",
+                f"Nama: {asset.name}",
+                f"Sektor: {asset.sector_or_category} ({asset.sector_code})",
+                f"Industri: {asset.industry or '-'}",
+                f"Papan Pencatatan: {asset.board}",
+                f"Status Pencatatan: {asset.listing_status}",
+                f"Tanggal IPO: {asset.listing_date or '-'}",
+                f"Saham Beredar: {asset.shares_outstanding:,.0f} lembar" if asset.shares_outstanding else "Saham Beredar: -",
+                f"Mata Uang / Bursa: {asset.currency} / {asset.exchange_or_chain}",
+                f"Sumber Profil Resmi: {asset.source}",
+            ]
+            print("\n".join(lines))
+            print()
+        elif subcmd == "ipo":
+            recent = catalog.recent_ipos(since_year=2024, limit=30)
+            print(render_stocks_table(recent, title="Daftar Emiten IPO Terbaru (2024 - Sekarang)"))
+            print()
+        elif subcmd == "sync":
+            sync_res = catalog.sync(force_download=True)
+            print(f"Sinkronisasi Katalog IDX Berhasil: {sync_res['total_assets']} total instrumen ({sync_res['equities_count']} saham, {sync_res['indices_count']} indeks).")
+            print(f"Disimpan di: {sync_res['path']}")
+            print()
+        elif subcmd == "fetch":
+            if not subarg:
+                print("Format: /stocks fetch <ticker>")
+                return
+            store = EquityData(REPO_ROOT)
+            print(f"Mengambil data harga EOD untuk {subarg.upper()}...")
+            data = store.fetch_live_data(subarg.upper(), range_str="1y", save=True)
+            if data.get("gaps"):
+                print(f"Gagal mengambil data: {data['gaps'][0]}")
+            else:
+                candles = data.get("candles", [])
+                quote = data.get("quote", {})
+                print(f"Berhasil mengunduh & memvalidasi {len(candles)} bar daily untuk {subarg.upper()}.")
+                print(f"Harga Terakhir: Rp{quote.get('price', 0):,.0f} | Tanggal: {quote.get('as_of', '-')}")
+                print(f"Tersimpan di: {store.directory / f'{subarg.upper()}.json'}")
+            print()
+        else:
+            print(f"Subcommand '/stocks {subcmd}' tidak dikenal. Gunakan /stocks untuk bantuan.")
+
+    def do_export(self, arg: str) -> None:
+        parts = arg.strip().split(maxsplit=1)
+        if len(parts) != 2 or parts[0].lower() not in {"html", "word", "docx", "web"}:
+            print("Format: /export html <ticker> atau /export word <ticker>")
+            return
+        fmt, ticker = parts[0].lower(), parts[1].strip()
+        cmd = f"/report-word {ticker}" if fmt in {"word", "docx"} else f"/report-html {ticker}"
+        req = self.router.parse(cmd, session=self.session)
         res = self.researcher.execute(req, session=self.session)
         print(res)
         print()
