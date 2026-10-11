@@ -904,6 +904,8 @@ class IntentRouter:
                     target = asset
                     break
             topic = "/".join(c.upper() for c in currencies[:2]) if len(currencies) >= 2 else ""
+            if not topic and "jisdor" in lower:
+                topic = "USD/IDR"
             explicit_unknown = re.search(r"(?:chart|grafik|visualize|visualisasi|backtest)\s+(?:external\s+)?([a-z][a-z0-9]*)\b", lower)
             explicit_unknown = bool(explicit_unknown and explicit_unknown[1] not in COMPREHENSIVE_STOP_WORDS and not target and not topic)
             if not target and not topic and session and not explicit_unknown:
@@ -1075,6 +1077,12 @@ class IntentRouter:
             number = re.search(r"\b\d+(?:\.\d+)?\b", cleaned)
             return IntentRequest(intent="FIAT_FX", request_type="FIAT_FX", raw_query=text,
                                  focus=f"{base}/{quote}", amount=float(number.group()) if number else 1.0,
+                                 relation_to_context="UNRELATED")
+
+        if re.search(r"\b(?:kurs\s+bi|kurs\s+jisdor|jisdor|kurs\s+dolar|kurs\s+usd)\b", lower):
+            number = re.search(r"\b\d+(?:\.\d+)?\b", cleaned)
+            return IntentRequest(intent="FIAT_FX", request_type="FIAT_FX", raw_query=text,
+                                 focus="USD/IDR", amount=float(number.group()) if number else 1.0,
                                  relation_to_context="UNRELATED")
 
         if re.fullmatch(r"[\d\s+\-*/().=?]+", cleaned) and re.search(r"[+\-*/]", cleaned):

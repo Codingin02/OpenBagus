@@ -53,6 +53,20 @@ ALLOWED_PROVIDER_HOSTS: frozenset[str] = frozenset({
     "www.federalreserve.gov",
     "www.imf.org",
     "www.worldbank.org",
+    "api.worldbank.org",
+    # Indonesian Official Providers & Infrastructure
+    "www.bi.go.id",
+    "bi.go.id",
+    "webapi.bps.go.id",
+    "bps.go.id",
+    "data.ojk.go.id",
+    "ojk.go.id",
+    "satudata.kemendag.go.id",
+    "kemendag.go.id",
+    "www.idx.co.id",
+    "idx.co.id",
+    "web.ksei.co.id",
+    "ksei.co.id",
 })
 
 SECRET_QUERY_PATTERNS = [

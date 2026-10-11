@@ -289,14 +289,15 @@ class TestProductInteraction(unittest.TestCase):
 
     def test_fx_public_pair_mock(self) -> None:
         data = {"base": "USD", "quote": "IDR", "rate": 16000, "date": "2026-10-02"}
-        with patch.object(self.zerokey, "_get_json", return_value=data) as http:
-            result = self.zerokey.get_fx_rate("USD", "IDR", 2)
-            self.assertEqual(result["converted"], 32000)
-            self.assertEqual(result["rate"], 16000)
-            self.assertEqual(result["date"], "2026-10-02")
-            self.assertIn("https://api.frankfurter.dev/v2/rate/USD/IDR", str(http.call_args))
-        with patch.object(self.zerokey, "_get_json", return_value={"base": "EUR", "quote": "IDR", "rate": 1, "date": "invalid"}):
-            self.assertEqual(self.zerokey.get_fx_rate("USD", "IDR")["error"], "FX_FETCH_FAILED")
+        with patch("openbagus.data.indonesia_official.BankIndonesiaAdapter.get_jisdor_latest", return_value=None):
+            with patch.object(self.zerokey, "_get_json", return_value=data) as http:
+                result = self.zerokey.get_fx_rate("USD", "IDR", 2)
+                self.assertEqual(result["converted"], 32000)
+                self.assertEqual(result["rate"], 16000)
+                self.assertEqual(result["date"], "2026-10-02")
+                self.assertIn("https://api.frankfurter.dev/v2/rate/USD/IDR", str(http.call_args))
+            with patch.object(self.zerokey, "_get_json", return_value={"base": "EUR", "quote": "IDR", "rate": 1, "date": "invalid"}):
+                self.assertEqual(self.zerokey.get_fx_rate("USD", "IDR")["error"], "FX_FETCH_FAILED")
 
     def test_general_market_and_timeframe(self) -> None:
         with patch.object(self.router.local_llm, "is_available", return_value=False):
@@ -738,10 +739,11 @@ class TestUserRecovery(unittest.TestCase):
             {"base": "USD", "quote": "IDR", "date": today.isoformat(), "rate": True},
             {"base": "USD", "quote": "IDR", "date": (today + timedelta(days=1)).isoformat(), "rate": 17000},
             {"base": "USD", "quote": "IDR", "date": "invalid", "rate": 17000}, None]
-        with patch.object(self.runner.zerokey, "_get_json", return_value=rows):
-            self.assertEqual(self.runner.zerokey.get_fx_history("USD", "IDR"), [{"date": day, "value": 16000}])
-        with patch.object(self.runner.zerokey, "_get_json", return_value={"error": "offline"}):
-            self.assertEqual(self.runner.zerokey.get_fx_history("USD", "IDR"), [])
+        with patch("openbagus.data.indonesia_official.BankIndonesiaAdapter.get_jisdor_history", return_value=[]):
+            with patch.object(self.runner.zerokey, "_get_json", return_value=rows):
+                self.assertEqual(self.runner.zerokey.get_fx_history("USD", "IDR"), [{"date": day, "value": 16000}])
+            with patch.object(self.runner.zerokey, "_get_json", return_value={"error": "offline"}):
+                self.assertEqual(self.runner.zerokey.get_fx_history("USD", "IDR"), [])
 
     def test_conversation_rejects_unsupported_missing_data_causes(self):
         model = self.runner.local_llm

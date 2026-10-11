@@ -70,6 +70,85 @@ class ProviderSpec:
 PROVIDERS: list[ProviderSpec] = [
     # Free & Keyed Indonesian Equities (IDX) Data Providers
     ProviderSpec(
+        id="bi",
+        display_name="Bank Indonesia (wsKursBI Official)",
+        capabilities=["macro", "forex", "jisdor", "transaction_rates"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://www.bi.go.id/biwebservice/wskursbi.asmx/getSubKursJisdor1",
+        notes="Official Bank Indonesia JISDOR exchange rates & central bank transaction rates (zero-key).",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="bps",
+        display_name="BPS (Badan Pusat Statistik)",
+        capabilities=["macro", "economic", "indonesia_macro", "cpi", "gdp"],
+        credential_env_names=["BPS_API_KEY"],
+        credential_required=True,
+        public_access=False,
+        notes="Official Indonesian national statistics (inflation, GDP, trade balance). Permanent free developer key; zero-key macro fallback.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="worldbank",
+        display_name="World Bank Open Data (Indonesia Macro)",
+        capabilities=["macro", "economic", "cpi", "gdp", "trade_balance"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        ping_url="https://api.worldbank.org/v2/country/IDN/indicator/FP.CPI.TOTL.ZG?format=json",
+        notes="Zero-key official public World Bank macroeconomic data for Indonesia (CPI, GDP, Trade).",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="ojk",
+        display_name="OJK SJKPublic (Statistik Perbankan & Pasar Modal)",
+        capabilities=["macro", "banking_statistics", "aggregate_industry"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        notes="Official OJK public banking & capital market statistics (SPI aggregates, NIM, NPL, CAR). Assisted import & benchmark.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="kemendag",
+        display_name="Kemendag SatuData (Komoditas & Neraca Dagang)",
+        capabilities=["macro", "commodity", "staple_prices", "trade_balance"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        notes="Official Ministry of Trade portal for staple food prices, export commodities (CPO, Ni, Coal), and trade surplus.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="idx",
+        display_name="Bursa Efek Indonesia (IDX Official Disclosures)",
+        capabilities=["equity_price", "equity_history", "fundamental", "corporate_actions"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        notes="Official IDX company disclosures, trading summaries (CSV/XLSX), and financial statements across 11 sectors.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="ksei",
+        display_name="KSEI Data Portal (Kustodian Sentral Efek Indonesia)",
+        capabilities=["ownership", "shareholder_registry", "corporate_actions"],
+        credential_env_names=[],
+        credential_required=False,
+        public_access=True,
+        notes="Official central securities depository distribution, single investor identification (SID), and ownership registry.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
         id="eodhd",
         display_name="EODHD (EOD Historical Data)",
         capabilities=["equity_price", "equity_history", "fundamental"],
@@ -77,17 +156,6 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Free tier provides 20 daily API calls for IDX end-of-day prices & fundamentals.",
-        domain="EQUITIES_ID",
-        is_advanced=False,
-    ),
-    ProviderSpec(
-        id="bps",
-        display_name="BPS (Badan Pusat Statistik)",
-        capabilities=["macro", "economic", "indonesia_macro"],
-        credential_env_names=["BPS_API_KEY"],
-        credential_required=True,
-        public_access=False,
-        notes="Official Indonesian national statistics (inflation, GDP, trade balance).",
         domain="EQUITIES_ID",
         is_advanced=False,
     ),
@@ -276,7 +344,7 @@ PROVIDERS: list[ProviderSpec] = [
         public_access=False,
         notes="Global financial data and digital currency historical series.",
         domain="EQUITIES_ID",
-        is_advanced=False,
+        is_advanced=True,
     ),
     ProviderSpec(
         id="coinmarketcap",
@@ -320,7 +388,7 @@ PROVIDERS: list[ProviderSpec] = [
         public_access=False,
         notes="Economic calendars, macro indicators, and crypto market prices.",
         domain="EQUITIES_ID",
-        is_advanced=False,
+        is_advanced=True,
     ),
     ProviderSpec(
         id="twelve_data",
@@ -331,7 +399,7 @@ PROVIDERS: list[ProviderSpec] = [
         public_access=False,
         notes="Technical indicators and multi-asset time-series data.",
         domain="EQUITIES_ID",
-        is_advanced=False,
+        is_advanced=True,
     ),
     ProviderSpec(
         id="polygon",
@@ -965,6 +1033,10 @@ class ProviderRegistry:
             d_filter = None
         elif d_filter in ("IDX", "EQUITY", "EQUITIES"):
             d_filter = "EQUITIES_ID"
+        elif d_filter in ("INDONESIA", "ID", "LOCAL"):
+            d_filter = "INDONESIA"
+        elif d_filter in ("FREE", "ZERO", "ZEROKEY"):
+            d_filter = "FREE"
 
         lines = []
         lines.append("OpenBagus Data Providers")
@@ -998,6 +1070,51 @@ class ProviderRegistry:
         from openbagus.data.cache import MarketDataCache
         cache = MarketDataCache.get_instance()
 
+        if d_filter == "INDONESIA":
+            lines.append("INDONESIA OFFICIAL DATA & MARKET INFRASTRUCTURE")
+            lines.append("-----------------------------------------------")
+            idn_specs = [
+                ("bi", "Bank Indonesia (wsKursBI Official)", "PUBLIC | OPERATIONAL (JISDOR & Kurs Transaksi)"),
+                ("bps", "BPS (Badan Pusat Statistik)", "KEY_PRESENT | VALIDATED" if (self.get_key("bps") and live_status.get("bps") == "VALID") else ("KEY_PRESENT" if self.get_key("bps") else "PUBLIC_FALLBACK (World Bank)")),
+                ("worldbank", "World Bank Open Data (Indonesia Macro)", "PUBLIC | OPERATIONAL (Indikator IHK, PDB, Neraca Dagang)"),
+                ("ojk", "OJK SJKPublic (Statistik Perbankan & SPI)", "OFFICIAL_IMPORT | VERIFIED (Agregat Industri Perbankan)"),
+                ("kemendag", "Kemendag SatuData (Komoditas Pokok & Ekspor)", "OFFICIAL_IMPORT | VERIFIED (Harga Beras, Minyak, CPO, Nikel)"),
+                ("idx", "Bursa Efek Indonesia (IDX Official Disclosures)", "OFFICIAL_IMPORT | VERIFIED (Ringkasan Saham & Lapkeu 11 Sektor)"),
+                ("ksei", "KSEI Data Portal (Kustodian Sentral Efek)", "OFFICIAL_IMPORT | VERIFIED (Struktur Kepemilikan & SID)"),
+            ]
+            for pid, name, status_text in idn_specs:
+                lines.append(f"  {name:<48} {status_text}")
+            lines.append("")
+            lines.append("Prinsip Utama: Data publik Indonesia resmi, zero-cost, dan tanpa API trial.")
+            return "\n".join(lines)
+
+        if d_filter == "FREE":
+            lines.append("PERMANENT FREE & ZERO-KEY DATA INFRASTRUCTURE")
+            lines.append("---------------------------------------------")
+            lines.append("Infrastruktur Publik Indonesia (Permanen Tanpa Trial / Zero-Key):")
+            for pid in ["bi", "worldbank", "ojk", "kemendag", "idx", "ksei"]:
+                p = self.providers.get(pid)
+                if p:
+                    lines.append(f"  {p.display_name:<48} PERMANENT_FREE")
+            p_bps = self.providers.get("bps")
+            if p_bps:
+                k = self.get_key("bps")
+                lines.append(f"  {'BPS Developer API (Key Gratis Permanen)':<48} {'KEY_PRESENT' if k else 'FREE_REGISTRATION'}")
+            lines.append("")
+            lines.append("Zero-Key Global Core (Crypto, DEX & DeFi):")
+            for p in self.list_public():
+                if p.domain == "CRYPTO":
+                    lines.append(f"  {p.display_name:<48} PUBLIC")
+            lines.append("")
+            lines.append("Tingkat Evaluasi Terbatas (Bukan Layanan Produksi Terjamin):")
+            eod = self.providers.get("eodhd")
+            if eod:
+                k = self.get_key("eodhd")
+                lines.append(f"  {'EODHD (Starter Free - 20 calls/day; Testing Only)':<48} {'KEY_PRESENT' if k else 'NOT_CONFIGURED'}")
+            lines.append("")
+            lines.append("Catatan: Tidak menggunakan API berbayar atau demo trial berbatas waktu.")
+            return "\n".join(lines)
+
         # Section 1: Zero-Key Public Core
         if d_filter is None or d_filter in ("CRYPTO", "PUBLIC", "CORE"):
             lines.append("ZERO-KEY CORE (Public Market & Derivatives Feeds - No Key Required)")
@@ -1015,10 +1132,18 @@ class ProviderRegistry:
         if d_filter is None or d_filter in ("EQUITIES_ID", "IDX"):
             lines.append("IDX EQUITIES & INDONESIAN MACRO (Free & Keyed)")
             lines.append("----------------------------------------------")
-            idx_providers = [p for p in self.providers.values() if p.domain == "EQUITIES_ID"]
+            idx_providers = [
+                p for p in self.providers.values()
+                if p.domain == "EQUITIES_ID" and (show_all or not p.is_advanced or self.get_key(p.id))
+            ]
             for p in idx_providers:
                 k = self.get_key(p.id)
-                if not k:
+                display_name = p.display_name
+                if p.id == "eodhd":
+                    display_name = "EODHD (Starter Free - 20 calls/day; Testing Only)"
+                if p.public_access:
+                    status = "PUBLIC"
+                elif not k:
                     status = "NOT_CONFIGURED"
                 elif run_live_check:
                     res = live_status.get(p.id, "INVALID")
@@ -1027,8 +1152,8 @@ class ProviderRegistry:
                     key_hash = hashlib.sha256(k.encode()).hexdigest()
                     cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
                     status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
-                state = f"KEY_PRESENT | {status}" if k else status
-                lines.append(f"  {p.display_name:<36} {state}")
+                state = f"KEY_PRESENT | {status}" if (k and not p.public_access) else status
+                lines.append(f"  {display_name:<48} {state}")
             lines.append("")
 
         # Section 3: Global Macro & Economic Data

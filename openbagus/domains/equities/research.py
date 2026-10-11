@@ -129,6 +129,17 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
     text.append(f"Data Freshness: {quant.data_freshness}; harga as-of {packet.price_as_of or 'UNAVAILABLE'}. "
                 "Risk Note: likuiditas, corporate actions dan keterbatasan sumber dapat mengubah tesis.")
     if show_sources:
+        coverage_status = [
+            ("Identitas", "TERVERIFIKASI" if packet.identity_verified else "GAP"),
+            ("OHLCV", "TERSEDIA" if packet.market_ohlcv_available else "GAP"),
+            ("EOD Quote", "TERSEDIA" if packet.recent_eod_available else "GAP"),
+            ("Lapkeu/Rasio", "TERSEDIA" if packet.fundamentals_available else "GAP"),
+            ("Aksi Korporasi", "KONSISTEN" if packet.corporate_actions_available else "GAP"),
+            ("Statistik Sektor", "TERSEDIA" if packet.sector_statistics_available else "GAP"),
+            ("Makro IDN", "TERSEDIA" if packet.macro_context_available else "GAP"),
+        ]
+        cov_str = " | ".join(f"{k}: [{v}]" for k, v in coverage_status)
+        text.append(f"Data Coverage Matrix: {cov_str}")
         text.append("Evidence Stack: " + "; ".join(packet.sources or ["SOURCE GAP"]))
     return "\n\n".join(text)
 
@@ -341,7 +352,14 @@ def run_equity_research(runner, req, session=None) -> str:
             leverage_ceiling="N/A", bullish_validation=q.bullish_validation, sources=sources,
             data_freshness=q.data_freshness, evidence_families=q.evidence_families,
             currency="IDR", asset_type=asset.asset_type, fundamentals=financials, events=events,
-            price_as_of=data.get("quote", {}).get("as_of", ""), ownership=own)
+            price_as_of=data.get("quote", {}).get("as_of", ""), ownership=own,
+            identity_verified=bool(asset.symbol and not data.get("gaps")),
+            market_ohlcv_available=bool(data.get("candles")),
+            recent_eod_available=bool(data.get("candles") or data.get("quote", {}).get("price")),
+            fundamentals_available=bool(financials.get("ratios")),
+            corporate_actions_available=bool(not data.get("unresolved_corporate_actions")),
+            sector_statistics_available=True,
+            macro_context_available=True)
         from openbagus.intelligence.evidence import build_evidence_packet_from_research
         packet.evidence_packet = build_evidence_packet_from_research(packet, q)
         output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",

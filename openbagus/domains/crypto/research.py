@@ -76,6 +76,13 @@ class ResearchPacket:
     backtest: Any = None
     evidence_packet: Any = None
     cited_sources: list[dict[str, Any]] = field(default_factory=list)
+    identity_verified: bool = False
+    market_ohlcv_available: bool = False
+    recent_eod_available: bool = False
+    fundamentals_available: bool = False
+    corporate_actions_available: bool = False
+    sector_statistics_available: bool = False
+    macro_context_available: bool = False
 
 
 def _fmt_price(val: float | None) -> str:
@@ -377,8 +384,24 @@ class CryptoResearchRunner:
             result = self.zerokey.get_fx_rate(base, quote, req.amount)
             if result.get("error"):
                 return "SOURCE GAP: kurs referensi belum tersedia."
-            return (f"{req.amount:g} {base} = {result['converted']:,.4f} {quote}\n"
-                    f"Rate: {result['rate']:g}\nReference date: {result['date']}\nSource: {result['provider']}")
+            out_lines = [
+                f"{req.amount:g} {base} = {result['converted']:,.4f} {quote}",
+                f"Rate: {result['rate']:g}\nReference date: {result['date']}\nSource: {result['provider']}",
+            ]
+            if re.search(r"\b(?:perubahan|delta|change|sebulan|1\s*bulan|30\s*hari|history|riwayat|tren)\b", req.raw_query.lower()):
+                history = self.zerokey.get_fx_history(base, quote, days=30)
+                if len(history) >= 2:
+                    first, last = history[0], history[-1]
+                    f_val, l_val = float(first.get("value", 0.0)), float(last.get("value", 0.0))
+                    if f_val > 0:
+                        delta = l_val - f_val
+                        delta_pct = (delta / f_val) * 100.0
+                        out_lines.append(
+                            f"\nPerubahan 30 Hari ({first.get('date')} s.d. {last.get('date')}):\n"
+                            f"Delta: {delta:+,.2f} {quote} ({delta_pct:+.2f}%)\n"
+                            f"Awal: {f_val:,.2f} | Akhir: {l_val:,.2f} ({len(history)} observasi terverifikasi)"
+                        )
+            return "\n".join(out_lines)
         if req.request_type == "CRYPTO_QUOTE":
             ticker = self.zerokey.get_spot_ticker(req.asset)
             if not ticker or ticker.get("price") is None:

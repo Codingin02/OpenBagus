@@ -324,14 +324,15 @@ def _run_status(session: SessionState | None = None) -> int:
 def _run_providers(check_network: bool = False, domain: str | None = None, show_all: bool = False) -> int:
     registry = ProviderRegistry(REPO_ROOT)
     print(registry.format_providers_view(run_live_check=check_network, domain=domain, show_all=show_all))
-    catalog = EquityCatalog(REPO_ROOT)
-    print("\nIDX capabilities (identity != market observations)")
-    print(f"Issuer identity: {len([a for a in catalog.assets if a.asset_type == 'EQUITY_ID'])} verified seeds/imported identities; update via import-idx catalog.")
-    for symbol in ("RATU", "BMRI", "BBCA"):
-        data = EquityData(REPO_ROOT).load(symbol)
-        bars = data.get("candles", [])
-        period = f"{bars[0]['open_at']} - {bars[-1]['close_at']}" if bars else "UNAVAILABLE"
-        print(f"{symbol}: market {'OPERATIONAL (authorized import)' if bars else 'DATA_UNAVAILABLE'}; {len(bars)} bars; range {period}")
+    if domain is None or str(domain).lower() in ("idx", "equities_id"):
+        catalog = EquityCatalog(REPO_ROOT)
+        print("\nIDX capabilities (identity != market observations)")
+        print(f"Issuer identity: {len([a for a in catalog.assets if a.asset_type == 'EQUITY_ID'])} verified seeds/imported identities; update via import-idx catalog.")
+        for symbol in ("RATU", "BMRI", "BBCA"):
+            data = EquityData(REPO_ROOT).load(symbol)
+            bars = data.get("candles", [])
+            period = f"{bars[0]['open_at']} - {bars[-1]['close_at']}" if bars else "UNAVAILABLE"
+            print(f"{symbol}: market {'OPERATIONAL (authorized import)' if bars else 'DATA_UNAVAILABLE'}; {len(bars)} bars; range {period}")
         print(f"Fundamentals: {'OPERATIONAL (dated import)' if data.get('fundamentals') else 'DATA_UNAVAILABLE'}")
     print("IDX automatic price acquisition: NOT_IMPLEMENTED without a permitted/licensed source. Key presence is not validation or operational evidence.")
     return 0
@@ -1069,7 +1070,36 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_data(self, arg: str) -> None:
         parts = arg.strip().split()
-        if len(parts) == 2 and parts[0].lower() == "fetch":
+        if not parts:
+            print("Gunakan:")
+            print("  /data sources indonesia                  - Panduan sumber data resmi Indonesia")
+            print("  /data import idx <path>                 - Impor ringkasan perdagangan harian IDX (CSV/XLSX)")
+            print("  /data import financials <path> [ticker] - Impor laporan keuangan emiten 11 sektor")
+            print("  /data import ojk <path>                 - Impor statistik perbankan/pasar modal OJK")
+            print("  /data import kemendag <path>            - Impor komoditas/neraca dagang Kemendag")
+            print("  /data import <ticker IDX>               - Impor interaktif bar OHLCV saham")
+            print("  /data fetch <ticker IDX>                - Unduh online EOD data saham")
+            return
+
+        cmd = parts[0].lower()
+        if cmd == "sources" and len(parts) > 1 and parts[1].lower() in ("indonesia", "id", "local"):
+            print("=== Sumber Data Resmi Indonesia (OpenBagus Official Infrastructure) ===")
+            print("1. Bank Indonesia (wsKursBI): JISDOR & Kurs Transaksi [Live/Zero-Key]")
+            print("2. BPS (Badan Pusat Statistik): IHK/Inflasi & PDB [BPS Web API / Zero-Key Fallback]")
+            print("3. World Bank Open Data: Indikator Makroekonomi Indonesia [Zero-Key Official]")
+            print("4. OJK SJKPublic: Statistik Perbankan Indonesia (SPI) & Pasar Modal [Assisted Import]")
+            print("5. Kemendag SatuData: Harga Pokok & Komoditas Ekspor (CPO/Nikel) [Assisted Import]")
+            print("6. BEI (IDX): Ringkasan Saham (CSV/XLSX) & Lapkeu 11 Sektor [Assisted Import]")
+            print("7. KSEI: Distribusi Kepemilikan Saham & SID [Assisted Import]")
+            print("\nPerintah Impor Berkas:")
+            print("  /data import idx <path-ke-file-ringkasan.csv|.xlsx>")
+            print("  /data import financials <path-ke-lapkeu.csv|.xlsx> [ticker]")
+            print("  /data import ojk <path-ke-data-ojk.csv|.json>")
+            print("  /data import kemendag <path-ke-data-kemendag.csv|.json>")
+            print()
+            return
+
+        if cmd == "fetch" and len(parts) >= 2:
             store = EquityData(REPO_ROOT)
             print(f"Mengambil data EOD online untuk {parts[1].upper()}...")
             data = store.fetch_live_data(parts[1].upper(), range_str="1y", save=True)
@@ -1082,9 +1112,58 @@ class OpenBagusShell(cmd.Cmd):
                 print(f"Harga Terakhir: Rp{quote.get('price', 0):,.0f} | Tanggal: {quote.get('as_of', '-')}")
                 print(f"Tersimpan di: {store.directory / f'{parts[1].upper()}.json'}")
             return
-        if len(parts) != 2 or parts[0].lower() != "import":
-            print("Gunakan /data import <ticker IDX> (CSV lokal) atau /data fetch <ticker IDX> (online EOD).")
+
+        if cmd == "import" and len(parts) >= 3 and parts[1].lower() == "idx":
+            path = Path(parts[2].strip('"')).expanduser()
+            try:
+                store = EquityData(REPO_ROOT)
+                res = store.import_idx_trading_summary(path)
+                print(f"Berhasil mengimpor ringkasan perdagangan IDX ({res['date']}): {res['imported_tickers_count']} ticker diperbarui.")
+                print(f"Sumber: {res['source']}")
+            except Exception as exc:
+                print(f"Impor ringkasan IDX gagal: {exc}")
             return
+
+        if cmd == "import" and len(parts) >= 3 and parts[1].lower() in ("financials", "lapkeu", "keuangan"):
+            path = Path(parts[2].strip('"')).expanduser()
+            ticker = parts[3].upper() if len(parts) >= 4 else None
+            try:
+                store = EquityData(REPO_ROOT)
+                res = store.import_financial_statement(path, ticker=ticker)
+                print(f"Berhasil mengimpor laporan keuangan {res['symbol']} ({res['period']}): {len(res['ratios'])} rasio dihitung.")
+                print(f"Rasio Utama: " + "; ".join(f"{k} {v:,.2f}" for k, v in list(res['ratios'].items())[:6]))
+                print(f"Sumber: {res['source']}")
+            except Exception as exc:
+                print(f"Impor laporan keuangan gagal: {exc}")
+            return
+
+        if cmd == "import" and len(parts) >= 3 and parts[1].lower() == "ojk":
+            path = Path(parts[2].strip('"')).expanduser()
+            try:
+                from openbagus.data.indonesia_official import OJKPublicAdapter
+                res = OJKPublicAdapter.import_statistics_file(path)
+                print(f"Berhasil mengimpor statistik industri OJK ({res['period']}): {len(res.get('metrics', {}))} metrik industri.")
+                print(f"Sumber: {res['source']}")
+            except Exception as exc:
+                print(f"Impor data OJK gagal: {exc}")
+            return
+
+        if cmd == "import" and len(parts) >= 3 and parts[1].lower() == "kemendag":
+            path = Path(parts[2].strip('"')).expanduser()
+            try:
+                from openbagus.data.indonesia_official import KemendagAdapter
+                res = KemendagAdapter.import_trade_file(path)
+                print(f"Berhasil mengimpor data komoditas Kemendag: {len(res.get('items', {}))} item dicatat.")
+                print(f"Sumber: {res['source']}")
+            except Exception as exc:
+                print(f"Impor data Kemendag gagal: {exc}")
+            return
+
+        if len(parts) != 2 or cmd != "import":
+            print("Gunakan /data import <ticker IDX> (CSV lokal) atau /data fetch <ticker IDX> (online EOD).")
+            print("Untuk berkas resmi: /data import [idx|financials|ojk|kemendag] <path>.")
+            return
+
         asset = EquityCatalog(REPO_ROOT).resolve(parts[1].upper())
         if asset is None or asset.asset_type != "EQUITY_ID":
             print("Identitas saham IDX belum terverifikasi.")
@@ -1119,6 +1198,97 @@ class OpenBagusShell(cmd.Cmd):
             print(f"HISTORICAL_ANALYSIS_AVAILABLE: {asset.symbol}; current market data belum terverifikasi.")
         except (OSError, ValueError, KeyError, TypeError, EOFError) as exc:
             print(f"Impor gagal ({type(exc).__name__}); periksa schema, unit, izin, tanggal dan OHLC. Dataset existing dipertahankan.")
+
+    def do_macro(self, arg: str) -> None:
+        from openbagus.data.indonesia_official import (
+            BankIndonesiaAdapter, BPSAdapter, WorldBankAdapter, OJKPublicAdapter, KemendagAdapter
+        )
+        sub = (arg or "").strip().lower()
+        if sub in ("bi", "jisdor", "kurs"):
+            jis = BankIndonesiaAdapter.get_jisdor_latest()
+            print("=== Bank Indonesia: Kurs Acuan JISDOR & Transaksi ===")
+            if jis:
+                print(f"JISDOR USD/IDR: Rp{jis['rate']:,.2f} (Per {jis['date']})")
+                print(f"Beli: Rp{jis['buy']:,.2f} | Jual: Rp{jis['sell']:,.2f}")
+                print(f"Status: {jis['description']} [{jis['provider']}]")
+            else:
+                print("JISDOR live query tidak tersedia; periksa koneksi.")
+            rates = BankIndonesiaAdapter.get_transaction_rates_latest()
+            if rates:
+                print(f"\nKurs Transaksi BI ({rates[0]['date']}):")
+                for r in rates[:6]:
+                    print(f"  {r['currency']:<5} Beli: Rp{r['buy']:>10,.2f} | Jual: Rp{r['sell']:>10,.2f} | Mid: Rp{r['mid']:>10,.2f}")
+            print()
+            return
+
+        if sub in ("bps", "inflasi", "cpi"):
+            data = BPSAdapter.get_inflation_data()
+            print("=== Badan Pusat Statistik (BPS) & Inflasi Nasional ===")
+            print(f"Sumber: {data['source']}")
+            if "latest_value" in data:
+                print(f"Metrik: {data.get('metric')} = {data['latest_value']}% ({data.get('period')})")
+            if "title" in data:
+                print(f"Rilis Terakhir: {data['title']} ({data.get('release_date')})")
+            if "registration_guidance" in data:
+                print(f"\nPanduan Registrasi BPS: {data['registration_guidance']}")
+            print()
+            return
+
+        if sub in ("ojk", "perbankan", "spi"):
+            bm = OJKPublicAdapter.get_benchmark_banking_metrics()
+            print(f"=== OJK: {bm['source']} ({bm['period']}) ===")
+            print(f"NIM Industri Rata-Rata: {bm['industry_nim_pct']:.2f}%")
+            print(f"NPL Gross Industri:     {bm['industry_npl_gross_pct']:.2f}%")
+            print(f"CAR (KPMM) Industri:    {bm['industry_car_pct']:.2f}%")
+            print(f"LDR Industri:           {bm['industry_ldr_pct']:.2f}%")
+            print(f"Pertumbuhan Kredit YoY: {bm['credit_growth_yoy_pct']:.2f}%")
+            print(f"Catatan: {bm['note']}")
+            print()
+            return
+
+        if sub in ("kemendag", "komoditas", "trade"):
+            cb = KemendagAdapter.get_staple_and_export_benchmarks()
+            print(f"=== {cb['source']} ({cb['period']}) ===")
+            print("Harga Pangan Pokok Acuan (IDR/Kg):")
+            for k, v in cb.get("staple_prices_idr_kg", {}).items():
+                print(f"  {k.replace('_', ' ').title():<25}: Rp{v:,.0f}")
+            print("Komoditas Ekspor Utama (USD/Ton):")
+            for k, v in cb.get("export_commodities_usd", {}).items():
+                print(f"  {k.replace('_', ' ').title():<25}: ${v:,.1f}")
+            print(f"Surplus Neraca Dagang: USD {cb.get('trade_balance_usd_billion')} Miliar")
+            print(f"Catatan: {cb['note']}")
+            print()
+            return
+
+        if sub in ("wb", "worldbank", "global"):
+            cpi = WorldBankAdapter.get_indonesia_macro("FP.CPI.TOTL.ZG")
+            gdp = WorldBankAdapter.get_indonesia_macro("NY.GDP.MKTP.KD.ZG")
+            print("=== World Bank Open Data: Indonesia Macro Indicators ===")
+            if cpi:
+                print("Inflasi Tahunan Indonesia (FP.CPI.TOTL.ZG):")
+                for p in cpi[:5]:
+                    print(f"  Tahun {p['date']}: {p['value']:.2f}%")
+            if gdp:
+                print("\nPertumbuhan PDB Riil Indonesia (NY.GDP.MKTP.KD.ZG):")
+                for p in gdp[:5]:
+                    print(f"  Tahun {p['date']}: {p['value']:.2f}%")
+            print()
+            return
+
+        # Default overview
+        print("=== Ringkasan Makroekonomi & Pasar Indonesia ===")
+        jis = BankIndonesiaAdapter.get_jisdor_latest()
+        if jis:
+            print(f"Bank Indonesia JISDOR (USD/IDR): Rp{jis['rate']:,.2f} ({jis['date']})")
+        bm = OJKPublicAdapter.get_benchmark_banking_metrics()
+        print(f"OJK Benchmark Perbankan ({bm['period']}): NIM {bm['industry_nim_pct']}%, NPL {bm['industry_npl_gross_pct']}%, CAR {bm['industry_car_pct']}%")
+        cb = KemendagAdapter.get_staple_and_export_benchmarks()
+        print(f"Kemendag Neraca Dagang ({cb['period']}): Surplus ${cb['trade_balance_usd_billion']}B | CPO ${cb['export_commodities_usd']['cpo_rotterdam_ton']}/ton")
+        wb = WorldBankAdapter.get_indonesia_macro("FP.CPI.TOTL.ZG")
+        if wb:
+            print(f"World Bank IHK/Inflasi ({wb[0]['date']}): {wb[0]['value']:.2f}% YoY")
+        print("\nSub-perintah detail: /macro [bi|bps|ojk|kemendag|worldbank]")
+        print()
 
     def do_help(self, arg: str) -> None:
         topic = (arg or "").strip().lower()
@@ -1742,7 +1912,7 @@ class OpenBagusShell(cmd.Cmd):
         check = "--check" in arg or "-c" in arg
         show_all = "all" in arg.lower() or "--all" in arg.lower()
         domain = None
-        for d in ("idx", "crypto", "macro", "news"):
+        for d in ("indonesia", "free", "idx", "crypto", "macro", "news"):
             if re.search(r"\b" + d + r"\b", arg.lower()):
                 domain = d
                 break

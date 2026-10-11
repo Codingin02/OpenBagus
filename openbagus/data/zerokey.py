@@ -695,6 +695,15 @@ class ZeroKeyMarketData:
     def get_fx_history(self, base: str, quote: str, days: int = 90) -> list[dict[str, Any]]:
         if not re.fullmatch(r"[A-Z]{3}", base) or not re.fullmatch(r"[A-Z]{3}", quote):
             return []
+        # Official Bank Indonesia JISDOR integration for USD/IDR
+        if (base, quote) == ("USD", "IDR"):
+            try:
+                from openbagus.data.indonesia_official import BankIndonesiaAdapter
+                jis_points = BankIndonesiaAdapter.get_jisdor_history(days=days)
+                if len(jis_points) >= 2:
+                    return jis_points
+            except Exception:
+                pass
         end = datetime.now(timezone.utc).date()
         start = end - timedelta(days=max(2, min(days, 365)))
         query = urllib.parse.urlencode({"base": base, "quotes": quote, "from": start.isoformat(), "to": end.isoformat()})
@@ -715,7 +724,7 @@ class ZeroKeyMarketData:
         return [points[key] for key in sorted(points)]
 
     def get_fx_rate(self, base: str, quote: str, amount: float = 1.0) -> dict[str, Any]:
-        """Return a validated Frankfurter reference conversion or an explicit gap."""
+        """Return a validated Bank Indonesia JISDOR or Frankfurter reference conversion."""
         base, quote = base.upper().strip(), quote.upper().strip()
         result = {"base": base, "quote": quote, "amount": amount, "rate": None,
                   "converted": None, "date": None, "provider": "Frankfurter (Zero-Key)",
@@ -725,6 +734,25 @@ class ZeroKeyMarketData:
         amount = validate_finite_number(amount, min_val=0.0)
         if amount is None:
             return result
+        # Official Bank Indonesia JISDOR integration for USD/IDR
+        if (base, quote) == ("USD", "IDR"):
+            try:
+                from openbagus.data.indonesia_official import BankIndonesiaAdapter
+                jis = BankIndonesiaAdapter.get_jisdor_latest()
+                if jis and jis.get("rate"):
+                    rate = float(jis["rate"])
+                    converted = validate_finite_number(amount * rate)
+                    if rate and converted is not None:
+                        result.update(
+                            rate=rate,
+                            converted=converted,
+                            date=jis["date"],
+                            provider="Bank Indonesia (JISDOR Resmi)",
+                            error=None,
+                        )
+                        return result
+            except Exception:
+                pass
         data = self._get_json(f"https://api.frankfurter.dev/v2/rate/{base}/{quote}", ttl_seconds=300.0)
         if not isinstance(data, dict) or data.get("base") != base or data.get("quote") != quote:
             return result

@@ -313,6 +313,303 @@ class EquityData:
         self.store(data, symbol)
         return symbol
 
+    def import_idx_trading_summary(self, path: Path) -> dict[str, Any]:
+        """Universal import for official IDX Daily Stock Trading Summary (CSV/XLSX).
+
+        Extracts code, previous, open, high, low, close, volume without hand-editing JSON.
+        Accrues EOD bars incrementally into local storage with provenance and duplicate detection.
+        """
+        rows = read_tabular(path)
+        if not rows:
+            raise ValueError(f"File {path.name} kosong.")
+
+        # 1. Identify date from filename or content
+        fn_match = re.search(r"(\d{4})[-_]?(\d{2})[-_]?(\d{2})", path.name)
+        trade_date = None
+        if fn_match:
+            trade_date = f"{fn_match.group(1)}-{fn_match.group(2)}-{fn_match.group(3)}"
+        else:
+            for r in rows[:5]:
+                line_str = " ".join(str(c) for c in r)
+                d_match = re.search(r"\b(\d{4})[-/](\d{2})[-/](\d{2})\b", line_str)
+                if d_match:
+                    trade_date = f"{d_match.group(1)}-{d_match.group(2)}-{d_match.group(3)}"
+                    break
+        if not trade_date:
+            trade_date = datetime.fromtimestamp(path.stat().st_mtime, tz=WIB).strftime("%Y-%m-%d")
+
+        # 2. Locate header row
+        hdr_idx = -1
+        col_map: dict[str, int] = {}
+        for idx, row in enumerate(rows[:15]):
+            cells = [str(c).strip().lower() for c in row]
+            has_code = any(any(k in c for k in ("kode", "ticker", "code", "saham")) for c in cells)
+            has_close = any(any(k in c for k in ("penutupan", "close", "last", "terakhir", "closing")) for c in cells)
+            if has_code and has_close:
+                hdr_idx = idx
+                for c_i, c_val in enumerate(cells):
+                    if any(k in c_val for k in ("kode", "ticker", "code")):
+                        col_map.setdefault("code", c_i)
+                    elif any(k in c_val for k in ("nama", "name")):
+                        col_map.setdefault("name", c_i)
+                    elif any(k in c_val for k in ("sebelumnya", "prev", "previous")):
+                        col_map.setdefault("prev", c_i)
+                    elif any(k in c_val for k in ("pembukaan", "open", "opening")):
+                        col_map.setdefault("open", c_i)
+                    elif any(k in c_val for k in ("tertinggi", "high", "highest")):
+                        col_map.setdefault("high", c_i)
+                    elif any(k in c_val for k in ("terendah", "low", "lowest")):
+                        col_map.setdefault("low", c_i)
+                    elif any(k in c_val for k in ("penutupan", "close", "last", "terakhir")):
+                        col_map.setdefault("close", c_i)
+                    elif any(k in c_val for k in ("volume", "vol", "shares", "lembar")):
+                        col_map.setdefault("vol", c_i)
+                break
+
+        if hdr_idx == -1 or "code" not in col_map or "close" not in col_map:
+            raise ValueError(f"Header ringkasan perdagangan IDX tidak dikenali pada file {path.name}.")
+
+        start_time = f"{trade_date}T09:00:00+07:00"
+        close_time = f"{trade_date}T16:00:00+07:00"
+        imported_count = 0
+        now_iso = datetime.now(timezone.utc).isoformat()
+
+        for row in rows[hdr_idx + 1:]:
+            if len(row) <= max(col_map.values()):
+                continue
+            raw_code = str(row[col_map["code"]]).strip().upper()
+            raw_code = re.sub(r"[^A-Z0-9-]", "", raw_code)
+            if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", raw_code):
+                continue
+
+            def parse_num(idx_key: str, default: float = 0.0) -> float:
+                if idx_key not in col_map:
+                    return default
+                val_str = str(row[col_map[idx_key]]).replace(",", "").replace(" ", "").strip()
+                try:
+                    return float(val_str)
+                except ValueError:
+                    return default
+
+            c = parse_num("close")
+            if c <= 0:
+                continue
+            prev = parse_num("prev", c)
+            o = parse_num("open", prev if prev > 0 else c)
+            h = parse_num("high", max(o, c))
+            l = parse_num("low", min(o, c))
+            v = int(parse_num("vol", 0))
+
+            o = round(o, 2)
+            h = round(max(h, o, c), 2)
+            l = round(min(l, o, c) if l > 0 else min(o, c), 2)
+            c = round(c, 2)
+
+            candle_entry = {
+                "open_at": start_time,
+                "close_at": close_time,
+                "open": o,
+                "high": h,
+                "low": l,
+                "close": c,
+                "volume": max(0, v),
+                "is_closed_candle": True,
+            }
+
+            # Load or create ticker record
+            existing = self.load(raw_code, auto_fetch=False)
+            if existing.get("gaps"):
+                existing = {
+                    "symbol": raw_code,
+                    "authorized_use": True,
+                    "source": f"https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham/ ({path.name})",
+                    "retrieved_at": now_iso,
+                    "currency": "IDR",
+                    "volume_unit": "shares",
+                    "timeframe": "D1",
+                    "adjustment": "unadjusted",
+                    "unresolved_corporate_actions": False,
+                    "listing_status": "ACTIVE",
+                    "board": "MAIN",
+                    "quote": {
+                        "price": c,
+                        "previous_close": prev if prev > 0 else c,
+                        "as_of": close_time,
+                    },
+                    "fees": {"buy": 0.0015, "sell": 0.0025},
+                    "candles": [candle_entry],
+                    "gaps": [],
+                }
+            else:
+                candles = existing.get("candles", [])
+                updated = False
+                for i, bar in enumerate(candles):
+                    if bar.get("open_at", "")[:10] == trade_date:
+                        candles[i] = candle_entry
+                        updated = True
+                        break
+                if not updated:
+                    candles.append(candle_entry)
+                    candles.sort(key=lambda b: b.get("open_at", ""))
+                existing["candles"] = candles
+                existing["quote"] = {
+                    "price": c,
+                    "previous_close": prev if prev > 0 else c,
+                    "as_of": close_time,
+                }
+                existing["retrieved_at"] = now_iso
+
+            self.store(existing, raw_code)
+            imported_count += 1
+
+        return {
+            "imported_tickers": imported_count,
+            "imported_tickers_count": imported_count,
+            "date": trade_date,
+            "file": path.name,
+            "source": f"https://www.idx.co.id/id/data-pasar/ringkasan-perdagangan/ringkasan-saham/ ({path.name})",
+            "provenance": "Official IDX Daily Trading Summary import",
+        }
+
+    def import_financial_statement(self, path: Path, ticker: str | None = None) -> dict[str, Any]:
+        """Universal import for company financial disclosures (CSV/XLSX/JSON) across all 11 sectors."""
+        sym = (ticker or "").strip().upper()
+        if not sym:
+            m = re.search(r"\b([A-Z]{4})\b", path.name.upper())
+            if m:
+                sym = m.group(1)
+        if not sym or not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", sym):
+            raise ValueError(f"Ticker emiten belum dapat diverifikasi untuk {path.name}; sebutkan ticker (contoh: /data import financials {path.name} ICBP).")
+
+        rows = read_tabular(path)
+        if not rows:
+            raise ValueError(f"File laporan keuangan {path.name} kosong.")
+
+        now_iso = datetime.now(timezone.utc).isoformat()
+        values: dict[str, float] = {}
+        reported_ratios: dict[str, float] = {}
+        period = "2024-FY"
+        unit = "million_IDR"
+        basis = "konsolidasian"
+
+        if path.suffix.lower() == ".json":
+            raw_data = json.loads(path.read_text(encoding="utf-8"))
+            if "values" in raw_data:
+                values = {k: float(v) for k, v in raw_data.get("values", {}).items() if v is not None}
+                reported_ratios = {k: float(v) for k, v in raw_data.get("reported_ratios_pct", {}).items() if v is not None}
+                period = raw_data.get("period", period)
+                unit = raw_data.get("unit", unit)
+                basis = raw_data.get("basis", basis)
+            else:
+                for k, v in raw_data.items():
+                    try:
+                        num = float(str(v).replace(",", ""))
+                        values[k] = num
+                    except (ValueError, TypeError):
+                        if k.lower() in ("period", "periode"):
+                            period = str(v)
+        else:
+            field_map = {
+                "revenue": ("pendapatan", "penjualan", "revenue", "sales"),
+                "operating_income": ("laba usaha", "laba operasional", "operating income", "ebit"),
+                "net_income": ("laba bersih", "laba tahun berjalan", "net income", "net profit"),
+                "net_income_attributable": ("laba pemilik entitas induk", "laba diatribusikan", "net income attributable"),
+                "equity": ("jumlah ekuitas", "total ekuitas", "equity", "total equity"),
+                "equity_attributable": ("ekuitas pemilik entitas induk", "equity attributable"),
+                "total_assets": ("jumlah aset", "total aset", "total assets", "jumlah aktiva"),
+                "total_liabilities": ("jumlah liabilitas", "total liabilitas", "total liabilities", "jumlah kewajiban"),
+                "interest_bearing_debt": ("utang bank", "utang berbunga", "pinjaman bank", "interest-bearing debt", "total utang"),
+                "operating_cash_flow": ("arus kas operasi", "arus kas dari aktivitas operasi", "operating cash flow"),
+                "capital_expenditure": ("belanja modal", "capex", "capital expenditure"),
+                "shares_outstanding": ("jumlah saham beredar", "saham beredar", "shares outstanding"),
+                "weighted_average_shares": ("rata-rata tertimbang saham", "weighted average shares"),
+            }
+            ratio_map = {
+                "NIM": ("nim", "net interest margin"),
+                "NPL_gross": ("npl gross", "npl kotor"),
+                "NPL_net": ("npl net", "npl bersih"),
+                "CAR": ("car", "capital adequacy ratio", "kpmm"),
+                "LDR": ("ldr", "loan to deposit ratio"),
+                "CASA": ("casa", "dana murah"),
+            }
+
+            for r in rows:
+                if len(r) < 2:
+                    continue
+                label = str(r[0]).strip().lower()
+                val_str = str(r[1]).replace(",", "").replace(" ", "").replace("%", "").strip()
+                try:
+                    val_num = float(val_str)
+                except ValueError:
+                    if any(p in label for p in ("periode", "period", "kuartal", "tahun")):
+                        period = str(r[1]).strip()
+                    continue
+
+                for canon_key, patterns in field_map.items():
+                    if any(p in label for p in patterns):
+                        values[canon_key] = val_num
+                        break
+                for canon_ratio, patterns in ratio_map.items():
+                    if any(p in label for p in patterns):
+                        reported_ratios[canon_ratio] = val_num
+                        break
+
+        if "net_income" in values and "net_income_attributable" not in values:
+            values["net_income_attributable"] = values["net_income"]
+        if "equity" in values and "equity_attributable" not in values:
+            values["equity_attributable"] = values["equity"]
+
+        period_type = "QUARTER" if re.search(r"Q[1-4]", period) else ("TTM" if "TTM" in period else "FY")
+        statement = {
+            "source": f"https://www.idx.co.id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/ ({path.name})",
+            "published_at": now_iso,
+            "currency": "IDR",
+            "unit": unit,
+            "period": period,
+            "period_type": period_type,
+            "basis": basis,
+            "values": values,
+            "reported_ratios_pct": reported_ratios,
+        }
+        validate_statement(statement)
+
+        existing = self.load(sym, auto_fetch=False)
+        quote_price = None
+        if existing.get("gaps"):
+            existing = {
+                "symbol": sym,
+                "authorized_use": True,
+                "source": statement["source"],
+                "retrieved_at": now_iso,
+                "currency": "IDR",
+                "volume_unit": "shares",
+                "timeframe": "D1",
+                "adjustment": "unadjusted",
+                "unresolved_corporate_actions": False,
+                "listing_status": "ACTIVE",
+                "board": "MAIN",
+                "quote": {},
+                "fees": {"buy": 0.0015, "sell": 0.0025},
+                "candles": [],
+                "fundamentals": statement,
+                "gaps": [],
+            }
+        else:
+            existing["fundamentals"] = statement
+            existing["retrieved_at"] = now_iso
+            quote_price = existing.get("quote", {}).get("price")
+
+        self.store(existing, sym)
+        calc_result = fundamentals(statement, price=quote_price)
+        return {
+            "symbol": sym,
+            "period": period,
+            "unit": unit,
+            "ratios": calc_result.get("ratios", {}),
+            "source": statement["source"],
+            "provenance": f"Official financial statement disclosure import ({path.name})",
+        }
+
     def store(self, data: dict, symbol: str) -> None:
         self.validate(data)
         if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", symbol) or data.get("symbol") != symbol:
@@ -327,6 +624,46 @@ class EquityData:
         finally:
             if temporary is not None:
                 temporary.unlink(missing_ok=True)
+
+
+def read_tabular(path: Path) -> list[list[str]]:
+    """Lightweight tabular reader supporting CSV, XLSX (stdlib zip/xml), and JSON."""
+    if not path.exists():
+        raise FileNotFoundError(f"File tidak ditemukan: {path}")
+    ext = path.suffix.lower()
+    if ext == ".xlsx":
+        import zipfile
+        import xml.etree.ElementTree as ET
+        with zipfile.ZipFile(path, "r") as z:
+            shared = []
+            if "xl/sharedStrings.xml" in z.namelist():
+                s_tree = ET.fromstring(z.read("xl/sharedStrings.xml"))
+                for si in s_tree.findall("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}si"):
+                    t = si.find("{http://schemas.openxmlformats.org/spreadsheetml/2006/main}t")
+                    shared.append(t.text if t is not None else "")
+            sheet_name = next((n for n in z.namelist() if n.startswith("xl/worksheets/sheet") and n.endswith(".xml")), "xl/worksheets/sheet1.xml")
+            tree = ET.fromstring(z.read(sheet_name))
+            rows = []
+            ns = {"main": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+            for r in tree.findall(".//main:row", ns):
+                row_vals = []
+                for c in r.findall("main:c", ns):
+                    v = c.find("main:v", ns)
+                    val = v.text if v is not None else ""
+                    if c.get("t") == "s" and val.isdigit():
+                        val = shared[int(val)] if int(val) < len(shared) else val
+                    row_vals.append(val)
+                rows.append(row_vals)
+            return rows
+    elif ext == ".csv":
+        with path.open("r", encoding="utf-8-sig", errors="replace", newline="") as f:
+            return list(csv.reader(f))
+    elif ext == ".json":
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if isinstance(data, list):
+            return data
+        return [list(data.keys()), list(data.values())]
+    raise ValueError(f"Format file tidak didukung: {ext}. Gunakan CSV, XLSX, atau JSON.")
 
 
 def validate_statement(statement: dict) -> None:
@@ -367,6 +704,22 @@ def fundamentals(statement: dict | None, price: float | None, previous: dict | N
             ratios["PER"] = price / ratios["EPS"]
     if price and equity is not None and equity > 0 and outstanding:
         ratios["PBV"] = price / (equity / outstanding)
+    if "average_equity_attributable" not in values:
+        eq_val = values.get("equity_attributable") or values.get("equity") or values.get("total_equity")
+        if eq_val is not None:
+            values["average_equity_attributable"] = eq_val
+    if "average_assets" not in values:
+        ast_val = values.get("assets") or values.get("total_assets")
+        if ast_val is not None:
+            values["average_assets"] = ast_val
+    if "interest_bearing_debt" not in values:
+        debt_val = values.get("interest_bearing_debt") or values.get("total_liabilities") or values.get("liabilities")
+        if debt_val is not None:
+            values["interest_bearing_debt"] = debt_val
+    if "equity" not in values:
+        eq_val = values.get("equity") or values.get("total_equity") or values.get("equity_attributable")
+        if eq_val is not None:
+            values["equity"] = eq_val
     ratio("ROE_pct", "net_income_attributable", "average_equity_attributable", 100)
     ratio("ROA_pct", "net_income", "average_assets", 100)
     ratio("Debt_to_Equity", "interest_bearing_debt", "equity")
