@@ -1,6 +1,6 @@
 # OpenBagus
 
-A unified financial research CLI for cryptocurrency and Indonesian equities, with deterministic Python analysis and optional local or cloud language assistance. One installation and conversation; no market selector.
+OpenBagus is a local-first Python financial research CLI focused on Indonesian equities and cryptocurrency. It combines deterministic quantitative analysis and backtesting with conversational local Qwen AI reasoning, native terminal and optional interactive graphical charts, and source-backed financial research reports without mandatory paid APIs or subscription keys.
 
 ## Core Features
 
