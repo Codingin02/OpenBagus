@@ -230,28 +230,28 @@ class SessionState:
         turn_data = {"user": user_text[:1000], "assistant": assistant_text[:1500], "at": now.isoformat()}
         self.conversational_turns.append(turn_data)
 
-        # Durable disk storage in SQLite (unbounded, physical disk storage only)
-        try:
-            from openbagus.storage.harness_db import HarnessStorage
-            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
-            storage.save_turn(
-                session_id=self.session_id,
-                user_text=user_text,
-                assistant_text=assistant_text,
-                asset=self.last_asset,
-                market=self.market_type,
-                intent=self.last_intent,
-                timestamp=now.isoformat(),
-            )
-        except Exception:
-            pass
+        # Durable disk storage in SQLite (unbounded, physical disk storage only, strictly requires user consent)
+        if self.is_persistence_enabled():
+            try:
+                from openbagus.storage.harness_db import HarnessStorage
+                storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+                storage.save_turn(
+                    session_id=self.session_id,
+                    user_text=user_text,
+                    assistant_text=assistant_text,
+                    asset=self.last_asset,
+                    market=self.market_type,
+                    intent=self.last_intent,
+                    timestamp=now.isoformat(),
+                )
+            except Exception:
+                pass
+            self.save_persistent()
 
         # Bounded working context window in memory for LLM (sliding window of recent turns)
         limit = max(4, min(50, int(self.recent_preferences.get("history_turn_limit", 20))))
         if len(self.conversational_turns) > limit:
             self.conversational_turns = self.conversational_turns[-limit:]
-        if self.is_persistence_enabled():
-            self.save_persistent()
 
     def clear(self) -> None:
         self.last_asset = None
@@ -1651,7 +1651,7 @@ class IntentRouter:
                 "last_market": session.market_type if session else "PERPETUAL",
                 "last_timeframe": detected_tf,
                 "last_request_type": getattr(session, "last_intent", "ANALYZE") if session else None,
-                "recent_turns": session.conversational_turns[-4:] if session else [],
+                "recent_turns": session.conversational_turns[-min(12, max(4, len(session.conversational_turns))):] if session else [],
             }
             llm_res = self.local_llm.interpret_intent(cleaned, session_context=session_ctx)
             if llm_res and llm_res.get("request_type") and llm_res["request_type"] != "UNKNOWN":

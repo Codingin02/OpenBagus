@@ -434,7 +434,7 @@ class LocalLanguageEngine:
         recent_turns = [] if self.cloud.enabled else (ctx.get("recent_turns") or [])
         history = "\n".join(
             f"User: {turn.get('user', '')}\nAssistant: {turn.get('assistant', '')[:240]}"
-            for turn in recent_turns[-4:] if isinstance(turn, dict)
+            for turn in recent_turns if isinstance(turn, dict)
         )
 
         system_instruction = (
@@ -634,8 +634,19 @@ class LocalLanguageEngine:
                 "net_rr": ds.net_rr,
             }
 
-        # Dynamic Hook Directive
-        if facts.contradictions:
+        # Query-Aware Dynamic Hook Directive (Root Cause 2.3)
+        q_lower = (user_query or "").lower()
+        if re.search(r"\b(?:valuasi|valuation|pbv|per|pe|fundamental|laba|margin|roe|der|rasio)\b", q_lower):
+            hook_directive = f"Directly address the fundamental valuation and reported financial metrics for {facts.asset}."
+        elif re.search(r"\b(?:suku bunga|bi.?rate|rate|makro|macro|inflasi|cpi|fomc|fed|jisdor|kurs)\b", q_lower):
+            hook_directive = f"Directly address the macroeconomic context and rate transmission impact on {facts.asset}."
+        elif re.search(r"\b(?:bandingkan|compare|vs|versus)\b", q_lower):
+            hook_directive = f"Lead with the comparative evidence assessment and relative positioning."
+        elif re.search(r"\b(?:kenapa|mengapa|why|alasan|reason)\b", q_lower):
+            hook_directive = f"Directly explain why the quant decision is {facts.decision}, citing the exact condition or trigger."
+        elif re.search(r"\b(?:trigger|entry|kapan beli|level|kondisi|kapan masuk)\b", q_lower) and facts.bullish_trigger:
+            hook_directive = f"State the exact trigger condition and validation level awaited before any entry."
+        elif facts.contradictions:
             hook_directive = "Lead by explaining the contradiction or tension between market signals (e.g., indicator vs trend)."
         elif facts.decision in ("NO_TRADE", "WAIT") and facts.bullish_trigger_state != "CONFIRMED":
             hook_directive = f"Directly state that entry is not taken at current price ({format_price(facts.price, facts.currency)}) and explain the exact conditional trigger level awaited."
@@ -660,10 +671,41 @@ class LocalLanguageEngine:
 
         lang_label = "Indonesian (Bahasa Indonesia)" if language == "id" else "English"
 
+        # Asset-type tailored ontology (Root Cause 2.4)
+        if facts.asset_type != "CRYPTO":
+            ontology_instruction = (
+                "Use this ontology only when relevant: cash equities, IDX, IHSG, valuation, PER, PBV, ROE, DER, "
+                "NPM, OPM, NIM, NPL, CAR, dividend yield, revenue, net income, balance sheet, cash flow, BI-Rate, "
+                "inflation, JISDOR, USD/IDR, commodity prices, sector dynamics, support/resistance, volume, "
+                "risk-reward, entry zone, invalidation level, price target."
+            )
+            equity_strict_rule = (
+                "- IDX cash equities: NEVER mention perpetual contracts, leverage, shorting, liquidation, or funding rates. "
+                "Respect BUY/HOLD/WAIT/AVOID_ENTRY/REDUCE decisions directly.\n"
+            )
+        else:
+            ontology_instruction = (
+                "Use this ontology only when relevant: spot, perpetual, long, short, entry, invalidation, stop loss, TP, "
+                "reward:risk, basis, funding, open interest, CVD, order flow, liquidity, volatility, support/resistance, "
+                "market structure, Fibonacci confluence, Stochastic, patterns, cross-venue dislocation, arbitrage, "
+                "large flow, whale context, CPI, FOMC, DXY, US10Y, VIX, gold, oil, DeFi, DEX, stablecoins."
+            )
+            equity_strict_rule = ""
+
+        # Format Evidence Packet summary metrics (Root Cause 2.1)
+        evidence_metrics_text = ""
+        if facts.evidence_packet and hasattr(facts.evidence_packet, "metrics") and facts.evidence_packet.metrics:
+            metric_lines = []
+            for m in list(facts.evidence_packet.metrics.values())[:10]:
+                cat_name = m.category.value if hasattr(m.category, "value") else str(m.category)
+                metric_lines.append(f"  * {m.metric_type}: {m.formatted_value()} [{cat_name}] (source: {m.source_id})")
+            if metric_lines:
+                evidence_metrics_text = "- Validated Evidence Metrics:\n" + "\n".join(metric_lines) + "\n"
+
         prompt = (
             f"<|im_start|>system\n"
             f"You are a quantitative financial research consultant. Answer the user's actual question in {lang_label}, naturally and concisely.\n"
-            "Use this ontology only when relevant: spot, perpetual, long, short, entry, invalidation, stop loss, TP, reward:risk, basis, funding, open interest, CVD, order flow, liquidity, volatility, support/resistance, market structure, Fibonacci confluence, Stochastic, patterns, cross-venue dislocation, arbitrage, large flow, whale context, CPI, FOMC, DXY, US10Y, VIX, gold, oil, DeFi, DEX, stablecoins.\n"
+            f"{ontology_instruction}\n"
             "STRICT RULES:\n"
             f"1. You MUST keep the decision '{facts.decision}' and asset '{facts.asset}'.\n"
             "2. DO NOT invent prices, stops, targets, or percentages not provided in the facts or derived metrics.\n"
@@ -675,7 +717,7 @@ class LocalLanguageEngine:
             f"- Asset: {facts.asset} ({facts.timeframe})\n"
             f"- Price: {format_price(facts.price, facts.currency)}; currency {facts.currency}; asset type {facts.asset_type}\n"
             f"- Reported fundamental ratios (not estimates): {json.dumps(facts.fundamentals)}\n"
-            + ("- IDX cash equities: no perpetual LONG/SHORT, leverage, funding or liquidation claims. Respect BUY/HOLD/WAIT/AVOID_ENTRY/REDUCE exactly.\n" if facts.asset_type != "CRYPTO" else "")
+            + equity_strict_rule
             + f"- Market: {facts.market}\n"
             f"- RR Long: {facts.rr_long}; RR Short: {facts.rr_short}; Gate passed: {facts.rr_gate_passed}\n"
             f"- Event dates: {', '.join(facts.event_dates) or 'none'}\n"
@@ -686,6 +728,7 @@ class LocalLanguageEngine:
             f"- Data quality: {facts.data_quality} (never upgrade this category)\n"
             f"- Entry: {facts.entry_zone}; stop: {facts.stop_price}; target: {facts.target_price}\n"
             + (f"- Validated Derived Setup: {json.dumps(facts.derived_metrics)}\n" if facts.derived_metrics else "")
+            + evidence_metrics_text
             + f"- Independent evidence: {json.dumps(facts.evidence_families)}\n"
             f"- Contradictions: {json.dumps(facts.contradictions)}\n"
             f"- Bullish Validation: {facts.bullish_trigger}\n"

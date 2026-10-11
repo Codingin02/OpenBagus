@@ -404,10 +404,15 @@ class OJKPublicAdapter:
 
     @classmethod
     def get_benchmark_banking_metrics(cls) -> dict[str, Any]:
-        """Provides verified OJK banking sector aggregate baseline metrics."""
+        """Provides hardcoded OJK banking sector aggregate baseline metrics.
+
+        These are source-code constants, not live-fetched values. They become
+        stale when OJK publishes a newer SPI report.
+        """
         return {
             "source": "OJK Statistik Perbankan Indonesia (SPI Benchmark)",
             "data_category": "AGGREGATE_INDUSTRY_STATISTICS",
+            "is_hardcoded": True,
             "period": "2024-Q4",
             "industry_nim_pct": 4.58,
             "industry_npl_gross_pct": 2.21,
@@ -415,7 +420,7 @@ class OJKPublicAdapter:
             "industry_ldr_pct": 85.12,
             "credit_growth_yoy_pct": 10.85,
             "third_party_funds_growth_yoy_pct": 8.63,
-            "note": "Agregat industri perbankan nasional; bukan metrik emiten individual.",
+            "note": "HARDCODED: angka dari SPI 2024-Q4; mungkin sudah kadaluarsa. Impor file SPI terbaru untuk data terkini.",
         }
 
 
@@ -457,10 +462,14 @@ class KemendagAdapter:
 
     @classmethod
     def get_staple_and_export_benchmarks(cls) -> dict[str, Any]:
-        """Provides verified Kemendag commodity reference observations."""
+        """Provides hardcoded Kemendag commodity reference observations.
+
+        Source-code constants; stale when Kemendag publishes newer data.
+        """
         return {
             "source": "Kemendag SatuData (Sistem Pemantauan Pasar & Kebutuhan Pokok)",
             "category": "COMMODITY_AND_TRADE_EVIDENCE",
+            "is_hardcoded": True,
             "period": "2026-M09",
             "staple_prices_idr_kg": {
                 "beras_medium": 13600.0,
@@ -475,5 +484,5 @@ class KemendagAdapter:
                 "batubara_newcastle_ton": 138.5,
             },
             "trade_balance_usd_billion": 2.78,
-            "note": "Harga referensi komoditas Kemendag untuk konteks sektor Consumer, Energi, dan Pertambangan.",
+            "note": "HARDCODED: harga referensi dari 2026-M09; mungkin sudah kadaluarsa. Impor file SatuData terbaru untuk data terkini.",
         }

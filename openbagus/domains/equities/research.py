@@ -8,24 +8,40 @@ from openbagus.domains.equities.data import EquityData, fundamentals, timestamp
 from openbagus.domains.equities.policy import EquityMarketPolicy
 
 
-def equity_context(asset, query: str) -> str:
+def equity_context(asset, query: str, packet: Any = None) -> str:
     lower = query.lower()
+    r = packet.fundamentals.get("ratios", {}) if packet and getattr(packet, "fundamentals", None) else {}
+    period_str = f" ({packet.fundamentals.get('period', '')})" if packet and getattr(packet, "fundamentals", None) and packet.fundamentals.get("period") else ""
+
     if any(word in lower for word in ("nikel", "nickel", "emas", "gold")) and asset.symbol == "ANTM":
-        return ("ANTM memiliki eksposur nikel dan emas. Kenaikan harga komoditas berpotensi membantu pendapatan, "
-                "namun realisasi harga, volume produksi, biaya, royalti dan kurs menentukan transmisi ke margin. "
-                "Tanpa angka produksi/biaya dan valuasi terkini, belum ada dasar menyimpulkan harga saham akan naik.")
+        res = ("ANTM memiliki eksposur nikel dan emas. Kenaikan harga komoditas berpotensi membantu pendapatan, "
+               "namun realisasi harga, volume produksi, biaya, royalti dan kurs menentukan transmisi ke margin. ")
+        if r and "Operating_Margin_pct" in r:
+            res += f"Data laporan keuangan{period_str} mencatat OPM {r['Operating_Margin_pct']:.2f}% dan Net Margin {r.get('Net_Margin_pct', 0):.2f}%."
+        else:
+            res += "Tanpa angka produksi/biaya dan valuasi terkini, belum ada dasar menyimpulkan harga saham akan naik."
+        return res
     if asset.sector_code == "A":
-        return (f"Transmisi laba {asset.symbol} (sektor energi) didorong oleh realisasi harga acuan komoditas global, "
-                "volume produksi, cash cost per ton, stripping ratio, dan royalti progresif.")
+        res = (f"Transmisi laba {asset.symbol} (sektor energi) didorong oleh realisasi harga acuan komoditas global, "
+               "volume produksi, cash cost per ton, stripping ratio, dan royalti progresif.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Dilaporkan{period_str} Operating Margin {r['Operating_Margin_pct']:.2f}%."
+        return res
     if asset.sector_code == "B":
-        return (f"Sensitivitas laba {asset.symbol} (barang baku/tambang) dipengaruhi siklus harga komoditas acuan, "
-                "biaya energi smelter, kurs USD/IDR, serta margin pemrosesan hilirisasi.")
+        res = (f"Sensitivitas laba {asset.symbol} (barang baku/tambang) dipengaruhi siklus harga komoditas acuan, "
+               "biaya energi smelter, kurs USD/IDR, serta margin pemrosesan hilirisasi.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Dilaporkan{period_str} Operating Margin {r['Operating_Margin_pct']:.2f}%."
+        return res
     if asset.sector_code == "C":
         return (f"Driver operasional {asset.symbol} (perindustrian) mencakup volume penjualan unit, "
                 "siklus belanja modal sektor konstruksi/tambang, dan efisiensi manufaktur.")
     if asset.sector_code == "D":
-        return (f"Ketahanan laba {asset.symbol} (konsumen primer) ditentukan oleh elastisitas harga, "
-                "volatilitas biaya input bahan baku, serta kemampuan mempertahankan Operating Margin.")
+        res = (f"Ketahanan laba {asset.symbol} (konsumen primer) ditentukan oleh elastisitas harga, "
+               "volatilitas biaya input bahan baku, serta kemampuan mempertahankan Operating Margin.")
+        if r and "Operating_Margin_pct" in r:
+            res += f" Tercatat{period_str} Operating Margin {r['Operating_Margin_pct']:.2f}%."
+        return res
     if asset.sector_code == "E":
         return (f"Dinamika penjualan {asset.symbol} (konsumen non-primer) didorong oleh Same-Store-Sales-Growth (SSSG), "
                 "perputaran persediaan (inventory turnover), dan discretionary spending konsumen.")
@@ -33,12 +49,25 @@ def equity_context(asset, query: str) -> str:
         return (f"Kinerja operasional {asset.symbol} (kesehatan/farmasi) ditentukan oleh bauran produk etikal vs generik, "
                 "ketergantungan impor bahan baku obat (BBO), dan stabilitas margin laba.")
     if asset.sector_code == "G":
-        return (f"Transmisi BI-Rate ke {asset.symbol} (perbankan) mempengaruhi biaya dana (CoF) dan repricing kredit terhadap NIM. "
-                "Dampaknya bergantung pada rasio CASA, pertumbuhan kredit, dan kualitas aset (NPL). "
+        res = (f"Transmisi BI-Rate ke {asset.symbol} (perbankan) mempengaruhi biaya dana (CoF) dan repricing kredit terhadap NIM. ")
+        if r and any(k in r for k in ("NIM_pct", "NPL_gross_pct", "CAR_pct")):
+            details = []
+            if "NIM_pct" in r:
+                details.append(f"NIM {r['NIM_pct']:.2f}%")
+            if "NPL_gross_pct" in r:
+                details.append(f"NPL Gross {r['NPL_gross_pct']:.2f}%")
+            if "CAR_pct" in r:
+                details.append(f"CAR {r['CAR_pct']:.2f}%")
+            res += f"Berdasarkan laporan{period_str}, tercatat {', '.join(details)}. "
+        res += ("Dampaknya bergantung pada rasio CASA, pertumbuhan kredit, dan kualitas aset (NPL). "
                 "Bandingkan NIM/NPL/CAR yang benar-benar dilaporkan; harga saham tidak otomatis mengikuti suku bunga.")
+        return res
     if asset.sector_code == "H":
-        return (f"Sensitivitas {asset.symbol} (properti) terhadap suku bunga berkaitan dengan realisasi marketing sales, "
-                "permintaan KPR, serta Debt-to-Equity dan interest coverage emiten.")
+        res = (f"Sensitivitas {asset.symbol} (properti) terhadap suku bunga berkaitan dengan realisasi marketing sales, "
+               "permintaan KPR, serta Debt-to-Equity dan interest coverage emiten.")
+        if r and "Debt_to_Equity" in r:
+            res += f" Tercatat{period_str} DER {r['Debt_to_Equity']:.2f}x."
+        return res
     if asset.sector_code == "I":
         return (f"Kinerja fundamental {asset.symbol} (teknologi) dievaluasi dari monetisasi (take rate), "
                 "perbaikan Contribution Margin, dan runway kas menuju profitabilitas.")
@@ -64,7 +93,7 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
         else:
             text.append("Laporan keuangan bertanggal juga belum tersedia; rasio bank/valuasi tidak diestimasi.")
         if re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold|prospek|sektor", query, re.I):
-            text.append(equity_context(asset, query))
+            text.append(equity_context(asset, query, packet=packet))
         text.append(EquityData.import_guidance(asset.symbol))
         text.append(f"Sumber identitas: {asset.source}; bukan sumber quote. Harga as-of: UNAVAILABLE.")
         return "\n\n".join(text)
@@ -74,7 +103,7 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
     elif not follow or re.search(r"kenapa|why", query.lower()):
         text.append(quant.decision_reason)
     if not narrative and re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold|prospek|sektor", query, re.I):
-        text.append(equity_context(asset, query))
+        text.append(equity_context(asset, query, packet=packet))
     f = packet.fundamentals
     val_query = bool(re.search(r"valuasi|fundamental|layak\s+beli|layak\s+investasi|prospek", query.lower()))
     if val_query and f.get("ratios") and not narrative:
@@ -148,19 +177,28 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
     lower = query.lower()
     english = session.language == "EN" if session else False
 
-    # Rate / macro impact follow-up
-    if re.search(r"\b(?:suku bunga|bi.?rate|rate|dampak|pengaruh)\b", lower):
-        return equity_context(asset, query)
+    # 1. Rate / macro transmission impact follow-up (answerable conceptually even if quote has source gap)
+    if re.search(r"\b(?:suku bunga|bi.?rate|rate|dampak|pengaruh|makro|inflasi|jisdor)\b", lower):
+        return equity_context(asset, query, packet=packet)
 
-    # Check for unverified/missing data gap
+    # 2. Check for unverified/missing data gap
     if quant and quant.decision_status == "INSUFFICIENT_DATA_FOR_DECISION" and quant.price is None:
         return (
             f"SOURCE GAP: {asset.name} dikenali sebagai {asset.id}, tetapi harga dan OHLCV berizin belum tersedia. "
             f"Ini kegagalan ketersediaan data, bukan keputusan WAIT setelah evaluasi pasar."
         )
 
-    # 1. Ratios and margins follow-up
-    if re.search(r"\b(?:margin|operating margin|net margin|npm|opm|laba|profit|der|roe|pbv|per|eps|car|nim|npl|rasio|fundamental)\b", lower):
+    # 1. Decision reason / causal reasoning follow-up (kenapa / why / alasan)
+    if re.search(r"\b(?:kenapa|mengapa|why|alasan|reason)\b", lower):
+        status = quant.decision_status if quant.decision_status == "INSUFFICIENT_DATA_FOR_DECISION" else quant.decision
+        resp = f"Alasan keputusan {status} pada {asset.symbol}: {quant.decision_reason}."
+        if quant.bullish_validation:
+            b = quant.bullish_validation
+            resp += f"\nSkenario validasi yang ditunggu: Trigger {b.trigger_condition}, Entry {b.entry_zone}, Invalidation Rp{b.stop_price:,.0f}, Target Rp{b.tp1:,.0f} (RR {b.reward_risk_str})."
+        return resp
+
+    # 2. Financial ratios and margins follow-up
+    if re.search(r"\b(?:margin|operating margin|net margin|npm|opm|laba|profit|der|roe|pbv|per|eps|car|nim|npl|rasio|fundamental|valuasi)\b", lower):
         r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
         if r:
             lines = [f"Rasio Keuangan {asset.symbol} ({packet.fundamentals.get('period', '')} {packet.fundamentals.get('basis', 'konsolidasi')}):"]
@@ -185,29 +223,20 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
             return "\n".join(lines)
         return f"SOURCE GAP: Laporan keuangan bertanggal untuk {asset.symbol} belum tersedia di data lokal; rasio margin belum dapat diverifikasi."
 
-    # 2. Decision reason follow-up (kenapa / why / alasan)
-    if re.search(r"\b(?:kenapa|mengapa|why|alasan|reason)\b", lower):
-        status = quant.decision_status if quant.decision_status == "INSUFFICIENT_DATA_FOR_DECISION" else quant.decision
-        resp = f"Alasan keputusan {status} pada {asset.symbol}: {quant.decision_reason}."
-        if quant.bullish_validation:
-            b = quant.bullish_validation
-            resp += f"\nSkenario validasi yang ditunggu: Trigger {b.trigger_condition}, Entry {b.entry_zone}, Invalidation Rp{b.stop_price:,.0f}, Target Rp{b.tp1:,.0f} (RR {b.reward_risk_str})."
-        return resp
-
-    # 3. Sources follow-up
+    # 4. Sources follow-up
     if re.search(r"\b(?:sumber|source|sources|darimana|origin)\b", lower):
         srcs = packet.sources if packet and packet.sources else [asset.source]
         fresh = packet.data_freshness if packet else quant.data_freshness
         as_of = packet.price_as_of if packet and packet.price_as_of else "UNAVAILABLE"
         return f"Data {asset.symbol} bersumber dari: {', '.join(srcs)}. Freshness: {fresh}; Harga as-of: {as_of}."
 
-    # 4. Local Qwen targeted response
+    # 5. Local Qwen targeted response for conversational/complex queries
     if runner and runner.local_llm and runner.local_llm.is_available() and packet:
         narrative = runner.local_llm.generate_narrative(packet, user_query=query, language="en" if english else "id")
         if narrative:
             return narrative
 
-    # 5. Direct concise fallback
+    # 6. Direct concise fallback
     return f"{asset.symbol} ({quant.timeframe}): {quant.decision_reason}. Freshness: {quant.data_freshness}."
 
 
@@ -353,13 +382,13 @@ def run_equity_research(runner, req, session=None) -> str:
             data_freshness=q.data_freshness, evidence_families=q.evidence_families,
             currency="IDR", asset_type=asset.asset_type, fundamentals=financials, events=events,
             price_as_of=data.get("quote", {}).get("as_of", ""), ownership=own,
-            identity_verified=bool(asset.symbol and not data.get("gaps")),
+            identity_verified=bool(asset.symbol and asset.source and not data.get("gaps")),
             market_ohlcv_available=bool(data.get("candles")),
             recent_eod_available=bool(data.get("candles") or data.get("quote", {}).get("price")),
             fundamentals_available=bool(financials.get("ratios")),
-            corporate_actions_available=bool(not data.get("unresolved_corporate_actions")),
-            sector_statistics_available=True,
-            macro_context_available=True)
+            corporate_actions_available=bool(data.get("unresolved_corporate_actions") is False),
+            sector_statistics_available=bool(data.get("sector_stats")),
+            macro_context_available=bool(data.get("macro") or events))
         from openbagus.intelligence.evidence import build_evidence_packet_from_research
         packet.evidence_packet = build_evidence_packet_from_research(packet, q)
         output = render_equity(packet, q, asset, req.raw_query, language=session.language if session else "ID",
