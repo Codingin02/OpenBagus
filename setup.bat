@@ -6,7 +6,7 @@ powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\setup_open
 set EXIT_CODE=%ERRORLEVEL%
 
 if %EXIT_CODE% NEQ 0 (
-    echo Setup encountered an issue with exit code %EXIT_CODE%.
+    echo OpenBagus setup or launcher returned exit code %EXIT_CODE%. See the preceding SETUP/RUNTIME status.
     if "%~1"=="" pause
 )
 

@@ -209,6 +209,7 @@ if ($launchLower -eq "y" -or $launchLower -eq "") {
     Write-Host "Starting OpenBagus..." -ForegroundColor Cyan
     & $openbagusExe
     if ($LASTEXITCODE -ne 0) {
+        Write-Host "[RUNTIME_FAILED] OpenBagus exited with code $LASTEXITCODE. Setup was already completed." -ForegroundColor Red
         exit $LASTEXITCODE
     }
 } else {

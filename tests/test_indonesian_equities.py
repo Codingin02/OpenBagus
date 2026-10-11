@@ -124,6 +124,28 @@ class TestIndonesianEquities(unittest.TestCase):
             EquityData.validate(bad)
         self.assertIn("SOURCE GAP", EquityData(self.root).load("BBRI")["gaps"][0])
 
+    def test_authorized_csv_cli_import_preserves_original(self):
+        import csv
+        import io
+        from contextlib import redirect_stdout
+        from openbagus import cli
+        data = market_fixture("BMRI")
+        path, metadata = self.root / "fixture.csv", self.root / "metadata.json"
+        with path.open("w", newline="", encoding="utf-8") as stream:
+            writer = csv.DictWriter(stream, fieldnames=list(data["candles"][0]))
+            writer.writeheader()
+            writer.writerows(data.pop("candles"))
+        metadata.write_text(json.dumps(data), encoding="utf-8")
+        original = path.read_bytes()
+        with patch.object(cli, "REPO_ROOT", self.root), patch("urllib.request.urlopen", side_effect=AssertionError("Unauthorized network")), redirect_stdout(io.StringIO()) as output:
+            self.assertEqual(cli.main(["import-idx", "ohlcv", str(path), "--metadata", str(metadata)]), 0)
+        self.assertIn("BMRI", output.getvalue())
+        self.assertEqual(path.read_bytes(), original)
+        self.assertEqual(len(EquityData(self.root).load("BMRI")["candles"]), len(market_fixture("BMRI")["candles"]))
+        restored = SessionState()
+        restored.from_dict(SessionState(last_quant_result=self.quant.evaluate("BTC", None)).to_dict())
+        self.assertEqual(restored.last_quant_result.decision_status, "INSUFFICIENT_DATA_FOR_DECISION")
+
     def test_session_boundaries_calendar_and_tick(self):
         for clock, result in (("01:59:59", "CLOSED_SESSION"), ("02:00:00", "OPEN"), ("05:00:01", "CLOSED_SESSION"),
                               ("06:29:59", "CLOSED_SESSION"), ("06:30:00", "OPEN"), ("08:49:59", "OPEN"), ("08:50:00", "CLOSED_SESSION")):
@@ -216,7 +238,7 @@ class TestIndonesianEquities(unittest.TestCase):
         self.assertIn("BBRI", result)
         self.assertEqual(session.last_asset, "BBCA")
         with patch("webbrowser.open", return_value=True) as browser:
-            self.runner.execute(self.router.parse("chart BBCA", session), session)
+            self.runner.execute(self.router.parse("chart external BBCA", session), session)
             self.assertIn("IDX:BBCA", browser.call_args.args[0])
         req = self.router.parse("balik ke BTC", session)
         with patch.object(self.runner.zerokey, "get_spot_ticker", side_effect=AssertionError("Unexpected fetch")):

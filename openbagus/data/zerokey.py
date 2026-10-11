@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import re
 import time
 import urllib.parse
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Any
 
 from openbagus.data.cache import MarketDataCache
@@ -690,6 +691,28 @@ class ZeroKeyMarketData:
             "summary": "Normal trade distribution without outsized aggressive prints.",
             "provider": "Trade Stream",
         }
+
+    def get_fx_history(self, base: str, quote: str, days: int = 90) -> list[dict[str, Any]]:
+        if not re.fullmatch(r"[A-Z]{3}", base) or not re.fullmatch(r"[A-Z]{3}", quote):
+            return []
+        end = datetime.now(timezone.utc).date()
+        start = end - timedelta(days=max(2, min(days, 365)))
+        query = urllib.parse.urlencode({"base": base, "quotes": quote, "from": start.isoformat(), "to": end.isoformat()})
+        rows = self._get_json(f"https://api.frankfurter.dev/v2/rates?{query}", ttl_seconds=3600)
+        if not isinstance(rows, list):
+            return []
+        points = {}
+        for row in rows:
+            if not isinstance(row, dict) or row.get("base") != base or row.get("quote") != quote:
+                continue
+            rate = validate_finite_number(row.get("rate"), min_val=0)
+            try:
+                day = datetime.strptime(row["date"], "%Y-%m-%d").date()
+            except (ValueError, KeyError, TypeError):
+                continue
+            if start <= day <= end and rate and not isinstance(row.get("rate"), bool):
+                points[row["date"]] = {"date": row["date"], "value": rate}
+        return [points[key] for key in sorted(points)]
 
     def get_fx_rate(self, base: str, quote: str, amount: float = 1.0) -> dict[str, Any]:
         """Return a validated Frankfurter reference conversion or an explicit gap."""

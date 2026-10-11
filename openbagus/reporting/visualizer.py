@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 import os
+import html
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -47,17 +48,22 @@ def generate_html_report(
     root: Path | None = None,
     timeframe: str = "D1",
     multi_asset_candles: dict[str, list[dict[str, Any]]] | None = None,
+    line_series: list[dict[str, Any]] | None = None,
+    currency: str = "IDR",
+    source: str = "",
+    series_label: str = "",
 ) -> Path:
     """Generates an all-in-one interactive HTML research dashboard."""
     reports_dir = get_reports_dir(root)
     timestamp_str = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     file_path = reports_dir / f"{asset}_{timeframe}_{timestamp_str}.html"
+    chart_only = quant_result is None and packet is None and ownership is None and backtest_result is None
 
     clean_candles = []
     if candles:
         for c in candles:
             clean_candles.append({
-                "time": str(c.get("open_at", c.get("time", "")))[:10],
+                "time": (datetime.fromtimestamp(c["time"] / 1000, timezone.utc).isoformat() if isinstance(c.get("time"), (int, float)) else str(c.get("open_at", c.get("time", ""))))[:19],
                 "open": float(c.get("open", 0.0)),
                 "high": float(c.get("high", 0.0)),
                 "low": float(c.get("low", 0.0)),
@@ -260,6 +266,8 @@ body {{
 }}
 header {{
   display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
   justify-content: space-between;
   align-items: center;
   border-bottom: 1px solid var(--border);
@@ -273,6 +281,7 @@ header {{
   display: flex;
   align-items: center;
   gap: 12px;
+  overflow-wrap: anywhere;
 }}
 .badge {{
   font-size: 13px;
@@ -287,6 +296,7 @@ header {{
 .badge-neutral {{ background: rgba(88,166,255,0.2); color: var(--accent); border: 1px solid var(--accent); }}
 .meta-stats {{
   display: flex;
+  flex-wrap: wrap;
   gap: 20px;
   color: var(--muted);
   font-size: 13px;
@@ -298,6 +308,7 @@ header {{
   margin-bottom: 20px;
 }}
 .card {{
+  min-width: 0;
   background: var(--card-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
@@ -312,6 +323,8 @@ header {{
 }}
 .card-header {{
   display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 12px;
@@ -366,21 +379,27 @@ footer {{
   font-size: 12px;
   display: flex;
   justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  overflow-wrap: anywhere;
 }}
+.chart-only .grid > .card:not(:first-child) {{ display: none; }}
+.chart-only .col-8 {{ grid-column: span 12; }}
+.fx-line .candle-legend {{ display: none; }}
 </style>
 </head>
-<body>
+<body class="{'chart-only' if chart_only else ''} {'fx-line' if line_series else ''}">
 
 <header>
   <div class="title-group">
-    <h1>{asset} Quantitative Intelligence</h1>
+    <h1>{asset} {'Market Chart' if chart_only else 'Quantitative Intelligence'}</h1>
     <span class="badge {('badge-buy' if (quant_result and quant_result.decision == 'BUY') else ('badge-reduce' if (quant_result and quant_result.decision == 'REDUCE') else 'badge-wait'))}">
       {getattr(quant_result, 'decision', 'RESEARCH')}
     </span>
   </div>
   <div class="meta-stats">
     <div>Timeframe: <strong>{timeframe}</strong></div>
-    <div>Regime: <strong>{getattr(quant_result, 'regime', 'ANALYSIS')}</strong></div>
+    <div>Regime: <strong>{getattr(quant_result, 'regime', 'NOT_EVALUATED')}</strong></div>
     <div>Generated: <strong>{timestamp_str}</strong></div>
   </div>
 </header>
@@ -389,14 +408,14 @@ footer {{
   <!-- Interactive Candlestick Chart -->
   <div class="card col-8">
     <div class="card-header">
-      <span class="card-title">Interactive Candlestick & Volume ({timeframe})</span>
-      <span style="font-size:12px;color:var(--muted)">Hover to inspect OHLCV bars</span>
+      <span class="card-title">{'Reference Rate' if line_series else 'Candlestick & Volume'} ({timeframe})</span>
+      <span style="font-size:12px;color:var(--muted)">{currency}</span>
     </div>
     <div id="candle-tooltip" style="font-size:12px;color:var(--text);margin-bottom:6px;min-height:18px;">
-      Hover over any candlestick bar to inspect price, volume & technical levels.
+      {html.escape(series_label) if line_series else 'OHLCV'}
     </div>
     <canvas id="candleCanvas" height="340"></canvas>
-    <div class="legend">
+    <div class="legend candle-legend">
       <div class="legend-item"><span class="dot" style="background:var(--green)"></span> Bullish Bar</div>
       <div class="legend-item"><span class="dot" style="background:var(--red)"></span> Bearish Bar</div>
       <div class="legend-item"><span class="dot" style="background:#f59e0b"></span> EMA 8</div>
@@ -473,7 +492,7 @@ footer {{
           <tr>
             <td>Decision Gate</td>
             <td>Quantitative Action</td>
-            <td><strong style="color:var(--accent)">{getattr(quant_result, 'decision', 'WAIT')}</strong></td>
+            <td><strong style="color:var(--accent)">{getattr(quant_result, 'decision', 'NOT_EVALUATED')}</strong></td>
             <td>{getattr(quant_result, 'decision_reason', 'Grounded execution view')}</td>
             <td>QuantEngine Canonical</td>
           </tr>
@@ -528,6 +547,9 @@ footer {{
 const hasRadar = {json.dumps(has_radar)};
 const hasHeatmap = {json.dumps(has_heatmap)};
 const candles = {json.dumps(clean_candles)};
+const lineSeries = {json.dumps(line_series or [])};
+const chartOnly = {json.dumps(chart_only)};
+const priceCurrency = {json.dumps(currency)};
 const radarLabels = {json.dumps(radar_labels)};
 const radarValues = {json.dumps(radar_values)};
 const sunburstData = {json.dumps(sunburst_data)};
@@ -547,6 +569,30 @@ function renderCandles() {{
   const ctx = canvas.getContext('2d');
   const width = canvas.width = canvas.parentElement.clientWidth - 32;
   const height = canvas.height = 340;
+  if (lineSeries.length >= 2) {{
+    const values = lineSeries.map(p => p.value);
+    const min = Math.min(...values), max = Math.max(...values);
+    const span = max - min || 1;
+    ctx.strokeStyle = '#49c5b6'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    lineSeries.forEach((p, i) => {{
+      const x = 45 + i / (lineSeries.length - 1) * (width - 130);
+      const y = 30 + (1 - (p.value - min) / span) * (height - 80);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    }});
+    ctx.stroke(); ctx.fillStyle = '#aab5bc'; ctx.font = '12px monospace';
+    ctx.fillText(priceCurrency + ' ' + max.toLocaleString(), width - 85, 30);
+    ctx.fillText(priceCurrency + ' ' + min.toLocaleString(), width - 85, height - 50);
+    ctx.fillText(lineSeries[0].date, 45, height - 15);
+    ctx.fillText(lineSeries[lineSeries.length-1].date, width - 125, height - 15);
+    canvas.onmousemove = function(e) {{
+      const x = e.clientX - canvas.getBoundingClientRect().left;
+      const idx = Math.min(lineSeries.length - 1, Math.max(0, Math.round((x - 45) / (width - 130) * (lineSeries.length - 1))));
+      const p = lineSeries[idx];
+      document.getElementById('candle-tooltip').textContent = p.date + ' | ' + priceCurrency + ' ' + p.value.toLocaleString();
+    }};
+    return;
+  }}
   if (!candles || candles.length === 0) return;
 
   const padLeft = 40, padRight = 70, padTop = 20, padBottom = 40;
@@ -575,7 +621,7 @@ function renderCandles() {{
     ctx.stroke();
     ctx.fillStyle = '#8b949e';
     ctx.font = '10px monospace';
-    ctx.fillText('Rp' + Math.round(pVal).toLocaleString(), width - padRight + 6, y + 3);
+    ctx.fillText(priceCurrency + ' ' + pVal.toLocaleString(), width - padRight + 6, y + 3);
   }}
 
   // S/R & Trade Overlay Lines
@@ -634,7 +680,7 @@ function renderCandles() {{
       const idx = Math.min(candles.length - 1, Math.max(0, Math.floor((mouseX - padLeft) / (chartW / candles.length))));
       const c = candles[idx];
       const tt = document.getElementById('candle-tooltip');
-      tt.innerHTML = `<strong>${{c.time}}</strong> &bull; Open: <strong>Rp${{c.open.toLocaleString()}}</strong> | High: <strong>Rp${{c.high.toLocaleString()}}</strong> | Low: <strong>Rp${{c.low.toLocaleString()}}</strong> | Close: <strong>Rp${{c.close.toLocaleString()}}</strong> | Vol: <strong>${{c.volume.toLocaleString()}}</strong>`;
+      tt.textContent = `${{c.time}} | Open: ${{priceCurrency}} ${{c.open.toLocaleString()}} | High: ${{priceCurrency}} ${{c.high.toLocaleString()}} | Low: ${{priceCurrency}} ${{c.low.toLocaleString()}} | Close: ${{priceCurrency}} ${{c.close.toLocaleString()}} | Vol: ${{c.volume.toLocaleString()}}`;
     }}
   }};
 }}
@@ -906,6 +952,7 @@ function renderBacktest() {{
 
 window.onload = function() {{
   renderCandles();
+  if (chartOnly) return;
   if (hasRadar) renderRadar();
   renderSunburst();
   if (hasHeatmap) renderHeatmap();
@@ -913,6 +960,7 @@ window.onload = function() {{
 }};
 window.onresize = function() {{
   renderCandles();
+  if (chartOnly) return;
   if (hasRadar) renderRadar();
   renderSunburst();
   if (hasHeatmap) renderHeatmap();
@@ -922,5 +970,8 @@ window.onresize = function() {{
 </body>
 </html>
 """
+    if series_label or source:
+        attribution = f"<p>{html.escape(series_label)}<br>Source: {html.escape(source)}</p>"
+        html_content = html_content.replace("<footer>", "<footer>" + attribution)
     file_path.write_text(html_content, encoding="utf-8")
     return file_path

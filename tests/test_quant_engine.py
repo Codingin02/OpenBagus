@@ -688,7 +688,8 @@ class TestCanonicalQuantEngine(unittest.TestCase):
         res_fib = self.engine.evaluate("SOL", fib_only_ticker, klines=klines_fib, market_type="perpetual")
         self.assertIn(res_fib.decision, ("WAIT", "NO_TRADE"))
 
-    def test_harness_session_state_and_clear(self):
+    @patch("openbagus.intelligence.intent.SessionState.is_persistence_enabled", return_value=False)
+    def test_harness_session_state_and_clear(self, _persistence):
         from openbagus.intelligence.intent import SessionState
 
         session = SessionState()

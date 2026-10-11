@@ -82,6 +82,8 @@ ALLOWED_INTENTS = (
     "LUNAR_CYCLE",
     "BENCHMARK",
     "SECTOR_IMPACT",
+    "CONVERSATION",
+    "COMMODITY",
 )
 
 REQUEST_TYPES = (
@@ -123,6 +125,8 @@ REQUEST_TYPES = (
     "BENCHMARK",
     "SECTOR_IMPACT",
     "UNKNOWN",
+    "CONVERSATION",
+    "COMMODITY",
 )
 
 CRYPTO_VOCAB_CANONICAL = {
@@ -205,11 +209,27 @@ class SessionState:
     language_backend: str = "local"
     explanation_depth: str = "normal"
     research_history: dict[str, dict[str, Any]] = field(default_factory=dict)
+    current_topic: str = ""
+    current_topic_kind: str = ""
+    last_successful_asset: str | None = None
+    last_chart_asset: str | None = None
+    last_fx_pair: str | None = None
+    last_commodity: str | None = None
+    last_operation: str = ""
+    last_backtest_asset: str | None = None
 
     def add_turn(self, user_text: str, assistant_text: str) -> None:
-        self.conversational_turns.append({"user": user_text, "assistant": assistant_text})
-        if len(self.conversational_turns) > 4:
-            self.conversational_turns = self.conversational_turns[-4:]
+        from datetime import datetime, timezone, timedelta
+        from openbagus.core.guards import scan_text
+        if not scan_text(user_text + assistant_text)["passed"]:
+            return
+        now = datetime.now(timezone.utc)
+        self.conversational_turns.append({"user": user_text[:1000], "assistant": assistant_text[:1500], "at": now.isoformat()})
+        limit = max(4, min(200, int(self.recent_preferences.get("history_turn_limit", 40))))
+        cutoff = now - timedelta(days=max(1, min(365, int(self.recent_preferences.get("history_days", 30)))))
+        self.conversational_turns = [t for t in self.conversational_turns if t.get("at", now.isoformat()) >= cutoff.isoformat()]
+        if len(self.conversational_turns) > limit:
+            self.conversational_turns = self.conversational_turns[-limit:]
         if self.is_persistence_enabled():
             self.save_persistent()
 
@@ -233,6 +253,10 @@ class SessionState:
         self.recent_preferences = {}
         self.explanation_depth = "normal"
         self.research_history = {}
+
+        self.current_topic = self.current_topic_kind = self.last_operation = ""
+        self.last_successful_asset = self.last_chart_asset = self.last_fx_pair = None
+        self.last_commodity = self.last_backtest_asset = None
 
     @staticmethod
     def get_harness_dir() -> Path:
@@ -301,7 +325,7 @@ class SessionState:
                 asset=d.get("asset", ""),
                 market=d.get("market", "SPOT"),
                 timeframe=d.get("timeframe", "H1"),
-                price=float(d.get("price", 0.0)),
+                price=float(d["price"]) if d.get("price") is not None else None,
                 decision=d.get("decision", "WAIT"),
                 data_quality=d.get("data_quality", "HIGH"),
                 setup_quality=d.get("setup_quality", "NEUTRAL"),
@@ -357,6 +381,7 @@ class SessionState:
             "tp1": getattr(q, "tp1", None),
             "tp2": getattr(q, "tp2", None),
             "sources": getattr(q, "sources", []),
+            "decision_status": getattr(q, "decision_status", "NO_ACTIONABLE_SETUP"),
         }
 
     def _deserialize_quant(self, d: dict[str, Any]) -> Any:
@@ -368,7 +393,7 @@ class SessionState:
                 decision=d.get("decision", "WAIT"),
                 regime=d.get("regime", "Compressed"),
                 confidence=d.get("confidence", "Moderate"),
-                price=float(d.get("price", 0.0)),
+                price=float(d["price"]) if d.get("price") is not None else None,
                 entry_zone=d.get("entry_zone", ""),
                 stop_price=d.get("stop_price"),
                 tp1=d.get("tp1"),
@@ -389,6 +414,7 @@ class SessionState:
                 setup_quality=d.get("setup_quality", "NEUTRAL"),
                 decision_reason=d.get("decision_reason", ""),
                 timeframe=d.get("timeframe", "H1"),
+                decision_status=d.get("decision_status", "NO_ACTIONABLE_SETUP"),
             )
         except Exception:
             return None
@@ -440,6 +466,8 @@ class SessionState:
             "last_research_packet": self._serialize_packet(self.last_research_packet),
             "last_quant_result": self._serialize_quant(self.last_quant_result),
             "research_history": hist_serialized,
+            "topic_context": {k: getattr(self, k) for k in ("current_topic", "current_topic_kind",
+                "last_successful_asset", "last_chart_asset", "last_fx_pair", "last_commodity", "last_operation", "last_backtest_asset")},
         }
 
     def from_dict(self, data: dict[str, Any]) -> None:
@@ -450,12 +478,19 @@ class SessionState:
         self.market_type = data.get("market_type", "PERPETUAL")
         self.last_intent = data.get("last_intent", "ANALYZE")
         self.last_query = data.get("last_query", "")
+        invalid_greeting = bool(self.last_asset and self.last_asset.lower() in {"hi", "halo", "hai", "hello"}
+            and self.last_query.strip("?!. ").lower() == self.last_asset.lower())
         self.last_research_at = data.get("last_research_at")
         self.language = data.get("language", "AUTO")
         self.show_sources = bool(data.get("show_sources", False))
         self.explanation_depth = data.get("explanation_depth", "normal")
         self.conversational_turns = data.get("conversational_turns", [])
         self.recent_preferences = data.get("recent_preferences", {})
+        for key, value in data.get("topic_context", {}).items():
+            if key in {"current_topic", "current_topic_kind", "last_successful_asset", "last_chart_asset", "last_fx_pair", "last_commodity", "last_operation", "last_backtest_asset"}:
+                setattr(self, key, value)
+        if not self.current_topic:
+            self.current_topic, self.current_topic_kind = self.last_asset or "", "research"
 
         p_data = data.get("last_research_packet")
         self.last_research_packet = self._deserialize_packet(p_data) if p_data else None
@@ -483,15 +518,24 @@ class SessionState:
                 "packet": p_hist,
                 "quant": q_hist,
             }
+        if invalid_greeting:
+            self.last_asset = None
+            self.last_quant_result = self.last_research_packet = None
+            self.current_topic = self.current_topic_kind = ""
 
     def save_persistent(self, path: Path | None = None) -> bool:
+        if self.last_asset and self.last_asset.lower() in {"hi", "halo", "hai", "hello"} and self.last_query.strip("?!. ").lower() == self.last_asset.lower():
+            return False
         target = path or (self.get_harness_dir() / "session_context.json")
         target.parent.mkdir(parents=True, exist_ok=True)
         import json
         payload = self.to_dict()
         tmp_target = target.with_name(f"{target.name}.tmp")
         try:
-            tmp_target.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+            encoded = json.dumps(payload, indent=2)
+            if len(encoded.encode("utf-8")) > 5_000_000:
+                return False
+            tmp_target.write_text(encoded, encoding="utf-8")
             tmp_target.replace(target)
             return True
         except OSError:
@@ -503,11 +547,13 @@ class SessionState:
             return False
         import json
         try:
+            if target.stat().st_size > 5_000_000:
+                return False
             data = json.loads(target.read_text(encoding="utf-8"))
             self.from_dict(data)
             self.clear_on_exit = False
             return True
-        except (OSError, json.JSONDecodeError):
+        except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError):
             return False
 
     def clear_persistent(self, path: Path | None = None) -> bool:
@@ -556,7 +602,9 @@ class SessionState:
             f"Last Research {self.last_research_at or 'N/A'}",
             f"Data Snapshot {snap_status}",
             f"Provider      {provider_name}",
-            f"Saved Turns   {len(self.conversational_turns)}/4",
+            f"Current Topic {self.current_topic or ctx_asset} ({self.current_topic_kind or 'research'})",
+            f"Last Operation {self.last_operation or 'N/A'}",
+            f"Recent Turns  {len(self.conversational_turns)} (LLM retrieves last 4; bounded local history)",
         ]
         return "\n".join(lines)
 
@@ -603,6 +651,8 @@ class IntentRequest:
         if self.system_query in {"list_assets", "list_categories"}:
             return "COMMAND"
         if self.request_type in {"FIAT_FX", "CALCULATOR", "CRYPTO_QUOTE", "EXECUTION_REQUEST", "COMMAND", "CATEGORY", "CHART", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "UNKNOWN"}:
+            return self.request_type
+        if self.request_type in {"CONVERSATION", "COMMODITY"}:
             return self.request_type
         return "CRYPTO_RESEARCH"
 
@@ -710,7 +760,7 @@ class IntentRouter:
         self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def parse(self, text: str, session: SessionState | None = None) -> IntentRequest:
-        request = self._idx_request(text, session) or self._parse(text, session)
+        request = self._interaction_request(text, session) or self._idx_request(text, session) or self._parse(text, session)
         request.has_position_context = bool(re.search(
             r"\b(?:aku\s+pegang|saya\s+(?:pegang|sudah\s+beli)|posisi\s+\w+\s+saya|"
             r"(?:i\s+(?:already\s+)?hold|i\s+own|my\s+position)|should\s+i\s+reduce|"
@@ -727,6 +777,64 @@ class IntentRouter:
             request.market = saved["market"]
         return request
 
+    def _interaction_request(self, text: str, session: SessionState | None) -> IntentRequest | None:
+        lower = text.lower().strip().strip("?!. ")
+        if re.fullmatch(r"(?:hi|halo|hai|pagi|selamat malam|hello|hey)", lower):
+            return IntentRequest("CONVERSATION", "CONVERSATION", raw_query=text, focus="greeting")
+        if lower in {"exit", "quit", "selesai", "sudah cukup", "akhiri sesi"}:
+            return IntentRequest("COMMAND", "COMMAND", system_query="exit", raw_query=text)
+        if re.search(r"\b(?:pakai|gunakan|bahasa|english|indonesia|jelaskan|jelasin)\b", lower) and re.search(r"bahasa indonesia|use english|in english|english please|indonesia aja", lower):
+            return IntentRequest("PREFERENCE", "PREFERENCE", raw_query=text,
+                preference_action="language_en" if "english" in lower else "language_id")
+        if re.search(r"(?:jangan|nggak mau).*?(?:tanda|menjorok|indent)|tanpa.*markdown|jawab singkat|tolong.*singkat", lower):
+            return IntentRequest("PREFERENCE", "PREFERENCE", raw_query=text,
+                preference_action="brief" if "singkat" in lower else "plain_text")
+        if re.search(r"(?:nggak|tidak).*ada saham|masa.*saham", lower):
+            asset = next((self.assets.equities.resolve(w) for w in text.split() if self.assets.equities.resolve(w)), None)
+            if asset:
+                return IntentRequest("CONVERSATION", "CONVERSATION", asset=asset.symbol, raw_query=text,
+                    focus="identity", asset_type=asset.asset_type)
+        if re.search(r"generik|nggak nyambung|nggak ngerti konteks|anak sd|cuma mau menyapa|clear.*startup|startup.*clear|keputusannya.*wait|no trade terus|datanya.*(?:mana|nggak ada|tidak ada)|(?:kenapa|kok).*data.*(?:muncul|ada)", lower):
+            focus = "data_availability" if "data" in lower else ("decision" if re.search(r"wait|no trade", lower) else "interaction")
+            return IntentRequest("FEEDBACK", "FEEDBACK", raw_query=text, focus=focus)
+        if re.search(r"\b(?:nikel|nickel)\b", lower) and not any(self.assets.equities.resolve(w) for w in text.split()):
+            return IntentRequest("COMMODITY", "COMMODITY", raw_query=text, focus="nickel", topic="commodity")
+        chart = re.search(r"\b(?:chart(?:nya)?|grafik(?:nya)?|visualize|visualisasi|hart)\b", lower)
+        operation = re.search(r"\b(?:backtest|report|laporan|ownership)\b", lower)
+        if chart or operation:
+            kind = "VISUALIZE" if re.search(r"visualize|visualisasi", lower) else "CHART"
+            if operation and not chart:
+                kind = "BACKTEST" if "backtest" in lower else ("EQUITY_OWNERSHIP" if "ownership" in lower else ("REPORT_WORD" if re.search(r"word|docx", lower) else "REPORT_HTML"))
+            fx_aliases = {"dolar": "usd", "dollar": "usd", "rupiah": "idr", "euro": "eur", "yen": "jpy", "sterling": "gbp"}
+            currencies = [fx_aliases.get(w, w) for w in re.findall(r"\b(?:usd|idr|eur|jpy|gbp|dolar|dollar|rupiah|euro|yen|sterling)\b", lower)]
+            target = None
+            for token in re.findall(r"(?:IDX:)?[A-Za-z][A-Za-z0-9]*(?:\.JK)?", text):
+                asset = self.assets.equities.resolve(token) or next((a for a in self.catalog.assets if a.matches(token)), None)
+                if asset:
+                    target = asset
+                    break
+            topic = "/".join(c.upper() for c in currencies[:2]) if len(currencies) >= 2 else ""
+            explicit_unknown = re.search(r"(?:chart|grafik|visualize|visualisasi|backtest)\s+(?:external\s+)?([a-z][a-z0-9]*)\b", lower)
+            explicit_unknown = bool(explicit_unknown and explicit_unknown[1] not in COMPREHENSIVE_STOP_WORDS and not target and not topic)
+            if not target and not topic and session and not explicit_unknown:
+                topic = session.current_topic if session.current_topic_kind in {"fx", "commodity"} else ""
+                target, _ = self.assets.resolve_asset(session.last_asset or "") if not topic else (None, [])
+            tf, _ = _parse_timeframe(text, default_tf=session.timeframe if session else "H1")
+            return IntentRequest(kind, kind, asset=target.symbol if target else None,
+                asset_type=target.asset_type if target else "CRYPTO", asset_id=target.id if target else None,
+                focus=topic or "general", topic="fx" if "/" in topic else ("commodity" if topic else None),
+                timeframe=tf, raw_query=text, needs_asset=not bool(target or topic),
+                clarification_prompt="Instrumen mana yang ingin ditampilkan? Gunakan ticker terverifikasi atau USD IDR.")
+        if session and session.last_operation == "BACKTEST" and re.search(r"all time|sejak (?:ipo|listing)|\d+ tahun|\bytd\b|dari \d{4} sampai \d{4}", lower):
+            target, _ = self.assets.resolve_asset(session.last_backtest_asset or "")
+            return IntentRequest("BACKTEST", "BACKTEST", asset=target.symbol if target else None,
+                asset_type=target.asset_type if target else "CRYPTO", timeframe=session.timeframe, raw_query=text)
+        if lower in {"categories", "assets", "status", "providers", "doctor", "harness", "help", "other", "other / unknown"} or lower.startswith(("/help", "/harness", "/providers", "/privacy", "/cache", "/sources")):
+            return self._parse(text, session)
+        if re.search(r"startup|\b(?:menyapa|percakapan|formatting|tampilan|konteks)\b", lower):
+            return IntentRequest("CONVERSATION", "CONVERSATION", raw_query=text)
+        return None
+
     def _idx_request(self, text: str, session: SessionState | None) -> IntentRequest | None:
         lower = text.lower().strip()
         if re.search(r"\b(?:card|kartu|payment|execute|purchase)\b", lower):
@@ -738,7 +846,11 @@ class IntentRouter:
         tokens = re.findall(r"(?:IDX:)?[A-Za-z][A-Za-z0-9]*(?:\.JK)?", text)
         resolved = []
         for token in tokens:
-            asset, ambiguous = self.assets.resolve_asset(token)
+            if token.lower() in COMPREHENSIVE_STOP_WORDS:
+                continue
+            equity = self.assets.equities.resolve(token)
+            crypto = next((a for a in self.catalog.assets if a.matches(token)), None)
+            asset, ambiguous = (equity, [equity, crypto]) if equity and crypto else (equity or crypto, [])
             if ambiguous and self.assets.equities.resolve(token):
                 return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
                     clarification_prompt=f"Symbol {token} ambigu; gunakan IDX:{token.upper()} atau nama crypto lengkap.")
@@ -773,7 +885,7 @@ class IntentRouter:
                     asset_type=current.asset_type, timeframe=tf, market="idx", relation_to_context="CONTINUE")
             if re.search(r"\b(?:saham|stock|equity|idx)\b", lower):
                 return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
-                    clarification_prompt="SOURCE GAP: identitas IDX belum terverifikasi. Impor catalog resmi/berizin; saham asing di luar scope.")
+                    clarification_prompt="Saham/emiten mana? Gunakan RATU, BMRI, BBCA atau IDX:<ticker> terverifikasi. Catalog lain dapat diimpor dari daftar resmi/berizin.")
             return None
         tf, _ = _parse_timeframe(text, default_tf="D1")
         if re.search(r"hari ini|today", lower) and not re.search(r"\b(?:[mh]\d+|intraday|short term)\b", lower):
@@ -1425,7 +1537,7 @@ class IntentRouter:
                 "last_market": session.market_type if session else "PERPETUAL",
                 "last_timeframe": detected_tf,
                 "last_request_type": getattr(session, "last_intent", "ANALYZE") if session else None,
-                "recent_turns": session.conversational_turns if session else [],
+                "recent_turns": session.conversational_turns[-4:] if session else [],
             }
             llm_res = self.local_llm.interpret_intent(cleaned, session_context=session_ctx)
             if llm_res and llm_res.get("request_type") and llm_res["request_type"] != "UNKNOWN":
@@ -1448,7 +1560,7 @@ class IntentRouter:
                     if any(k in lower for k in ("harness", "herness", "memory", "state", "nyambung", "konteks")):
                         return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", timeframe=tf, raw_query=text, relation_to_context=relation)
                 elif req_t == "FEEDBACK":
-                    if any(re.search(pat, lower) for pat in feedback_triggers):
+                    if not verified_asset or any(re.search(pat, lower) for pat in feedback_triggers):
                         return IntentRequest(intent="FEEDBACK", request_type="FEEDBACK", asset=session.last_asset if session else None, timeframe=tf, raw_query=text, relation_to_context="CONTINUE")
                 elif req_t == "SYSTEM_INFO":
                     if any(re.search(trig, lower) for trig in sys_triggers):

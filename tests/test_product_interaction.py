@@ -35,6 +35,22 @@ from openbagus.domains.crypto.catalog import CryptoAsset
 
 
 class TestProductInteraction(unittest.TestCase):
+    def test_missing_ticker_is_typed_and_shell_survives(self):
+        import io
+        from contextlib import redirect_stdout
+        for ticker in (None, {}, [], {"price": "bad"}, {"price": 0}, {"price": True}):
+            q = QuantEngine().evaluate("BTC", ticker)
+            self.assertIsNone(q.price)
+            self.assertEqual(q.decision_status, "INSUFFICIENT_DATA_FOR_DECISION")
+            self.assertFalse(q.quality_gate_passed)
+        with patch.object(SessionState, "load_if_enabled"), patch("openbagus.cli.OpenBagusShell.default", side_effect=TimeoutError):
+            shell = OpenBagusShell()
+            with redirect_stdout(io.StringIO()) as out, patch("pathlib.Path.open", side_effect=OSError):
+                self.assertFalse(shell.onecmd("query"))
+                self.assertFalse(shell.onecmd("/version"))
+            self.assertIn("RUNTIME_QUERY_FAILED", out.getvalue())
+            self.assertNotIn("Traceback", out.getvalue())
+
     def setUp(self) -> None:
         self.router = IntentRouter()
         self.quant = QuantEngine()
@@ -409,7 +425,7 @@ class TestProductInteraction(unittest.TestCase):
         session.last_asset = "BTC"
         runner = CryptoResearchRunner()
 
-        req = self.router.parse("chartnya dong", session=session)
+        req = self.router.parse("/chart external BTC", session=session)
         self.assertEqual(req.request_type, "CHART")
         self.assertEqual(req.asset, "BTC")
 
@@ -618,6 +634,160 @@ class TestProductInteraction(unittest.TestCase):
         self.assertNotIn("Fibonacci:", report)
         self.assertNotIn("Stochastic:", report)
         self.assertNotIn("Arbitrage:", report)
+
+
+class TestUserRecovery(unittest.TestCase):
+    def setUp(self):
+        import tempfile
+        from pathlib import Path
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name)
+        self.router = IntentRouter(repo_root=self.root)
+        self.runner = CryptoResearchRunner(repo_root=self.root)
+        for model in (self.router.local_llm, self.runner.local_llm):
+            p = patch.object(model, "is_available", return_value=False)
+            p.start()
+            self.addCleanup(p.stop)
+        p = patch.object(self.runner.local_llm, "answer_conversation", return_value=None)
+        p.start()
+        self.addCleanup(p.stop)
+        p = patch.object(SessionState, "get_harness_dir", return_value=self.root)
+        p.start()
+        self.addCleanup(p.stop)
+
+    def test_exact_greetings_feedback_and_verified_identities(self):
+        session = SessionState(last_asset="BTC")
+        cases = {
+            "Hi": "CONVERSATION", "halo": "CONVERSATION", "selamat malam": "CONVERSATION",
+            "napa anda meminta clear saat startup": "FEEDBACK", "aku tadi cuma mau menyapa": "FEEDBACK",
+            "analisa RATU": "EQUITY_ANALYSIS", "lah masa nggak ada saham RATU": "CONVERSATION",
+            "coba BMRI": "EQUITY_ANALYSIS", "datanya mana?": "FEEDBACK",
+            "jawaban ini generik banget": "FEEDBACK", "jangan pakai tanda **": "PREFERENCE",
+            "Visualize Ratu": "VISUALIZE", "keputusannya WAIT semua": "FEEDBACK"}
+        for query, kind in cases.items():
+            req = self.router.parse(query, session)
+            self.assertEqual(req.request_type, kind, query)
+            if kind not in {"EQUITY_ANALYSIS"}:
+                self.assertFalse(req.needs_topic_switch_confirmation, query)
+        ratu = self.router.parse("analisa RATU")
+        self.assertEqual(ratu.asset_id, "IDX:RATU")
+        self.assertEqual(ratu.asset_type, "EQUITY_ID")
+        self.assertEqual(self.router.assets.equities.resolve("RATU").listing_date, "2025-01-08")
+        self.assertEqual(self.router.parse("BTC H1", SessionState(last_asset="BTC")).timeframe, "H1")
+        self.assertTrue(self.router.parse("ETH", session).needs_topic_switch_confirmation)
+        self.assertFalse(self.router.parse("BTC vs ETH", session).needs_topic_switch_confirmation)
+
+    def test_topic_continuity_and_no_quant_for_feedback(self):
+        session = SessionState()
+        self.runner.execute(self.router.parse("BMRI", session), session)
+        self.assertEqual(session.last_asset, "BMRI")
+        packet = session.last_research_packet
+        with patch.object(self.runner.quant, "evaluate", side_effect=AssertionError), patch.object(self.runner.quant, "evaluate_equity", side_effect=AssertionError):
+            for query in ("datanya mana?", "jawaban ini generik banget", "jangan pakai tanda **"):
+                self.runner.execute(self.router.parse(query, session), session)
+            with patch.object(self.runner.zerokey, "get_fx_rate", return_value={"error": None, "rate": 16000, "converted": 16000, "date": "2026-01-01", "provider": "Fixture"}):
+                self.runner.execute(self.router.parse("USD IDR gmn", session), session)
+            chart = self.router.parse("chartnya?", session)
+            self.assertEqual((chart.topic, chart.focus, chart.asset), ("fx", "USD/IDR", None))
+            self.runner.execute(self.router.parse("gimana nikel", session), session)
+            self.assertEqual(self.router.parse("grafiknya?", session).topic, "commodity")
+        self.assertIs(session.last_research_packet, packet)
+        self.assertEqual(session.last_asset, "BMRI")
+        for query in ("Visualize Ratu", "backtest BMRI", "pakai all time"):
+            answer = self.runner.execute(self.router.parse(query, session), session)
+            self.assertNotIn("Rp0", answer)
+            self.assertNotIn("$0.0", answer)
+            self.assertIn("impor", answer.lower())
+
+    def test_fx_native_chart_uses_series_not_candles(self):
+        session = SessionState(last_asset="BMRI", current_topic="USD/IDR", current_topic_kind="fx")
+        points = [{"date": "2026-01-01", "value": 16000}, {"date": "2026-01-02", "value": 16100}]
+        with patch.object(self.runner.zerokey, "get_fx_history", return_value=points), patch("webbrowser.open") as browser, patch("openbagus.reporting.visualizer.get_reports_dir", return_value=self.root):
+            answer = self.runner.execute(self.router.parse("chartnya?", session), session)
+            self.assertIn("USD/IDR", answer)
+            browser.assert_called_once()
+            path = next(self.root.glob("*.html"))
+            content = path.read_text(encoding="utf-8")
+            self.assertIn("const candles = [];", content)
+            self.assertIn('"value": 16100', content)
+            self.assertIn("kurs referensi harian", content)
+        with patch.object(self.runner.zerokey, "get_fx_history", return_value=points[:1]), patch("webbrowser.open") as browser:
+            self.assertIn("minimal 2", self.runner.execute(self.router.parse("chartnya?", session), session))
+            browser.assert_not_called()
+
+    def test_unknown_chart_and_native_crypto_chart(self):
+        session = SessionState(last_asset="BTC")
+        with patch.object(self.runner.quant, "evaluate", side_effect=AssertionError):
+            request = self.router.parse("/chart notaverifiedinstrument", session)
+            self.assertTrue(request.needs_asset)
+            self.assertIn("Instrumen mana", self.runner.execute(request, session))
+            for timeframe, interval in (("H1", "1h"), ("H4", "4h"), ("D1", "1d")):
+                with patch.object(self.runner.zerokey, "get_all_evidence", return_value={"klines": []}) as evidence, patch("webbrowser.open") as browser:
+                    self.assertIn("closed-bar", self.runner.execute(self.router.parse(f"/chart BTC {timeframe}", session), session))
+                    evidence.assert_called_once_with("BTC", interval=interval)
+                    browser.assert_not_called()
+
+    def test_fx_history_filters_invalid_and_future_observations(self):
+        from datetime import timedelta
+        today = datetime.now(timezone.utc).date()
+        day = (today - timedelta(days=1)).isoformat()
+        rows = [
+            {"base": "USD", "quote": "IDR", "date": day, "rate": 16000},
+            {"base": "USD", "quote": "EUR", "date": day, "rate": 0.9},
+            {"base": "USD", "quote": "IDR", "date": today.isoformat(), "rate": True},
+            {"base": "USD", "quote": "IDR", "date": (today + timedelta(days=1)).isoformat(), "rate": 17000},
+            {"base": "USD", "quote": "IDR", "date": "invalid", "rate": 17000}, None]
+        with patch.object(self.runner.zerokey, "_get_json", return_value=rows):
+            self.assertEqual(self.runner.zerokey.get_fx_history("USD", "IDR"), [{"date": day, "value": 16000}])
+        with patch.object(self.runner.zerokey, "_get_json", return_value={"error": "offline"}):
+            self.assertEqual(self.runner.zerokey.get_fx_history("USD", "IDR"), [])
+
+    def test_conversation_rejects_unsupported_missing_data_causes(self):
+        model = self.runner.local_llm
+        context = "RATU: harga belum tersedia di OpenBagus; penyebab pasar tidak diketahui."
+        with patch.object(model, "_local_available", return_value=True), patch.object(model, "_run_llama", return_value="Harga tidak tersedia karena volatilitas."):
+            self.assertIsNone(LocalLanguageEngine.answer_conversation(model, "lah masa nggak ada saham RATU", context))
+        context = "BMRI: INSUFFICIENT_DATA_FOR_DECISION; harga belum tersedia, bukan keputusan WAIT."
+        with patch.object(model, "_local_available", return_value=True), patch.object(model, "_run_llama", return_value="Keputusan WAIT adalah tepat."):
+            self.assertIsNone(LocalLanguageEngine.answer_conversation(model, "keputusannya WAIT semua", context))
+        with patch.object(model, "_local_available", return_value=True), patch.object(model, "_run_llama", return_value="BMRI belum dapat dievaluasi karena data belum tersedia."):
+            self.assertIn("BMRI", LocalLanguageEngine.answer_conversation(model, "keputusannya WAIT semua", context))
+
+    def test_history_windows_and_saved_greeting_repair(self):
+        from openbagus.domains.quant.backtesting import BacktestRunner
+        bars = [{"open_at": f"{d}T09:00:00+07:00", "close_at": f"{d}T16:00:00+07:00", "open": 10, "high": 11, "low": 9, "close": 10, "volume": 100} for d in ("2024-01-01", "2025-01-08", "2026-01-08", "2027-01-01")]
+        now = datetime(2026, 10, 11, tzinfo=timezone.utc)
+        selected = BacktestRunner.select_history(bars, "all time", listing_date="2025-01-08", now=now)
+        self.assertEqual(len(selected), 2)
+        self.assertEqual(len(BacktestRunner.select_history(bars, "YTD", now=now)), 1)
+        self.assertEqual(BacktestRunner.select_history([None, {**bars[0], "close_at": None}, {**bars[0], "high": float("nan")}], "all time", now=now), [])
+        self.assertEqual(BacktestRunner.select_history(bars, "dari 2026 sampai 2025", now=now), [])
+        session = SessionState()
+        session.from_dict({"last_asset": "HI", "last_query": "Hi", "research_history": {"BTC": {}}})
+        self.assertIsNone(session.last_asset)
+        self.assertIn("BTC", session.research_history)
+        session.current_topic, session.current_topic_kind = "USD/IDR", "fx"
+        self.assertTrue(session.save_persistent(self.root / "context.json"))
+        restored = SessionState()
+        self.assertTrue(restored.load_persistent(self.root / "context.json"))
+        self.assertEqual(restored.current_topic, "USD/IDR")
+
+    def test_exit_cancel_clear_save_and_plain_separator(self):
+        import io
+        import os
+        from contextlib import redirect_stdout
+        with patch.object(SessionState, "load_if_enabled"):
+            shell = OpenBagusShell()
+        shell.router, shell.researcher = self.router, self.runner
+        with patch("sys.stdin.isatty", return_value=True), patch("builtins.input", return_value="x"), patch.object(LocalLanguageEngine, "shutdown_runtime"):
+            self.assertFalse(shell.do_exit(""))
+        with patch("sys.stdin.isatty", return_value=True), patch("builtins.input", return_value="c"), patch.object(LocalLanguageEngine, "shutdown_runtime"):
+            self.assertTrue(shell.do_exit(""))
+        with patch.object(self.runner, "execute", return_value="**Test**\n" + "=" * 90), patch("shutil.get_terminal_size", return_value=os.terminal_size((30, 20))), redirect_stdout(io.StringIO()) as output:
+            shell.onecmd("Hi")
+        lines = output.getvalue().splitlines()
+        self.assertEqual(lines, ["-" * 29, "Test", "-" * 29])
 
 
 if __name__ == "__main__":

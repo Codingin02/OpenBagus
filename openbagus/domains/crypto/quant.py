@@ -63,7 +63,7 @@ class QuantDecisionResult:
     decision: str
     regime: str
     confidence: str
-    price: float
+    price: float | None
     entry_zone: str
     stop_price: float | None
     tp1: float | None
@@ -106,6 +106,7 @@ class QuantDecisionResult:
     contradictions: list[str] = field(default_factory=list)
     evidence_families: dict[str, str] = field(default_factory=dict)
     structure_levels: dict[str, float] = field(default_factory=dict)
+    decision_status: str = "NO_ACTIONABLE_SETUP"
 
 
 class QuantEngine:
@@ -226,12 +227,18 @@ class QuantEngine:
         q.decision_reason = "; ".join(gaps) if gaps else "Struktur, volume dan batas risiko mendukung research view; bukan order."
         q.why_now = q.decision_reason
         q.why = {"risk": q.decision_reason}
+        if not price or len(bars) < 21 or not valid:
+            q.decision_status = "INSUFFICIENT_DATA_FOR_DECISION"
+            if not price:
+                q.price = None
+        elif q.quality_gate_passed:
+            q.decision_status = "EVALUATED"
         return q
 
     def evaluate(
         self,
         symbol: str,
-        spot_ticker: dict[str, Any],
+        spot_ticker: dict[str, Any] | None,
         klines: list[dict[str, Any]] | None = None,
         derivatives: dict[str, Any] | None = None,
         orderbook: dict[str, Any] | None = None,
@@ -242,6 +249,17 @@ class QuantEngine:
         timeframe: str = "H1",
         has_position_context: bool = False,
     ) -> QuantDecisionResult:
+        price_input = validate_finite_number(spot_ticker.get("price")) if isinstance(spot_ticker, dict) else None
+        if price_input is None or price_input <= 0 or isinstance(spot_ticker.get("price"), bool):
+            return QuantDecisionResult(
+                asset=symbol, market=market_type, decision="NO_TRADE", regime="UNVERIFIED",
+                confidence="LOW", price=None, entry_zone="N/A", stop_price=None, tp1=None,
+                tp2=None, reward_risk=None, reward_risk_str="N/A", leverage_ceiling="N/A",
+                leverage_num=0, why={"data": "Ticker absent or malformed"}, sources=[],
+                evidence_count=0, composite_score=0.0, composite_quality=0.0,
+                rr_gate_passed=False, quality_gate_passed=False, data_quality="LOW",
+                decision_reason=f"{symbol}: harga pasar terverifikasi belum tersedia; keputusan belum dapat dihitung.",
+                timeframe=timeframe, decision_status="INSUFFICIENT_DATA_FOR_DECISION")
         price = validate_finite_number(spot_ticker.get("price"), min_val=0.0) or 0.0
         high = validate_finite_number(spot_ticker.get("high"), min_val=0.0) or price
         low = validate_finite_number(spot_ticker.get("low"), min_val=0.0) or price
@@ -265,6 +283,11 @@ class QuantEngine:
         atr_approx = (high - low) * 0.5
         atr_buffer = max(price * 0.005, atr_approx * 0.5)
 
+        orderbook = orderbook if isinstance(orderbook, dict) else None
+        trades = trades if isinstance(trades, dict) else None
+        derivatives = derivatives if isinstance(derivatives, dict) else None
+        sentiment = sentiment if isinstance(sentiment, dict) else None
+        stablecoins = stablecoins if isinstance(stablecoins, dict) else None
         orderbook = orderbook if self._freshness((orderbook or {}).get("observed_at")) == "FRESH" else None
         trades = trades if self._freshness((trades or {}).get("observed_at")) == "FRESH" else None
         derivatives = derivatives if self._freshness((derivatives or {}).get("observed_at")) == "FRESH" else None
@@ -664,6 +687,8 @@ class QuantEngine:
     @staticmethod
     def _closed_candles(candles: list[dict[str, Any]] | None) -> tuple[list[dict[str, Any]], bool]:
         accepted = []
+        if candles is not None and (not isinstance(candles, list) or any(not isinstance(c, dict) for c in candles)):
+            return [], False
         valid = True
         now_ms = time.time() * 1000
         seen = set()

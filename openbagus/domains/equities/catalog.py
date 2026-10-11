@@ -49,6 +49,7 @@ class EquityAsset:
     data_capabilities: list[str] = field(default_factory=lambda: ["permitted_import"])
     exposures: list[str] = field(default_factory=list)
     hierarchy: list[str] = field(default_factory=list)
+    listing_date: str = ""
 
     @property
     def id(self) -> str:
@@ -90,6 +91,9 @@ class EquityCatalog:
         for symbol, name, sector in seeds:
             self.assets.append(EquityAsset(symbol, name, sector,
                 source=f"https://www.idx.co.id/id/perusahaan-tercatat/profil-perusahaan-tercatat/{symbol}"))
+        self.assets.append(EquityAsset("RATU", "PT Raharja Energi Cepu Tbk", "A",
+            source="https://web.ksei.co.id/services/registered-securities/shares/lc/RATU",
+            listing_date="2025-01-08", exposures=["oil", "gas"]))
         self.assets.append(EquityAsset("IHSG", "IDX Composite", asset_type="INDEX_ID",
             source="https://www.idx.co.id/id/produk/indeks/"))
         for symbol in ("LQ45", "IDX30", "IDXENERGY", "IDXBASIC", "IDXINDUST", "IDXNONCYC",

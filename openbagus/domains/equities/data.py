@@ -32,6 +32,13 @@ def number(value, *, positive: bool = False) -> float:
 
 
 class EquityData:
+    @staticmethod
+    def import_guidance(symbol: str) -> str:
+        return (f"Impor data berizin untuk {symbol}: python -m openbagus.cli import-idx ohlcv <CSV> --metadata <JSON>. "
+            "CSV: open_at,close_at,open,high,low,close,volume; timestamp dengan timezone, volume lembar saham. "
+            "Metadata: symbol, source HTTPS, authorized_use=true, currency=IDR, volume_unit=shares, "
+            "timeframe=D1, adjustment=adjusted/unadjusted, retrieved_at. Schema lengkap: /help idx.")
+
     def __init__(self, root: Path) -> None:
         self.root = root
         self.directory = root / "data/equities"
@@ -40,7 +47,12 @@ class EquityData:
         if not re.fullmatch(r"[A-Z][A-Z0-9]{2,14}", symbol):
             return {"gaps": ["INVALID_SYMBOL"]}
         try:
-            data = json.loads((self.directory / f"{symbol}.json").read_text(encoding="utf-8"))
+            path = self.directory / f"{symbol}.json"
+            if path.stat().st_size > 10_000_000:
+                raise ValueError("Equity import exceeds size limit")
+            data = json.loads(path.read_text(encoding="utf-8"))
+            if data.get("symbol", symbol).upper() != symbol:
+                raise ValueError("Stored observation identity mismatch")
             self.validate(data)
             data["gaps"] = []
             return data

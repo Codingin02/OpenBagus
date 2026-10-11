@@ -39,7 +39,7 @@ from openbagus.core.env import get_repo_root
 @dataclass
 class NarrativeFacts:
     asset: str
-    price: float
+    price: float | None
     decision: str
     timeframe: str = "H1"
     regime: str = "Compressed"
@@ -81,9 +81,11 @@ class NarrativeFacts:
     cited_sources: list[dict[str, Any]] = field(default_factory=list)
 
 
-def format_price(value: float, currency: str = "USD") -> str:
+def format_price(value: float | None, currency: str = "USD") -> str:
     """Format USD values without discarding small-price precision."""
     from decimal import Decimal
+    if value is None:
+        return "DATA GAP"
     if currency == "IDR":
         return f"Rp{value:,.0f}"
     if abs(value) >= 1:
@@ -558,7 +560,7 @@ class LocalLanguageEngine:
                         pass
 
             price_vs_fib = ""
-            if fib_level is not None and price > 0:
+            if fib_level is not None and price is not None and price > 0:
                 if price > fib_level:
                     price_vs_fib = "ABOVE"
                 elif price < fib_level:
@@ -603,7 +605,7 @@ class LocalLanguageEngine:
                 asset_type=getattr(packet, "asset_type", "CRYPTO"),
                 fundamentals=getattr(packet, "fundamentals", {}).get("ratios", {}),
             )
-        if facts.fibonacci_level is not None:
+        if facts.fibonacci_level is not None and facts.price is not None:
             facts.price_vs_fib = "ABOVE" if facts.price > facts.fibonacci_level else ("BELOW" if facts.price < facts.fibonacci_level else "AT")
 
         user_style = classify_user_style(user_query)
@@ -837,6 +839,32 @@ class LocalLanguageEngine:
                 f"Privasi Rahasia: {p['secrets']}",
             ]
         return "\n".join(lines)
+
+    def answer_conversation(self, query: str, context: str, language: str = "id") -> str | None:
+        """Local-only short interaction; never a replacement for market evidence."""
+        from openbagus.core.guards import scan_text
+        if not self._local_available() or not scan_text(query + context)["passed"]:
+            return None
+        prompt = ("<|im_start|>system\nJawab dalam " + ("English" if language == "en" else "Bahasa Indonesia") +
+            ". Jawab maksud pengguna dalam 1-3 kalimat berdasarkan fakta konteks saja. "
+            "Jangan menciptakan harga, ticker, sumber, keputusan trading, janji refresh, atau menyatakan operasi sudah berhasil. "
+            "Tanpa Markdown. Tidak ada tindakan/configuration yang dijalankan.\nFakta: " + context[:2000] +
+            "<|im_end|>\n<|im_start|>user\n" + query[:600] + "<|im_end|>\n<|im_start|>assistant\n")
+        text = self._run_llama(prompt, max_tokens=150, temp=0.35, top_p=0.8, top_k=20)
+        if not text or not scan_text(text)["passed"] or len(text) > 1400:
+            return None
+        if re.search(r"https?://|\b(?:BUY|SELL|LONG|SHORT)\b", text):
+            return None
+        if re.search(r"(?:harga|saham).{0,40}(?:tidak|belum|nggak) tersedia (?:di pasar|di bursa)|(?:sudah|telah) (?:mengambil|memperbaiki|mengunduh|memperbarui)|refresh (?:selesai|berhasil)", text, re.I):
+            return None
+        if re.search(r"karena|disebabkan|alasan|because|due to", text, re.I) and "penyebab" in context and "tidak diketahui" in context:
+            return None
+        if "INSUFFICIENT_DATA_FOR_DECISION" in context and re.search(r"\bWAIT\b", text, re.I) and not re.search(r"(?:bukan|tidak|not).{0,45}\bWAIT\b", text, re.I):
+            return None
+        allowed = set(re.findall(r"\d+(?:[.,]\d+)*", context))
+        if any(n not in allowed for n in re.findall(r"\d+(?:[.,]\d+)*", text)):
+            return None
+        return text
 
 
 def _download_file(url: str, path: Path, expected_sha: str = "") -> bool:

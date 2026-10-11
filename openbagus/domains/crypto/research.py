@@ -20,6 +20,11 @@ from openbagus.intelligence.intent import IntentRequest, SessionState
 from openbagus.intelligence.local_language import LocalLanguageEngine, format_price
 from openbagus.data.assets import AssetRegistry
 
+_PROVIDER_INTERVALS = {
+    "M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m",
+    "H1": "1h", "H4": "4h", "H6": "6h", "H12": "12h", "D1": "1d", "W1": "1w",
+}
+
 
 @dataclass
 class ResearchPacket:
@@ -27,7 +32,7 @@ class ResearchPacket:
     asset: str
     market: str
     timeframe: str
-    price: float
+    price: float | None
     decision: str
     data_quality: str
     setup_quality: str
@@ -109,6 +114,98 @@ class CryptoResearchRunner:
         self.local_llm = LocalLanguageEngine(repo_root=self.root)
 
     def execute(self, req: IntentRequest, session: SessionState | None = None) -> str:
+        if req.needs_asset:
+            return req.clarification_prompt or "Instrumen belum jelas; sebutkan ticker atau pasangan mata uang yang dimaksud."
+        if req.request_type in {"CHART", "VISUALIZE", "REPORT_HTML"} and req.topic in {"fx", "commodity"}:
+            if req.topic == "commodity":
+                return "Nikel: seri historis dengan benchmark, mata uang dan satuan belum tersedia; chart BMRI tidak digunakan. Pilih LME atau referensi Indonesia dan impor data berizin."
+            base, quote = req.focus.split("/")
+            points = self.zerokey.get_fx_history(base, quote)
+            if session:
+                session.last_chart_asset = req.focus
+                session.last_operation = "CHART"
+            if len(points) < 2:
+                return f"{base}/{quote}: history kurs referensi Frankfurter belum tersedia (minimal 2 tanggal). Tidak membuat chart dari satu titik."
+            from openbagus.reporting.visualizer import generate_html_report
+            path = generate_html_report(f"{base}_{quote}", root=self.root, timeframe="D1", line_series=points,
+                currency=quote, source="https://frankfurter.dev/", series_label=f"{quote} per {base}; kurs referensi harian, bukan harga FX intraday")
+            webbrowser.open(path.as_uri())
+            return f"Chart lokal {base}/{quote}: {path}\nPeriode {points[0]['date']} - {points[-1]['date']} ({len(points)} observasi); Frankfurter, kurs referensi harian."
+        if req.request_type in {"CONVERSATION", "FEEDBACK"}:
+            q = session.last_quant_result if session else None
+            if session and session.last_operation == "DATA_UNAVAILABLE":
+                q = None
+            if req.focus == "identity":
+                asset = self.assets.equities.resolve(req.asset or "")
+                context = f"{asset.id}: {asset.name}; identitas saham IDX. Sumber {asset.source}. Identitas bukan bukti ketersediaan harga."
+                if q and q.asset == asset.symbol and q.price is None:
+                    context += " Harga dan OHLCV belum tersedia di OpenBagus; penyebab pasar/volatilitas/suspensi tidak diketahui."
+            elif req.focus == "data_availability":
+                context = (f"{session.last_asset if session else 'Instrumen'}: input harga dan OHLCV terverifikasi "
+                    "belum tersedia di aplikasi ini; ini bukan berarti saham tidak diperdagangkan. "
+                    "Untuk IDX gunakan /help idx lalu import-idx ohlcv <CSV> --metadata <JSON> dari sumber berizin. "
+                    "Belum ada refresh atau download baru pada jawaban ini.") if not q or q.price is None else (
+                    f"{q.asset}: harga referensi {format_price(q.price, 'IDR' if 'IDX' in q.market else 'USD')}; "
+                    f"Data freshness {q.data_freshness}; kendala: {q.decision_reason}.")
+            elif req.focus == "decision" or re.search(r"wait|no trade", req.raw_query, re.I):
+                if q and q.price is None:
+                    context = f"{q.asset}: INSUFFICIENT_DATA_FOR_DECISION. Input harga/OHLCV belum tersedia; ini bukan keputusan WAIT setelah evaluasi pasar. Belum ada setup yang dapat dinilai."
+                else:
+                    context = f"Hasil riset terakhir: {q.asset}: {q.decision_reason}" if q else "Belum ada hasil Quant yang dapat dijelaskan."
+            elif re.search(r"startup|clear", req.raw_query, re.I):
+                context = "Tidak ada konfirmasi clear saat startup. Pada exit tersedia Save/Clear/Cancel; persistence tetap opt-in."
+            elif req.focus == "greeting" or "menyapa" in req.raw_query.lower():
+                context = "Pengguna sedang menyapa. Balas sapaan singkat; belum meminta analisis atau perubahan instrumen."
+            else:
+                context = (f"Topik: {session.current_topic if session else 'percakapan'}. "
+                    f"Jawaban terakhir: {session.conversational_turns[-1]['assistant'][:500] if session and session.conversational_turns else 'belum ada'}. "
+                    "Pengguna meminta jawaban lebih relevan. Koreksi kekurangan jawaban tersebut, jangan meminta ulang detail yang sudah jelas, "
+                    "jangan ulang teori investasi atau mengklaim sudah memperbaiki/mengambil data.")
+                if q and q.price is None and self.assets.equities.resolve(q.asset):
+                    context += (f" Fakta spesifik: {q.asset} dikenali sebagai saham IDX; belum ada input harga/OHLCV berizin. "
+                        "Langkah tersedia: /help idx, impor CSV dengan open_at,close_at,open,high,low,close,volume "
+                        "serta metadata sumber/izin/timezone/satuan/adjustment. Akui feedback dan jelaskan langkah konkret ini.")
+            answer = self.local_llm.answer_conversation(req.raw_query, context,
+                language="en" if session and session.language == "EN" else "id")
+            return answer or ("Halo. Mau membahas saham IDX, crypto, atau kurs?" if req.focus == "greeting" else context)
+        if req.request_type == "COMMODITY":
+            if session:
+                session.current_topic, session.current_topic_kind = "nickel", "commodity"
+                session.last_commodity, session.last_operation = "nickel", "COMMODITY"
+            return "Nikel: acuan mana yang dimaksud, LME (USD/ton) atau referensi Indonesia? Belum ada seri harga nikel terverifikasi; saya tidak memakai harga BMRI sebagai pengganti."
+        if req.request_type == "PREFERENCE" and req.preference_action in {"brief", "plain_text"}:
+            if session:
+                session.explanation_depth = "simple" if req.preference_action == "brief" else session.explanation_depth
+                session.recent_preferences["plain_text"] = True
+            return "Baik, jawaban dibuat singkat." if req.preference_action == "brief" else "Baik, tampilan terminal memakai teks biasa tanpa tanda Markdown dan indentasi berlebihan."
+        if req.asset:
+            resolved, ambiguous = self.assets.resolve_asset(req.asset)
+            if not resolved or ambiguous:
+                return f"Instrumen {req.asset} belum terverifikasi; Quant tidak dijalankan. Gunakan identitas IDX:<ticker> atau crypto yang jelas."
+            req.asset_type, req.asset_id = resolved.asset_type, resolved.id
+            if session and req.request_type not in {"COMPARE", "PREFERENCE", "FOLLOW_UP", "FEEDBACK"}:
+                session.current_topic, session.current_topic_kind = req.asset, "research"
+                session.last_operation = req.request_type
+                if req.request_type in {"CHART", "VISUALIZE"}:
+                    session.last_chart_asset = req.asset
+                if req.request_type == "BACKTEST":
+                    session.last_backtest_asset = req.asset
+        if req.request_type == "CHART" and "external" in req.raw_query.lower() and req.asset_type != "CRYPTO":
+            url = f"https://www.tradingview.com/chart/?symbol=IDX:{req.asset}"
+            webbrowser.open(url)
+            return f"Situs chart eksternal {req.asset}: {url}"
+        if req.request_type == "CHART" and req.asset_type == "CRYPTO" and "external" not in req.raw_query.lower():
+            if session and session.last_research_packet and session.last_research_packet.asset == req.asset and session.last_research_packet.timeframe == req.timeframe:
+                candles = session.last_research_packet.ohlcv
+            else:
+                candles = (self.zerokey.get_all_evidence(req.asset, interval=_PROVIDER_INTERVALS.get(req.timeframe, "1h")) or {}).get("klines")
+            candles, valid = self.quant._closed_candles(candles)
+            if not candles or not valid:
+                return f"{req.asset}: OHLCV closed-bar yang valid belum tersedia untuk chart native {req.timeframe}. Gunakan /chart external {req.asset} untuk situs eksternal."
+            from openbagus.reporting.visualizer import generate_html_report
+            path = generate_html_report(req.asset, candles, root=self.root, timeframe=req.timeframe, currency="USD")
+            webbrowser.open(path.as_uri())
+            return f"Chart native {req.asset} {req.timeframe}: {path}; {len(candles)} closed bar."
         if session and session.last_research_packet:
             packet = session.last_research_packet
             session.research_history[packet.asset] = {"packet": packet, "quant": session.last_quant_result,
@@ -116,7 +213,7 @@ class CryptoResearchRunner:
                 "at": session.last_research_at}
             if len(session.research_history) > 4:
                 session.research_history.pop(next(iter(session.research_history)))
-        if req.request_type == "CHART" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
+        if req.request_type == "CHART" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "") and "external" not in req.raw_query.lower():
             asset = self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "")
             from openbagus.domains.equities.data import EquityData
             from openbagus.reporting.visualizer import generate_html_report
@@ -129,12 +226,7 @@ class CryptoResearchRunner:
                 except Exception:
                     opened = False
                 return f"{'Opening native chart' if opened else 'Local chart'} {asset.symbol}: {html_path}"
-            url = f"https://www.tradingview.com/chart/?symbol=IDX:{asset.symbol}"
-            try:
-                opened = webbrowser.open(url)
-            except Exception:
-                opened = False
-            return f"{'Opening' if opened else 'Chart link'} {asset.symbol}: {url}"
+            return f"{asset.id}: belum ada OHLCV terverifikasi untuk chart native. Impor CSV berizin: python -m openbagus.cli import-idx ohlcv <CSV> --metadata <JSON>. Untuk situs eksternal gunakan /chart external {asset.symbol}."
         if req.request_type == "COMPARE" and any(self.assets.equities.resolve(a) for a in req.target_assets):
             pieces = []
             for symbol in req.target_assets[:2]:
@@ -250,7 +342,7 @@ class CryptoResearchRunner:
             target = req.asset or (session.last_asset if session and session.last_asset else "BTC")
             from openbagus.intelligence.astro import LunarCycleResearch
             lunar_info = LunarCycleResearch.get_lunar_phase()
-            candles = self.zerokey.get_all_evidence(target, "D1").get("klines") or []
+            candles = self.zerokey.get_all_evidence(target, interval="1d").get("klines") or []
             test_res = LunarCycleResearch.test_lunar_effect_on_returns(target, candles)
             lines = [
                 f"Riset Eksperimental Siklus Astronomi & Fase Bulan: {target.upper()}",
@@ -284,6 +376,9 @@ class CryptoResearchRunner:
             return "OpenBagus menyediakan research; tidak menjalankan order trading, pembayaran, atau transaksi kartu."
         if req.request_type == "FIAT_FX":
             base, quote = req.focus.split("/")
+            if session:
+                session.current_topic, session.current_topic_kind = req.focus, "fx"
+                session.last_fx_pair, session.last_operation = req.focus, "FIAT_FX"
             result = self.zerokey.get_fx_rate(base, quote, req.amount)
             if result.get("error"):
                 return "SOURCE GAP: kurs referensi belum tersedia."
@@ -312,14 +407,16 @@ class CryptoResearchRunner:
             tf = req.timeframe or (session.timeframe if session else "H1")
             if session and session.last_research_packet and session.last_research_packet.asset == target and session.last_quant_result:
                 q = session.last_quant_result
-                candles = session.last_research_packet.ohlcv or self.zerokey.get_all_evidence(target, tf).get("klines") or []
+                candles = session.last_research_packet.ohlcv or self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h")).get("klines") or []
             else:
-                evidence = self.zerokey.get_all_evidence(target, tf)
+                evidence = self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h"))
                 candles = evidence.get("klines") or []
                 ticker = self.zerokey.get_spot_ticker(target)
                 q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.visualizer import generate_html_report
-            html_path = generate_html_report(target, candles, quant_result=q, root=self.root, timeframe=tf)
+            if not candles:
+                return f"{target}: OHLCV terverifikasi belum tersedia untuk visualisasi {tf}; tidak membuat chart kosong."
+            html_path = generate_html_report(target, candles, quant_result=q, root=self.root, timeframe=tf, currency="USD")
             try:
                 webbrowser.open(html_path.as_uri())
             except Exception:
@@ -332,7 +429,7 @@ class CryptoResearchRunner:
                 q = session.last_quant_result
             else:
                 ticker = self.zerokey.get_spot_ticker(target)
-                candles = self.zerokey.get_all_evidence(target, tf).get("klines") or []
+                candles = self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h")).get("klines") or []
                 q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.word_report import generate_word_report
             docx_path = generate_word_report(target, quant_result=q, root=self.root, timeframe=tf)
@@ -340,16 +437,16 @@ class CryptoResearchRunner:
         if req.request_type == "BACKTEST":
             target = req.asset or (session.last_asset if session else "BTC")
             tf = req.timeframe or (session.timeframe if session else "H1")
-            candles = self.zerokey.get_all_evidence(target, tf).get("klines") or []
+            from openbagus.domains.quant.backtesting import BacktestRunner
+            candles = BacktestRunner.select_history(self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h")).get("klines") or [], req.raw_query)
             if len(candles) < 25:
                 return f"SOURCE GAP: Data OHLCV historis {target} ({len(candles)} bar) tidak mencukupi untuk backtest (minimal 25 bar)."
-            from openbagus.domains.quant.backtesting import BacktestRunner
             bt_runner = BacktestRunner(initial_capital=10_000.0, asset_type="CRYPTO", buy_fee=0.0005, sell_fee=0.0005, lot_size=1)
             bt_res = bt_runner.run(target, candles, timeframe=tf)
             ticker = self.zerokey.get_spot_ticker(target)
             q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.visualizer import generate_html_report
-            html_path = generate_html_report(target, candles, quant_result=q, backtest_result=bt_res, root=self.root, timeframe=tf)
+            html_path = generate_html_report(target, candles, quant_result=q, backtest_result=bt_res, root=self.root, timeframe=tf, currency="USD")
             try:
                 webbrowser.open(html_path.as_uri())
             except Exception:
@@ -398,30 +495,6 @@ class CryptoResearchRunner:
                 return "Chart hanya dibuka atas permintaan eksplisit melalui /chart; tidak ada tampilan chart otomatis."
             elif req.preference_action == "no_ollama":
                 return "[PASS] Preferensi disimpan: OpenBagus beroperasi tanpa Ollama menggunakan llama.cpp lokal / deterministik."
-
-        # 2. Feedback handling (Section 2)
-        if req.request_type == "FEEDBACK":
-            if session and session.last_asset and session.last_quant_result:
-                q = session.last_quant_result
-                lines = [
-                    f"Catatan feedback untuk {q.asset} ({q.market} / {q.timeframe}):",
-                    "",
-                    f"Keputusan Quant : {q.decision}",
-                    f"Alasan          : {q.decision_reason}",
-                    "",
-                    "OpenBagus beroperasi secara deterministik dan hanya menerbitkan sinyal aktif ketika:",
-                    "  1. Rasio Reward:Risk >= 1:1.50 (Risk Gate)",
-                    "  2. Microstructure dan aliran order searah tanpa crowding",
-                    "",
-                    f"Kondisi validasi berikutnya untuk {q.asset}:",
-                    f"  Bullish Long  : {q.bullish_validation.trigger_condition if q.bullish_validation else 'Breakout'}",
-                    f"  Bearish Short : {q.bearish_validation.trigger_condition if q.bearish_validation else 'Breakdown'}",
-                ]
-                return "\n".join(lines)
-            return (
-                "Catatan feedback diterima. OpenBagus memprioritaskan proteksi modal dengan mewajibkan "
-                "gerbang konsensus data dan rasio Reward:Risk >= 1:1.50 sebelum memicu sinyal."
-            )
 
         # 3. Harness / Session memory handling (Section 18, 19, Section D, E)
         if req.request_type == "HARNESS":
@@ -643,19 +716,15 @@ class CryptoResearchRunner:
                     }
 
         if not ticker or ticker.get("price") is None:
+            if session:
+                session.last_operation = "DATA_UNAVAILABLE"
             return (
                 f"\n[DATA_UNAVAILABLE] Could not retrieve live market data for {name} ({symbol}).\n"
                 f"Status: Zero-key public providers (Binance, Gate.io, Bybit, OKX, GeckoTerminal, CoinLore) did not return quotes.\n"
                 f"Type '/providers --check' to verify network reachability."
             )
 
-        # Timeframe mapping to provider interval
-        tf_to_interval = {
-            "M1": "1m", "M5": "5m", "M15": "15m", "M30": "30m",
-            "H1": "1h", "H4": "4h", "H6": "6h", "H12": "12h",
-            "D1": "1d", "W1": "1w",
-        }
-        interval = tf_to_interval.get(req.timeframe, "1h")
+        interval = _PROVIDER_INTERVALS.get(req.timeframe, "1h")
 
         # Concurrently fetch remaining independent market evidence
         ev = self.zerokey.get_all_evidence(symbol, is_dex=is_dex, interval=interval)
@@ -782,6 +851,8 @@ class CryptoResearchRunner:
         # Update session memory
         if session:
             session.last_asset = symbol
+            if q.price is not None:
+                session.last_successful_asset = symbol
             session.timeframe = req.timeframe
             session.market_type = market_type.upper()
             session.last_quant_result = q

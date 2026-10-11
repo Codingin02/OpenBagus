@@ -14,6 +14,10 @@ import shutil
 import smtplib
 import sys
 import tempfile
+import traceback
+import contextlib
+import io
+import textwrap
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -319,6 +323,16 @@ def _run_status(session: SessionState | None = None) -> int:
 def _run_providers(check_network: bool = False) -> int:
     registry = ProviderRegistry(REPO_ROOT)
     print(registry.format_providers_view(run_live_check=check_network))
+    catalog = EquityCatalog(REPO_ROOT)
+    print("\nIDX capabilities (identity != market observations)")
+    print(f"Issuer identity: {len([a for a in catalog.assets if a.asset_type == 'EQUITY_ID'])} verified seeds/imported identities; update via import-idx catalog.")
+    for symbol in ("RATU", "BMRI", "BBCA"):
+        data = EquityData(REPO_ROOT).load(symbol)
+        bars = data.get("candles", [])
+        period = f"{bars[0]['open_at']} - {bars[-1]['close_at']}" if bars else "UNAVAILABLE"
+        print(f"{symbol}: market {'OPERATIONAL (authorized import)' if bars else 'DATA_UNAVAILABLE'}; {len(bars)} bars; range {period}")
+        print(f"Fundamentals: {'OPERATIONAL (dated import)' if data.get('fundamentals') else 'DATA_UNAVAILABLE'}")
+    print("IDX automatic price acquisition: NOT_IMPLEMENTED without a permitted/licensed source. Key presence is not validation or operational evidence.")
     return 0
 
 
@@ -1007,15 +1021,50 @@ class OpenBagusShell(cmd.Cmd):
         return None
 
     def onecmd(self, line: str) -> bool:
-        try:
-            line_str = line.strip()
-            if line_str.startswith("/"):
-                cmd_line = line_str[1:].strip()
-                return super().onecmd(cmd_line)
-            return super().onecmd(line)
-        except KeyboardInterrupt:
-            print("\n[Analysis cancelled]")
+        if not line.strip():
             return False
+        output = io.StringIO()
+        self._prompt_output = sys.stdout
+        try:
+            with contextlib.redirect_stdout(output):
+                line_str = line.strip()
+                result = super().onecmd(line_str[1:].strip() if line_str.startswith("/") else line)
+        except KeyboardInterrupt:
+            output.write("Analisis dibatalkan.\n")
+            result = False
+        except Exception as exc:
+            # Stack frames diagnose programming errors without recording credentials or user input.
+            frames = traceback.extract_tb(exc.__traceback__)
+            diagnostic = {"type": type(exc).__name__, "frames": [
+                {"file": Path(f.filename).name, "line": f.lineno, "function": f.name} for f in frames]}
+            try:
+                from openbagus.intelligence.local_language import get_local_appdata_dir
+                target = get_local_appdata_dir() / "logs" / "cli_errors.jsonl"
+                target.parent.mkdir(parents=True, exist_ok=True)
+                with target.open("a", encoding="utf-8") as stream:
+                    stream.write(json.dumps(diagnostic) + "\n")
+            except OSError:
+                pass
+            output.write(f"RUNTIME_QUERY_FAILED ({type(exc).__name__}); sesi tetap aktif. Diagnostic lokal: cli_errors.jsonl.\n")
+            result = False
+        width = max(1, min(120, shutil.get_terminal_size((80, 24)).columns - 1))
+        text = re.sub(r"\*\*(.*?)\*\*", r"\1", output.getvalue(), flags=re.S)
+        if os.environ.get("NO_COLOR") or not self._prompt_output.isatty():
+            text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+        rows = [r for r in text.splitlines() if not re.fullmatch(r"\s*[-=]{3,}\s*", r)]
+        while rows and not rows[0].strip():
+            rows.pop(0)
+        while rows and not rows[-1].strip():
+            rows.pop()
+        print("-" * width)
+        for row in rows:
+            print(textwrap.fill(row, width, replace_whitespace=False) if len(row) > width else row)
+        print("-" * width)
+        return result
+
+    def _ask(self, prompt: str) -> str:
+        print(prompt, end="", flush=True, file=getattr(self, "_prompt_output", sys.stdout))
+        return input()
 
     def do_help(self, arg: str) -> None:
         topic = (arg or "").strip().lower()
@@ -1050,6 +1099,13 @@ class OpenBagusShell(cmd.Cmd):
             print("  /ownership BBCA - inspect verified shareholder distribution")
             print("  dampak china manufacturing data ke sektor tambang idx antm")
             print("  BBCA vs BBRI")
+            print("Data acquisition: user-owned/authorized JSON or CSV import; no automatic IDX price scraping.")
+            print("python -m openbagus.cli import-idx market <JSON>")
+            print("python -m openbagus.cli import-idx ohlcv <CSV> --metadata <JSON>")
+            print('Metadata: {"symbol":"RATU","source":"https://<authorized-source>/document", "authorized_use":true, "currency":"IDR", "volume_unit":"shares", "timeframe":"D1", "adjustment":"adjusted", "retrieved_at":"<ISO timestamp with timezone>"}')
+            print("CSV columns: open_at,close_at,open,high,low,close,volume. ISO timestamps with timezone; volume in shares.")
+            print("Financials: period_type FY/TTM/QUARTER, period, basis, published_at, source, currency IDR, unit, values, reported_ratios_pct.")
+            print("/visualize RATU | /backtest BMRI D1 | backtest RATU sejak listing; only actual imported closed bars are used.")
             print()
             return
 
@@ -1068,7 +1124,8 @@ class OpenBagusShell(cmd.Cmd):
             print("  BTC sekarang long enak nggak?")
             print("  bedah BTC H1 lengkap dari derivatives sampai risk")
             print("  BTC vs ETH")
-            print("  /chart BTC H1 - open live interactive TradingView chart")
+            print("  /chart BTC H1 - native HTML chart using actual closed OHLCV")
+            print("  /chart external BTC H1 - optional TradingView browser link")
             print()
             return
 
@@ -1194,6 +1251,17 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_harness(self, arg: str) -> None:
         sub = arg.strip().lower()
+        if sub.startswith("retention "):
+            try:
+                _, turns, days = sub.split()
+                turns, days = int(turns), int(days)
+                if not 4 <= turns <= 200 or not 1 <= days <= 365:
+                    raise ValueError
+                self.session.recent_preferences.update(history_turn_limit=turns, history_days=days)
+                print(f"Retensi lokal: maksimal {turns} turns / {days} hari / 5 MB; LLM hanya menerima 4 turns terbaru.")
+            except ValueError:
+                print("Gunakan /harness retention <4-200 turns> <1-365 days>.")
+            return
         if sub in ("clear", "reset"):
             self.session.clear()
             self.session.clear_persistent()
@@ -1363,6 +1431,29 @@ class OpenBagusShell(cmd.Cmd):
         os.system("cls" if os.name == "nt" else "clear")
 
     def do_exit(self, _arg: str) -> bool:
+        if sys.stdin.isatty():
+            try:
+                choice = self._ask("End session: [S] Save context  [C] Clear conversation  [X] Cancel: ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                choice = "x"
+            if choice == "x" or choice not in {"s", "c"}:
+                print("Sesi dilanjutkan.")
+                return False
+            if choice == "c":
+                if not self.session.clear_persistent():
+                    print("Clear conversation gagal; sesi tetap aktif.")
+                    return False
+                self.session.clear()
+                LocalLanguageEngine.shutdown_runtime()
+                return True
+            elif self.session.is_persistence_enabled():
+                if not self.session.save_persistent():
+                    print("Save context gagal; sesi tetap aktif.")
+                    return False
+                LocalLanguageEngine.shutdown_runtime()
+                return True
+            else:
+                print("Persistence belum diizinkan; konteks tidak ditulis ke disk. Gunakan /harness on untuk opt-in.")
         if self.session.is_persistence_enabled():
             self.session.save_persistent()
         else:
@@ -1371,12 +1462,7 @@ class OpenBagusShell(cmd.Cmd):
         return True
 
     def do_quit(self, _arg: str) -> bool:
-        if self.session.is_persistence_enabled():
-            self.session.save_persistent()
-        else:
-            self.session.clear()
-        LocalLanguageEngine.shutdown_runtime()
-        return True
+        return self.do_exit(_arg)
 
     def do_EOF(self, _arg: str) -> bool:
         if self.session.is_persistence_enabled():
@@ -1504,6 +1590,8 @@ class OpenBagusShell(cmd.Cmd):
                 self.do_alerts(f"add {target_asset}")
                 return
         req = self.router.parse(cleaned, session=self.session)
+        if req.request_type == "COMMAND" and req.system_query == "exit":
+            return self.do_exit("")
 
         # Strict Asset Context Switch Confirmation (Section B)
         if req.needs_topic_switch_confirmation and req.switch_target_asset:
@@ -1511,7 +1599,7 @@ class OpenBagusShell(cmd.Cmd):
             curr = self.session.last_asset or "BTC"
             prompt_str = f"Konteks aktif: {curr}.\nPindah fokus ke {target}? (Y/N): "
             try:
-                ans = input(prompt_str).strip().lower()
+                ans = self._ask(prompt_str).strip().lower()
             except (EOFError, KeyboardInterrupt):
                 ans = "n"
             if ans in ("y", "yes", "ya"):

@@ -30,27 +30,37 @@ def equity_context(asset, query: str) -> str:
 def render_equity(packet, quant, asset, query: str, *, language: str = "ID", show_sources: bool = False, narrative: str = "") -> str:
     english = language == "EN"
     price = f"Rp{quant.price:,.0f}" if quant.price else "DATA GAP"
-    text = [f"{asset.symbol} | IDX | {quant.timeframe} | {quant.decision} | {price}"]
+    status = quant.decision_status if quant.decision_status == "INSUFFICIENT_DATA_FOR_DECISION" else quant.decision
+    text = [f"{asset.symbol} | IDX | {quant.timeframe} | {status} | {price}"]
+    if quant.decision_status == "INSUFFICIENT_DATA_FOR_DECISION" and quant.price is None:
+        ratios = packet.fundamentals.get("ratios", {})
+        text.append(f"SOURCE GAP: {asset.name} dikenali sebagai {asset.id}, tetapi harga dan OHLCV berizin belum tersedia. Ini kegagalan ketersediaan data, bukan keputusan WAIT setelah evaluasi pasar.")
+        if ratios:
+            text.append(f"Laporan {packet.fundamentals['period']} ({packet.fundamentals['basis']}): " + "; ".join(f"{k} {v:,.3f}" for k, v in ratios.items()))
+        else:
+            text.append("Laporan keuangan bertanggal juga belum tersedia; rasio bank/valuasi tidak diestimasi.")
+        if re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold", query, re.I):
+            text.append(equity_context(asset, query))
+        text.append(EquityData.import_guidance(asset.symbol))
+        text.append(f"Sumber identitas: {asset.source}; bukan sumber quote. Harga as-of: UNAVAILABLE.")
+        return "\n\n".join(text)
     follow = bool(re.search(r"kenapa|why|rate|nikel|nickel|dampak|pengaruh|sederhana|simple", query.lower()))
     if narrative:
         text.append(narrative)
     elif not follow or re.search(r"kenapa|why", query.lower()):
         text.append(quant.decision_reason)
-    if english and not narrative:
-        text.append("IDX cash-equity research uses IDR, closed bars and effective market rules, not perpetual funding or leverage. "
-                    "A policy-rate change can affect funding cost, loan yields, credit demand and valuation differently. Missing evidence is not a directional signal.")
-    elif not narrative:
+    if not narrative and re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold", query, re.I):
         text.append(equity_context(asset, query))
     f = packet.fundamentals
     val_query = bool(re.search(r"valuasi|fundamental|layak\s+beli|layak\s+investasi", query.lower()))
     if val_query and f.get("ratios") and not narrative:
         r = f["ratios"]
-        roe_val = r.get("roe") or r.get("ROE")
-        pbv_val = r.get("pbv") or r.get("PBV")
-        per_val = r.get("per") or r.get("PER")
-        car_val = r.get("car") or r.get("CAR")
-        nim_val = r.get("nim") or r.get("NIM")
-        npl_val = r.get("npl") or r.get("NPL")
+        roe_val = r.get("ROE_pct")
+        pbv_val = r.get("PBV")
+        per_val = r.get("PER")
+        car_val = r.get("CAR_pct")
+        nim_val = r.get("NIM_pct")
+        npl_val = r.get("NPL_gross_pct")
         eval_lines = [
             f"Analisis Valuasi & Fundamental {asset.symbol}:",
             f"Berdasarkan laporan {f.get('period_type', '')} {f.get('period', '')} ({f.get('basis', 'konsolidasi')}), rasio yang dilaporkan:",
@@ -60,18 +70,14 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
         if per_val is not None:
             eval_lines.append(f"  - Price to Earnings (PER): {per_val:.2f}x")
         if roe_val is not None:
-            eval_lines.append(f"  - Return on Equity (ROE): {roe_val*100 if roe_val < 1 else roe_val:.2f}%")
+            eval_lines.append(f"ROE: {roe_val:.2f}%")
         if car_val is not None:
-            eval_lines.append(f"  - Capital Adequacy Ratio (CAR): {car_val*100 if car_val < 1 else car_val:.2f}%")
+            eval_lines.append(f"CAR: {car_val:.2f}%")
         if nim_val is not None:
-            eval_lines.append(f"  - Net Interest Margin (NIM): {nim_val*100 if nim_val < 1 else nim_val:.2f}%")
+            eval_lines.append(f"NIM: {nim_val:.2f}%")
         if npl_val is not None:
-            eval_lines.append(f"  - Non-Performing Loan (NPL Gross): {npl_val*100 if npl_val < 1 else npl_val:.2f}%")
-        eval_lines.append(
-            f"Prinsip Riset: Terdapat perbedaan esensial antara emiten berkualitas fundamental tinggi dan harga entry yang atraktif. "
-            f"Valuasi saat ini mencerminkan premi kualitas. Keputusan Quant adalah '{quant.decision}' ({quant.regime}) "
-            f"karena setup teknikal dan margin of safety belum memenuhi kriteria entry baru."
-        )
+            eval_lines.append(f"NPL Gross: {npl_val:.2f}%")
+        eval_lines.append(f"Hasil Quant: {quant.decision_reason}; tidak menyimpulkan premi valuasi tanpa pembanding terverifikasi.")
         text.append("\n".join(eval_lines))
     elif f.get("ratios") and (not follow or re.search(r"fundamental|valuasi|rate|nikel|dampak", query.lower())):
         text.append(f"Fundamental {f['period_type']} {f['period']} ({f['basis']}): " +
@@ -107,6 +113,10 @@ def run_equity_research(runner, req, session=None) -> str:
     if not asset:
         return "SOURCE GAP: IDX identity unverified."
     data = EquityData(runner.root).load(asset.symbol)
+    if req.request_type == "REPORT_WORD" and not data.get("quote") and not data.get("fundamentals"):
+        return f"{asset.id}: belum ada observasi harga/laporan keuangan untuk report Word. " + EquityData.import_guidance(asset.symbol)
+    if req.request_type in {"VISUALIZE", "REPORT_HTML"} and not data.get("candles"):
+        return f"{asset.id} ({asset.name}): belum ada OHLCV untuk visualisasi native. " + EquityData.import_guidance(asset.symbol)
     policy = EquityMarketPolicy(runner.root)
     if req.request_type == "EQUITY_QUOTE":
         q = data.get("quote", {})
@@ -137,9 +147,11 @@ def run_equity_research(runner, req, session=None) -> str:
         from openbagus.domains.quant.backtesting import BacktestRunner
         from openbagus.reporting.visualizer import generate_html_report
         import webbrowser
-        candles = data.get("candles", [])
+        candles = BacktestRunner.select_history(data.get("candles", []), req.raw_query, listing_date=asset.listing_date)
+        if data.get("timeframe") and data["timeframe"] != req.timeframe:
+            return f"{asset.id}: data tersedia {data['timeframe']}, bukan {req.timeframe}; impor timeframe yang sesuai."
         if len(candles) < 25:
-            return f"SOURCE GAP: Data OHLCV {asset.symbol} ({len(candles)} bar) tidak mencukupi untuk backtest (minimal 25 bar)."
+            return f"{asset.id}: rentang '{req.raw_query}' menghasilkan {len(candles)} closed bar; minimal 25. " + EquityData.import_guidance(asset.symbol)
         bt_runner = BacktestRunner(
             initial_capital=100_000_000.0,
             asset_type="EQUITY_ID",
@@ -170,7 +182,7 @@ def run_equity_research(runner, req, session=None) -> str:
             f"Analisis Transmisi Makro & Dampak Sektoral: Data Manufaktur China -> {asset.symbol} (Sektor {asset.sector_code})",
             "",
             "1. Rantai Transmisi Permintaan Global (Demand Transmission):",
-            "   - China menyerap >50% pasokan logam industri dunia, terutama untuk pabrik baja nirkarat (stainless steel) dan rantai baterai EV.",
+            "   - Permintaan manufaktur China memengaruhi logam industri melalui baja nirkarat (stainless steel) dan rantai baterai EV; besaran terkini perlu data bertanggal.",
             "   - Data Purchasing Managers' Index (PMI) manufaktur China yang ekspansif meningkatkan proyeksi konsumsi bijih nikel dan feronikel.",
             "   - Ekspektasi ini ditransmisikan langsung ke harga acuan LME Nickel dan Shanghai Futures Exchange (SHFE).",
             "",
@@ -179,7 +191,7 @@ def run_equity_research(runner, req, session=None) -> str:
             "   - Kenaikan harga nikel global berpotensi mengangkat Average Selling Price (ASP), namun transmisi ke laba bersih tetap dibatasi oleh royalti progresif, biaya energi smelter, dan nilai tukar USD/IDR.",
             "",
             f"3. Struktur Teknikal & Level Kuantitatif {asset.symbol} ({q.timeframe}):",
-            f"   - Harga Terakhir: Rp{q.price:,.0f} | Keputusan Quant: {q.decision} ({q.regime})",
+            f"   - Harga Terakhir: {'Rp' + format(q.price, ',.0f') if q.price is not None else 'DATA GAP'} | Status: {q.decision_status if q.price is None else q.decision} ({q.regime})",
             f"   - Catatan Risiko: {q.decision_reason}",
         ]
         if q.bullish_validation:
@@ -283,6 +295,8 @@ def run_equity_research(runner, req, session=None) -> str:
         session.last_asset, session.market_type, session.timeframe = asset.symbol, q.market, q.timeframe
         session.last_quant_result, session.last_research_packet = q, packet
         session.last_query, session.last_research_at = req.raw_query, now.isoformat()
+        if q.price is not None:
+            session.last_successful_asset = asset.symbol
         if session.is_persistence_enabled():
             session.save_persistent()
     return output

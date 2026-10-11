@@ -13,6 +13,9 @@ Guarantees:
 from __future__ import annotations
 
 import math
+import re
+from calendar import monthrange
+from datetime import datetime, timezone
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
@@ -110,6 +113,47 @@ class BacktestResult:
 
 class BacktestRunner:
     """Executes walk-forward backtests with explicit cost, lot-size, and execution rules."""
+
+    @staticmethod
+    def select_history(candles: list[dict], query: str, *, listing_date: str = "", now: datetime | None = None) -> list[dict]:
+        if not isinstance(candles, list):
+            return []
+        now = now or datetime.now(timezone.utc)
+        start = datetime.fromisoformat(listing_date).replace(tzinfo=timezone.utc) if listing_date else datetime.min.replace(tzinfo=timezone.utc)
+        end = now
+        lower = query.lower()
+        years = re.search(r"\b(\d+)\s+tahun\b", lower)
+        interval = re.search(r"dari\s+(\d{4})\s+sampai\s+(\d{4})", lower)
+        if interval:
+            if not 1 <= int(interval[1]) <= int(interval[2]) < 9999:
+                return []
+            start = max(start, datetime(int(interval[1]), 1, 1, tzinfo=timezone.utc))
+            end = min(end, datetime(int(interval[2]) + 1, 1, 1, tzinfo=timezone.utc))
+        elif years:
+            year = max(1, now.year - min(int(years[1]), 100))
+            start = max(start, datetime(year, now.month, min(now.day, monthrange(year, now.month)[1]), tzinfo=timezone.utc))
+        elif re.search(r"\bytd\b", lower):
+            start = max(start, datetime(now.year, 1, 1, tzinfo=timezone.utc))
+        selected = []
+        for bar in candles:
+            if not isinstance(bar, dict):
+                continue
+            raw = bar.get("open_at", bar.get("time"))
+            close = bar.get("close_at", bar.get("close_time", raw if bar.get("is_closed") is True else None))
+            try:
+                stamp = datetime.fromtimestamp(raw / 1000, timezone.utc) if isinstance(raw, (int, float)) else datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                closed = datetime.fromtimestamp(close / 1000, timezone.utc) if isinstance(close, (int, float)) else datetime.fromisoformat(close.replace("Z", "+00:00"))
+                if stamp.tzinfo is None or closed.tzinfo is None or not start <= stamp <= closed <= end or bar.get("is_closed") is False:
+                    continue
+                values = {k: float(bar[k]) for k in ("open", "high", "low", "close", "volume")}
+                if not all(math.isfinite(v) for v in values.values()) or any(values[k] <= 0 for k in ("open", "high", "low", "close")) or values["volume"] < 0:
+                    continue
+                if values["high"] < max(values["open"], values["close"], values["low"]) or values["low"] > min(values["open"], values["close"]):
+                    continue
+                selected.append({**bar, **values})
+            except (ValueError, TypeError, KeyError, AttributeError, OverflowError):
+                continue
+        return selected
 
     def __init__(
         self,

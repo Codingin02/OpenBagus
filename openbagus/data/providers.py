@@ -799,11 +799,13 @@ class ProviderRegistry:
                     key_hash = hashlib.sha256(k.encode()).hexdigest()
                     cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
                     status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
-                lines.append(f"  {p.display_name:<30} {status}")
+                state = "VALIDATED" if status == "VALID" else status
+                lines.append(f"  {p.display_name:<30} {'KEY_PRESENT | ' if k else ''}{state}")
             lines.append("")
 
         lines.append("Use '/providers --check' to run live reachability and credential checks.")
         lines.append("Use '/setup' to configure optional provider API keys.")
+        lines.append("PUBLIC / REACHABLE is not a verified market query; KEY_PRESENT is not VALIDATED. OPERATIONAL requires usable observations.")
         return "\n".join(lines)
 
     def coverage_summary(self) -> str:
