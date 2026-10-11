@@ -75,6 +75,7 @@ MODES = (
     "autonomy",
     "alerts",
     "delivery",
+    "integrations",
 )
 
 BANNER = r"""
@@ -1438,10 +1439,13 @@ class OpenBagusShell(cmd.Cmd):
         print("     /switch <asset>        switch active research focus")
         print("     /sources [on|off]      toggle display of verified data sources")
         print("  2. Native Terminal Visualization & Reports:")
-        print("     /chart [asset] [tf]    render native terminal candlestick & volume chart")
-        print("     /visualize [asset]     display native terminal chart with quantitative levels")
+        print("     /chart [asset] [tf]    interactive desktop chart (or '/chart terminal' for ANSI/Unicode)")
+        print("     /visualize [asset]     display interactive chart with quantitative levels")
+        print("     /export png [asset]    export publication-grade candlestick PNG to disk")
+        print("     /export pdf [asset]    export professional PDF quantitative report to disk")
+        print("     /export word [asset]   export native Microsoft Word (.docx) report with DrawingML")
         print("     /export html [asset]   export interactive HTML research report to disk")
-        print("     /export word [asset]   export native Microsoft Word (.docx) report to disk")
+        print("     /integrations          inspect status of optional TradingView MCP bridge & tools")
         print("  3. Indonesian Equities & Universe:")
         print("     /stocks [cmd]          explore full IDX universe (search, sector, info, ipo, fetch, sync)")
         print("     /data [import|fetch]   import authorized local CSV or fetch live online EOD")
@@ -1895,14 +1899,27 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_export(self, arg: str) -> None:
         parts = arg.strip().split(maxsplit=1)
-        if len(parts) != 2 or parts[0].lower() not in {"html", "word", "docx", "web"}:
-            print("Format: /export html <ticker> atau /export word <ticker>")
+        if len(parts) != 2 or parts[0].lower() not in {"html", "word", "docx", "web", "pdf", "png"}:
+            print("Format: /export html <ticker>, /export word <ticker>, /export pdf <ticker>, atau /export png <ticker>")
             return
         fmt, ticker = parts[0].lower(), parts[1].strip()
-        cmd = f"/report-word {ticker}" if fmt in {"word", "docx"} else f"/report-html {ticker}"
+        if fmt in {"word", "docx"}:
+            cmd = f"/report-word {ticker}"
+        elif fmt == "pdf":
+            cmd = f"/report pdf {ticker}"
+        elif fmt == "png":
+            cmd = f"/export png {ticker}"
+        else:
+            cmd = f"/report-html {ticker}"
         req = self.router.parse(cmd, session=self.session)
         res = self.researcher.execute(req, session=self.session)
         print(res)
+        print()
+
+    def do_integrations(self, _arg: str) -> None:
+        from openbagus.integrations.tradingview_mcp import TradingViewMCPClient, format_integrations_view
+        client = TradingViewMCPClient(root=REPO_ROOT)
+        print(format_integrations_view(client.status()))
         print()
 
     def do_status(self, _arg: str) -> None:
@@ -2292,6 +2309,11 @@ def main(argv: list[str] | None = None) -> int:
         if args.mode == "delivery":
             sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
             return _run_delivery(sub_args)
+        if args.mode == "integrations":
+            from openbagus.integrations.tradingview_mcp import TradingViewMCPClient, format_integrations_view
+            client = TradingViewMCPClient(root=REPO_ROOT)
+            print(format_integrations_view(client.status()))
+            return 0
         return _run_pipeline(args)
 
     query_text = " ".join(arguments)
@@ -2305,7 +2327,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
         "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART",
-        "CACHE_COMMAND", "PRIVACY_COMMAND", "RESET_COMMAND", "VISUALIZE", "BACKTEST", "REPORT_WORD", "REPORT_HTML"
+        "CACHE_COMMAND", "PRIVACY_COMMAND", "RESET_COMMAND", "VISUALIZE", "BACKTEST", "REPORT_WORD", "REPORT_HTML",
+        "REPORT_PDF", "EXPORT_PNG", "INTEGRATIONS"
     ):
         result = researcher.execute(req, session=session)
         if session.is_persistence_enabled():

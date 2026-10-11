@@ -68,6 +68,9 @@ ALLOWED_INTENTS = (
     "BACKTEST",
     "REPORT_WORD",
     "REPORT_HTML",
+    "REPORT_PDF",
+    "EXPORT_PNG",
+    "INTEGRATIONS",
     "EQUITY_OWNERSHIP",
     "FIAT_FX",
     "CALCULATOR",
@@ -107,6 +110,9 @@ REQUEST_TYPES = (
     "BACKTEST",
     "REPORT_WORD",
     "REPORT_HTML",
+    "REPORT_PDF",
+    "EXPORT_PNG",
+    "INTEGRATIONS",
     "EQUITY_OWNERSHIP",
     "EQUITY_ANALYSIS",
     "EQUITY_QUOTE",
@@ -218,6 +224,7 @@ class SessionState:
     last_commodity: str | None = None
     last_operation: str = ""
     last_backtest_asset: str | None = None
+    last_backtest_result: Any | None = None
 
     session_id: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("session_%Y%m%d_%H%M%S"))
 
@@ -890,11 +897,31 @@ class IntentRouter:
         if re.search(r"\b(?:nikel|nickel)\b", lower) and not any(self.assets.equities.resolve(w) for w in text.split()):
             return IntentRequest("COMMODITY", "COMMODITY", raw_query=text, focus="nickel", topic="commodity")
         chart = re.search(r"\b(?:chart(?:nya)?|grafik(?:nya)?|visualize|visualisasi|hart)\b", lower)
-        operation = re.search(r"\b(?:backtest|report|laporan|ownership)\b", lower)
+        operation = re.search(r"\b(?:backtest|report|laporan|ownership|kepemilikan|pemegang\s+saham|equity\s+curve|export|ekspor)\b", lower)
         if chart or operation:
-            kind = "VISUALIZE" if re.search(r"visualize|visualisasi", lower) else "CHART"
-            if operation and not chart:
-                kind = "BACKTEST" if "backtest" in lower else ("EQUITY_OWNERSHIP" if "ownership" in lower else ("REPORT_WORD" if re.search(r"word|docx", lower) else "REPORT_HTML"))
+            is_terminal = bool(re.search(r"\b(?:terminal|cepat)\b", lower))
+            focus_mode = "terminal" if is_terminal else "interactive"
+            if re.search(r"\b(?:ownership|kepemilikan|pemegang\s+saham)\b", lower):
+                kind = "EQUITY_OWNERSHIP"
+                focus_mode = "chart" if chart else "table"
+            elif re.search(r"\b(?:equity\s+curve)\b", lower):
+                kind = "BACKTEST"
+                focus_mode = "equity_curve"
+            elif re.search(r"\b(?:report\s+word|laporan\s+word|word|docx)\b", lower):
+                kind = "REPORT_WORD"
+            elif re.search(r"\b(?:report\s+pdf|laporan\s+pdf|pdf)\b", lower):
+                kind = "REPORT_PDF"
+            elif re.search(r"\b(?:export\s+png|ekspor\s+png|png)\b", lower):
+                kind = "EXPORT_PNG"
+            elif re.search(r"\b(?:report\s+html|laporan\s+html)\b", lower):
+                kind = "REPORT_HTML"
+            elif re.search(r"visualize|visualisasi", lower):
+                kind = "VISUALIZE"
+                focus_mode = "interactive"
+            elif operation and not chart:
+                kind = "BACKTEST" if "backtest" in lower else "REPORT_HTML"
+            else:
+                kind = "CHART"
             fx_aliases = {"dolar": "usd", "dollar": "usd", "rupiah": "idr", "euro": "eur", "yen": "jpy", "sterling": "gbp"}
             currencies = [fx_aliases.get(w, w) for w in re.findall(r"\b(?:usd|idr|eur|jpy|gbp|dolar|dollar|rupiah|euro|yen|sterling)\b", lower)]
             target = None
@@ -906,6 +933,9 @@ class IntentRouter:
             topic = "/".join(c.upper() for c in currencies[:2]) if len(currencies) >= 2 else ""
             if not topic and "jisdor" in lower:
                 topic = "USD/IDR"
+            if topic and chart:
+                kind = "FIAT_FX"
+                focus_mode = "chart"
             explicit_unknown = re.search(r"(?:chart|grafik|visualize|visualisasi|backtest)\s+(?:external\s+)?([a-z][a-z0-9]*)\b", lower)
             explicit_unknown = bool(explicit_unknown and explicit_unknown[1] not in COMPREHENSIVE_STOP_WORDS and not target and not topic)
             if not target and not topic and session and not explicit_unknown:
@@ -917,7 +947,7 @@ class IntentRouter:
             tf, _ = _parse_timeframe(text, default_tf=default_tf)
             return IntentRequest(kind, kind, asset=target.symbol if target else None,
                 asset_type=target.asset_type if target else "CRYPTO", asset_id=target.id if target else None,
-                focus=topic or "general", topic="fx" if "/" in topic else ("commodity" if topic else None),
+                focus=topic or focus_mode, topic="fx" if "/" in topic else ("commodity" if topic else None),
                 timeframe=tf, raw_query=text, needs_asset=not bool(target or topic),
                 clarification_prompt="Instrumen mana yang ingin ditampilkan? Gunakan ticker terverifikasi atau USD IDR.")
         if session and session.last_operation == "BACKTEST" and re.search(r"all time|sejak (?:ipo|listing)|\d+ tahun|\bytd\b|dari \d{4} sampai \d{4}", lower):
@@ -1284,14 +1314,16 @@ class IntentRouter:
             if cmd.startswith("sources"):
                 act = "show_sources" if any(x in cmd for x in ("on", "1", "show")) else "hide_sources"
                 return IntentRequest(intent="PREFERENCE", request_type="PREFERENCE", preference_action=act, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("integrations"):
+                return IntentRequest(intent="SYSTEM_INFO", request_type="INTEGRATIONS", raw_query=text)
             if cmd.startswith("chart"):
                 chart_arg = cmd.replace("chart", "", 1).strip()
-                if chart_arg:
-                    a_obj, _ = self.assets.resolve_asset(chart_arg)
-                    if a_obj:
-                        return IntentRequest(intent="CHART", request_type="CHART", asset=a_obj.symbol, timeframe=detected_tf, raw_query=text)
-                target_sym = session.last_asset if (session and session.last_asset) else "BTC"
-                return IntentRequest(intent="CHART", request_type="CHART", asset=target_sym, timeframe=detected_tf, raw_query=text)
+                is_terminal = "terminal" in chart_arg.lower() or "cepat" in chart_arg.lower()
+                clean_arg = chart_arg.replace("terminal", "").replace("cepat", "").strip()
+                target_sym = clean_arg or (session.last_asset if (session and session.last_asset) else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_sym)
+                sym = a_obj.symbol if a_obj else target_sym.upper()
+                return IntentRequest(intent="CHART", request_type="CHART", asset=sym, focus="terminal" if is_terminal else "interactive", timeframe=detected_tf, raw_query=text)
             if cmd.startswith("visualize"):
                 v_arg = cmd.replace("visualize", "", 1).strip()
                 target_v = v_arg or (session.last_asset if session else "BTC")
@@ -1310,6 +1342,18 @@ class IntentRouter:
                 a_obj, _ = self.assets.resolve_asset(target_r)
                 sym = a_obj.symbol if a_obj else target_r.upper()
                 return IntentRequest(intent="REPORT_WORD", request_type="REPORT_WORD", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("report pdf"):
+                r_arg = cmd.replace("report pdf", "", 1).strip()
+                target_r = r_arg or (session.last_asset if session else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_r)
+                sym = a_obj.symbol if a_obj else target_r.upper()
+                return IntentRequest(intent="REPORT_PDF", request_type="REPORT_PDF", asset=sym, timeframe=detected_tf, raw_query=text)
+            if cmd.startswith("export png") or cmd.startswith("export"):
+                e_arg = cmd.replace("export png", "", 1).replace("export", "", 1).strip()
+                target_e = e_arg or (session.last_asset if session else "BTC")
+                a_obj, _ = self.assets.resolve_asset(target_e)
+                sym = a_obj.symbol if a_obj else target_e.upper()
+                return IntentRequest(intent="EXPORT_PNG", request_type="EXPORT_PNG", asset=sym, timeframe=detected_tf, raw_query=text)
             if cmd.startswith("report html") or cmd.startswith("report"):
                 r_arg = cmd.replace("report html", "", 1).replace("report", "", 1).strip()
                 target_r = r_arg or (session.last_asset if session else "BTC")

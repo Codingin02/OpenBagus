@@ -268,6 +268,15 @@ def run_equity_research(runner, req, session=None) -> str:
         own = load_ownership(asset.symbol, runner.root)
         if not own:
             return f"SOURCE GAP: Data kepemilikan terverifikasi untuk {asset.symbol} belum tersedia. Impor data KSEI/IDX."
+        if getattr(req, "focus", "") == "chart" or "grafik" in req.raw_query.lower() or "chart" in req.raw_query.lower():
+            if not own.top_shareholders or own.public_shareholders_pct <= 0:
+                return f"{asset.symbol}: Rincian pemegang saham tidak memiliki klasifikasi atau pembagi yang valid; tidak membuat grafik kepemilikan buatan."
+            try:
+                from openbagus.reporting.static_charts import render_ownership_pie_png
+                png_path = render_ownership_pie_png(own, asset.symbol)
+                return f"Visualisasi komposisi kepemilikan saham {own.issuer} ({asset.symbol}) berhasil diekspor ke PNG:\n{png_path}\n(Memuat porsi pemegang saham utama dan free float publik terverifikasi)"
+            except Exception as err:
+                return f"{asset.symbol}: Gagal membuat grafik kepemilikan: {err}"
         lines = [
             f"Struktur Kepemilikan Saham: {own.issuer} ({own.ticker})",
             f"Periode Pelaporan: {own.reporting_date} | Publikasi: {own.publication_date}",
@@ -286,8 +295,6 @@ def run_equity_research(runner, req, session=None) -> str:
         return "\n".join(lines)
     if req.request_type == "BACKTEST":
         from openbagus.domains.quant.backtesting import BacktestRunner
-        from openbagus.reporting.visualizer import generate_html_report
-        import webbrowser
         candles = BacktestRunner.select_history(data.get("candles", []), req.raw_query, listing_date=asset.listing_date)
         if data.get("timeframe") and data["timeframe"] != req.timeframe:
             return f"{asset.id}: data tersedia {data['timeframe']}, bukan {req.timeframe}; impor timeframe yang sesuai."
@@ -302,10 +309,17 @@ def run_equity_research(runner, req, session=None) -> str:
             sell_fee=float(data.get("fees", {}).get("sell", 0.0025)),
         )
         bt_res = bt_runner.run(asset.symbol, candles, timeframe=req.timeframe)
+        if session:
+            session.last_backtest_result = bt_res
+            session.last_backtest_asset = asset.symbol
+        if getattr(req, "focus", "") == "equity_curve" or "equity curve" in req.raw_query.lower():
+            from openbagus.reporting.static_charts import render_equity_curve_png
+            png_path = render_equity_curve_png(bt_res, asset.symbol)
+            return f"{bt_res.summary_table()}\n\nGrafik Equity Curve berhasil diekspor ke:\n{png_path}"
         return bt_res.summary_table()
     if req.request_type == "FOLLOW_UP" and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol:
         return _render_equity_followup(runner, session, asset, session.last_research_packet, session.last_quant_result, req.raw_query)
-    if req.request_type in ("VISUALIZE", "REPORT_HTML", "REPORT_WORD") and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol and session.last_quant_result:
+    if req.request_type in ("VISUALIZE", "CHART", "REPORT_HTML", "REPORT_WORD", "REPORT_PDF", "EXPORT_PNG") and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol and session.last_quant_result:
         q = session.last_quant_result
         packet = session.last_research_packet
     else:
@@ -405,12 +419,44 @@ def run_equity_research(runner, req, session=None) -> str:
                                                   language=session.language if session else "ID",
                                                   show_sources=session.show_sources if session else False)
     if req.request_type in ("VISUALIZE", "CHART"):
-        from openbagus.reporting.terminal_chart import render_terminal_chart
         candles = data.get("candles", [])
-        if candles:
+        if not candles:
+            output = f"{asset.id} ({asset.name}): belum ada OHLCV untuk visualisasi native. " + EquityData.import_guidance(asset.symbol)
+        elif getattr(req, "focus", "") == "terminal":
+            from openbagus.reporting.terminal_chart import render_terminal_chart
             output = render_terminal_chart(asset.symbol, candles, timeframe=req.timeframe, currency="IDR", quant_result=q)
         else:
-            output = f"{asset.id} ({asset.name}): belum ada OHLCV untuk visualisasi native. " + EquityData.import_guidance(asset.symbol)
+            from openbagus.reporting.interactive_chart import launch_interactive_chart
+            res = launch_interactive_chart(
+                symbol=asset.symbol,
+                candles=candles,
+                timeframe=req.timeframe,
+                quant_result=q,
+                root=runner.root,
+                blocking=False,
+            )
+            output = res["message"]
+        packet.narrative = output
+    elif req.request_type == "EXPORT_PNG":
+        candles = data.get("candles", [])
+        if not candles:
+            output = f"{asset.id}: Tidak ada data candle OHLCV untuk ekspor PNG."
+        else:
+            from openbagus.reporting.static_charts import render_candlestick_png
+            png_path = render_candlestick_png(
+                symbol=asset.symbol,
+                candles=candles,
+                timeframe=req.timeframe,
+                quant_result=q,
+            )
+            output = f"Grafik Candlestick publikasi {asset.symbol} ({req.timeframe}) berhasil diekspor ke PNG:\n{png_path}"
+        packet.narrative = output
+    elif req.request_type == "REPORT_PDF":
+        from openbagus.domains.equities.ownership import load_ownership
+        from openbagus.reporting.pdf import generate_pdf_report
+        own = load_ownership(asset.symbol, runner.root)
+        pdf_path = generate_pdf_report(asset.symbol, q, packet, own, root=runner.root, timeframe=req.timeframe)
+        output = f"Laporan PDF profesional {asset.symbol} ({req.timeframe}) berhasil diekspor ke:\n{pdf_path}\n\n(Telah dilengkapi chart statis beresolusi tinggi, tabel metrik, dan disclaimer kepatuhan)"
         packet.narrative = output
     elif req.request_type == "REPORT_HTML":
         from openbagus.domains.equities.ownership import load_ownership

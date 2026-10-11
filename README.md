@@ -73,7 +73,14 @@ Feedback is **OFF by default** and separate from cloud consent. After opting in 
 
 `/improve status`, `/improve off`, `/improve clear` and `/improve export` let you inspect, stop, delete or review a local export. Nothing is automatically submitted to GitHub or a telemetry service. Session context is ephemeral adaptation, not model training.
 
-Read [Privacy](PRIVACY.md), [Security](SECURITY.md), and [Contributing](CONTRIBUTING.md). Secrets, models, reports, cache, feedback and chat history must not be committed.
+## Open-Source Integrations & Hybrid Visualization
+
+OpenBagus maintains a terminal-first workstation experience with an optional hybrid visual layer:
+- **Terminal Charts**: Instant zero-dependency ANSI/Unicode candlesticks directly in CLI (`/chart terminal <ticker>`).
+- **Interactive Desktop Window**: GPU-accelerated pan/zoom desktop charts via TradingView Lightweight Charts v4 (`/chart <ticker>`).
+- **Publication PNGs**: Publication-ready charts via headless Matplotlib Agg and `mplfinance` (`/export png <ticker>`, `grafik kepemilikan <ticker>`, `grafik usd idr 1 tahun`).
+- **Executive Documents**: Native vector PDF reports (`/report pdf <ticker>`) and editable Microsoft Word packages (`/report word <ticker>`).
+- **TradingView MCP Bridge**: Optional stdio JSON-RPC client (`/integrations`) connecting to local TradingView MCP tooling with zero impact on CLI startup.
 
 ## License
 

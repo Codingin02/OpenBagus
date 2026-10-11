@@ -123,7 +123,7 @@ class CryptoResearchRunner:
     def execute(self, req: IntentRequest, session: SessionState | None = None) -> str:
         if req.needs_asset:
             return req.clarification_prompt or "Instrumen belum jelas; sebutkan ticker atau pasangan mata uang yang dimaksud."
-        if req.request_type in {"CHART", "VISUALIZE", "REPORT_HTML"} and req.topic in {"fx", "commodity"}:
+        if req.request_type in {"CHART", "VISUALIZE", "REPORT_HTML", "FIAT_FX"} and req.topic in {"fx", "commodity"}:
             if req.topic == "commodity":
                 return "Nikel: seri historis dengan benchmark, mata uang dan satuan belum tersedia; chart BMRI tidak digunakan. Pilih LME atau referensi Indonesia dan impor data berizin."
             base, quote = req.focus.split("/")
@@ -133,10 +133,23 @@ class CryptoResearchRunner:
                 session.last_operation = "CHART"
             if len(points) < 2:
                 return f"{base}/{quote}: history kurs referensi Frankfurter belum tersedia (minimal 2 tanggal). Tidak membuat chart dari satu titik."
+            if getattr(req, "focus", "") == "chart" or "grafik" in req.raw_query.lower() or "png" in req.raw_query.lower():
+                from openbagus.reporting.static_charts import render_macro_line_png
+                png_path = render_macro_line_png(
+                    title=f"Kurs Referensi Harian {base}/{quote}",
+                    points=points,
+                    series_label=f"{quote} per {base}",
+                    currency=quote,
+                    source="https://frankfurter.dev/",
+                )
+                return f"Grafik tren kurs referensi {base}/{quote} berhasil diekspor ke PNG:\n{png_path}\nPeriode {points[0]['date']} - {points[-1]['date']} ({len(points)} observasi; Frankfurter)"
             from openbagus.reporting.visualizer import generate_html_report
             path = generate_html_report(f"{base}_{quote}", root=self.root, timeframe="D1", line_series=points,
                 currency=quote, source="https://frankfurter.dev/", series_label=f"{quote} per {base}; kurs referensi harian, bukan harga FX intraday")
-            webbrowser.open(path.as_uri())
+            try:
+                webbrowser.open(path.as_uri())
+            except Exception:
+                pass
             return f"Chart lokal {base}/{quote}: {path}\nPeriode {points[0]['date']} - {points[-1]['date']} ({len(points)} observasi); Frankfurter, kurs referensi harian."
         if req.request_type in {"CONVERSATION", "FEEDBACK"}:
             q = session.last_quant_result if session else None
@@ -209,9 +222,21 @@ class CryptoResearchRunner:
             candles, valid = self.quant._closed_candles(candles)
             if not candles or not valid:
                 return f"{req.asset}: OHLCV closed-bar yang valid belum tersedia untuk chart native {req.timeframe}. Gunakan /chart external {req.asset} untuk situs eksternal."
-            from openbagus.reporting.terminal_chart import render_terminal_chart
             q = session.last_quant_result if (session and session.last_quant_result and session.last_asset == req.asset) else None
-            return render_terminal_chart(req.asset, candles, timeframe=req.timeframe, currency="USD", quant_result=q)
+            if getattr(req, "focus", "") == "terminal":
+                from openbagus.reporting.terminal_chart import render_terminal_chart
+                return render_terminal_chart(req.asset, candles, timeframe=req.timeframe, currency="USD", quant_result=q)
+            else:
+                from openbagus.reporting.interactive_chart import launch_interactive_chart
+                res = launch_interactive_chart(
+                    symbol=req.asset,
+                    candles=candles,
+                    timeframe=req.timeframe,
+                    quant_result=q,
+                    root=self.root,
+                    blocking=False,
+                )
+                return res["message"]
         if session and session.last_research_packet:
             packet = session.last_research_packet
             session.research_history[packet.asset] = {"packet": packet, "quant": session.last_quant_result,
@@ -219,16 +244,9 @@ class CryptoResearchRunner:
                 "at": session.last_research_at}
             if len(session.research_history) > 4:
                 session.research_history.pop(next(iter(session.research_history)))
-        if req.request_type == "CHART" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "") and "external" not in req.raw_query.lower():
-            asset = self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "")
-            from openbagus.domains.equities.data import EquityData
-            from openbagus.reporting.terminal_chart import render_terminal_chart
-            data = EquityData(self.root).load(asset.symbol, auto_fetch=True)
-            candles = data.get("candles", [])
-            if candles:
-                q = session.last_quant_result if (session and session.last_quant_result and session.last_asset == asset.symbol) else None
-                return render_terminal_chart(asset.symbol, candles, timeframe=req.timeframe, currency="IDR", quant_result=q)
-            return f"{asset.id}: belum ada OHLCV terverifikasi untuk chart native. " + EquityData.import_guidance(asset.symbol)
+        if req.request_type in ("CHART", "VISUALIZE") and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or "") and "external" not in req.raw_query.lower():
+            from openbagus.domains.equities.research import run_equity_research
+            return run_equity_research(self, req, session)
         if req.request_type == "COMPARE" and any(self.assets.equities.resolve(a) for a in req.target_assets):
             pieces = []
             for symbol in req.target_assets[:2]:
@@ -408,18 +426,44 @@ class CryptoResearchRunner:
                 return "SOURCE GAP: harga crypto belum tersedia."
             return (f"{req.amount:g} {req.asset} = {_fmt_price(req.amount * ticker['price'])}\n"
                     f"Updated: {ticker.get('observed_at', 'DATA GAP')}\nSource: {ticker.get('provider', 'SOURCE GAP')}")
-        if req.request_type == "EQUITY_OWNERSHIP":
+        if req.request_type == "INTEGRATIONS":
+            from openbagus.integrations.tradingview_mcp import TradingViewMCPClient, format_integrations_view
+            client = TradingViewMCPClient(root=self.root)
+            status = client.status()
+            return format_integrations_view(status)
+        if req.request_type in ("EQUITY_OWNERSHIP", "REPORT_WORD", "REPORT_PDF", "EXPORT_PNG", "BACKTEST", "VISUALIZE", "REPORT_HTML") and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
             from openbagus.domains.equities.research import run_equity_research
             return run_equity_research(self, req, session)
-        if req.request_type in ("VISUALIZE", "REPORT_HTML") and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
-            from openbagus.domains.equities.research import run_equity_research
-            return run_equity_research(self, req, session)
-        if req.request_type == "REPORT_WORD" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
-            from openbagus.domains.equities.research import run_equity_research
-            return run_equity_research(self, req, session)
-        if req.request_type == "BACKTEST" and self.assets.equities.resolve(req.asset or (session.last_asset if session else "") or ""):
-            from openbagus.domains.equities.research import run_equity_research
-            return run_equity_research(self, req, session)
+        if req.request_type == "EXPORT_PNG":
+            target = req.asset or (session.last_asset if session else "BTC")
+            tf = req.timeframe or (session.timeframe if session else "H1")
+            candles = (self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h")) or {}).get("klines") or []
+            candles, valid = self.quant._closed_candles(candles)
+            if not candles or not valid:
+                return f"{target}: Tidak ada data closed-bar OHLCV valid untuk ekspor PNG."
+            q = session.last_quant_result if (session and session.last_quant_result and session.last_asset == target) else None
+            from openbagus.reporting.static_charts import render_candlestick_png
+            png_path = render_candlestick_png(
+                symbol=target,
+                candles=candles,
+                timeframe=tf,
+                quant_result=q,
+            )
+            return f"Grafik Candlestick publikasi {target} ({tf}) berhasil diekspor ke PNG:\n{png_path}"
+        if req.request_type == "REPORT_PDF":
+            target = req.asset or (session.last_asset if session else "BTC")
+            tf = req.timeframe or (session.timeframe if session else "H1")
+            if session and session.last_research_packet and session.last_research_packet.asset == target and session.last_quant_result:
+                q = session.last_quant_result
+                packet = session.last_research_packet
+            else:
+                ticker = self.zerokey.get_spot_ticker(target)
+                candles = self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h")).get("klines") or []
+                q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
+                packet = None
+            from openbagus.reporting.pdf import generate_pdf_report
+            pdf_path = generate_pdf_report(target, quant_result=q, packet=packet, root=self.root, timeframe=tf)
+            return f"Laporan PDF profesional {target} ({tf}) berhasil dibuat:\n{pdf_path}\n(Mencakup metrik quant, risk guardrails, dan data governance)"
         if req.request_type in ("VISUALIZE", "REPORT_HTML"):
             target = req.asset or (session.last_asset if session else "BTC")
             tf = req.timeframe or (session.timeframe if session else "H1")
@@ -435,10 +479,6 @@ class CryptoResearchRunner:
             if not candles:
                 return f"{target}: OHLCV terverifikasi belum tersedia untuk visualisasi {tf}; tidak membuat chart kosong."
             html_path = generate_html_report(target, candles, quant_result=q, root=self.root, timeframe=tf, currency="USD")
-            try:
-                webbrowser.open(html_path.as_uri())
-            except Exception:
-                pass
             return f"Laporan visualisasi interaktif {target} ({tf}) berhasil dibuat:\n{html_path}\n(Candlestick, Radar Multi-Factor, Hierarchical Sunburst, Correlation Heatmap)"
         if req.request_type == "REPORT_WORD":
             target = req.asset or (session.last_asset if session else "BTC")
@@ -461,14 +501,17 @@ class CryptoResearchRunner:
                 return f"SOURCE GAP: Data OHLCV historis {target} ({len(candles)} bar) tidak mencukupi untuk backtest (minimal 25 bar)."
             bt_runner = BacktestRunner(initial_capital=10_000.0, asset_type="CRYPTO", buy_fee=0.0005, sell_fee=0.0005, lot_size=1)
             bt_res = bt_runner.run(target, candles, timeframe=tf)
+            if session:
+                session.last_backtest_result = bt_res
+                session.last_backtest_asset = target
+            if getattr(req, "focus", "") == "equity_curve" or "equity curve" in req.raw_query.lower():
+                from openbagus.reporting.static_charts import render_equity_curve_png
+                png_path = render_equity_curve_png(bt_res, target)
+                return f"{bt_res.summary_table()}\n\nGrafik Equity Curve berhasil diekspor ke:\n{png_path}"
             ticker = self.zerokey.get_spot_ticker(target)
             q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.visualizer import generate_html_report
             html_path = generate_html_report(target, candles, quant_result=q, backtest_result=bt_res, root=self.root, timeframe=tf, currency="USD")
-            try:
-                webbrowser.open(html_path.as_uri())
-            except Exception:
-                pass
             return bt_res.summary_table() + f"\n\nLaporan visual backtest disimpan di:\n{html_path}"
         if req.request_type == "COMMAND":
             from openbagus import cli
