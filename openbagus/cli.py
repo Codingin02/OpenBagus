@@ -32,6 +32,7 @@ from openbagus.delivery.mailbox import EMAIL_CONFIRMATION_PHRASE, SmtpConfig, Sm
 from openbagus.delivery.runner import run_final_delivery
 from openbagus.delivery.safety import scan_payload
 from openbagus.domains.crypto.catalog import CryptoAssetCatalog, TAXONOMY_CATEGORIES
+from openbagus.domains.crypto.quant import QuantEngine
 from openbagus.domains.crypto.research import CryptoResearchRunner
 from openbagus.domains.equities.catalog import EquityCatalog, SECTORS, source_url
 from openbagus.domains.equities.data import EquityData
@@ -1472,12 +1473,15 @@ class OpenBagusShell(cmd.Cmd):
             print(f"Total Instrumen: {total} (Saham Emiten: {eq_count}, Indeks/ETF: {idx_count})")
             print(f"Katalog Sumber: {catalog.path} (Resmi Terverifikasi)")
             print("Perintah yang tersedia:")
-            print("  /stocks search <query>    - Cari saham berdasarkan ticker, nama, atau industri")
-            print("  /stocks sector <sektor>   - Filter emiten berdasarkan sektor IDX-IC (A-K / nama)")
-            print("  /stocks info <ticker>     - Profil lengkap emiten dan tanggal pencatatan")
-            print("  /stocks ipo               - Daftar IPO terbaru (2024-2025)")
-            print("  /stocks fetch <ticker>    - Ambil data harga EOD terkini ke penyimpanan lokal")
-            print("  /stocks sync              - Sinkronkan katalog dengan universe resmi")
+            print("  /stocks search <query>             - Cari saham berdasarkan ticker, nama, atau industri")
+            print("  /stocks sector <sektor>            - Filter emiten berdasarkan sektor IDX-IC (A-K / nama)")
+            print("  /stocks info <ticker>              - Profil lengkap emiten dan tanggal pencatatan")
+            print("  /stocks ipo                        - Daftar IPO terbaru (2024-2025)")
+            print("  /stocks fetch <ticker>             - Ambil data harga EOD terkini ke penyimpanan lokal")
+            print("  /stocks sync                       - Sinkronkan katalog dengan universe resmi")
+            print("  /stocks compare <t1> <t2> ...      - Bandingkan beberapa saham berdampingan")
+            print("  /stocks screen <metric> <op> <val> - Screening saham berdasarkan rasio / metrik")
+            print("  /stocks import-catalog <path>      - Impor file resmi IDX/KSEI (CSV/JSON)")
             print()
             sample = [a for a in catalog.assets if a.symbol in {"BBCA", "BBRI", "BMRI", "TLKM", "ASII", "ANTM", "RATU", "GOTO", "BRIS", "ADRO"}]
             print(render_stocks_table(sample, title="Contoh Emiten Terverifikasi"))
@@ -1533,7 +1537,7 @@ class OpenBagusShell(cmd.Cmd):
                 return
             store = EquityData(REPO_ROOT)
             print(f"Mengambil data harga EOD untuk {subarg.upper()}...")
-            data = store.fetch_live_data(subarg.upper(), range_str="1y", save=True)
+            data = store.fetch_live_data(subarg.upper(), range_str="5y", save=True)
             if data.get("gaps"):
                 print(f"Gagal mengambil data: {data['gaps'][0]}")
             else:
@@ -1542,6 +1546,124 @@ class OpenBagusShell(cmd.Cmd):
                 print(f"Berhasil mengunduh & memvalidasi {len(candles)} bar daily untuk {subarg.upper()}.")
                 print(f"Harga Terakhir: Rp{quote.get('price', 0):,.0f} | Tanggal: {quote.get('as_of', '-')}")
                 print(f"Tersimpan di: {store.directory / f'{subarg.upper()}.json'}")
+            print()
+        elif subcmd == "compare":
+            tickers = [t.strip().upper() for t in subarg.replace(",", " ").split() if t.strip()]
+            if len(tickers) < 2:
+                print("Format: /stocks compare <ticker1> <ticker2> [ticker3 ...]")
+                return
+            store = EquityData(REPO_ROOT)
+            policy = EquityMarketPolicy(REPO_ROOT)
+            quant = QuantEngine()
+            rows = []
+            for t in tickers:
+                data = store.load(t, auto_fetch=True)
+                q = quant.evaluate_equity(t, data, policy)
+                asset = catalog.resolve(t)
+                name = (asset.name if asset else t)[:25]
+                sec = asset.sector_code if asset else "-"
+                px = f"Rp{q.price:,.0f}" if q.price else "-"
+                regime = q.regime
+                decision = q.decision if q.price else q.decision_status
+                f = data.get("fundamentals", {})
+                r = f.get("ratios", {}) if isinstance(f, dict) else {}
+                per_str = f"{r['PER']:.1f}x" if r.get("PER") else "-"
+                pbv_str = f"{r['PBV']:.2f}x" if r.get("PBV") else "-"
+                roe_str = f"{r['ROE_pct']:.1f}%" if r.get("ROE_pct") else "-"
+                rows.append([t, name, sec, px, regime, per_str, pbv_str, roe_str, decision])
+            from openbagus.reporting.terminal_table import render_terminal_table
+            headers = ["Ticker", "Emiten", "Sektor", "Harga", "Regime", "PER", "PBV", "ROE", "Decision"]
+            print(render_terminal_table(headers, rows, title=f"Perbandingan Saham ({', '.join(tickers)})"))
+            print()
+        elif subcmd == "screen":
+            parts = subarg.strip().split()
+            if len(parts) != 3:
+                print("Format: /stocks screen <metric> <operator> <value>")
+                print("Contoh: /stocks screen roe > 15")
+                print("        /stocks screen pbv < 2")
+                print("        /stocks screen per < 15")
+                print("        /stocks screen price < 5000")
+                return
+            metric_name, op_str, target_val_str = parts[0].lower(), parts[1], parts[2]
+            try:
+                target_val = float(target_val_str)
+            except ValueError:
+                print(f"Nilai target '{target_val_str}' harus berupa angka.")
+                return
+            op_map = {
+                ">": lambda a, b: a > b,
+                ">=": lambda a, b: a >= b,
+                "<": lambda a, b: a < b,
+                "<=": lambda a, b: a <= b,
+                "=": lambda a, b: abs(a - b) < 1e-4,
+                "==": lambda a, b: abs(a - b) < 1e-4,
+            }
+            if op_str not in op_map:
+                print(f"Operator '{op_str}' tidak didukung. Gunakan >, >=, <, <=, =.")
+                return
+            cmp_fn = op_map[op_str]
+            store = EquityData(REPO_ROOT)
+            policy = EquityMarketPolicy(REPO_ROOT)
+            quant = QuantEngine()
+            matched_rows = []
+            for p in sorted(store.directory.glob("*.json")):
+                if p.name == "catalog.json" or p.name.startswith("rules"):
+                    continue
+                sym = p.stem.upper()
+                data = store.load(sym, auto_fetch=False)
+                if not data or data.get("gaps"):
+                    continue
+                q = quant.evaluate_equity(sym, data, policy)
+                asset = catalog.resolve(sym)
+                f = data.get("fundamentals", {})
+                r = f.get("ratios", {}) if isinstance(f, dict) else {}
+                val = None
+                if metric_name in {"price", "harga"}:
+                    val = q.price
+                elif metric_name in {"pe", "per"}:
+                    val = r.get("PER")
+                elif metric_name in {"pbv", "pb"}:
+                    val = r.get("PBV")
+                elif metric_name in {"roe", "roe_pct"}:
+                    val = r.get("ROE_pct")
+                elif metric_name in {"der", "debt_to_equity"}:
+                    val = r.get("Debt_to_Equity")
+                elif metric_name in {"npm", "net_margin"}:
+                    val = r.get("Net_Margin_pct")
+                elif metric_name in {"opm", "operating_margin"}:
+                    val = r.get("Operating_Margin_pct")
+                elif metric_name in {"car", "car_pct"}:
+                    val = r.get("CAR_pct")
+                elif metric_name in {"nim", "nim_pct"}:
+                    val = r.get("NIM_pct")
+
+                if val is not None and cmp_fn(val, target_val):
+                    name = (asset.name if asset else sym)[:25]
+                    sec = asset.sector_code if asset else "-"
+                    px = f"Rp{q.price:,.0f}" if q.price else "-"
+                    matched_rows.append([sym, name, sec, px, f"{val:.2f}", q.decision])
+
+            from openbagus.reporting.terminal_table import render_terminal_table
+            if matched_rows:
+                headers = ["Ticker", "Emiten", "Sektor", "Harga", f"{metric_name.upper()}", "Decision"]
+                print(render_terminal_table(headers, matched_rows, title=f"Hasil Screener: {metric_name.upper()} {op_str} {target_val}"))
+            else:
+                print(f"Tidak ada emiten lokal yang memenuhi kriteria {metric_name.upper()} {op_str} {target_val}.")
+            print()
+        elif subcmd in {"import-catalog", "import"}:
+            if not subarg:
+                print("Format: /stocks import-catalog <path_file_csv_atau_json>")
+                return
+            target_path = Path(subarg)
+            if not target_path.exists():
+                print(f"File tidak ditemukan: {target_path}")
+                return
+            try:
+                count = catalog.import_official_file(target_path)
+                print(f"Berhasil mengimpor {count} instrumen dari {target_path}.")
+                print(f"Katalog tersimpan di: {catalog.path}")
+            except Exception as e:
+                print(f"Gagal mengimpor katalog: {e}")
             print()
         else:
             print(f"Subcommand '/stocks {subcmd}' tidak dikenal. Gunakan /stocks untuk bantuan.")

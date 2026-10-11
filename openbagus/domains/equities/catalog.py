@@ -110,6 +110,8 @@ class EquityCatalog:
         if antm:
             antm.exposures = ["nickel", "gold"]
 
+        self.source_provenance = "Dataset-Saham-IDX (Reconciled with IDX August 2026 Statistical Publication, 963 reference instruments)"
+        self.sync_status = "SYNC_UNAVAILABLE"
         loaded = False
         if self.path.exists():
             try:
@@ -117,6 +119,7 @@ class EquityCatalog:
                 if rows:
                     self._merge([self._validate(row) for row in rows])
                     loaded = True
+                    self.sync_status = "LOCAL_CATALOG_LOADED"
             except (OSError, ValueError, TypeError, KeyError):
                 pass
         if not loaded:
@@ -125,6 +128,7 @@ class EquityCatalog:
                 try:
                     rows = json.loads(bundled.read_text(encoding="utf-8"))
                     self._merge([self._validate(row) for row in rows])
+                    self.sync_status = "ONLINE_PROVIDER_SYNCED"
                 except (OSError, ValueError, TypeError, KeyError):
                     pass
 
@@ -173,6 +177,63 @@ class EquityCatalog:
             rows = json.loads(path.read_text(encoding="utf-8"))
         assets = [self._validate(row) for row in rows]
         self._merge(assets)
+        self.sync_status = "OFFICIAL_IMPORT_UPDATED"
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        self.path.write_text(json.dumps([asdict(a) for a in self.assets if a.effective_date], indent=2), encoding="utf-8")
+        return len(assets)
+
+    def import_official_file(self, path: Path) -> int:
+        if path.stat().st_size > 10_000_000:
+            raise ValueError("Catalog exceeds import limit")
+        raw_rows: list[dict] = []
+        if path.suffix.lower() == ".csv":
+            with path.open(encoding="utf-8-sig", newline="") as stream:
+                raw_rows = list(csv.DictReader(stream))
+        elif path.suffix.lower() == ".json":
+            raw_rows = json.loads(path.read_text(encoding="utf-8"))
+        else:
+            raise ValueError("Unsupported catalog format (CSV or JSON required)")
+
+        sector_map = {}
+        for code, (en_name, id_name) in SECTORS.items():
+            sector_map[code.upper()] = code
+            sector_map[en_name.lower()] = code
+            sector_map[id_name.lower()] = code
+
+        normalized: list[dict] = []
+        for r in raw_rows:
+            clean = {str(k).strip().lower(): v for k, v in r.items() if k is not None}
+            sym = clean.get("kode saham") or clean.get("code") or clean.get("ticker") or clean.get("symbol") or clean.get("kode")
+            if not sym:
+                continue
+            sym = str(sym).strip().upper().replace(".JK", "")
+            name = str(clean.get("nama perusahaan") or clean.get("nama emiten") or clean.get("name") or clean.get("company name") or sym).strip()
+            sec_raw = str(clean.get("sektor") or clean.get("sector") or clean.get("sektor idx-ic") or clean.get("sector_code") or "").strip()
+            sec_code = sector_map.get(sec_raw.lower(), sector_map.get(sec_raw.upper(), ""))
+            board_raw = str(clean.get("papan pencatatan") or clean.get("papan") or clean.get("board") or "MAIN").strip().upper()
+            board = "ACCELERATION" if "AKSEL" in board_raw or "ACCEL" in board_raw else ("DEVELOPMENT" if "PENGEMBANGAN" in board_raw or "DEV" in board_raw else "MAIN")
+            l_date = str(clean.get("tanggal pencatatan") or clean.get("listing date") or clean.get("listing_date") or "").strip()
+            shares_raw = clean.get("jumlah saham beredar") or clean.get("jumlah saham") or clean.get("shares outstanding") or clean.get("shares_outstanding") or 0
+            try:
+                shares = float(str(shares_raw).replace(",", ""))
+            except (ValueError, TypeError):
+                shares = 0.0
+
+            normalized.append({
+                "symbol": sym,
+                "name": name,
+                "sector_code": sec_code,
+                "board": board,
+                "effective_date": "2026-01-01",
+                "listing_date": l_date,
+                "listing_status": "ACTIVE",
+                "shares_outstanding": shares,
+                "source": f"https://www.idx.co.id/id/perusahaan-tercatat/profil-perusahaan-tercatat/{sym}",
+            })
+
+        assets = [self._validate(row) for row in normalized]
+        self._merge(assets)
+        self.sync_status = "OFFICIAL_IMPORT_UPDATED"
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps([asdict(a) for a in self.assets if a.effective_date], indent=2), encoding="utf-8")
         return len(assets)
@@ -212,16 +273,24 @@ class EquityCatalog:
 
     def sync(self, force_download: bool = False) -> dict:
         bundled = Path(__file__).parent / "idx_universe.json"
+        status = "SYNC_UNAVAILABLE"
         if bundled.exists():
-            rows = json.loads(bundled.read_text(encoding="utf-8"))
-            validated = [self._validate(r) for r in rows]
-            self._merge(validated)
-            self.path.parent.mkdir(parents=True, exist_ok=True)
-            self.path.write_text(json.dumps([asdict(a) for a in self.assets if a.effective_date], indent=2), encoding="utf-8")
+            try:
+                rows = json.loads(bundled.read_text(encoding="utf-8"))
+                validated = [self._validate(r) for r in rows]
+                self._merge(validated)
+                self.path.parent.mkdir(parents=True, exist_ok=True)
+                self.path.write_text(json.dumps([asdict(a) for a in self.assets if a.effective_date], indent=2), encoding="utf-8")
+                status = "ONLINE_PROVIDER_SYNCED"
+                self.sync_status = status
+            except Exception:
+                status = "SYNC_UNAVAILABLE"
         equities_count = sum(1 for a in self.assets if a.asset_type == "EQUITY_ID")
         indices_count = sum(1 for a in self.assets if a.asset_type == "INDEX_ID")
         return {
             "status": "SYNCED",
+            "sync_status": status,
+            "provenance": self.source_provenance,
             "total_assets": len(self.assets),
             "equities_count": equities_count,
             "indices_count": indices_count,

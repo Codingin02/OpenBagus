@@ -10,21 +10,45 @@ from openbagus.domains.equities.policy import EquityMarketPolicy
 
 def equity_context(asset, query: str) -> str:
     lower = query.lower()
-    if asset.sector_code == "G":
-        return ("Penurunan BI-Rate dapat menurunkan biaya dana, tetapi repricing kredit juga dapat menekan NIM. "
-                "Dampaknya bergantung pada CASA, pertumbuhan kredit, kualitas aset dan valuasi masing-masing bank. "
-                "Bandingkan NIM/NPL/CAR yang benar-benar dilaporkan; arah harga saham tidak otomatis mengikuti suku bunga.")
     if any(word in lower for word in ("nikel", "nickel", "emas", "gold")) and asset.symbol == "ANTM":
         return ("ANTM memiliki eksposur nikel dan emas. Kenaikan harga komoditas berpotensi membantu pendapatan, "
                 "namun realisasi harga, volume produksi, biaya, royalti dan kurs menentukan transmisi ke margin. "
                 "Tanpa angka produksi/biaya dan valuasi terkini, belum ada dasar menyimpulkan harga saham akan naik.")
-    if asset.sector_code == "J":
-        return "Untuk infrastruktur/telekomunikasi, periksa pertumbuhan pendapatan, capex, utang dan arus kas; ARPU hanya jika dilaporkan."
-    if asset.sector_code in {"D", "E"}:
-        return "Daya beli, pertumbuhan penjualan, biaya bahan baku dan margin menjadi driver utama; sektor saja tidak membuktikan pricing power."
+    if asset.sector_code == "A":
+        return ("Untuk sektor energi/batubara/migas, transmisi laba didorong oleh harga acuan komoditas global "
+                "(Newcastle/Brent), volume produksi, cash cost per ton, stripping ratio, dan royalti progresif.")
+    if asset.sector_code == "B":
+        return ("Untuk barang baku/tambang logam/kimia, perhatikan siklus harga komoditas (emas/nikel/tembaga/pulp), "
+                "biaya energi smelter, kurs USD/IDR, serta margin pemrosesan hilirisasi.")
+    if asset.sector_code == "C":
+        return ("Untuk perindustrian/alat berat/otomotif, driver utama adalah volume penjualan unit (4W/2W/alat berat), "
+                "siklus belanja modal sektor tambang/konstruksi, serta efisiensi manufaktur.")
+    if asset.sector_code == "D":
+        return ("Untuk barang konsumen primer, perhatikan daya beli masyarakat, elastisitas harga, volatilitas bahan baku "
+                "(gandum, CPO, gula), kurs USD/IDR, serta kemampuan mempertahankan Gross & Operating Margin.")
+    if asset.sector_code == "E":
+        return ("Untuk konsumen non-primer/ritel/gaya hidup, driver utama adalah Same-Store-Sales-Growth (SSSG), "
+                "tingkat perputaran persediaan (inventory turnover), dan discretionary spending rumah tangga.")
+    if asset.sector_code == "F":
+        return ("Untuk kesehatan/farmasi/rumah sakit, driver mencakup Bed Occupancy Rate (BOR), Average Revenue Per Inpatient/Outpatient, "
+                "margin obat generik vs etikal, serta ketergantungan impor bahan baku obat (BBO).")
+    if asset.sector_code == "G":
+        return ("Penurunan BI-Rate dapat menurunkan biaya dana (CoF), tetapi repricing kredit juga dapat menekan NIM. "
+                "Dampaknya bergantung pada rasio CASA, pertumbuhan kredit, kualitas aset (NPL/LAR), dan kecukupan modal (CAR). "
+                "Bandingkan NIM/NPL/CAR yang benar-benar dilaporkan; arah harga saham tidak otomatis mengikuti suku bunga.")
+    if asset.sector_code == "H":
+        return ("Untuk properti & real estat, driver utama adalah realisasi marketing sales (pra-penjualan), sensitivitas suku bunga "
+                "KPR terhadap BI-Rate, recurring income (mall/hotel), serta Debt-to-Equity dan interest coverage emiten.")
     if asset.sector_code == "I":
-        return "Periksa kualitas pendapatan, cash burn, profitabilitas dan risiko dilusi; jangan memakai skor fundamental seragam."
-    return "Evaluasi permintaan, biaya input, arus kas dan margin sesuai bisnis emiten. Kebijakan/berita bukan pengganti harga pasar."
+        return ("Untuk sektor teknologi/platform digital, perhatikan pertumbuhan Gross Merchandise Value (GMV), take rate, "
+                "perbaikan Contribution Margin, efisiensi operasional, serta runway kas / cash burn menuju profitabilitas.")
+    if asset.sector_code == "J":
+        return ("Untuk infrastruktur & telekomunikasi, perhatikan pertumbuhan ARPU (Average Revenue Per User), trafik data, "
+                "rasio Capex-to-Revenue, struktur utang obligasi, dan yield arus kas bebas (FCF).")
+    if asset.sector_code == "K":
+        return ("Untuk transportasi & logistik, driver utama adalah tingkat utilisasi armada (fleet load factor), rasio biaya bahan bakar "
+                "terhadap pendapatan, tarif kontainer/freight rates, dan perputaran aset.")
+    return "Evaluasi permintaan, biaya input, arus kas dan margin sesuai model bisnis emiten. Kebijakan/berita bukan pengganti harga pasar."
 
 
 def render_equity(packet, quant, asset, query: str, *, language: str = "ID", show_sources: bool = False, narrative: str = "") -> str:
@@ -39,7 +63,7 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
             text.append(f"Laporan {packet.fundamentals['period']} ({packet.fundamentals['basis']}): " + "; ".join(f"{k} {v:,.3f}" for k, v in ratios.items()))
         else:
             text.append("Laporan keuangan bertanggal juga belum tersedia; rasio bank/valuasi tidak diestimasi.")
-        if re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold", query, re.I):
+        if re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold|prospek|sektor", query, re.I):
             text.append(equity_context(asset, query))
         text.append(EquityData.import_guidance(asset.symbol))
         text.append(f"Sumber identitas: {asset.source}; bukan sumber quote. Harga as-of: UNAVAILABLE.")
@@ -49,10 +73,10 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
         text.append(narrative)
     elif not follow or re.search(r"kenapa|why", query.lower()):
         text.append(quant.decision_reason)
-    if not narrative and re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold", query, re.I):
+    if not narrative and re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold|prospek|sektor", query, re.I):
         text.append(equity_context(asset, query))
     f = packet.fundamentals
-    val_query = bool(re.search(r"valuasi|fundamental|layak\s+beli|layak\s+investasi", query.lower()))
+    val_query = bool(re.search(r"valuasi|fundamental|layak\s+beli|layak\s+investasi|prospek", query.lower()))
     if val_query and f.get("ratios") and not narrative:
         r = f["ratios"]
         roe_val = r.get("ROE_pct")
@@ -61,6 +85,9 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
         car_val = r.get("CAR_pct")
         nim_val = r.get("NIM_pct")
         npl_val = r.get("NPL_gross_pct")
+        opm_val = r.get("Operating_Margin_pct")
+        npm_val = r.get("Net_Margin_pct")
+        der_val = r.get("Debt_to_Equity")
         eval_lines = [
             f"Analisis Valuasi & Fundamental {asset.symbol}:",
             f"Berdasarkan laporan {f.get('period_type', '')} {f.get('period', '')} ({f.get('basis', 'konsolidasi')}), rasio yang dilaporkan:",
@@ -70,13 +97,19 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
         if per_val is not None:
             eval_lines.append(f"  - Price to Earnings (PER): {per_val:.2f}x")
         if roe_val is not None:
-            eval_lines.append(f"ROE: {roe_val:.2f}%")
+            eval_lines.append(f"  - ROE: {roe_val:.2f}%")
+        if opm_val is not None:
+            eval_lines.append(f"  - Operating Margin: {opm_val:.2f}%")
+        if npm_val is not None:
+            eval_lines.append(f"  - Net Margin: {npm_val:.2f}%")
+        if der_val is not None:
+            eval_lines.append(f"  - Debt to Equity (DER): {der_val:.2f}x")
         if car_val is not None:
-            eval_lines.append(f"CAR: {car_val:.2f}%")
+            eval_lines.append(f"  - CAR: {car_val:.2f}%")
         if nim_val is not None:
-            eval_lines.append(f"NIM: {nim_val:.2f}%")
+            eval_lines.append(f"  - NIM: {nim_val:.2f}%")
         if npl_val is not None:
-            eval_lines.append(f"NPL Gross: {npl_val:.2f}%")
+            eval_lines.append(f"  - NPL Gross: {npl_val:.2f}%")
         eval_lines.append(f"Hasil Quant: {quant.decision_reason}; tidak menyimpulkan premi valuasi tanpa pembanding terverifikasi.")
         text.append("\n".join(eval_lines))
     elif f.get("ratios") and (not follow or re.search(r"fundamental|valuasi|rate|nikel|dampak", query.lower())):
@@ -112,7 +145,8 @@ def run_equity_research(runner, req, session=None) -> str:
     asset = runner.assets.equities.resolve(req.asset or "")
     if not asset:
         return "SOURCE GAP: IDX identity unverified."
-    data = EquityData(runner.root).load(asset.symbol)
+    auto_fetch = bool(re.search(r"\b(?:analisa|analyze|prospek|valuasi|valuation|bandingkan|compare|cek|fetch|gimana|bagaimana|review|outlook)\b", req.raw_query, re.I)) or req.request_type == "COMPARE"
+    data = EquityData(runner.root).load(asset.symbol, auto_fetch=auto_fetch)
     if req.request_type == "REPORT_WORD" and not data.get("quote") and not data.get("fundamentals"):
         return f"{asset.id}: belum ada observasi harga/laporan keuangan untuk report Word. " + EquityData.import_guidance(asset.symbol)
     if req.request_type in {"VISUALIZE", "REPORT_HTML"} and not data.get("candles"):

@@ -67,7 +67,7 @@ class EquityData:
                 return fetched
         return {"gaps": ["SOURCE GAP: impor harga/fundamental IDX berizin belum tersedia"]}
 
-    def fetch_live_data(self, symbol: str, range_str: str = "1y", save: bool = True) -> dict:
+    def fetch_live_data(self, symbol: str, range_str: str = "5y", save: bool = True) -> dict:
         sym = symbol.strip().upper()
         if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", sym):
             return {"gaps": ["INVALID_SYMBOL"]}
@@ -76,7 +76,7 @@ class EquityData:
             ticker = "^JKSE"
         elif sym.startswith("^"):
             ticker = sym
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range={range_str}&interval=1d"
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range={range_str}&interval=1d&events=div%2Csplit"
         headers = {"User-Agent": "OpenBagus/1.0 (Financial Terminal Research)"}
         try:
             import urllib.request
@@ -98,6 +98,7 @@ class EquityData:
             lows = quote_arr.get("low", [])
             closes = quote_arr.get("close", [])
             volumes = quote_arr.get("volume", [])
+            adj_arr = indicators.get("adjclose", [{}])[0].get("adjclose", []) if indicators.get("adjclose") else []
 
             now = datetime.now(timezone.utc)
             retrieved_at = now.isoformat()
@@ -111,11 +112,20 @@ class EquityData:
                 v = volumes[i] if i < len(volumes) else 0
                 if any(x is None for x in (o, h, l, c)) or o <= 0 or h <= 0 or l <= 0 or c <= 0:
                     continue
-                v = int(v or 0)
-                if v < 0:
-                    v = 0
-                h = max(float(h), float(o), float(c))
-                l = min(float(l), float(o), float(c))
+                o, h, l, c = float(o), float(h), float(l), float(c)
+                if not (l <= min(o, c) and max(o, c) <= h and l <= h):
+                    continue
+                if v is None or v < 0:
+                    continue
+                v = int(v)
+
+                adj_c = adj_arr[i] if (i < len(adj_arr) and adj_arr[i] is not None and adj_arr[i] > 0) else c
+                factor = float(adj_c) / c if c > 0 else 1.0
+                bar_o = round(o * factor, 2)
+                bar_h = round(h * factor, 2)
+                bar_l = round(l * factor, 2)
+                bar_c = round(float(adj_c), 2)
+
                 dt = datetime.fromtimestamp(ts, tz=timezone.utc).astimezone(WIB)
                 day = dt.date()
                 if day in dates_seen:
@@ -128,10 +138,10 @@ class EquityData:
                 candles.append({
                     "open_at": start.isoformat(),
                     "close_at": end.isoformat(),
-                    "open": round(float(o), 2),
-                    "high": round(float(h), 2),
-                    "low": round(float(l), 2),
-                    "close": round(float(c), 2),
+                    "open": bar_o,
+                    "high": bar_h,
+                    "low": bar_l,
+                    "close": bar_c,
                     "volume": v,
                     "is_closed_candle": True,
                 })
@@ -144,6 +154,23 @@ class EquityData:
             prev_close = float(meta.get("chartPreviousClose") or (candles[-2]["close"] if len(candles) > 1 else reg_price))
             is_index = sym in {"IHSG", "LQ45", "IDX30"} or sym.startswith("IDX") or ticker.startswith("^")
 
+            reg_time = meta.get("regularMarketTime")
+            if reg_time and isinstance(reg_time, (int, float)) and reg_time > 0:
+                as_of_iso = datetime.fromtimestamp(reg_time, tz=timezone.utc).astimezone(WIB).isoformat()
+            else:
+                as_of_iso = retrieved_at
+
+            from openbagus.domains.equities.policy import EquityMarketPolicy
+            try:
+                pol = EquityMarketPolicy(self.root)
+                low_limit, high_limit = pol.auto_rejection_limits(reg_price, board="MAIN")
+            except Exception:
+                low_limit, high_limit = round(reg_price * 0.75, 2), round(reg_price * 1.25, 2)
+
+            events_raw = raw.get("events")
+            has_splits = bool(events_raw and events_raw.get("splits")) if isinstance(events_raw, dict) else False
+            unresolved_corp = False if (events_raw is not None or not has_splits) else True
+
             data = {
                 "symbol": sym,
                 "authorized_use": True,
@@ -152,17 +179,17 @@ class EquityData:
                 "currency": "IDR",
                 "volume_unit": "index_not_applicable" if is_index else "shares",
                 "timeframe": "D1",
-                "adjustment": "adjusted",
-                "unresolved_corporate_actions": False,
+                "adjustment": "adjusted" if adj_arr else "unadjusted",
+                "unresolved_corporate_actions": unresolved_corp,
                 "listing_status": "ACTIVE",
                 "board": "MAIN",
                 "quote": {
                     "price": reg_price,
                     "previous_close": prev_close,
-                    "as_of": retrieved_at,
+                    "as_of": as_of_iso,
                     "delayed": True,
-                    "price_limit_low": round(reg_price * 0.75, 2),
-                    "price_limit_high": round(reg_price * 1.25, 2),
+                    "price_limit_low": low_limit,
+                    "price_limit_high": high_limit,
                 },
                 "fees": {"buy": 0.0015, "sell": 0.0025},
                 "candles": candles,
@@ -236,7 +263,7 @@ class EquityData:
             raise ValueError("Equity import exceeds size limit")
         data = json.loads(path.read_text(encoding="utf-8"))
         symbol = str(data.get("symbol", "")).upper()
-        if not re.fullmatch(r"[A-Z][A-Z0-9]{2,14}", symbol):
+        if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", symbol):
             raise ValueError("Invalid symbol")
         data["symbol"] = symbol
         self.validate(data)
@@ -248,7 +275,7 @@ class EquityData:
             raise ValueError("OHLCV import exceeds size limit")
         data = dict(metadata)
         symbol = str(data.get("symbol", "")).upper()
-        if not re.fullmatch(r"[A-Z][A-Z0-9]{2,14}", symbol):
+        if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", symbol):
             raise ValueError("Invalid symbol")
         data["symbol"] = symbol
         with path.open(encoding="utf-8-sig", newline="") as stream:
@@ -288,7 +315,7 @@ class EquityData:
 
     def store(self, data: dict, symbol: str) -> None:
         self.validate(data)
-        if not re.fullmatch(r"[A-Z][A-Z0-9]{2,14}", symbol) or data.get("symbol") != symbol:
+        if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", symbol) or data.get("symbol") != symbol:
             raise ValueError("Invalid stored observation identity")
         self.directory.mkdir(parents=True, exist_ok=True)
         temporary = None

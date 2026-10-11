@@ -12,8 +12,10 @@ from openbagus.domains.equities.catalog import source_url
 class EquityMarketPolicy:
     def __init__(self, root: Path) -> None:
         local = root / "data/equities/rules.json"
+        repo_rules = Path(__file__).resolve().parents[3] / "config/idx_market_rules.json"
+        rules_path = local if local.exists() else (root / "config/idx_market_rules.json" if (root / "config/idx_market_rules.json").exists() else repo_rules)
         try:
-            self.rules = json.loads((local if local.exists() else root / "config/idx_market_rules.json").read_text(encoding="utf-8"))
+            self.rules = json.loads(rules_path.read_text(encoding="utf-8"))
             self.validate_rules(self.rules)
         except (OSError, ValueError, KeyError, TypeError):
             self.rules = {}
@@ -70,7 +72,8 @@ class EquityMarketPolicy:
     def tick(self, reference_price: float) -> float:
         if not math.isfinite(reference_price) or reference_price <= 0:
             raise ValueError("Invalid previous-close reference")
-        for upper, tick in self.rules.get("tick_bands", []):
+        bands = self.rules.get("tick_bands") or [[200, 1], [500, 2], [2000, 5], [5000, 10], [None, 25]]
+        for upper, tick in bands:
             if upper is None or reference_price < upper:
                 if tick <= 0:
                     raise ValueError("Invalid tick size")
@@ -80,6 +83,33 @@ class EquityMarketPolicy:
     def round_price(self, price: float, reference: float, *, up: bool) -> float:
         tick = self.tick(reference)
         return (math.ceil(price / tick) if up else math.floor(price / tick)) * tick
+
+    def auto_rejection_limits(self, reference_price: float, board: str = "MAIN") -> tuple[float, float]:
+        if not math.isfinite(reference_price) or reference_price <= 0:
+            raise ValueError("Invalid reference price")
+        board_clean = (board or "MAIN").strip().upper()
+        if "ACCEL" in board_clean or "AKSELERASI" in board_clean:
+            pct = 0.35
+            min_price = 1.0
+        elif "WATCHLIST" in board_clean or "PEMANTAUAN" in board_clean or "FCA" in board_clean:
+            pct = 0.10
+            min_price = 1.0
+        else:
+            if reference_price <= 200:
+                pct = 0.35
+            elif reference_price <= 5000:
+                pct = 0.25
+            else:
+                pct = 0.20
+            min_price = 50.0
+
+        raw_upper = reference_price * (1.0 + pct)
+        raw_lower = reference_price * (1.0 - pct)
+        tick_upper = self.tick(raw_upper)
+        upper = math.floor(raw_upper / tick_upper) * tick_upper
+        tick_lower = self.tick(max(raw_lower, min_price))
+        lower = max(math.ceil(raw_lower / tick_lower) * tick_lower, min_price)
+        return float(round(lower, 2)), float(round(upper, 2))
 
     def freshness(self, quote: dict, now: datetime) -> str:
         try:

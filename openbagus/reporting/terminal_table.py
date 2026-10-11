@@ -93,3 +93,6 @@ def render_tabular_data(headers: Sequence[str], rows: Sequence[Sequence[Any]], t
         for r in rows:
             lines.append(" | ".join(str(cell) for cell in r))
         return "\n".join(lines)
+
+
+render_terminal_table = render_tabular_data
