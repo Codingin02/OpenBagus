@@ -24,8 +24,13 @@ from openbagus.core.env import RuntimeEnv, get_repo_root
 
 VALID_KEY_STATES = (
     "MISSING",
+    "NOT_CONFIGURED",
+    "KEY_PRESENT",
     "UNVERIFIED",
     "VALID",
+    "VALIDATED",
+    "OPERATIONAL",
+    "PLAN_RESTRICTED",
     "INVALID",
     "RATE_LIMITED",
     "UNREACHABLE",
@@ -45,6 +50,8 @@ class ProviderSpec:
     public_access: bool = False
     ping_url: str | None = None
     notes: str = ""
+    domain: str = "CRYPTO"  # EQUITIES_ID, CRYPTO, MACRO, NEWS, RESERVED
+    is_advanced: bool = False
 
     def is_configured(self, env: RuntimeEnv | Mapping[str, str] | None = None) -> bool:
         if self.public_access and not self.credential_required:
@@ -61,6 +68,30 @@ class ProviderSpec:
 
 # Canonical Provider Definitions
 PROVIDERS: list[ProviderSpec] = [
+    # Free & Keyed Indonesian Equities (IDX) Data Providers
+    ProviderSpec(
+        id="eodhd",
+        display_name="EODHD (EOD Historical Data)",
+        capabilities=["equity_price", "equity_history", "fundamental"],
+        credential_env_names=["EODHD_API_KEY"],
+        credential_required=True,
+        public_access=False,
+        notes="Free tier provides 20 daily API calls for IDX end-of-day prices & fundamentals.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+    ProviderSpec(
+        id="bps",
+        display_name="BPS (Badan Pusat Statistik)",
+        capabilities=["macro", "economic", "indonesia_macro"],
+        credential_env_names=["BPS_API_KEY"],
+        credential_required=True,
+        public_access=False,
+        notes="Official Indonesian national statistics (inflation, GDP, trade balance).",
+        domain="EQUITIES_ID",
+        is_advanced=False,
+    ),
+
     # Zero-Key Centralized Spot Market Providers
     ProviderSpec(
         id="binance",
@@ -233,6 +264,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Official US Federal Reserve interest rates, inflation, and money supply.",
+        domain="MACRO",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="alpha_vantage",
@@ -242,6 +275,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Global financial data and digital currency historical series.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="coinmarketcap",
@@ -251,6 +286,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Crypto market rankings, listings, and global metrics.",
+        domain="CRYPTO",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="cryptocompare",
@@ -260,6 +297,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Aggregated multi-exchange crypto pricing and historical daily bars.",
+        domain="CRYPTO",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="finnhub",
@@ -269,6 +308,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Real-time market feeds and institutional market sentiment.",
+        domain="CRYPTO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="fmp",
@@ -278,6 +319,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Economic calendars, macro indicators, and crypto market prices.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="twelve_data",
@@ -287,6 +330,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Technical indicators and multi-asset time-series data.",
+        domain="EQUITIES_ID",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="polygon",
@@ -296,6 +341,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Institutional crypto market aggregates and tick feeds.",
+        domain="CRYPTO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="coinalyze",
@@ -305,6 +352,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Crypto derivatives metrics, funding rates, liquidations, and open interest.",
+        domain="CRYPTO",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="bitquery",
@@ -314,6 +363,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Multi-chain DEX trading flows and on-chain blockchain intelligence.",
+        domain="CRYPTO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="thegraph",
@@ -323,6 +374,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Decentralized protocol subgraphs and smart contract indexing.",
+        domain="CRYPTO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="tiingo",
@@ -332,6 +385,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Crypto pricing and curated financial news streams.",
+        domain="NEWS",
+        is_advanced=False,
     ),
     ProviderSpec(
         id="stockdata",
@@ -341,6 +396,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Global market and crypto price feeds.",
+        domain="CRYPTO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="eia",
@@ -350,6 +407,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Energy commodity series (crude oil, natural gas, power grid metrics).",
+        domain="MACRO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="bea",
@@ -359,6 +418,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="US GDP, personal consumption expenditure (PCE), and trade balance accounts.",
+        domain="MACRO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="census",
@@ -368,6 +429,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Economic surveys and retail/trade monthly data.",
+        domain="MACRO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="un_comtrade",
@@ -377,6 +440,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="United Nations global merchandise trade statistics.",
+        domain="MACRO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="companies_house",
@@ -386,6 +451,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Corporate registry, entity verification, and legal structure data.",
+        domain="MACRO",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="openalex",
@@ -395,6 +462,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="Scholarly literature index, scientific research, and academic graph.",
+        domain="MACRO",
+        is_advanced=True,
     ),
     # Unmapped / Reserved User Providers
     ProviderSpec(
@@ -405,6 +474,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="User-declared provider (unmapped slot; pending user endpoint specification).",
+        domain="RESERVED",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="pls",
@@ -414,6 +485,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="User-declared provider (unmapped slot; pending user endpoint specification).",
+        domain="RESERVED",
+        is_advanced=True,
     ),
     ProviderSpec(
         id="openvici",
@@ -423,6 +496,8 @@ PROVIDERS: list[ProviderSpec] = [
         credential_required=True,
         public_access=False,
         notes="User-declared provider (unmapped slot; pending user endpoint specification).",
+        domain="RESERVED",
+        is_advanced=True,
     ),
 ]
 
@@ -584,7 +659,141 @@ def validate_coinalyze(key: str) -> str:
         return "INVALID"
 
 
+def validate_eodhd(key: str) -> str:
+    k = (key or "").strip()
+    if not k:
+        return "MISSING"
+    if not re.fullmatch(r"[A-Za-z0-9._-]{8,64}", k):
+        return "INVALID"
+    url = f"https://eodhd.com/api/eod/BBCA.JK?api_token={urllib.parse.quote(k)}&fmt=json&limit=1"
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
+    req = urllib.request.Request(url, headers=headers)
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=5.0, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            if isinstance(data, list) and len(data) > 0:
+                return "VALID"
+            if isinstance(data, dict):
+                msg = str(data.get("message", "")).lower()
+                if "limit" in msg or "plan" in msg or "upgrade" in msg:
+                    return "PLAN_RESTRICTED"
+            return "VALID" if resp.status == 200 else "INVALID"
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            return "RATE_LIMITED"
+        if exc.code in {401, 403}:
+            return "INVALID"
+        if exc.code == 402:
+            return "PLAN_RESTRICTED"
+        return "INVALID"
+    except (TimeoutError, socket.timeout, urllib.error.URLError, ConnectionError, OSError):
+        return "UNREACHABLE"
+    except Exception:
+        return "INVALID"
+
+
+def validate_bps(key: str) -> str:
+    k = (key or "").strip()
+    if not k:
+        return "MISSING"
+    if not re.fullmatch(r"[A-Za-z0-9._-]{10,64}", k):
+        return "INVALID"
+    url = f"https://webapi.bps.go.id/v1/api/list/model/data/domain/0000/key/{urllib.parse.quote(k)}/"
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
+    req = urllib.request.Request(url, headers=headers)
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=5.0, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            status = data.get("data-availability") or data.get("status")
+            if status in ("available", "OK", "success"):
+                return "VALID"
+            if "error" in str(data).lower() or data.get("status") == "error":
+                return "INVALID"
+            return "VALID" if resp.status == 200 else "INVALID"
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            return "RATE_LIMITED"
+        if exc.code in {401, 403}:
+            return "INVALID"
+        return "INVALID"
+    except (TimeoutError, socket.timeout, urllib.error.URLError, ConnectionError, OSError):
+        return "UNREACHABLE"
+    except Exception:
+        return "INVALID"
+
+
+def validate_twelve_data(key: str) -> str:
+    k = (key or "").strip()
+    if not k:
+        return "MISSING"
+    if not re.fullmatch(r"[A-Za-z0-9]{16,64}", k):
+        return "INVALID"
+    url = f"https://api.twelvedata.com/price?symbol=AAPL&apikey={urllib.parse.quote(k)}"
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
+    req = urllib.request.Request(url, headers=headers)
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=5.0, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            if "price" in data:
+                return "VALID"
+            code = data.get("code")
+            if code in (401, 403):
+                return "INVALID"
+            if code == 429:
+                return "RATE_LIMITED"
+            if "plan" in str(data.get("message", "")).lower():
+                return "PLAN_RESTRICTED"
+            return "INVALID"
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            return "RATE_LIMITED"
+        if exc.code in {401, 403}:
+            return "INVALID"
+        return "INVALID"
+    except (TimeoutError, socket.timeout, urllib.error.URLError, ConnectionError, OSError):
+        return "UNREACHABLE"
+    except Exception:
+        return "INVALID"
+
+
+def validate_fmp(key: str) -> str:
+    k = (key or "").strip()
+    if not k:
+        return "MISSING"
+    if not re.fullmatch(r"[A-Za-z0-9]{16,64}", k):
+        return "INVALID"
+    url = f"https://financialmodelingprep.com/api/v3/profile/AAPL?apikey={urllib.parse.quote(k)}"
+    headers = {"User-Agent": "OpenBagus-Research", "Accept": "application/json"}
+    req = urllib.request.Request(url, headers=headers)
+    ctx = ssl.create_default_context()
+    try:
+        with urllib.request.urlopen(req, timeout=5.0, context=ctx) as resp:
+            data = json.loads(resp.read().decode("utf-8", errors="replace"))
+            if isinstance(data, list) and len(data) > 0 and "symbol" in data[0]:
+                return "VALID"
+            if "restricted" in str(data).lower():
+                return "PLAN_RESTRICTED"
+            return "INVALID"
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429:
+            return "RATE_LIMITED"
+        if exc.code in {401, 403}:
+            return "INVALID"
+        return "INVALID"
+    except (TimeoutError, socket.timeout, urllib.error.URLError, ConnectionError, OSError):
+        return "UNREACHABLE"
+    except Exception:
+        return "INVALID"
+
+
 VALIDATORS = {
+    "eodhd": validate_eodhd,
+    "bps": validate_bps,
+    "twelve_data": validate_twelve_data,
+    "fmp": validate_fmp,
     "fred": validate_fred,
     "alpha_vantage": validate_alpha_vantage,
     "coinmarketcap": validate_coinmarketcap,
@@ -641,8 +850,25 @@ class ProviderRegistry:
     def list_configured_apis(self) -> list[ProviderSpec]:
         return [p for p in self.providers.values() if not p.public_access and p.is_configured(self.env)]
 
-    def list_missing_apis(self) -> list[ProviderSpec]:
-        return [p for p in self.providers.values() if not p.public_access and not p.is_configured(self.env)]
+    def list_missing_apis(self, show_all: bool = False) -> list[ProviderSpec]:
+        if show_all:
+            return [p for p in self.providers.values() if not p.public_access and not p.is_configured(self.env)]
+        return [
+            p for p in self.providers.values()
+            if not p.public_access and not p.is_advanced and p.domain != "RESERVED" and not p.is_configured(self.env)
+        ]
+
+    def list_default_configurable(self) -> list[ProviderSpec]:
+        return [
+            p for p in self.providers.values()
+            if not p.public_access and (not p.is_advanced or p.is_configured(self.env))
+        ]
+
+    def list_by_domain(self, domain: str) -> list[ProviderSpec]:
+        d = domain.upper()
+        if d in ("IDX", "EQUITY", "EQUITIES"):
+            d = "EQUITIES_ID"
+        return [p for p in self.providers.values() if p.domain.upper() == d]
 
     def get_key(self, provider_id: str) -> str | None:
         p = self.get(provider_id)
@@ -727,13 +953,23 @@ class ProviderRegistry:
             results.append(res)
         return results
 
-    def format_providers_view(self, run_live_check: bool = False) -> str:
+    def format_providers_view(
+        self,
+        run_live_check: bool = False,
+        domain: str | None = None,
+        show_all: bool = False,
+    ) -> str:
+        d_filter = domain.upper() if domain else None
+        if d_filter in ("ALL", "--ALL"):
+            show_all = True
+            d_filter = None
+        elif d_filter in ("IDX", "EQUITY", "EQUITIES"):
+            d_filter = "EQUITIES_ID"
+
         lines = []
         lines.append("OpenBagus Data Providers")
         lines.append("========================")
         lines.append("")
-        lines.append("ZERO-KEY CORE (No API Key Required)")
-        lines.append("-----------------------------------")
 
         live_health: dict[str, dict[str, Any]] = {}
         live_status: dict[str, str] = {}
@@ -759,48 +995,122 @@ class ProviderRegistry:
                     except Exception:
                         live_status[pid] = "INVALID"
 
-        zero_key_order = ("MARKET", "DERIVATIVES", "DEX", "DEFI", "SENTIMENT", "DISCOVERY")
-        public_providers = [p for p in self.providers.values() if p.public_access]
-
-        for cat in zero_key_order:
-            cat_providers = [p for p in public_providers if classify_provider_capability(p) == cat]
-            if not cat_providers:
-                continue
-            lines.append(f"{cat}")
-            for p in cat_providers:
-                if run_live_check and p.ping_url:
-                    health = live_health.get(p.id, {"status": "UNAVAILABLE", "latency_ms": None})
-                    lat = f" ({health['latency_ms']}ms)" if health.get("latency_ms") else ""
-                    lines.append(f"  {p.display_name:<30} {health['status']}{lat}")
-                else:
-                    lines.append(f"  {p.display_name:<30} PUBLIC")
-            lines.append("")
-
-        lines.append("OPTIONAL KEYED (Enhancement Providers)")
-        lines.append("--------------------------------------")
-        keyed_providers = [p for p in self.providers.values() if not p.public_access]
-        keyed_order = ("DERIVATIVES", "ONCHAIN", "MACRO", "MARKET")
-
         from openbagus.data.cache import MarketDataCache
         cache = MarketDataCache.get_instance()
 
-        for cat in keyed_order:
-            cat_providers = [p for p in keyed_providers if classify_provider_capability(p) == cat]
-            if not cat_providers:
-                continue
-            lines.append(f"{cat}")
-            for p in cat_providers:
+        # Section 1: Zero-Key Public Core
+        if d_filter is None or d_filter in ("CRYPTO", "PUBLIC", "CORE"):
+            lines.append("ZERO-KEY CORE (Public Market & Derivatives Feeds - No Key Required)")
+            lines.append("-------------------------------------------------------------------")
+            for p in self.list_public():
+                if run_live_check and p.ping_url:
+                    health = live_health.get(p.id, {"status": "UNAVAILABLE", "latency_ms": None})
+                    lat = f" ({health['latency_ms']}ms)" if health.get("latency_ms") else ""
+                    lines.append(f"  {p.display_name:<36} {health['status']}{lat}")
+                else:
+                    lines.append(f"  {p.display_name:<36} PUBLIC")
+            lines.append("")
+
+        # Section 2: IDX Equities & Indonesian Macro
+        if d_filter is None or d_filter in ("EQUITIES_ID", "IDX"):
+            lines.append("IDX EQUITIES & INDONESIAN MACRO (Free & Keyed)")
+            lines.append("----------------------------------------------")
+            idx_providers = [p for p in self.providers.values() if p.domain == "EQUITIES_ID"]
+            for p in idx_providers:
                 k = self.get_key(p.id)
                 if not k:
-                    status = "MISSING"
+                    status = "NOT_CONFIGURED"
                 elif run_live_check:
-                    status = live_status.get(p.id, "INVALID")
+                    res = live_status.get(p.id, "INVALID")
+                    status = "VALIDATED" if res == "VALID" else res
                 else:
                     key_hash = hashlib.sha256(k.encode()).hexdigest()
                     cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
                     status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
-                state = "VALIDATED" if status == "VALID" else status
-                lines.append(f"  {p.display_name:<30} {'KEY_PRESENT | ' if k else ''}{state}")
+                state = f"KEY_PRESENT | {status}" if k else status
+                lines.append(f"  {p.display_name:<36} {state}")
+            lines.append("")
+
+        # Section 3: Global Macro & Economic Data
+        if d_filter is None or d_filter in ("MACRO", "GLOBAL"):
+            lines.append("GLOBAL MACRO & ECONOMIC DATA")
+            lines.append("----------------------------")
+            macro_providers = [
+                p for p in self.providers.values()
+                if p.domain == "MACRO" and not p.public_access and (show_all or not p.is_advanced or self.get_key(p.id))
+            ]
+            for p in macro_providers:
+                k = self.get_key(p.id)
+                if not k:
+                    status = "NOT_CONFIGURED"
+                elif run_live_check:
+                    res = live_status.get(p.id, "INVALID")
+                    status = "VALIDATED" if res == "VALID" else res
+                else:
+                    key_hash = hashlib.sha256(k.encode()).hexdigest()
+                    cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
+                    status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
+                state = f"KEY_PRESENT | {status}" if k else status
+                lines.append(f"  {p.display_name:<36} {state}")
+            lines.append("")
+
+        # Section 4: Crypto & Onchain Keyed
+        if d_filter is None or d_filter == "CRYPTO":
+            lines.append("CRYPTOCURRENCY & ONCHAIN (Optional Keyed)")
+            lines.append("-----------------------------------------")
+            crypto_keyed = [
+                p for p in self.providers.values()
+                if p.domain == "CRYPTO" and not p.public_access and (show_all or not p.is_advanced or self.get_key(p.id))
+            ]
+            for p in crypto_keyed:
+                k = self.get_key(p.id)
+                if not k:
+                    status = "NOT_CONFIGURED"
+                elif run_live_check:
+                    res = live_status.get(p.id, "INVALID")
+                    status = "VALIDATED" if res == "VALID" else res
+                else:
+                    key_hash = hashlib.sha256(k.encode()).hexdigest()
+                    cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
+                    status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
+                state = f"KEY_PRESENT | {status}" if k else status
+                lines.append(f"  {p.display_name:<36} {state}")
+            lines.append("")
+
+        # Section 5: News & Alternative Data
+        if d_filter is None or d_filter == "NEWS":
+            news_providers = [p for p in self.providers.values() if p.domain == "NEWS"]
+            if news_providers:
+                lines.append("NEWS & ALTERNATIVE DATA")
+                lines.append("-----------------------")
+                for p in news_providers:
+                    k = self.get_key(p.id)
+                    if not k:
+                        status = "NOT_CONFIGURED"
+                    elif run_live_check:
+                        res = live_status.get(p.id, "INVALID")
+                        status = "VALIDATED" if res == "VALID" else res
+                    else:
+                        key_hash = hashlib.sha256(k.encode()).hexdigest()
+                        cached_st = cache.get_credential_state(p.id, key_hash) or _KEY_VALIDATION_STATE.get((p.id, key_hash))
+                        status = cached_st if cached_st else ("UNVERIFIED" if p.id in VALIDATORS else "UNSUPPORTED")
+                    state = f"KEY_PRESENT | {status}" if k else status
+                    lines.append(f"  {p.display_name:<36} {state}")
+                lines.append("")
+
+        # Section 6: Reserved / Unmapped Slots (Only in show_all view)
+        if show_all:
+            reserved_providers = [p for p in self.providers.values() if p.domain == "RESERVED"]
+            if reserved_providers:
+                lines.append("RESERVED & ADVANCED SLOTS")
+                lines.append("-------------------------")
+                for p in reserved_providers:
+                    k = self.get_key(p.id)
+                    status = "KEY_PRESENT | UNVERIFIED" if k else "NOT_CONFIGURED"
+                    lines.append(f"  {p.display_name:<36} {status}")
+                lines.append("")
+        else:
+            lines.append("(Dormant/advanced slots hidden. Use '/providers all' to view all registered slots.)")
             lines.append("")
 
         lines.append("Use '/providers --check' to run live reachability and credential checks.")

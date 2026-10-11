@@ -21,6 +21,7 @@ No local LLM. No cloud LLM.
 from __future__ import annotations
 
 import ast
+from datetime import datetime, timezone
 import difflib
 import operator as _op
 import math
@@ -218,16 +219,35 @@ class SessionState:
     last_operation: str = ""
     last_backtest_asset: str | None = None
 
+    session_id: str = field(default_factory=lambda: datetime.now(timezone.utc).strftime("session_%Y%m%d_%H%M%S"))
+
     def add_turn(self, user_text: str, assistant_text: str) -> None:
-        from datetime import datetime, timezone, timedelta
+        from datetime import datetime, timezone
         from openbagus.core.guards import scan_text
         if not scan_text(user_text + assistant_text)["passed"]:
             return
         now = datetime.now(timezone.utc)
-        self.conversational_turns.append({"user": user_text[:1000], "assistant": assistant_text[:1500], "at": now.isoformat()})
-        limit = max(4, min(200, int(self.recent_preferences.get("history_turn_limit", 40))))
-        cutoff = now - timedelta(days=max(1, min(365, int(self.recent_preferences.get("history_days", 30)))))
-        self.conversational_turns = [t for t in self.conversational_turns if t.get("at", now.isoformat()) >= cutoff.isoformat()]
+        turn_data = {"user": user_text[:1000], "assistant": assistant_text[:1500], "at": now.isoformat()}
+        self.conversational_turns.append(turn_data)
+
+        # Durable disk storage in SQLite (unbounded, physical disk storage only)
+        try:
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            storage.save_turn(
+                session_id=self.session_id,
+                user_text=user_text,
+                assistant_text=assistant_text,
+                asset=self.last_asset,
+                market=self.market_type,
+                intent=self.last_intent,
+                timestamp=now.isoformat(),
+            )
+        except Exception:
+            pass
+
+        # Bounded working context window in memory for LLM (sliding window of recent turns)
+        limit = max(4, min(50, int(self.recent_preferences.get("history_turn_limit", 20))))
         if len(self.conversational_turns) > limit:
             self.conversational_turns = self.conversational_turns[-limit:]
         if self.is_persistence_enabled():
@@ -531,40 +551,108 @@ class SessionState:
         import json
         payload = self.to_dict()
         tmp_target = target.with_name(f"{target.name}.tmp")
+        success = False
         try:
             encoded = json.dumps(payload, indent=2)
-            if len(encoded.encode("utf-8")) > 5_000_000:
-                return False
             tmp_target.write_text(encoded, encoding="utf-8")
             tmp_target.replace(target)
-            return True
+            success = True
         except OSError:
-            return False
+            success = False
+
+        # Persist session metadata in SQLite
+        try:
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            storage.save_session_meta(
+                session_id=self.session_id,
+                asset=self.last_asset,
+                market=self.market_type,
+                timeframe=self.timeframe,
+                metadata={"topic": self.current_topic, "operation": self.last_operation},
+            )
+        except Exception:
+            pass
+        return success
 
     def load_persistent(self, path: Path | None = None) -> bool:
         target = path or (self.get_harness_dir() / "session_context.json")
-        if not target.exists():
-            return False
-        import json
+        loaded = False
+        if target.exists():
+            import json
+            try:
+                data = json.loads(target.read_text(encoding="utf-8"))
+                self.from_dict(data)
+                self.clear_on_exit = False
+                loaded = True
+            except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError):
+                pass
+
+        # Idempotent SQLite migration & turn hydration
         try:
-            if target.stat().st_size > 5_000_000:
-                return False
-            data = json.loads(target.read_text(encoding="utf-8"))
-            self.from_dict(data)
-            self.clear_on_exit = False
-            return True
-        except (OSError, json.JSONDecodeError, TypeError, ValueError, AttributeError):
-            return False
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            storage.migrate_from_json(target)
+            if not self.conversational_turns:
+                db_turns = storage.get_recent_turns(limit=20)
+                if db_turns:
+                    self.conversational_turns = [
+                        {"user": t["user"], "assistant": t["assistant"], "at": t["at"]}
+                        for t in db_turns
+                    ]
+                    loaded = True
+        except Exception:
+            pass
+        return loaded
 
     def clear_persistent(self, path: Path | None = None) -> bool:
         target = path or (self.get_harness_dir() / "session_context.json")
         if target.exists():
             try:
                 target.unlink(missing_ok=True)
-                return True
             except OSError:
-                return False
+                pass
+        try:
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            storage.clear(all_history=True)
+        except Exception:
+            pass
         return True
+
+    def search_history(self, query: str, limit: int = 50) -> list[dict[str, Any]]:
+        """Search durable conversation archive across all past turns."""
+        try:
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            return storage.search(query, limit=limit)
+        except Exception:
+            return []
+
+    def get_stored_history(self, limit: int = 50, offset: int = 0) -> list[dict[str, Any]]:
+        """Retrieve recent turns from durable conversation archive."""
+        try:
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            return storage.get_history(limit=limit, offset=offset)
+        except Exception:
+            return []
+
+    def get_storage_stats(self) -> dict[str, Any]:
+        """Inspect SQLite conversation storage metrics."""
+        try:
+            from openbagus.storage.harness_db import HarnessStorage
+            storage = HarnessStorage(self.get_harness_dir() / "harness_history.db")
+            return storage.get_stats()
+        except Exception:
+            return {
+                "total_turns": len(self.conversational_turns),
+                "total_sessions": 1,
+                "db_size_bytes": 0,
+                "db_size_str": "0 B",
+                "oldest_turn_at": None,
+                "newest_turn_at": None,
+            }
 
     def load_if_enabled(self) -> bool:
         if self.is_persistence_enabled():
@@ -589,6 +677,7 @@ class SessionState:
         clear_exit = "NO" if self.is_persistence_enabled() else "YES"
         src_status = "ON" if self.show_sources else "OFF"
 
+        stats = self.get_storage_stats()
         lines = [
             "OpenBagus Harness",
             "",
@@ -604,7 +693,8 @@ class SessionState:
             f"Provider      {provider_name}",
             f"Current Topic {self.current_topic or ctx_asset} ({self.current_topic_kind or 'research'})",
             f"Last Operation {self.last_operation or 'N/A'}",
-            f"Recent Turns  {len(self.conversational_turns)} (LLM retrieves last 4; bounded local history)",
+            f"Recent Turns  {len(self.conversational_turns)} (LLM bounded window: last {min(4, len(self.conversational_turns))})",
+            f"Durable Archive {stats['total_turns']} turns ({stats['db_size_str']}) in SQLite storage",
         ]
         return "\n".join(lines)
 

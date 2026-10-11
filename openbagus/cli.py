@@ -321,9 +321,9 @@ def _run_status(session: SessionState | None = None) -> int:
     return 0
 
 
-def _run_providers(check_network: bool = False) -> int:
+def _run_providers(check_network: bool = False, domain: str | None = None, show_all: bool = False) -> int:
     registry = ProviderRegistry(REPO_ROOT)
-    print(registry.format_providers_view(run_live_check=check_network))
+    print(registry.format_providers_view(run_live_check=check_network, domain=domain, show_all=show_all))
     catalog = EquityCatalog(REPO_ROOT)
     print("\nIDX capabilities (identity != market observations)")
     print(f"Issuer identity: {len([a for a in catalog.assets if a.asset_type == 'EQUITY_ID'])} verified seeds/imported identities; update via import-idx catalog.")
@@ -1249,6 +1249,9 @@ class OpenBagusShell(cmd.Cmd):
             print("Maintains multi-turn conversational context and historical research packets.")
             print("Commands:")
             print("  /harness          - view active context, last asset, and recent query turns")
+            print("  /harness status   - view durable SQLite storage statistics and date range")
+            print("  /harness history  - view chronological conversation history from durable store")
+            print("  /harness search   - search stored conversation history by keyword")
             print("  /harness on       - enable persistence to local app data across restarts")
             print("  /harness off      - disable persistence for future sessions")
             print("  /harness clear    - clear all session context and stored memory")
@@ -1310,19 +1313,71 @@ class OpenBagusShell(cmd.Cmd):
         sub = arg.strip().lower()
         if sub.startswith("retention "):
             try:
-                _, turns, days = sub.split()
-                turns, days = int(turns), int(days)
-                if not 4 <= turns <= 200 or not 1 <= days <= 365:
-                    raise ValueError
+                parts = sub.split()
+                turns = int(parts[1]) if len(parts) > 1 else 20
+                days = int(parts[2]) if len(parts) > 2 else 365
                 self.session.recent_preferences.update(history_turn_limit=turns, history_days=days)
-                print(f"Retensi lokal: maksimal {turns} turns / {days} hari / 5 MB; LLM hanya menerima 4 turns terbaru.")
-            except ValueError:
-                print("Gunakan /harness retention <4-200 turns> <1-365 days>.")
+                print(f"Working window LLM: {turns} turn in-memory; Arsip disk SQLite: UNLIMITED (tidak ada batas waktu/turn).")
+            except Exception:
+                print("Gunakan /harness retention <turns> [days].")
+            return
+        if sub.startswith("search ") or sub.startswith("find "):
+            kw = arg.strip().split(maxsplit=1)[1] if len(arg.strip().split(maxsplit=1)) > 1 else ""
+            if not kw:
+                print("Gunakan: /harness search <kata kunci>")
+                return
+            results = self.session.search_history(kw, limit=20)
+            if not results:
+                print(f"Tidak ada riwayat percakapan yang cocok dengan '{kw}'.")
+                return
+            print(f"\nDitemukan {len(results)} riwayat turn untuk '{kw}':")
+            print("-" * 65)
+            for idx, t in enumerate(results, 1):
+                asset_badge = f"[{t.get('asset')}] " if t.get('asset') else ""
+                at_str = t.get('at', '')[:19].replace('T', ' ')
+                print(f"{idx}. {at_str} {asset_badge}User: {t.get('user', '')[:80]}")
+                ans_snippet = t.get('assistant', '').strip().replace('\n', ' ')[:100]
+                print(f"   OpenBagus: {ans_snippet}...")
+                print()
+            return
+        if sub.startswith("history") or sub.startswith("log"):
+            parts = sub.split()
+            n = 10
+            if len(parts) > 1 and parts[1].isdigit():
+                n = min(100, int(parts[1]))
+            history = self.session.get_stored_history(limit=n)
+            if not history:
+                print("Belum ada riwayat percakapan tersimpan di Harness.")
+                return
+            stats = self.session.get_storage_stats()
+            print(f"\nRiwayat Percakapan ({len(history)} dari {stats['total_turns']} turn total, Arsip: {stats['db_size_str']}):")
+            print("-" * 65)
+            for idx, t in enumerate(reversed(history), 1):
+                asset_badge = f"[{t.get('asset')}] " if t.get('asset') else ""
+                at_str = t.get('at', '')[:19].replace('T', ' ')
+                user_text = t.get('user', '')[:80]
+                ans_text = t.get('assistant', '').strip().replace('\n', ' ')[:90]
+                print(f"[{idx}] {at_str} {asset_badge}Q: {user_text}")
+                print(f"    A: {ans_text}...")
+            print()
+            return
+        if sub in ("status", "info"):
+            print(self.session.status_display())
+            stats = self.session.get_storage_stats()
+            print(f"\nDetail Penyimpanan SQLite:")
+            print(f"  Lokasi File  : {stats.get('db_path')}")
+            print(f"  Ukuran Disk  : {stats.get('db_size_str')} ({stats.get('db_size_bytes'):,} bytes)")
+            print(f"  Total Turn   : {stats.get('total_turns'):,} turn tersimpan")
+            print(f"  Rentang Waktu: {stats.get('oldest_turn_at') or 'N/A'} s/d {stats.get('newest_turn_at') or 'N/A'}")
+            print(f"  Retensi      : UNLIMITED (dibatasi hanya oleh kapasitas fisik disk)")
             return
         if sub in ("clear", "reset"):
             self.session.clear()
             self.session.clear_persistent()
             print("[PASS] Harness session memory cleared.")
+        elif sub == "clear active":
+            self.session.clear()
+            print("[PASS] Active in-memory session cleared. Durable disk archive preserved.")
         elif sub in ("on", "enable", "true"):
             self.session.set_persistence_enabled(True)
             self.session.save_persistent()
@@ -1684,8 +1739,14 @@ class OpenBagusShell(cmd.Cmd):
         _run_status(self.session)
 
     def do_providers(self, arg: str) -> None:
-        check = "--check" in arg or "check" in arg
-        _run_providers(check_network=check)
+        check = "--check" in arg or "-c" in arg
+        show_all = "all" in arg.lower() or "--all" in arg.lower()
+        domain = None
+        for d in ("idx", "crypto", "macro", "news"):
+            if re.search(r"\b" + d + r"\b", arg.lower()):
+                domain = d
+                break
+        _run_providers(check_network=check, domain=domain, show_all=show_all)
 
     def do_assets(self, arg: str) -> None:
         _run_assets(arg)
