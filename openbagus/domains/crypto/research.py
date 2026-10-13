@@ -455,6 +455,9 @@ class CryptoResearchRunner:
         if req.request_type == "PORTFOLIO_RISK":
             return self._handle_portfolio_risk(req, session)
 
+        if req.request_type == "DAILY_BRIEF":
+            return self._handle_daily_brief(req, session)
+
         if req.request_type == "CALCULATOR":
             return req.focus if req.focus != "CALCULATOR_INVALID" else "Ekspresi aritmetika tidak valid atau melewati batas aman."
         if req.request_type == "EXECUTION_REQUEST":
@@ -1784,5 +1787,57 @@ class CryptoResearchRunner:
             "     Contoh: /portfolio corr BBCA BBRI BTC ETH",
             "     (Analisis diversifikasi & perbandingan korelasi IHSG vs Kripto)",
             "----------------------------------------------------------------",
+        ]
+        return "\n".join(lines)
+
+    def _handle_daily_brief(self, req: Any, session: Any = None) -> str:
+        from openbagus.monitoring.daily_brief import DailyBriefScheduler
+        scheduler = DailyBriefScheduler(self.root)
+        focus = getattr(req, "focus", "status") or "status"
+        topic = getattr(req, "topic", "morning") or "morning"
+
+        if focus == "generate":
+            res = scheduler.trigger_now(session_type=topic.upper())
+            lines = [
+                res["markdown_content"],
+                "",
+                "---",
+                "[Draf Riset Berhasil Dibuat Secara Lokal]",
+                f"• Markdown : {res['markdown_path']}",
+                f"• PDF Dokumen: {res['pdf_path']}",
+                f"• PNG Visual : {res['png_path']}",
+                "(Tersimpan di direktori draf lokal tanpa notifikasi berulang)",
+            ]
+            if session:
+                session.record_topic(f"Daily Brief {res['session_type']}", "brief")
+            return "\n".join(lines)
+
+        if focus == "list":
+            drafts = scheduler.list_drafts()
+            if not drafts:
+                return f"Belum ada draf riset harian di direktori lokal ({scheduler.briefs_dir}).\nGunakan `/brief morning` atau `/brief evening` untuk membuat draf."
+            lines = [f"Daftar Draf Riset Harian Lokal ({len(drafts)} file):", ""]
+            for d in drafts[:10]:
+                lines.append(f"• {d['filename']} ({d['size_kb']} KB) — {d['modified']}")
+            lines.append(f"\nLokasi folder: {scheduler.briefs_dir}")
+            return "\n".join(lines)
+
+        # Default: status & schedule inspection
+        st = scheduler.get_status()
+        lines = [
+            "=== Status Penjadwalan Riset Harian OpenBagus ===",
+            f"Status Otomasi    : {'AKTIF' if st['enabled'] else 'NON-AKTIF'}",
+            f"Waktu Saat Ini    : {st['current_time_wib']}",
+            f"Jadwal Brief Pagi : {st['morning_schedule']} (Pra-Pembukaan Sesi 1 IHSG)",
+            f"Jadwal Brief Sore : {st['evening_schedule']} (Penutupan Perdagangan Pasar)",
+            f"Draf Terakhir Pagi: {st['last_morning_run'] or 'Belum ada run hari ini'}",
+            f"Draf Terakhir Sore: {st['last_evening_run'] or 'Belum ada run hari ini'}",
+            f"Total File Draf   : {st['total_drafts_saved']} file tersimpan",
+            f"Direktori Draf    : {st['drafts_directory']}",
+            "",
+            "Perintah Cepat:",
+            "  /brief morning    - Buat draf riset pagi hari ini (PDF, PNG, MD)",
+            "  /brief evening    - Buat draf riset sore hari ini",
+            "  /brief list       - Lihat daftar file draf di disk",
         ]
         return "\n".join(lines)

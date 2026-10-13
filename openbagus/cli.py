@@ -1430,6 +1430,21 @@ class OpenBagusShell(cmd.Cmd):
             print()
             return
 
+        if topic in ("brief", "daily_brief", "schedule"):
+            print("\n=== OpenBagus Help: Automated Daily Research Briefs ===")
+            print("Autonomous morning (pre-market 07:30 WIB) and evening (post-market 17:00 WIB) intelligence.")
+            print("Features:")
+            print("  - Macro calendar events, Asian pre-open context, and overnight crypto summary")
+            print("  - IDX and Crypto watchlist matrix with key technical levels and quant signals")
+            print("  - Zero-cost & zero-spam: Outputs saved strictly to local drafts directory as PDF, PNG, and MD")
+            print("Commands:")
+            print("  /brief morning    - generate morning pre-market research brief (PDF/PNG/MD)")
+            print("  /brief evening    - generate evening post-market research brief (PDF/PNG/MD)")
+            print("  /brief list       - list all generated brief drafts in disk storage")
+            print("  /brief status     - view automated scheduler status, run history, and draft path")
+            print()
+            return
+
         print("\n=======================================================")
         print("          OPENBAGUS FINANCIAL INTELLIGENCE HELP        ")
         print("=======================================================")
@@ -1456,7 +1471,8 @@ class OpenBagusShell(cmd.Cmd):
         print("     benchmark quantum openbagus  benchmark Monte Carlo simulation speed")
         print("  5. Persistent Session Harness:")
         print("     /harness [on|off|clear] view or control multi-turn session memory")
-        print("  6. Delivery & Autonomous Alerts:")
+        print("  6. Delivery & Automated Daily Briefs:")
+        print("     /brief [morning|evening|list|status] generate or inspect daily research briefs")
         print("     /alerts list|add|rm    manage autonomous monitoring rules")
         print("     /delivery [status]     overview of SMTP, Gmail OAuth, and WhatsApp")
         print("     /gmail                 manage official Google OAuth Gmail delivery")
@@ -1482,6 +1498,7 @@ class OpenBagusShell(cmd.Cmd):
         print("    /help arbitrage   - Order-book spreads and friction deductions")
         print("    /help backtest    - Walk-forward backtesting and metrics")
         print("    /help harness     - Multi-turn conversation persistence")
+        print("    /help brief       - Automated daily research briefs (morning/evening PDF/PNG)")
         print()
 
     def do_harness(self, arg: str) -> None:
@@ -1715,6 +1732,20 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_risk(self, arg: str) -> None:
         self.do_portfolio(arg)
+
+    def do_brief(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/brief {cmd_str}" if cmd_str else "/brief", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_schedule(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/schedule {cmd_str}" if cmd_str else "/schedule brief", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
 
     def do_stocks(self, arg: str) -> None:
         parts = arg.strip().split(maxsplit=1)

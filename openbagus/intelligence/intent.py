@@ -89,6 +89,7 @@ ALLOWED_INTENTS = (
     "CONVERSATION",
     "COMMODITY",
     "PORTFOLIO_RISK",
+    "DAILY_BRIEF",
 )
 
 REQUEST_TYPES = (
@@ -136,6 +137,7 @@ REQUEST_TYPES = (
     "CONVERSATION",
     "COMMODITY",
     "PORTFOLIO_RISK",
+    "DAILY_BRIEF",
 )
 
 CRYPTO_VOCAB_CANONICAL = {
@@ -866,7 +868,7 @@ class IntentRequest:
             return "COMMAND"
         if self.request_type in {"FIAT_FX", "CALCULATOR", "CRYPTO_QUOTE", "EXECUTION_REQUEST", "COMMAND", "CATEGORY", "CHART", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "UNKNOWN"}:
             return self.request_type
-        if self.request_type in {"CONVERSATION", "COMMODITY", "PORTFOLIO_RISK"}:
+        if self.request_type in {"CONVERSATION", "COMMODITY", "PORTFOLIO_RISK", "DAILY_BRIEF"}:
             return self.request_type
         return "CRYPTO_RESEARCH"
 
@@ -962,7 +964,7 @@ def _safe_calc(expr: str) -> str | None:
 _COMMAND_VOCAB = [
     "assets", "categories", "category", "chart", "harness", "sources",
     "screen", "compare", "help", "version", "status", "providers", "doctor", "setup",
-    "portfolio", "risk",
+    "portfolio", "risk", "brief", "schedule",
 ]
 
 class IntentRouter:
@@ -1133,6 +1135,28 @@ class IntentRouter:
             stop_words = {"VAR", "CVAR", "VALUE", "AT", "RISK", "PORTOFOLIO", "PORTFOLIO", "KALKULATOR", "HITUNG"}
             targets = [w.upper() for w in re.findall(r"\b[A-Za-z0-9]{2,6}\b", text) if w.upper() not in stop_words]
             return IntentRequest("PORTFOLIO_RISK", "PORTFOLIO_RISK", raw_query=text, focus="var", target_assets=targets)
+
+        # Daily Research Brief & Scheduling Intent Recognition
+        if lower.startswith(("/brief", "brief", "/schedule brief")) or re.search(r"\b(?:risalah|daily\s+brief|riset\s+(?:harian|pagi|sore)|brief\s+(?:pagi|sore)|buat\s+riset|(?:draf|draft)\s+riset|daftar\s+(?:draf|draft|brief|riset))\b", lower):
+            focus = "status"
+            topic = "morning"
+            if re.search(r"\b(?:pagi|morning|pre-?market|subuh)\b", lower):
+                focus = "generate"
+                topic = "morning"
+            elif re.search(r"\b(?:sore|evening|post-?market|malam|penutupan)\b", lower):
+                focus = "generate"
+                topic = "evening"
+            elif re.search(r"\b(?:buat|generate|bikin|now|sekarang|jalankan|trigger)\b", lower):
+                focus = "generate"
+                topic = "morning" if "pagi" in lower else ("evening" if "sore" in lower else "morning")
+            elif re.search(r"\b(?:list|daftar|draft|draf|arsip|file)\b", lower):
+                focus = "list"
+            elif re.search(r"\b(?:status|jadwal|schedule|cek)\b", lower):
+                focus = "status"
+            return IntentRequest("DAILY_BRIEF", "DAILY_BRIEF", raw_query=text, focus=focus, topic=topic)
+
+        if re.search(r"\b(?:jadwal\s+riset|penjadwalan\s+riset|otomasi\s+riset|auto\s+brief)\b", lower):
+            return IntentRequest("DAILY_BRIEF", "DAILY_BRIEF", raw_query=text, focus="status")
         chart = re.search(r"\b(?:chart(?:nya)?|grafik(?:nya)?|visualize|visualisasi|hart)\b", lower)
         operation = re.search(r"\b(?:backtest|report|laporan|ownership|kepemilikan|pemegang\s+saham|equity\s+curve|export|ekspor)\b", lower)
         if chart or operation:
