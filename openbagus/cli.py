@@ -1452,6 +1452,7 @@ class OpenBagusShell(cmd.Cmd):
         print("     /ownership [asset]     view shareholder concentration & KSEI disclosures")
         print("  4. Quantitative Strategies & Validation:")
         print("     /backtest [asset]      run realistic walk-forward backtest")
+        print("     /portfolio [cmd]       multi-asset risk, position sizing, VaR & cross-asset correlation")
         print("     benchmark quantum openbagus  benchmark Monte Carlo simulation speed")
         print("  5. Persistent Session Harness:")
         print("     /harness [on|off|clear] view or control multi-turn session memory")
@@ -1704,6 +1705,16 @@ class OpenBagusShell(cmd.Cmd):
         res = self.researcher.execute(req, session=self.session)
         print(res)
         print()
+
+    def do_portfolio(self, arg: str) -> None:
+        cmd_str = arg.strip()
+        req = self.router.parse(f"/portfolio {cmd_str}" if cmd_str else "/portfolio", session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_risk(self, arg: str) -> None:
+        self.do_portfolio(arg)
 
     def do_stocks(self, arg: str) -> None:
         parts = arg.strip().split(maxsplit=1)

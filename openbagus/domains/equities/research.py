@@ -207,7 +207,7 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
         )
 
     # 3. Discrepancy & Numeric Challenge (tapi aku lihat labanya kok beda ya / bukannya tadi salah)
-    if re.search(r"\b(?:beda|kok\s+beda|berbeda|selisih)\b", lower) and re.search(r"\b(?:laba|profit|angka|margin|omzet|pendapatan)\b", lower):
+    if re.search(r"\b(?:beda|kok\s+beda|berbeda|selisih)\b", lower) and re.search(r"\b(?:laba(?:nya)?|profit(?:nya)?|angka(?:nya)?|margin(?:nya)?|omzet(?:nya)?|pendapatan(?:nya)?)\b", lower):
         r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
         period = packet.fundamentals.get("period", "terakhir") if packet and packet.fundamentals else "terakhir"
         basis = packet.fundamentals.get("basis", "konsolidasian") if packet and packet.fundamentals else "konsolidasian"
@@ -258,7 +258,7 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
         return resp
 
     # 7. Financial ratios and margins follow-up
-    if re.search(r"\b(?:margin|operating margin|net margin|npm|opm|laba|profit|der|roe|pbv|per|eps|car|nim|npl|rasio|fundamental|valuasi)\b", lower):
+    if re.search(r"\b(?:margin(?:nya)?|operating margin|net margin|npm|opm|laba(?:nya)?|profit(?:nya)?|der|roe|pbv|per|eps|car|nim|npl|rasio(?:nya)?|fundamental|valuasi(?:nya)?)\b", lower):
         r = packet.fundamentals.get("ratios", {}) if packet and packet.fundamentals else {}
         if r:
             lines = [f"Rasio Keuangan {asset.symbol} ({packet.fundamentals.get('period', '')} {packet.fundamentals.get('basis', 'konsolidasi')}):"]

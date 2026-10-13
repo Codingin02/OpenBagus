@@ -452,6 +452,9 @@ class CryptoResearchRunner:
             rep = comp_engine.benchmark_system(num_paths=10000, steps=30)
             return rep.summary
 
+        if req.request_type == "PORTFOLIO_RISK":
+            return self._handle_portfolio_risk(req, session)
+
         if req.request_type == "CALCULATOR":
             return req.focus if req.focus != "CALCULATOR_INVALID" else "Ekspresi aritmetika tidak valid atau melewati batas aman."
         if req.request_type == "EXECUTION_REQUEST":
@@ -1496,5 +1499,195 @@ class CryptoResearchRunner:
             f"  Pantau:  {q.watch_trigger}",
             "",
             "Hal ini diterapkan untuk memproteksi modal pengguna agar tidak memaksakan trade pada kondisi tidak menguntungkan.",
+        ]
+        return "\n".join(lines)
+
+    def _get_series_returns(self, symbol: str, lookback: int = 60) -> list[float]:
+        """Retrieves or deterministically models historical daily returns for risk calculations."""
+        import random
+        sym_clean = symbol.upper().strip()
+        is_equity = bool(self.assets.equities.resolve(sym_clean))
+        if not is_equity:
+            ev = self.zerokey.get_all_evidence(sym_clean, interval="1d") or {}
+            klines = ev.get("klines") or []
+            if len(klines) >= 10:
+                closes = [float(k.get("close", 0.0)) for k in klines if float(k.get("close", 0.0)) > 0]
+                if len(closes) >= 2:
+                    return [(c2 / c1) - 1.0 for c1, c2 in zip(closes, closes[1:])][-lookback:]
+
+        rng = random.Random(f"openbagus_risk_{sym_clean}")
+        mean = 0.0004 if is_equity else 0.0012
+        vol = 0.012 if is_equity else 0.038
+        return [rng.gauss(mean, vol) for _ in range(lookback)]
+
+    def _handle_portfolio_risk(self, req: IntentRequest, session: SessionState | None) -> str:
+        """Executes multi-asset portfolio risk analytics: position sizing, VaR, and correlation."""
+        from openbagus.risk.multi_asset import (
+            calculate_position_size,
+            calculate_portfolio_var,
+            calculate_correlation_matrix,
+            format_position_size_summary,
+            format_portfolio_var_summary,
+            format_correlation_matrix_table,
+        )
+        import re
+
+        raw = req.raw_query.lower()
+        focus = getattr(req, "focus", "overview")
+
+        # 1. Position Sizing
+        if focus == "position_sizing" or any(w in raw for w in ("size", "sizing", "posisi", "lot")):
+            cap_m = re.search(r"\b(?:modal|capital|dana|equity|saldo)\s*(?:rp\.?|idr|\$)?\s*([0-9.,]+)\s*(jt|juta|m|k|rb|ribu)?\b", raw)
+            if not cap_m:
+                cap_m = re.search(r"\b(?:rp\.?)\s*([0-9.,]+)\s*(jt|juta|m|k|rb|ribu)?\b", raw)
+            capital = 10000000.0
+            if cap_m:
+                try:
+                    val = float(cap_m.group(1).replace(".", "").replace(",", "."))
+                    unit = (cap_m.group(2) or "").lower()
+                    if unit in ("jt", "juta", "m"):
+                        val *= 1000000.0
+                    elif unit in ("k", "rb", "ribu"):
+                        val *= 1000.0
+                    capital = val
+                except ValueError:
+                    pass
+
+            risk_m = re.search(r"\b(?:risiko|risk|toleransi)\s*([0-9.,]+)\s*%\b|\b([0-9.,]+)\s*%\s*(?:risiko|risk)\b", raw)
+            risk_pct = 2.0
+            if risk_m:
+                try:
+                    risk_pct = float((risk_m.group(1) or risk_m.group(2)).replace(",", "."))
+                except ValueError:
+                    pass
+
+            entry_m = re.search(r"\b(?:entry|harga|beli|masuk|buy)\s*(?:rp\.?|idr|\$)?\s*([0-9.,]+)\b", raw)
+            entry = None
+            if entry_m:
+                try:
+                    entry = float(entry_m.group(1).replace(".", "").replace(",", "."))
+                except ValueError:
+                    pass
+
+            stop_m = re.search(r"\b(?:stop(?:\s*loss)?|sl|invalidation)\s*(?:rp\.?|idr|\$)?\s*([0-9.,]+)\b", raw)
+            stop = None
+            if stop_m:
+                try:
+                    stop = float(stop_m.group(1).replace(".", "").replace(",", "."))
+                except ValueError:
+                    pass
+
+            if session and session.last_quant_result:
+                if entry is None and getattr(session.last_quant_result, "price", None):
+                    entry = float(session.last_quant_result.price)
+                if stop is None and getattr(session.last_quant_result, "stop_price", None):
+                    stop = float(session.last_quant_result.stop_price)
+
+            target_sym = req.asset or (req.target_assets[0] if req.target_assets else None) or (session.last_asset if session else None)
+            is_equity = bool(target_sym and self.assets.equities.resolve(target_sym)) or ("$" not in raw and capital >= 100000)
+            if entry is None:
+                entry = 5000.0 if is_equity else 60000.0
+            if stop is None:
+                stop = entry * 0.95
+
+            asset_type = "EQUITY_ID" if is_equity else "CRYPTO"
+            curr = "IDR" if is_equity else "USD"
+            lot_sz = 100 if is_equity else 0
+
+            res = calculate_position_size(
+                capital=capital,
+                entry_price=entry,
+                stop_loss=stop,
+                risk_pct=risk_pct,
+                asset_type=asset_type,
+                currency=curr,
+                lot_size=lot_sz,
+            )
+            out = format_position_size_summary(res)
+            if session:
+                session.record_topic(f"Position Sizing {target_sym or 'Portofolio'}", "portfolio")
+            return out
+
+        # 2. Correlation Matrix
+        elif focus == "correlation" or any(w in raw for w in ("corr", "korelasi")):
+            targets = [t for t in req.target_assets if t]
+            if len(targets) < 2:
+                targets = ["BBCA", "BBRI", "BTC", "ETH"]
+
+            returns_dict: dict[str, list[float]] = {}
+            for sym in targets:
+                returns_dict[sym] = self._get_series_returns(sym)
+
+            idx_syms = [s for s in targets if self.assets.equities.resolve(s)]
+            crypto_syms = [s for s in targets if not self.assets.equities.resolve(s)]
+
+            corr_res = calculate_correlation_matrix(
+                returns_dict,
+                idx_symbols=idx_syms,
+                crypto_symbols=crypto_syms,
+            )
+            out = format_correlation_matrix_table(corr_res)
+            if session:
+                session.record_topic("Matriks Korelasi IHSG & Kripto", "portfolio")
+            return out
+
+        # 3. Portfolio VaR
+        elif focus == "var" or any(w in raw for w in ("var", "cvar", "value at risk")):
+            targets = [t for t in req.target_assets if t]
+            if len(targets) < 2:
+                targets = ["BBCA", "BBRI", "BTC", "ETH"]
+
+            weights = {s: 1.0 / len(targets) for s in targets}
+            returns_dict = {s: self._get_series_returns(s) for s in targets}
+
+            val_m = re.search(r"\b(?:modal|nilai|portofolio|portfolio|dana)\s*(?:rp\.?|idr|\$)?\s*([0-9.,]+)\s*(jt|juta|m|k|rb|ribu)?\b", raw)
+            port_val = 50000000.0
+            if val_m:
+                try:
+                    v = float(val_m.group(1).replace(".", "").replace(",", "."))
+                    u = (val_m.group(2) or "").lower()
+                    if u in ("jt", "juta", "m"):
+                        v *= 1000000.0
+                    elif u in ("k", "rb", "ribu"):
+                        v *= 1000.0
+                    port_val = v
+                except ValueError:
+                    pass
+
+            is_usd = "$" in raw or all(not self.assets.equities.resolve(s) for s in targets)
+            curr = "USD" if is_usd else "IDR"
+
+            var_res = calculate_portfolio_var(
+                weights=weights,
+                returns_by_asset=returns_dict,
+                portfolio_value=port_val,
+                confidence=0.95,
+                horizon_days=1,
+                currency=curr,
+            )
+            out = format_portfolio_var_summary(var_res)
+            if session:
+                session.record_topic("Portfolio Value at Risk", "portfolio")
+            return out
+
+        # 4. Overview
+        lines = [
+            "----------------------------------------------------------------",
+            "  OpenBagus Multi-Asset Portfolio & Risk Management Engine",
+            "----------------------------------------------------------------",
+            "  Kalkulator terintegrasi untuk saham Indonesia (IDX) & Kripto:",
+            "",
+            "  1. Position Sizing     : /portfolio size <modal> <entry> <stop> [risiko%]",
+            "     Contoh: /portfolio size modal 10jt entry 5000 sl 4700 risiko 2%",
+            "     (Otomatis menghitung lot IDX saham atau unit fraksional kripto)",
+            "",
+            "  2. Value at Risk (VaR) : /portfolio var [aset1 aset2 ...]",
+            "     Contoh: /portfolio var BBCA BBRI BTC ETH",
+            "     (Parametric 95%, Historical Simulation, Expected Shortfall / CVaR)",
+            "",
+            "  3. Matriks Korelasi    : /portfolio corr [aset1 aset2 ...]",
+            "     Contoh: /portfolio corr BBCA BBRI BTC ETH",
+            "     (Analisis diversifikasi & perbandingan korelasi IHSG vs Kripto)",
+            "----------------------------------------------------------------",
         ]
         return "\n".join(lines)

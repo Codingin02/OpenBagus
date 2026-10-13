@@ -88,6 +88,7 @@ ALLOWED_INTENTS = (
     "SECTOR_IMPACT",
     "CONVERSATION",
     "COMMODITY",
+    "PORTFOLIO_RISK",
 )
 
 REQUEST_TYPES = (
@@ -134,6 +135,7 @@ REQUEST_TYPES = (
     "UNKNOWN",
     "CONVERSATION",
     "COMMODITY",
+    "PORTFOLIO_RISK",
 )
 
 CRYPTO_VOCAB_CANONICAL = {
@@ -864,7 +866,7 @@ class IntentRequest:
             return "COMMAND"
         if self.request_type in {"FIAT_FX", "CALCULATOR", "CRYPTO_QUOTE", "EXECUTION_REQUEST", "COMMAND", "CATEGORY", "CHART", "SYSTEM_INFO", "PREFERENCE", "FEEDBACK", "UNKNOWN"}:
             return self.request_type
-        if self.request_type in {"CONVERSATION", "COMMODITY"}:
+        if self.request_type in {"CONVERSATION", "COMMODITY", "PORTFOLIO_RISK"}:
             return self.request_type
         return "CRYPTO_RESEARCH"
 
@@ -960,6 +962,7 @@ def _safe_calc(expr: str) -> str | None:
 _COMMAND_VOCAB = [
     "assets", "categories", "category", "chart", "harness", "sources",
     "screen", "compare", "help", "version", "status", "providers", "doctor", "setup",
+    "portfolio", "risk",
 ]
 
 class IntentRouter:
@@ -1102,6 +1105,34 @@ class IntentRouter:
             return IntentRequest("FEEDBACK", "FEEDBACK", raw_query=text, focus=focus)
         if re.search(r"\b(?:nikel|nickel)\b", lower) and not any(self.assets.equities.resolve(w) for w in text.split()):
             return IntentRequest("COMMODITY", "COMMODITY", raw_query=text, focus="nickel", topic="commodity")
+
+        # Multi-Asset Portfolio & Risk Engine Intent Recognition
+        if lower.startswith(("/portfolio", "/risk", "portfolio", "portofolio")) or re.search(r"\b(?:manajemen\s+risiko|risiko\s+portofolio)\b", lower):
+            focus = "overview"
+            if re.search(r"\b(?:size|sizing|posisi|lot)\b", lower):
+                focus = "position_sizing"
+            elif re.search(r"\b(?:corr|korelasi)\b", lower):
+                focus = "correlation"
+            elif re.search(r"\b(?:var|cvar|value\s+at\s+risk)\b", lower):
+                focus = "var"
+            stop_words = {"PORTFOLIO", "PORTOFOLIO", "RISK", "RISIKO", "VAR", "CVAR", "LOT", "SIZE", "SIZING", "CORR", "KORELASI", "DAN", "VS", "VERSUS", "DENGAN", "ANTARA"}
+            targets = [w.upper() for w in re.findall(r"\b[A-Za-z0-9]{2,6}\b", text) if w.upper() not in stop_words]
+            return IntentRequest("PORTFOLIO_RISK", "PORTFOLIO_RISK", raw_query=text, focus=focus, target_assets=targets)
+
+        if re.search(r"\b(?:korelasi|correlation)\b", lower) and re.search(r"\b(?:dan|vs|versus|antara|dengan|ihsg|crypto|kripto|saham)\b", lower):
+            stop_words = {"KORELASI", "CORRELATION", "DAN", "VS", "VERSUS", "DENGAN", "ANTARA", "SAHAM", "CRYPTO", "KRIPTO", "IHSG", "IDX", "PASAR"}
+            targets = [w.upper() for w in re.findall(r"\b[A-Za-z0-9]{2,6}\b", text) if w.upper() not in stop_words]
+            return IntentRequest("PORTFOLIO_RISK", "PORTFOLIO_RISK", raw_query=text, focus="correlation", target_assets=targets)
+
+        if re.search(r"\b(?:posisi|position\s+sizing|hitung\s+lot|alokasi\s+modal)\b", lower) and re.search(r"\b(?:modal|capital|rp|idr|entry|stop|risiko|risk|jt|juta)\b", lower):
+            stop_words = {"MODAL", "CAPITAL", "ENTRY", "STOP", "RISIKO", "RISK", "JUTA", "RIBU", "POSISI", "POSITION", "SIZING", "LOT", "HITUNG", "ALOKASI"}
+            targets = [w.upper() for w in re.findall(r"\b[A-Za-z0-9]{3,6}\b", text) if w.upper() not in stop_words]
+            return IntentRequest("PORTFOLIO_RISK", "PORTFOLIO_RISK", raw_query=text, focus="position_sizing", target_assets=targets)
+
+        if re.search(r"\b(?:var\s+portofolio|value\s+at\s+risk|cvar|kalkulator\s+var)\b", lower):
+            stop_words = {"VAR", "CVAR", "VALUE", "AT", "RISK", "PORTOFOLIO", "PORTFOLIO", "KALKULATOR", "HITUNG"}
+            targets = [w.upper() for w in re.findall(r"\b[A-Za-z0-9]{2,6}\b", text) if w.upper() not in stop_words]
+            return IntentRequest("PORTFOLIO_RISK", "PORTFOLIO_RISK", raw_query=text, focus="var", target_assets=targets)
         chart = re.search(r"\b(?:chart(?:nya)?|grafik(?:nya)?|visualize|visualisasi|hart)\b", lower)
         operation = re.search(r"\b(?:backtest|report|laporan|ownership|kepemilikan|pemegang\s+saham|equity\s+curve|export|ekspor)\b", lower)
         if chart or operation:

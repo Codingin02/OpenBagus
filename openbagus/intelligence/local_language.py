@@ -86,11 +86,15 @@ def format_price(value: float | None, currency: str = "USD") -> str:
     from decimal import Decimal
     if value is None:
         return "DATA GAP"
+    try:
+        val_float = float(value)
+    except (ValueError, TypeError):
+        return str(value)
     if currency == "IDR":
-        return f"Rp{value:,.0f}"
-    if abs(value) >= 1:
-        return f"${value:,.2f}"
-    return "$" + format(Decimal(str(value)), "f")
+        return f"Rp{val_float:,.0f}"
+    if abs(val_float) >= 1:
+        return f"${val_float:,.2f}"
+    return "$" + format(Decimal(str(val_float)), "f")
 
 
 def get_local_appdata_dir() -> Path:
@@ -539,17 +543,25 @@ class LocalLanguageEngine:
             if hasattr(packet, "bearish_validation") and packet.bearish_validation:
                 bear_trig = getattr(packet.bearish_validation, "trigger_condition", "")
 
-            patterns_obj = getattr(packet, "patterns", {})
-            fib_obj = getattr(packet, "fibonacci", {})
-            stoch_obj = getattr(packet, "stochastic", {})
-            arb_obj = getattr(packet, "arbitrage", {})
-            macro_obj = getattr(packet, "macro_item", {})
-            flow_obj = getattr(packet, "large_flow_item", {})
+            patterns_obj = packet.patterns if isinstance(getattr(packet, "patterns", None), dict) else {}
+            fib_obj = packet.fibonacci if isinstance(getattr(packet, "fibonacci", None), dict) else {}
+            stoch_obj = packet.stochastic if isinstance(getattr(packet, "stochastic", None), dict) else {}
+            arb_obj = packet.arbitrage if isinstance(getattr(packet, "arbitrage", None), dict) else {}
+            macro_obj = packet.macro_item if isinstance(getattr(packet, "macro_item", None), dict) else {}
+            flow_obj = packet.large_flow_item if isinstance(getattr(packet, "large_flow_item", None), dict) else {}
 
             pattern_name = getattr(packet, "pattern_name", "") if patterns_obj.get("material") else ""
             fib_confluence = getattr(packet, "fibonacci_confluence", "") if fib_obj.get("material") else ""
-            stoch_note = stoch_obj.get("values", {}).get("summary", "") if stoch_obj.get("material") else ""
-            arb_note = f"Net spread {arb_obj.get('values', {}).get('estimated_net_spread_pct', 0):+.2f}%" if arb_obj.get("material") else ""
+            stoch_vals = stoch_obj.get("values", {}) if isinstance(stoch_obj.get("values"), dict) else {}
+            stoch_note = str(stoch_vals.get("summary", "")) if stoch_obj.get("material") else ""
+            arb_note = ""
+            if arb_obj.get("material"):
+                arb_vals = arb_obj.get("values", {}) if isinstance(arb_obj.get("values"), dict) else {}
+                try:
+                    spread_val = float(arb_vals.get("estimated_net_spread_pct", 0))
+                    arb_note = f"Net spread {spread_val:+.2f}%"
+                except (ValueError, TypeError):
+                    arb_note = ""
             macro_note = getattr(packet, "event_risk", "") if macro_obj.get("material") else ""
             large_flow_val = getattr(packet, "large_flow", None)
             flow_note = large_flow_val.get("summary", "") if (flow_obj.get("material") and isinstance(large_flow_val, dict)) else ""
@@ -573,11 +585,36 @@ class LocalLanguageEngine:
                         pass
 
             price_vs_fib = ""
-            if fib_level is not None and price is not None and price > 0:
-                if price > fib_level:
-                    price_vs_fib = "ABOVE"
-                elif price < fib_level:
-                    price_vs_fib = "BELOW"
+            if fib_level is not None and price is not None:
+                try:
+                    price_f = float(price)
+                    if price_f > fib_level:
+                        price_vs_fib = "ABOVE"
+                    elif price_f < fib_level:
+                        price_vs_fib = "BELOW"
+                except (ValueError, TypeError):
+                    pass
+
+            freq_obj = packet.frequency_cycle if isinstance(getattr(packet, "frequency_cycle", None), dict) else {}
+            freq_vals = freq_obj.get("values", {}) if isinstance(freq_obj.get("values"), dict) else {}
+            freq_note = str(freq_vals.get("summary", "")) if re.search(r"\b(?:frequency|cycle)\b", user_query, re.IGNORECASE) and freq_obj.get("material") else ""
+
+            fund_dict = packet.fundamentals if isinstance(getattr(packet, "fundamentals", None), dict) else {}
+            fund_ratios = fund_dict.get("ratios", {}) if isinstance(fund_dict.get("ratios"), dict) else {}
+
+            rr_long = getattr(getattr(packet, "bullish_validation", None), "reward_risk", None)
+            if not isinstance(rr_long, (int, float)):
+                rr_long = None
+            rr_short = getattr(getattr(packet, "bearish_validation", None), "reward_risk", None)
+            if not isinstance(rr_short, (int, float)):
+                rr_short = None
+
+            bull_trig_lvl = getattr(getattr(packet, "bullish_validation", None), "trigger_level", None)
+            if not isinstance(bull_trig_lvl, (int, float)):
+                bull_trig_lvl = None
+            bear_trig_lvl = getattr(getattr(packet, "bearish_validation", None), "trigger_level", None)
+            if not isinstance(bear_trig_lvl, (int, float)):
+                bear_trig_lvl = None
 
             facts = NarrativeFacts(
                 asset=asset,
@@ -598,14 +635,14 @@ class LocalLanguageEngine:
                 macro_event=macro_note,
                 large_flow_summary=flow_note,
                 market=getattr(packet, "market", "GENERAL / SPOT REFERENCE"),
-                rr_long=getattr(getattr(packet, "bullish_validation", None), "reward_risk", None),
-                rr_short=getattr(getattr(packet, "bearish_validation", None), "reward_risk", None),
+                rr_long=rr_long,
+                rr_short=rr_short,
                 rr_gate_passed=bool(getattr(packet, "rr_gate_passed", False)),
                 event_dates=re.findall(r"\b\d{4}-\d{2}-\d{2}\b", str(getattr(packet, "macro", {}))),
-                frequency=getattr(packet, "frequency_cycle", {}).get("values", {}).get("summary", "") if re.search(r"\b(?:frequency|cycle)\b", user_query, re.IGNORECASE) and getattr(packet, "frequency_cycle", {}).get("material") else "",
-                bullish_trigger_level=getattr(getattr(packet, "bullish_validation", None), "trigger_level", None),
+                frequency=freq_note,
+                bullish_trigger_level=bull_trig_lvl,
                 bullish_trigger_state=getattr(getattr(packet, "bullish_validation", None), "trigger_state", "UNKNOWN"),
-                bearish_trigger_level=getattr(getattr(packet, "bearish_validation", None), "trigger_level", None),
+                bearish_trigger_level=bear_trig_lvl,
                 bearish_trigger_state=getattr(getattr(packet, "bearish_validation", None), "trigger_state", "UNKNOWN"),
                 data_freshness=getattr(packet, "data_freshness", "UNVERIFIED"),
                 contradictions=getattr(packet, "contradictions", []),
@@ -616,10 +653,13 @@ class LocalLanguageEngine:
                 data_quality=getattr(packet, "data_quality", "UNKNOWN"),
                 currency=getattr(packet, "currency", "USD"),
                 asset_type=getattr(packet, "asset_type", "CRYPTO"),
-                fundamentals=getattr(packet, "fundamentals", {}).get("ratios", {}),
+                fundamentals=fund_ratios,
             )
         if facts.fibonacci_level is not None and facts.price is not None:
-            facts.price_vs_fib = "ABOVE" if facts.price > facts.fibonacci_level else ("BELOW" if facts.price < facts.fibonacci_level else "AT")
+            try:
+                facts.price_vs_fib = "ABOVE" if float(facts.price) > float(facts.fibonacci_level) else ("BELOW" if float(facts.price) < float(facts.fibonacci_level) else "AT")
+            except (ValueError, TypeError):
+                facts.price_vs_fib = ""
 
         user_style = classify_user_style(user_query)
         facts.user_style = user_style
