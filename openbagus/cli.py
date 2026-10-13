@@ -1463,7 +1463,10 @@ class OpenBagusShell(cmd.Cmd):
         print("     /integrations          inspect status of optional TradingView MCP bridge & tools")
         print("  3. Indonesian Equities & Universe:")
         print("     /stocks [cmd]          explore full IDX universe (search, sector, info, ipo, fetch, sync)")
-        print("     /data [import|fetch]   import authorized local CSV or fetch live online EOD")
+        print("     /financials [cmd]      read authentic P&L, balance sheet, cash flows, audit status & citations")
+        print("     /valuation <ticker>    calculate multiples (PER/PBV/EV), DuPont ROE & DCF scenario matrix")
+        print("     /fcf <ticker>          waterfall Free Cash Flow (OCF - Capex) or banking sector exclusion")
+        print("     /data [import|fetch]   import authorized local CSV/XLSX/XBRL/PDF or fetch live online EOD")
         print("     /ownership [asset]     view shareholder concentration & KSEI disclosures")
         print("  4. Quantitative Strategies & Validation:")
         print("     /backtest [asset] [cmd] walk-forward backtest, parameter sweep (/backtest sweep), MTF, or curve")
@@ -2096,6 +2099,399 @@ class OpenBagusShell(cmd.Cmd):
             print()
         else:
             print(f"Subcommand '/stocks {subcmd}' tidak dikenal. Gunakan /stocks untuk bantuan.")
+
+    def do_financials(self, arg: str) -> None:
+        """Eksplorasi dan analisis laporan keuangan resmi emiten IDX."""
+        parts = arg.strip().split()
+        if not parts or parts[0].lower() in {"help", "-h", "--help"}:
+            print("=== IDX Financial Statements Explorer ===")
+            print("Perintah yang tersedia:")
+            print("  /financials <ticker> [periode]           - Tampilkan laporan keuangan lengkap (Laba Rugi, Neraca, Arus Kas)")
+            print("  /financials compare <t1> <t2> [periode]  - Bandingkan 2 emiten berdampingan")
+            print("  /financials history <ticker>             - Daftar seluruh periode laporan keuangan yang tersedia")
+            print("  /financials coverage [sektor|papan]      - Matriks ketersediaan dokumen laporan di seluruh pasar")
+            print("  /financials source <ticker>              - Detail sumber, nomor halaman, dan sitasi koordinat")
+            print()
+            return
+
+        subcmd = parts[0].lower()
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        from openbagus.domains.equities.discovery import DocumentDiscoveryManager
+        from openbagus.domains.equities.catalog import EquityCatalog
+        storage = FinancialStatementStorage(REPO_ROOT)
+        discovery = DocumentDiscoveryManager(REPO_ROOT)
+        catalog = EquityCatalog(REPO_ROOT)
+
+        if subcmd == "coverage":
+            matrix = discovery.get_market_coverage_matrix()
+            print("=== Matriks Ketersediaan Laporan Keuangan IDX ===")
+            print(f"Total Emiten di Katalog: {matrix['total_issuers_in_catalog']}")
+            print(f"Emiten dengan Laporan Tersedia: {matrix['issuers_with_filings']}")
+            print(f"Total Dokumen Laporan Keuangan Tersimpan: {matrix['total_statements_stored']}")
+            print("\nCakupan Berdasarkan Papan Pencatatan:")
+            for board, b_stats in matrix["by_board"].items():
+                cov_pct = (b_stats["covered_issuers"] / b_stats["total_issuers"] * 100) if b_stats["total_issuers"] > 0 else 0
+                print(f"  - {board:20s}: {b_stats['covered_issuers']}/{b_stats['total_issuers']} emiten ({cov_pct:.1f}%)")
+            print("\nCakupan Berdasarkan Sektor (11 IDX-IC):")
+            for sec, s_stats in matrix["by_sector"].items():
+                cov_pct = (s_stats["covered_issuers"] / s_stats["total_issuers"] * 100) if s_stats["total_issuers"] > 0 else 0
+                print(f"  - {sec:25s}: {s_stats['covered_issuers']}/{s_stats['total_issuers']} emiten ({cov_pct:.1f}%)")
+            print()
+            return
+
+        if subcmd == "compare" and len(parts) >= 3:
+            t1 = parts[1].upper()
+            t2 = parts[2].upper()
+            period = parts[3] if len(parts) >= 4 else None
+            stmt1 = storage.get_statement(t1, period)
+            stmt2 = storage.get_statement(t2, period)
+            if not stmt1:
+                print(f"Laporan keuangan untuk {t1} belum tersedia di data lokal.")
+                return
+            if not stmt2:
+                print(f"Laporan keuangan untuk {t2} belum tersedia di data lokal.")
+                return
+
+            p1 = stmt1.get("period", "-")
+            p2 = stmt2.get("period", "-")
+            v1 = stmt1.get("values", {})
+            v2 = stmt2.get("values", {})
+            u1 = stmt1.get("unit", "IDR")
+            u2 = stmt2.get("unit", "IDR")
+
+            print(f"=== Komparasi Fundamental: {t1} ({p1}) vs {t2} ({p2}) ===")
+            print(f"{'Metrik':<28s} | {t1:<18s} | {t2:<18s}")
+            print("-" * 70)
+            items = [
+                ("Pendapatan (Revenue)", "revenue"),
+                ("Laba Usaha (EBIT)", "operating_income"),
+                ("Laba Bersih (Net Income)", "net_income"),
+                ("Laba Entitas Induk", "net_income_attributable"),
+                ("Total Aset", "total_assets"),
+                ("Total Liabilitas", "total_liabilities"),
+                ("Utang Berbunga", "interest_bearing_debt"),
+                ("Ekuitas Entitas Induk", "equity_attributable"),
+                ("Arus Kas Operasi (OCF)", "operating_cash_flow"),
+                ("Belanja Modal (Capex)", "capital_expenditure"),
+            ]
+            for label, k in items:
+                val1_str = f"{v1.get(k):,.0f}" if v1.get(k) is not None else "-"
+                val2_str = f"{v2.get(k):,.0f}" if v2.get(k) is not None else "-"
+                print(f"{label:<28s} | {val1_str:<18s} | {val2_str:<18s}")
+            print(f"{'Satuan Angka':<28s} | {u1:<18s} | {u2:<18s}")
+            print()
+            return
+
+        if subcmd == "history" and len(parts) >= 2:
+            sym = parts[1].upper()
+            periods = storage.list_periods(sym)
+            if not periods:
+                info = discovery.get_issuer_discovery(sym)
+                print(f"Belum ada laporan keuangan tersimpan untuk {sym}.")
+                print(info["guidance"])
+                return
+            print(f"=== Riwayat Laporan Keuangan {sym} ({len(periods)} Periode) ===")
+            for p in periods:
+                stmt = storage.get_statement(sym, p)
+                audit = stmt.get("audit_status", "-") if stmt else "-"
+                fmt = stmt.get("document_format", "JSON") if stmt else "-"
+                src = stmt.get("source", "-") if stmt else "-"
+                print(f"  - {p:<10s} | Status Audit: {audit:<10s} | Format: {fmt:<6s} | Sumber: {src}")
+            print()
+            return
+
+        if subcmd == "source" and len(parts) >= 2:
+            sym = parts[1].upper()
+            stmt = storage.get_statement(sym)
+            if not stmt:
+                print(f"Laporan keuangan untuk {sym} belum tersedia.")
+                return
+            print(f"=== Sumber Dokumen & Sitasi {sym} ({stmt.get('period')}) ===")
+            print(f"Dokumen: {stmt.get('source_document', stmt.get('source'))}")
+            print(f"Format: {stmt.get('document_format', 'JSON')}")
+            print(f"Status Audit: {stmt.get('audit_status', 'N/A')}")
+            print(f"Tanggal Publikasi: {stmt.get('published_at', '-')}")
+            citations = stmt.get("citations", {})
+            if citations:
+                print("\nSitasi Baris & Halaman:")
+                for field_name, cit in list(citations.items())[:10]:
+                    page = f"Hal {cit.get('page')}" if cit.get('page') else (cit.get('cell_reference') or cit.get('concept') or "-")
+                    raw = cit.get('raw_text', '')
+                    print(f"  - {field_name:<25s}: {page:<18s} | Nilai Asli: {raw}")
+            print()
+            return
+
+        # Default /financials <TICKER> [PERIOD]
+        sym = parts[0].upper()
+        req_period = parts[1] if len(parts) > 1 else None
+        stmt = storage.get_statement(sym, req_period)
+        if not stmt:
+            store = EquityData(REPO_ROOT)
+            data = store.load(sym, auto_fetch=False)
+            stmt = data.get("fundamentals")
+
+        if not stmt:
+            info = discovery.get_issuer_discovery(sym)
+            print(f"Laporan keuangan untuk {sym} belum tersedia di penyimpanan lokal.")
+            print(info["guidance"])
+            print()
+            return
+
+        asset = next((a for a in catalog.assets if a.symbol == sym), None)
+        v = stmt.get("values", {})
+        unit = stmt.get("unit", "million_IDR")
+        cur = stmt.get("currency", "IDR")
+        p_name = stmt.get("period", "-")
+        basis = stmt.get("basis", "konsolidasian")
+        audit = stmt.get("audit_status", "-")
+        citations = stmt.get("citations", {})
+
+        print(f"=== Laporan Keuangan {sym} — {p_name} ({basis}) ===")
+        if asset:
+            print(f"Emiten: {asset.name} | Sektor: {asset.sector_or_category} | Papan: {asset.canonical_board} | Status: {asset.canonical_status}")
+        print(f"Mata Uang / Satuan: {cur} / {unit} | Status Audit: {audit}")
+        print(f"Sumber Dokumen: {stmt.get('source', '-')}")
+
+        print("\n[ Laba Rugi / Profit or Loss ]")
+        pnl = [
+            ("Pendapatan Bersih (Revenue)", "revenue"),
+            ("Beban Pokok Pendapatan (COGS)", "cost_of_revenue"),
+            ("Laba Kotor (Gross Profit)", "gross_profit"),
+            ("Laba Operasional (Operating Income)", "operating_income"),
+            ("Laba Sebelum Pajak (EBT)", "profit_before_tax"),
+            ("Laba Bersih Periode Berjalan", "net_income"),
+            ("Laba Diatribusikan ke Entitas Induk", "net_income_attributable"),
+        ]
+        for label, k in pnl:
+            val = v.get(k)
+            cit = citations.get(k, {})
+            cit_info = f" (Hal {cit.get('page')})" if cit.get("page") else ""
+            val_str = f"{val:,.0f}{cit_info}" if val is not None else "-"
+            print(f"  {label:<40s}: {val_str}")
+
+        print("\n[ Neraca / Balance Sheet ]")
+        bs = [
+            ("Kas dan Setara Kas", "cash_and_equivalents"),
+            ("Piutang Usaha", "trade_receivables"),
+            ("Persediaan", "inventories"),
+            ("Jumlah Aset Lancar", "current_assets"),
+            ("Jumlah Aset Tidak Lancar", "non_current_assets"),
+            ("JUMLAH ASET", "total_assets"),
+            ("Utang Usaha", "trade_payables"),
+            ("Utang Bank / Berbunga", "interest_bearing_debt"),
+            ("Jumlah Liabilitas Jangka Pendek", "current_liabilities"),
+            ("JUMLAH LIABILITAS", "total_liabilities"),
+            ("Ekuitas Pemilik Entitas Induk", "equity_attributable"),
+            ("JUMLAH EKUITAS", "equity"),
+        ]
+        for label, k in bs:
+            val = v.get(k)
+            cit = citations.get(k, {})
+            cit_info = f" (Hal {cit.get('page')})" if cit.get("page") else ""
+            val_str = f"{val:,.0f}{cit_info}" if val is not None else "-"
+            print(f"  {label:<40s}: {val_str}")
+
+        print("\n[ Arus Kas / Cash Flows ]")
+        cf = [
+            ("Arus Kas Operasi (OCF)", "operating_cash_flow"),
+            ("Belanja Modal (Capex)", "capital_expenditure"),
+        ]
+        for label, k in cf:
+            val = v.get(k)
+            cit = citations.get(k, {})
+            cit_info = f" (Hal {cit.get('page')})" if cit.get("page") else ""
+            val_str = f"{val:,.0f}{cit_info}" if val is not None else "-"
+            print(f"  {label:<40s}: {val_str}")
+
+        if stmt.get("validation_notes"):
+            print("\n[ Catatan Validasi Akuntansi ]")
+            for note in stmt["validation_notes"]:
+                print(f"  * {note}")
+        print()
+
+    def do_valuation(self, arg: str) -> None:
+        """Analisis valuasi multi-metrik, DuPont ROE, dan valuasi intrinsik DCF/Excess Return."""
+        parts = arg.strip().split()
+        if not parts:
+            print("Gunakan: /valuation <ticker> [periode]")
+            return
+
+        sym = parts[0].upper()
+        req_period = parts[1] if len(parts) > 1 else None
+
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        from openbagus.domains.equities.valuation import (
+            calculate_valuation_multiples,
+            dupont_analysis,
+            evaluate_earnings_quality,
+            dcf_scenario_model,
+        )
+        storage = FinancialStatementStorage(REPO_ROOT)
+        stmt = storage.get_statement(sym, req_period)
+        store = EquityData(REPO_ROOT)
+        data = store.load(sym, auto_fetch=False)
+
+        if not stmt:
+            stmt = data.get("fundamentals")
+
+        if not stmt:
+            print(f"Laporan keuangan untuk {sym} belum tersedia. Jalankan /financials {sym} untuk panduan impor.")
+            return
+
+        quote = data.get("quote", {})
+        price = quote.get("price") or (quote.get("close") if "close" in quote else None)
+        if not price or price <= 0:
+            candles = data.get("candles", [])
+            if candles:
+                price = candles[-1].get("close")
+
+        if not price:
+            print(f"Quote harga pasar untuk {sym} belum tersedia di data lokal. Menggunakan harga indikatif Rp1.000.")
+            price = 1000.0
+
+        sector = data.get("sector") or (stmt.get("sector") or "")
+        history = storage.get_history(sym, max_periods=2)
+        prev_stmt = history[0] if len(history) >= 2 else None
+
+        multiples_res = calculate_valuation_multiples(stmt, price, sector=sector)
+        dupont_res = dupont_analysis(stmt, previous_statement=prev_stmt)
+        quality_res = evaluate_earnings_quality(stmt)
+        dcf_res = dcf_scenario_model(stmt, price, sector=sector)
+
+        print(f"=== Analisis Valuasi & Kualitas Laba {sym} ===")
+        print(f"Periode Laporan: {stmt.get('period')} | Harga As-Of: Rp{price:,.0f}")
+
+        mults = multiples_res.get("multiples", {})
+        print("\n[ Multiples Valuasi Pasar ]")
+        if "EPS_IDR" in mults:
+            print(f"  - EPS: Rp{mults['EPS_IDR']:,.2f}")
+        if "PER" in mults and mults["PER"] is not None:
+            print(f"  - Price to Earnings (PER): {mults['PER']:.2f}x")
+        elif "PER_note" in mults:
+            print(f"  - Price to Earnings (PER): {mults['PER_note']}")
+        if "PBV" in mults and mults["PBV"] is not None:
+            print(f"  - Price to Book Value (PBV): {mults['PBV']:.2f}x")
+        elif "PBV_note" in mults:
+            print(f"  - Price to Book Value (PBV): {mults['PBV_note']}")
+        if "EV_to_EBIT" in mults:
+            print(f"  - EV / EBIT: {mults['EV_to_EBIT']:.2f}x")
+        if "FCF_Yield_pct" in mults:
+            print(f"  - FCF Yield: {mults['FCF_Yield_pct']:.2f}%")
+        elif mults.get("FCF_status") == "NOT_APPLICABLE":
+            print(f"  - FCF Yield: NOT_APPLICABLE ({mults.get('FCF_note')})")
+
+        print("\n[ Dekomposisi DuPont ROE ]")
+        three = dupont_res.get("three_stage", {})
+        if three:
+            print(f"  - Margin Laba Bersih (NPM): {three.get('net_profit_margin_pct', 0):.2f}%")
+            print(f"  - Perputaran Aset (Asset Turnover): {three.get('asset_turnover_x', 0):.3f}x")
+            print(f"  - Pengali Ekuitas / Leverage (Assets/Equity): {three.get('equity_multiplier_x', 0):.2f}x")
+            print(f"  -> Hasil ROE 3-Tahap: {three.get('roe_pct', 0):.2f}%")
+
+        print("\n[ Kualitas Laba & Konversi Kas ]")
+        print(f"  - Rasio Konversi Kas (OCF / Laba Bersih): {quality_res.get('cash_conversion_ratio', 'N/A')}")
+        print(f"  - Evaluasi: {quality_res.get('assessment', '-')}")
+
+        print("\n[ Model Valuasi Intrinsik & Skenario ]")
+        print(f"Model: {dcf_res.get('model_type')}")
+        scenarios = dcf_res.get("scenarios", {})
+        for sc_name, sc in scenarios.items():
+            mos = sc.get("margin_of_safety_pct", 0)
+            mos_str = f"+{mos:.1f}%" if mos > 0 else f"{mos:.1f}%"
+            print(f"  - Skenario {sc_name:<5s}: Nilai Wajar Rp{sc.get('intrinsic_value_per_share', 0):,.0f} | Margin of Safety: {mos_str}")
+
+        if "sensitivity_matrix" in dcf_res:
+            print("\n[ Matriks Sensitivitas WACC vs Pertumbuhan Terminal ]")
+            s_mat = dcf_res["sensitivity_matrix"]
+            if s_mat:
+                cols = list(s_mat[0].keys())
+                header_str = " | ".join(f"{c:<10s}" for c in cols)
+                print(f"  {header_str}")
+                print("  " + "-" * len(header_str))
+                for row in s_mat:
+                    row_str = " | ".join(f"{row[c]:<10}" for c in cols)
+                    print(f"  {row_str}")
+        print()
+
+    def do_fcf(self, arg: str) -> None:
+        """Analisis arus kas bebas (Free Cash Flow) dan yield untuk non-financials."""
+        parts = arg.strip().split()
+        if not parts:
+            print("Gunakan: /fcf <ticker> [periode]")
+            return
+
+        sym = parts[0].upper()
+        req_period = parts[1] if len(parts) > 1 else None
+
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        storage = FinancialStatementStorage(REPO_ROOT)
+        stmt = storage.get_statement(sym, req_period)
+        store = EquityData(REPO_ROOT)
+        data = store.load(sym, auto_fetch=False)
+
+        if not stmt:
+            stmt = data.get("fundamentals")
+
+        if not stmt:
+            print(f"Laporan keuangan untuk {sym} belum tersedia.")
+            return
+
+        is_bank = (
+            stmt.get("sector", "").upper() in {"FINANCIALS", "KEUANGAN", "BANK"}
+            or any(k in stmt.get("reported_ratios_pct", {}) for k in ("NIM", "CAR", "NPL_gross", "CASA", "LDR"))
+        )
+
+        print(f"=== Analisis Free Cash Flow (FCF) {sym} — {stmt.get('period')} ===")
+        if is_bank:
+            print("STATUS: NOT_MEANINGFUL (Sektor Perbankan / Lembaga Keuangan)")
+            print("Penjelasan Metodologi:")
+            print("  Arus kas operasional bank mencerminkan arus simpanan dana pihak ketiga (DPK) dan")
+            print("  penyaluran kredit kepada debitur, bukan arus kas operasi pabrik/korporasi industri.")
+            print("  Oleh karena itu, FCF korporasi (OCF - Capex) tidak relevan untuk mengevaluasi bank.")
+            print("\nMetrik Kesehatan Likuiditas & Solvabilitas Perbankan:")
+            r = stmt.get("reported_ratios_pct", {})
+            for k in ("CAR", "NIM", "NPL_gross", "NPL_net", "CASA", "LDR", "Cost_of_Credit"):
+                if k in r:
+                    print(f"  - {k:<18s}: {r[k]:.2f}%")
+            print()
+            return
+
+        v = stmt.get("values", {})
+        unit = stmt.get("unit", "million_IDR")
+        mult = {"IDR": 1.0, "thousand_IDR": 1e3, "million_IDR": 1e6, "billion_IDR": 1e9}.get(unit, 1e6)
+
+        ocf = v.get("operating_cash_flow")
+        capex = v.get("capital_expenditure")
+        net_income = v.get("net_income_attributable") or v.get("net_income")
+
+        if ocf is None or capex is None:
+            print("Data Arus Kas Operasi atau Belanja Modal belum lengkap pada laporan ini.")
+            return
+
+        fcf = ocf - abs(capex)
+        print(f"Satuan: {unit}")
+        print(f"  Arus Kas Operasi (OCF)       : Rp{ocf:,.0f}")
+        print(f"  Belanja Modal (Capex)        : Rp{abs(capex):,.0f}")
+        print(f"  -----------------------------------------------")
+        print(f"  Free Cash Flow to Firm (FCF) : Rp{fcf:,.0f}")
+
+        if ocf > 0:
+            reinvest_rate = (abs(capex) / ocf) * 100.0
+            print(f"\nRasio Reinvestasi Modal (Capex / OCF): {reinvest_rate:.1f}%")
+
+        if net_income and net_income > 0:
+            conversion = (fcf / net_income) * 100.0
+            print(f"Rasio Konversi FCF terhadap Laba Bersih: {conversion:.1f}%")
+
+        quote = data.get("quote", {})
+        price = quote.get("price") or (quote.get("close") if "close" in quote else None)
+        shares = v.get("shares_outstanding") or v.get("weighted_average_shares")
+        if price and shares:
+            market_cap = (price * shares) / mult
+            yield_pct = (fcf / market_cap) * 100.0
+            print(f"Kapitalisasi Pasar: Rp{market_cap * mult:,.0f}")
+            print(f"Yield Arus Kas Bebas (FCF Yield): {yield_pct:.2f}%")
+        print()
 
     def do_export(self, arg: str) -> None:
         parts = arg.strip().split(maxsplit=1)

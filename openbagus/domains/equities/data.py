@@ -11,8 +11,17 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from openbagus.domains.equities.catalog import source_url
+from openbagus.domains.equities.catalog import source_url, EquityCatalog
 from openbagus.core.guards import scan_text
+from openbagus.domains.equities.financial_model import (
+    CanonicalFinancialStatement,
+    detect_period,
+    detect_currency_and_unit,
+)
+from openbagus.domains.equities.storage import FinancialStatementStorage
+from openbagus.domains.equities.xbrl import IdxXbrlParser
+from openbagus.domains.equities.parsers.xlsx_parser import IdxXlsxParser
+from openbagus.domains.equities.parsers.pdf_parser import IdxPdfParser
 
 WIB = timezone(timedelta(hours=7), "Asia/Jakarta")
 
@@ -58,6 +67,14 @@ class EquityData:
                 raise ValueError("Stored observation identity mismatch")
             self.validate(data)
             data["gaps"] = []
+            storage = FinancialStatementStorage(self.root)
+            stored_periods = storage.list_periods(symbol)
+            if stored_periods:
+                data["financial_history"] = stored_periods
+                if "fundamentals" not in data or not data.get("fundamentals"):
+                    latest_stmt = storage.get_statement(symbol)
+                    if latest_stmt:
+                        data["fundamentals"] = latest_stmt
             return data
         except (OSError, ValueError, TypeError, KeyError, AttributeError, OverflowError):
             pass
@@ -472,7 +489,7 @@ class EquityData:
         }
 
     def import_financial_statement(self, path: Path, ticker: str | None = None) -> dict[str, Any]:
-        """Universal import for company financial disclosures (CSV/XLSX/JSON) across all 11 sectors."""
+        """Universal import for company financial disclosures across all 11 sectors."""
         sym = (ticker or "").strip().upper()
         if not sym:
             m = re.search(r"\b([A-Z]{4})\b", path.name.upper())
@@ -481,131 +498,190 @@ class EquityData:
         if not sym or not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", sym):
             raise ValueError(f"Ticker emiten belum dapat diverifikasi untuk {path.name}; sebutkan ticker (contoh: /data import financials {path.name} ICBP).")
 
-        rows = read_tabular(path)
-        if not rows:
-            raise ValueError(f"File laporan keuangan {path.name} kosong.")
-
         now_iso = datetime.now(timezone.utc).isoformat()
-        values: dict[str, float] = {}
-        reported_ratios: dict[str, float] = {}
-        period = "2024-FY"
-        unit = "million_IDR"
-        basis = "konsolidasian"
+        ext = path.suffix.lower()
 
-        if path.suffix.lower() == ".json":
-            raw_data = json.loads(path.read_text(encoding="utf-8"))
-            if "values" in raw_data:
-                values = {k: float(v) for k, v in raw_data.get("values", {}).items() if v is not None}
-                reported_ratios = {k: float(v) for k, v in raw_data.get("reported_ratios_pct", {}).items() if v is not None}
-                period = raw_data.get("period", period)
-                unit = raw_data.get("unit", unit)
-                basis = raw_data.get("basis", basis)
-            else:
-                for k, v in raw_data.items():
-                    try:
-                        num = float(str(v).replace(",", ""))
-                        values[k] = num
-                    except (ValueError, TypeError):
-                        if k.lower() in ("period", "periode"):
-                            period = str(v)
+        statement: dict[str, Any] = {}
+
+        if ext in {".zip", ".xbrl", ".xml"}:
+            parser = IdxXbrlParser(self.root)
+            canonical = parser.parse_file(path, sym)
+            statement = canonical.to_legacy_dict()
+        elif ext == ".xlsx":
+            parser_xlsx = IdxXlsxParser(self.root)
+            canonical = parser_xlsx.parse_file(path, sym)
+            statement = canonical.to_legacy_dict()
+        elif ext == ".pdf":
+            parser_pdf = IdxPdfParser(self.root)
+            canonical = parser_pdf.parse_file(path, sym)
+            statement = canonical.to_legacy_dict()
         else:
-            field_map = {
-                "revenue": ("pendapatan", "penjualan", "revenue", "sales"),
-                "operating_income": ("laba usaha", "laba operasional", "operating income", "ebit"),
-                "net_income": ("laba bersih", "laba tahun berjalan", "net income", "net profit"),
-                "net_income_attributable": ("laba pemilik entitas induk", "laba diatribusikan", "net income attributable"),
-                "equity": ("jumlah ekuitas", "total ekuitas", "equity", "total equity"),
-                "equity_attributable": ("ekuitas pemilik entitas induk", "equity attributable"),
-                "total_assets": ("jumlah aset", "total aset", "total assets", "jumlah aktiva"),
-                "total_liabilities": ("jumlah liabilitas", "total liabilitas", "total liabilities", "jumlah kewajiban"),
-                "interest_bearing_debt": ("utang bank", "utang berbunga", "pinjaman bank", "interest-bearing debt", "total utang"),
-                "operating_cash_flow": ("arus kas operasi", "arus kas dari aktivitas operasi", "operating cash flow"),
-                "capital_expenditure": ("belanja modal", "capex", "capital expenditure"),
-                "shares_outstanding": ("jumlah saham beredar", "saham beredar", "shares outstanding"),
-                "weighted_average_shares": ("rata-rata tertimbang saham", "weighted average shares"),
+            # CSV or JSON
+            rows = read_tabular(path)
+            if not rows:
+                raise ValueError(f"File laporan keuangan {path.name} kosong.")
+
+            values: dict[str, float] = {}
+            reported_ratios: dict[str, float] = {}
+            detected_period_res = detect_period(path.name)
+            period = detected_period_res[0] if detected_period_res else None
+            period_type = detected_period_res[1] if detected_period_res else None
+            currency = "IDR"
+            unit = "million_IDR"
+            basis = "konsolidasian"
+
+            if ext == ".json":
+                raw_data = json.loads(path.read_text(encoding="utf-8"))
+                if "values" in raw_data:
+                    values = {k: float(v) for k, v in raw_data.get("values", {}).items() if v is not None}
+                    reported_ratios = {k: float(v) for k, v in raw_data.get("reported_ratios_pct", {}).items() if v is not None}
+                    period = raw_data.get("period") or period
+                    period_type = raw_data.get("period_type") or period_type
+                    currency = raw_data.get("currency") or currency
+                    unit = raw_data.get("unit") or unit
+                    basis = raw_data.get("basis") or basis
+                else:
+                    for k, v in raw_data.items():
+                        try:
+                            num = float(str(v).replace(",", ""))
+                            values[k] = num
+                        except (ValueError, TypeError):
+                            if k.lower() in ("period", "periode"):
+                                period = str(v)
+            else:
+                # CSV parsing
+                field_map = {
+                    "revenue": ("pendapatan", "penjualan", "revenue", "sales"),
+                    "operating_income": ("laba usaha", "laba operasional", "operating income", "ebit"),
+                    "net_income": ("laba bersih", "laba tahun berjalan", "net income", "net profit"),
+                    "net_income_attributable": ("laba pemilik entitas induk", "laba diatribusikan", "net income attributable"),
+                    "equity": ("jumlah ekuitas", "total ekuitas", "equity", "total equity"),
+                    "equity_attributable": ("ekuitas pemilik entitas induk", "equity attributable"),
+                    "total_assets": ("jumlah aset", "total aset", "total assets", "jumlah aktiva"),
+                    "total_liabilities": ("jumlah liabilitas", "total liabilitas", "total liabilities", "jumlah kewajiban"),
+                    "interest_bearing_debt": ("utang bank", "utang berbunga", "pinjaman bank", "interest-bearing debt", "total utang"),
+                    "operating_cash_flow": ("arus kas operasi", "arus kas dari aktivitas operasi", "operating cash flow"),
+                    "capital_expenditure": ("belanja modal", "capex", "capital expenditure"),
+                    "shares_outstanding": ("jumlah saham beredar", "saham beredar", "shares outstanding"),
+                    "weighted_average_shares": ("rata-rata tertimbang saham", "weighted average shares"),
+                }
+                ratio_map = {
+                    "NIM": ("nim", "net interest margin"),
+                    "NPL_gross": ("npl gross", "npl kotor"),
+                    "NPL_net": ("npl net", "npl bersih"),
+                    "CAR": ("car", "capital adequacy ratio", "kpmm"),
+                    "LDR": ("ldr", "loan to deposit ratio"),
+                    "CASA": ("casa", "dana murah"),
+                }
+
+                header_blob = " ".join(str(c) for r in rows[:5] for c in r)
+                detected_curr, detected_unit, _ = detect_currency_and_unit(header_blob)
+                currency = detected_curr
+                unit = detected_unit
+
+                for r in rows:
+                    if len(r) < 2:
+                        continue
+                    label = str(r[0]).strip().lower()
+                    val_str = str(r[1]).replace(",", "").replace(" ", "").replace("%", "").strip()
+                    try:
+                        val_num = float(val_str)
+                    except ValueError:
+                        if any(p in label for p in ("periode", "period", "kuartal", "tahun")):
+                            detected_cell_p = detect_period(str(r[1]))
+                            if detected_cell_p:
+                                period_type = detected_cell_p[1]
+                            period = str(r[1]).strip()
+                        continue
+
+                    for canon_key, patterns in field_map.items():
+                        if any(p in label for p in patterns):
+                            values[canon_key] = val_num
+                            break
+                    for canon_ratio, patterns in ratio_map.items():
+                        if any(p in label for p in patterns):
+                            reported_ratios[canon_ratio] = val_num
+                            break
+
+            if not period:
+                raise ValueError(f"Periode laporan keuangan tidak dapat diverifikasi dari dokumen {path.name}.")
+
+            if not period_type:
+                period_type = "QUARTER" if re.search(r"Q[1-4]", period) else ("TTM" if "TTM" in period else "FY")
+
+            statement = {
+                "symbol": sym,
+                "source": f"https://www.idx.co.id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/ ({path.name})",
+                "published_at": now_iso,
+                "currency": currency,
+                "unit": unit,
+                "period": period,
+                "period_type": period_type,
+                "basis": basis,
+                "values": values,
+                "reported_ratios_pct": reported_ratios,
             }
-            ratio_map = {
-                "NIM": ("nim", "net interest margin"),
-                "NPL_gross": ("npl gross", "npl kotor"),
-                "NPL_net": ("npl net", "npl bersih"),
-                "CAR": ("car", "capital adequacy ratio", "kpmm"),
-                "LDR": ("ldr", "loan to deposit ratio"),
-                "CASA": ("casa", "dana murah"),
-            }
 
-            for r in rows:
-                if len(r) < 2:
-                    continue
-                label = str(r[0]).strip().lower()
-                val_str = str(r[1]).replace(",", "").replace(" ", "").replace("%", "").strip()
-                try:
-                    val_num = float(val_str)
-                except ValueError:
-                    if any(p in label for p in ("periode", "period", "kuartal", "tahun")):
-                        period = str(r[1]).strip()
-                    continue
-
-                for canon_key, patterns in field_map.items():
-                    if any(p in label for p in patterns):
-                        values[canon_key] = val_num
-                        break
-                for canon_ratio, patterns in ratio_map.items():
-                    if any(p in label for p in patterns):
-                        reported_ratios[canon_ratio] = val_num
-                        break
-
-        if "net_income" in values and "net_income_attributable" not in values:
-            values["net_income_attributable"] = values["net_income"]
-        if "equity" in values and "equity_attributable" not in values:
-            values["equity_attributable"] = values["equity"]
-
-        period_type = "QUARTER" if re.search(r"Q[1-4]", period) else ("TTM" if "TTM" in period else "FY")
-        statement = {
-            "source": f"https://www.idx.co.id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/ ({path.name})",
-            "published_at": now_iso,
-            "currency": "IDR",
-            "unit": unit,
-            "period": period,
-            "period_type": period_type,
-            "basis": basis,
-            "values": values,
-            "reported_ratios_pct": reported_ratios,
-        }
+        statement["symbol"] = sym
         validate_statement(statement)
+
+        # Store in multi-period versioned storage
+        storage = FinancialStatementStorage(self.root)
+        storage.store_statement(statement)
+
+        # Retrieve previous statement if available to compute beginning/ending averages
+        prev_stmt = None
+        history = storage.get_history(sym, max_periods=5)
+        for h in reversed(history):
+            if h.get("period") != statement.get("period"):
+                prev_stmt = h
+                break
 
         existing = self.load(sym, auto_fetch=False)
         quote_price = None
         if existing.get("gaps"):
+            catalog = EquityCatalog(self.root)
+            asset = next((a for a in catalog.assets if a.symbol == sym), None)
+            listing_status = asset.canonical_status if asset else "UNKNOWN"
+            board = asset.canonical_board if asset else "UNKNOWN"
+
             existing = {
                 "symbol": sym,
                 "authorized_use": True,
                 "source": statement["source"],
                 "retrieved_at": now_iso,
-                "currency": "IDR",
+                "currency": statement.get("currency", "IDR"),
                 "volume_unit": "shares",
                 "timeframe": "D1",
                 "adjustment": "unadjusted",
                 "unresolved_corporate_actions": False,
-                "listing_status": "ACTIVE",
-                "board": "MAIN",
+                "listing_status": listing_status,
+                "board": board,
                 "quote": {},
                 "fees": {"buy": 0.0015, "sell": 0.0025},
                 "candles": [],
                 "fundamentals": statement,
+                "financial_history": storage.list_periods(sym),
                 "gaps": [],
             }
         else:
             existing["fundamentals"] = statement
+            existing["financial_history"] = storage.list_periods(sym)
             existing["retrieved_at"] = now_iso
             quote_price = existing.get("quote", {}).get("price")
 
         self.store(existing, sym)
-        calc_result = fundamentals(statement, price=quote_price)
+        calc_result = fundamentals(statement, price=quote_price, previous=prev_stmt)
         return {
             "symbol": sym,
-            "period": period,
-            "unit": unit,
+            "period": statement.get("period"),
+            "period_type": statement.get("period_type"),
+            "currency": statement.get("currency", "IDR"),
+            "unit": statement.get("unit"),
             "ratios": calc_result.get("ratios", {}),
+            "citations": statement.get("citations", {}),
+            "validation_status": statement.get("validation_status", "VALIDATED"),
+            "validation_notes": statement.get("validation_notes", []),
             "source": statement["source"],
             "provenance": f"Official financial statement disclosure import ({path.name})",
         }
@@ -669,32 +745,47 @@ def read_tabular(path: Path) -> list[list[str]]:
 def validate_statement(statement: dict) -> None:
     source_url(statement["source"])
     timestamp(statement["published_at"])
-    if statement.get("currency") != "IDR" or statement.get("unit") not in {"IDR", "thousand_IDR", "million_IDR", "billion_IDR"}:
+    if statement.get("currency") not in {"IDR", "USD"} or statement.get("unit") not in {"IDR", "thousand_IDR", "million_IDR", "billion_IDR", "USD", "thousand_USD", "million_USD"}:
         raise ValueError("Statement monetary unit/currency is required")
-    if statement.get("period_type") not in {"TTM", "FY", "QUARTER"} or not statement.get("period") or not statement.get("basis"):
+    if statement.get("period_type") not in {"TTM", "FY", "QUARTER", "Q1", "Q2", "Q3", "Q4", "H1", "9M"} or not statement.get("period") or not statement.get("basis"):
         raise ValueError("Statement requires fiscal period, duration and accounting basis")
     for value in statement.get("values", {}).values():
-        number(value)
+        if value is not None:
+            number(value)
     for value in statement.get("reported_ratios_pct", {}).values():
-        number(value)
+        if value is not None:
+            number(value)
 
 
 def fundamentals(statement: dict | None, price: float | None, previous: dict | None = None) -> dict:
     if not statement:
         return {"ratios": {}, "gaps": ["Financial statements unavailable"]}
     validate_statement(statement)
-    multiplier = {"IDR": 1, "thousand_IDR": 1e3, "million_IDR": 1e6, "billion_IDR": 1e9}[statement["unit"]]
+    unit_multipliers = {
+        "IDR": 1.0, "thousand_IDR": 1e3, "million_IDR": 1e6, "billion_IDR": 1e9,
+        "USD": 1.0, "thousand_USD": 1e3, "million_USD": 1e6, "billion_USD": 1e9,
+    }
+    multiplier = unit_multipliers.get(statement["unit"], 1.0)
     raw = statement.get("values", {})
     shares = number(raw["weighted_average_shares"], positive=True) if raw.get("weighted_average_shares") else None
     outstanding = number(raw["shares_outstanding"], positive=True) if raw.get("shares_outstanding") else None
     values = {key: number(value) * multiplier for key, value in raw.items()
-              if key not in {"weighted_average_shares", "shares_outstanding"}}
+              if key not in {"weighted_average_shares", "shares_outstanding"} and value is not None}
     ratios = {}
 
     def ratio(label: str, numerator: str, denominator: str, scale: float = 1) -> None:
         n, d = values.get(numerator), values.get(denominator)
         if n is not None and d is not None and d > 0:
             ratios[label] = n / d * scale
+
+    if "net_income_attributable" not in values and "net_income" in values:
+        values["net_income_attributable"] = values["net_income"]
+    if "equity_attributable" not in values and "equity" in values:
+        values["equity_attributable"] = values["equity"]
+    if "net_income" not in values and "net_income_attributable" in values:
+        values["net_income"] = values["net_income_attributable"]
+    if "equity" not in values and "equity_attributable" in values:
+        values["equity"] = values["equity_attributable"]
 
     income = values.get("net_income_attributable")
     equity = values.get("equity_attributable")
@@ -704,32 +795,66 @@ def fundamentals(statement: dict | None, price: float | None, previous: dict | N
             ratios["PER"] = price / ratios["EPS"]
     if price and equity is not None and equity > 0 and outstanding:
         ratios["PBV"] = price / (equity / outstanding)
+
+    # Average equity and assets handling with historical previous
+    if previous:
+        prev_raw = previous.get("values", {})
+        prev_mult = unit_multipliers.get(previous.get("unit", "million_IDR"), 1.0)
+        p_eq = prev_raw.get("equity_attributable") or prev_raw.get("equity")
+        p_ast = prev_raw.get("total_assets") or prev_raw.get("assets")
+        curr_eq = values.get("equity_attributable") or values.get("equity")
+        curr_ast = values.get("total_assets") or values.get("assets")
+        if curr_eq is not None and p_eq is not None and "average_equity_attributable" not in values:
+            values["average_equity_attributable"] = (curr_eq + (p_eq * prev_mult)) / 2.0
+            ratios["average_equity_basis"] = "two_point_average"
+        if curr_ast is not None and p_ast is not None and "average_assets" not in values:
+            values["average_assets"] = (curr_ast + (p_ast * prev_mult)) / 2.0
+            ratios["average_assets_basis"] = "two_point_average"
+
     if "average_equity_attributable" not in values:
         eq_val = values.get("equity_attributable") or values.get("equity") or values.get("total_equity")
         if eq_val is not None:
             values["average_equity_attributable"] = eq_val
+            ratios["average_equity_basis"] = "ending_balance_point_in_time"
     if "average_assets" not in values:
         ast_val = values.get("assets") or values.get("total_assets")
         if ast_val is not None:
             values["average_assets"] = ast_val
-    if "interest_bearing_debt" not in values:
-        debt_val = values.get("interest_bearing_debt") or values.get("total_liabilities") or values.get("liabilities")
-        if debt_val is not None:
-            values["interest_bearing_debt"] = debt_val
-    if "equity" not in values:
-        eq_val = values.get("equity") or values.get("total_equity") or values.get("equity_attributable")
-        if eq_val is not None:
-            values["equity"] = eq_val
+    if "net_income" not in values and "net_income_attributable" in values:
+        values["net_income"] = values["net_income_attributable"]
+    if "equity" not in values and "equity_attributable" in values:
+        values["equity"] = values["equity_attributable"]
+
+    # Distinct interest-bearing debt from general liabilities
+    if "interest_bearing_debt" in values and values["interest_bearing_debt"] is not None:
+        ratio("Debt_to_Equity", "interest_bearing_debt", "equity")
+    elif "total_liabilities" in values and values["total_liabilities"] is not None:
+        ratio("Debt_to_Equity", "total_liabilities", "equity")
+        ratio("Total_Liabilities_to_Equity", "total_liabilities", "equity")
+
     ratio("ROE_pct", "net_income_attributable", "average_equity_attributable", 100)
     ratio("ROA_pct", "net_income", "average_assets", 100)
-    ratio("Debt_to_Equity", "interest_bearing_debt", "equity")
     ratio("Operating_Margin_pct", "operating_income", "revenue", 100)
     ratio("Net_Margin_pct", "net_income", "revenue", 100)
-    if "operating_cash_flow" in values and "capital_expenditure" in values:
-        ratios["FCF_IDR"] = values["operating_cash_flow"] - abs(values["capital_expenditure"])
+
+    # Sector-aware Free Cash Flow (FCF)
+    is_bank = (
+        statement.get("sector", "").upper() in {"FINANCIALS", "KEUANGAN", "BANK"}
+        or any(k in statement.get("reported_ratios_pct", {}) for k in ("NIM", "CAR", "NPL_gross", "CASA", "LDR"))
+    )
+    if is_bank:
+        ratios["FCF_IDR"] = None
+        ratios["FCF_status"] = "NOT_MEANINGFUL"
+        ratios["FCF_note"] = "NOT_MEANINGFUL (Sektor Keuangan/Perbankan: Arus kas operasional bank dipengaruhi penghimpunan simpanan dan penyaluran kredit, bukan belanja modal industri)."
+    else:
+        if "operating_cash_flow" in values and "capital_expenditure" in values:
+            ratios["FCF_IDR"] = values["operating_cash_flow"] - abs(values["capital_expenditure"])
+            ratios["FCF_status"] = "CALCULATED"
+
     ratio("Payout_Ratio_pct", "dividends_attributable", "net_income_attributable", 100)
     if price and outstanding and statement["period_type"] in {"FY", "TTM"} and values.get("dividends_attributable") is not None:
         ratios["Dividend_Yield_pct"] = values["dividends_attributable"] / outstanding / price * 100
+
     if previous:
         validate_statement(previous)
         comparable = (previous["basis"] == statement["basis"] and previous["period_type"] == statement["period_type"]
@@ -741,9 +866,11 @@ def fundamentals(statement: dict | None, price: float | None, previous: dict | N
             for name in ("revenue", "net_income_attributable"):
                 if values.get(name) is not None and old.get(name, 0) > 0:
                     ratios[f"{name}_growth_{statement['comparison']['kind']}_pct"] = (values[name] / old[name] - 1) * 100
+
     for key, value in statement.get("reported_ratios_pct", {}).items():
         if key in {"NIM", "NPL_gross", "NPL_net", "CAR", "LDR", "LFR", "CASA", "loan_growth", "deposit_growth", "cost_of_credit"}:
             ratios[key + "_pct"] = number(value)
+
     return {"ratios": ratios, "normalized_values": values, "source": statement["source"],
             "period": statement["period"], "period_type": statement["period_type"], "basis": statement["basis"],
             "published_at": statement["published_at"], "gaps": [] if ratios else ["Reported fields insufficient for ratios"]}

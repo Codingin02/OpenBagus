@@ -232,7 +232,41 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
                 lines.append(f"  - Price to Book Value (PBV): {r['PBV']:.2f}x")
             if "ROE_pct" in r:
                 lines.append(f"  - Return on Equity (ROE): {r['ROE_pct']:.2f}%")
+            if "FCF_Yield_pct" in r:
+                lines.append(f"  - FCF Yield: {r['FCF_Yield_pct']:.2f}%")
             return "\n".join(lines)
+
+    # 4b. Free cash flow follow-up (fcf / arus kas bebas)
+    if re.search(r"\b(?:fcf|free\s*cash\s*flow|arus\s+kas\s+bebas)\b", lower):
+        f = packet.fundamentals if packet and packet.fundamentals else {}
+        is_bank = (
+            asset.sector_code == "G"
+            or f.get("sector", "").upper() in {"FINANCIALS", "KEUANGAN", "BANK"}
+            or any(k in f.get("reported_ratios_pct", {}) for k in ("NIM", "CAR", "NPL_gross", "CASA", "LDR"))
+        )
+        if is_bank:
+            return (
+                f"Analisis Free Cash Flow {asset.symbol}: NOT_MEANINGFUL (Sektor Perbankan/Keuangan).\n"
+                "Arus kas operasional bank didominasi oleh penghimpunan dana pihak ketiga (DPK) dan penyaluran kredit, "
+                "sehingga konsep FCF industri (OCF - Capex) tidak relevan untuk mengukur kesehatan bank.\n"
+                f"Metrik kesehatan alternatif: NIM {f.get('reported_ratios_pct', {}).get('NIM', '-')}% | CAR {f.get('reported_ratios_pct', {}).get('CAR', '-')}% | NPL Gross {f.get('reported_ratios_pct', {}).get('NPL_gross', '-')}%."
+            )
+        v = f.get("values", {})
+        unit = f.get("unit", "million_IDR")
+        ocf = v.get("operating_cash_flow")
+        capex = v.get("capital_expenditure")
+        if ocf is not None and capex is not None:
+            fcf_val = ocf - abs(capex)
+            lines = [
+                f"Arus Kas Bebas (FCF) {asset.symbol} ({f.get('period', '')}, satuan {unit}):",
+                f"  - Arus Kas Operasi (OCF): {ocf:,.0f}",
+                f"  - Belanja Modal (Capex): {abs(capex):,.0f}",
+                f"  - Free Cash Flow (FCF = OCF - Capex): {fcf_val:,.0f}",
+            ]
+            if ocf > 0:
+                lines.append(f"  - Intensitas Capex (Capex / OCF): {(abs(capex) / ocf * 100):.1f}%")
+            return "\n".join(lines)
+        return f"Data arus kas atau belanja modal untuk {asset.symbol} belum lengkap pada laporan yang tersimpan."
 
     # 5. Long-term horizon follow-up (terus kalau buat jangka panjang?)
     if re.search(r"\b(?:jangka\s+panjang|long\s*term|simpan\s+lama|investasi\s+panjang)\b", lower):
