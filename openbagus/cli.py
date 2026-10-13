@@ -1451,7 +1451,7 @@ class OpenBagusShell(cmd.Cmd):
         print("     /data [import|fetch]   import authorized local CSV or fetch live online EOD")
         print("     /ownership [asset]     view shareholder concentration & KSEI disclosures")
         print("  4. Quantitative Strategies & Validation:")
-        print("     /backtest [asset]      run realistic walk-forward backtest")
+        print("     /backtest [asset] [cmd] walk-forward backtest, parameter sweep (/backtest sweep), MTF, or curve")
         print("     /portfolio [cmd]       multi-asset risk, position sizing, VaR & cross-asset correlation")
         print("     benchmark quantum openbagus  benchmark Monte Carlo simulation speed")
         print("  5. Persistent Session Harness:")

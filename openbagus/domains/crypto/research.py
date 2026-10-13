@@ -561,23 +561,118 @@ class CryptoResearchRunner:
             target = req.asset or (session.last_asset if session else "BTC")
             tf = req.timeframe or (session.timeframe if session else "H1")
             from openbagus.domains.quant.backtesting import BacktestRunner
+            from openbagus.domains.quant.strategies import (
+                EMATrendPullbackStrategy,
+                DonchianBreakoutStrategy,
+                RSIReversionStrategy,
+                MultiTimeframeStrategy,
+            )
+            from openbagus.domains.quant.visualization import (
+                render_ascii_equity_curve,
+                render_ascii_drawdown_chart,
+            )
+            from openbagus.domains.quant.optimization import ParameterSweepRunner
+
             candles = BacktestRunner.select_history(self.zerokey.get_all_evidence(target, interval=_PROVIDER_INTERVALS.get(tf, "1h")).get("klines") or [], req.raw_query)
             if len(candles) < 25:
                 return f"SOURCE GAP: Data OHLCV historis {target} ({len(candles)} bar) tidak mencukupi untuk backtest (minimal 25 bar)."
-            bt_runner = BacktestRunner(initial_capital=10_000.0, asset_type="CRYPTO", buy_fee=0.0005, sell_fee=0.0005, lot_size=1)
+
+            strategy_map = {
+                "donchian": DonchianBreakoutStrategy,
+                "breakout": DonchianBreakoutStrategy,
+                "rsi": RSIReversionStrategy,
+                "reversion": RSIReversionStrategy,
+                "mtf": MultiTimeframeStrategy,
+                "multitimeframe": MultiTimeframeStrategy,
+                "ema": EMATrendPullbackStrategy,
+            }
+            chosen_strat_cls = strategy_map.get(getattr(req, "topic", "ema") or "ema", EMATrendPullbackStrategy)
+            if getattr(req, "focus", "") == "mtf":
+                chosen_strat_cls = MultiTimeframeStrategy
+
+            # Parameter Sensitivity Sweep / Optimization
+            if getattr(req, "focus", "") == "sweep" or "sweep" in req.raw_query.lower() or "optimasi" in req.raw_query.lower():
+                param_grids = {
+                    EMATrendPullbackStrategy: {
+                        "fast_ema": [5, 8, 13],
+                        "slow_ema": [21, 34],
+                        "stop_atr_mult": [1.5, 2.0],
+                        "tp_atr_mult": [2.5, 3.0],
+                    },
+                    DonchianBreakoutStrategy: {
+                        "lookback": [15, 20, 30],
+                        "stop_atr_mult": [1.5, 2.0],
+                        "tp_atr_mult": [2.5, 3.5],
+                    },
+                    RSIReversionStrategy: {
+                        "rsi_period": [10, 14],
+                        "oversold": [25.0, 30.0],
+                        "stop_atr_mult": [1.5, 2.0],
+                        "tp_atr_mult": [2.0, 2.5],
+                    },
+                    MultiTimeframeStrategy: {
+                        "htf_ratio": [4, 6],
+                        "htf_ema_fast": [10, 20],
+                        "htf_ema_slow": [30, 50],
+                        "ltf_ema_fast": [8],
+                        "ltf_ema_slow": [21],
+                    },
+                }
+                grid = param_grids.get(chosen_strat_cls, param_grids[EMATrendPullbackStrategy])
+                sweep_runner = ParameterSweepRunner()
+                sweep_res = sweep_runner.run_sweep(
+                    symbol=target,
+                    candles=candles,
+                    strategy_cls=chosen_strat_cls,
+                    param_grid=grid,
+                    initial_capital=10_000.0,
+                    asset_type="CRYPTO",
+                    timeframe=tf,
+                    buy_fee=0.0005,
+                    sell_fee=0.0005,
+                    lot_size=1,
+                )
+                if session and sweep_res.best_backtest:
+                    session.last_backtest_result = sweep_res.best_backtest
+                    session.last_backtest_asset = target
+                out_lines = [sweep_res.summary_table(), ""]
+                if sweep_res.best_backtest and sweep_res.best_backtest.equity_curve:
+                    out_lines.append(render_ascii_equity_curve(sweep_res.best_backtest.equity_curve, title=f"Best Strategy Equity: {target}", currency="USD"))
+                return "\n".join(out_lines)
+
+            # Standard or MTF execution
+            strategy_obj = chosen_strat_cls()
+            bt_runner = BacktestRunner(
+                initial_capital=10_000.0,
+                asset_type="CRYPTO",
+                buy_fee=0.0005,
+                sell_fee=0.0005,
+                lot_size=1,
+                strategy=strategy_obj,
+            )
             bt_res = bt_runner.run(target, candles, timeframe=tf)
             if session:
                 session.last_backtest_result = bt_res
                 session.last_backtest_asset = target
-            if getattr(req, "focus", "") == "equity_curve" or "equity curve" in req.raw_query.lower():
+
+            if getattr(req, "focus", "") == "equity_curve" or "equity curve" in req.raw_query.lower() or "kurva ekuitas" in req.raw_query.lower():
                 from openbagus.reporting.static_charts import render_equity_curve_png
                 png_path = render_equity_curve_png(bt_res, target)
-                return f"{bt_res.summary_table()}\n\nGrafik Equity Curve berhasil diekspor ke:\n{png_path}"
+                ascii_curve = render_ascii_equity_curve(bt_res.equity_curve, title=f"Equity Curve: {target}", currency="USD")
+                ascii_dd = render_ascii_drawdown_chart(bt_res.drawdown_curve)
+                return (
+                    f"{bt_res.summary_table()}\n\n"
+                    f"{ascii_curve}\n\n"
+                    f"{ascii_dd}\n\n"
+                    f"Grafik Equity Curve PNG diekspor ke:\n{png_path}"
+                )
+
             ticker = self.zerokey.get_spot_ticker(target)
             q = self.quant.evaluate(target, ticker, candles, timeframe=tf)
             from openbagus.reporting.visualizer import generate_html_report
             html_path = generate_html_report(target, candles, quant_result=q, backtest_result=bt_res, root=self.root, timeframe=tf, currency="USD")
-            return bt_res.summary_table() + f"\n\nLaporan visual backtest disimpan di:\n{html_path}"
+            ascii_curve = render_ascii_equity_curve(bt_res.equity_curve, title=f"Equity Curve: {target}", currency="USD")
+            return f"{bt_res.summary_table()}\n\n{ascii_curve}\n\nLaporan visual backtest disimpan di:\n{html_path}"
         if req.request_type == "COMMAND":
             from openbagus import cli
             if req.system_query == "harness_clear_context":

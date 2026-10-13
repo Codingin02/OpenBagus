@@ -1141,9 +1141,15 @@ class IntentRouter:
             if re.search(r"\b(?:ownership|kepemilikan|pemegang\s+saham)\b", lower):
                 kind = "EQUITY_OWNERSHIP"
                 focus_mode = "chart" if chart else "table"
-            elif re.search(r"\b(?:equity\s+curve)\b", lower):
+            elif re.search(r"\b(?:equity\s+curve|kurva\s+ekuitas|grafik\s+backtest|curve)\b", lower):
                 kind = "BACKTEST"
                 focus_mode = "equity_curve"
+            elif re.search(r"\b(?:sweep|optimasi|optimize)\b", lower) and ("backtest" in lower or "strategi" in lower or "parameter" in lower):
+                kind = "BACKTEST"
+                focus_mode = "sweep"
+            elif re.search(r"\b(?:multi\s+timeframe|mtf)\b", lower) and ("backtest" in lower or "strategi" in lower):
+                kind = "BACKTEST"
+                focus_mode = "mtf"
             elif re.search(r"\b(?:report\s+word|laporan\s+word|word|docx)\b", lower):
                 kind = "REPORT_WORD"
             elif re.search(r"\b(?:report\s+pdf|laporan\s+pdf|pdf)\b", lower):
@@ -1182,9 +1188,18 @@ class IntentRouter:
             if target and target.asset_type in {"EQUITY_ID", "INDEX_ID"} and (not session or session.last_asset != target.symbol):
                 default_tf = "D1"
             tf, _ = _parse_timeframe(text, default_tf=default_tf)
+
+            if kind == "BACKTEST":
+                strat_topic = "donchian" if re.search(r"\b(?:donchian|breakout)\b", lower) else ("rsi" if re.search(r"\b(?:rsi|reversion)\b", lower) else ("mtf" if re.search(r"\b(?:mtf|multi\s+timeframe)\b", lower) else "ema"))
+                req_focus = focus_mode
+                req_topic = strat_topic
+            else:
+                req_focus = topic or focus_mode
+                req_topic = "fx" if "/" in topic else ("commodity" if topic else None)
+
             return IntentRequest(kind, kind, asset=target.symbol if target else None,
                 asset_type=target.asset_type if target else "CRYPTO", asset_id=target.id if target else None,
-                focus=topic or focus_mode, topic="fx" if "/" in topic else ("commodity" if topic else None),
+                focus=req_focus, topic=req_topic,
                 timeframe=tf, raw_query=text, needs_asset=not bool(target or topic),
                 clarification_prompt="Instrumen mana yang ingin ditampilkan? Gunakan ticker terverifikasi atau USD IDR.")
         if session and session.last_operation == "BACKTEST" and re.search(r"all time|sejak (?:ipo|listing)|\d+ tahun|\bytd\b|dari \d{4} sampai \d{4}", lower):
@@ -1569,10 +1584,42 @@ class IntentRouter:
                 return IntentRequest(intent="VISUALIZE", request_type="VISUALIZE", asset=sym, timeframe=detected_tf, raw_query=text)
             if cmd.startswith("backtest"):
                 b_arg = cmd.replace("backtest", "", 1).strip()
-                target_b = b_arg or (session.last_asset if session else "BTC")
+                focus_bt = "standard"
+                strat_topic = "ema"
+                parts = b_arg.split()
+                if parts and parts[0].lower() in ("optimize", "optimasi", "sweep"):
+                    focus_bt = "sweep"
+                    parts = parts[1:]
+                elif parts and parts[0].lower() in ("mtf", "multitimeframe"):
+                    focus_bt = "mtf"
+                    parts = parts[1:]
+                elif parts and parts[0].lower() in ("curve", "chart", "visual"):
+                    focus_bt = "equity_curve"
+                    parts = parts[1:]
+
+                for p in list(parts):
+                    if p.lower() in ("donchian", "breakout"):
+                        strat_topic = "donchian"
+                        parts.remove(p)
+                    elif p.lower() in ("rsi", "reversion"):
+                        strat_topic = "rsi"
+                        parts.remove(p)
+                    elif p.lower() in ("mtf", "confluence"):
+                        strat_topic = "mtf"
+                        parts.remove(p)
+
+                target_b = " ".join(parts).strip() or (session.last_asset if session else "BTC")
                 a_obj, _ = self.assets.resolve_asset(target_b)
                 sym = a_obj.symbol if a_obj else target_b.upper()
-                return IntentRequest(intent="BACKTEST", request_type="BACKTEST", asset=sym, timeframe=detected_tf, raw_query=text)
+                return IntentRequest(
+                    intent="BACKTEST",
+                    request_type="BACKTEST",
+                    asset=sym,
+                    timeframe=detected_tf,
+                    raw_query=text,
+                    focus=focus_bt,
+                    topic=strat_topic,
+                )
             if cmd.startswith("report word") or cmd.startswith("report docx"):
                 r_arg = cmd.replace("report word", "", 1).replace("report docx", "", 1).strip()
                 target_r = r_arg or (session.last_asset if session else "BTC")

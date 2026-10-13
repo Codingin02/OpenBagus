@@ -47,6 +47,7 @@ class BacktestTrade:
     net_pnl: float = 0.0
     return_pct: float = 0.0
     bars_held: int = 0
+    max_holding_bars: int = 20
 
     def to_dict(self) -> dict:
         return asdict(self)
@@ -80,6 +81,8 @@ class BacktestResult:
     turnover: float
     exposure_pct: float
     total_fees_paid: float
+    strategy_name: str = "EMA_Trend_Pullback"
+    strategy_params: dict[str, Any] = field(default_factory=dict)
     in_sample_metrics: dict[str, Any] = field(default_factory=dict)
     out_of_sample_metrics: dict[str, Any] = field(default_factory=dict)
     trades: list[BacktestTrade] = field(default_factory=list)
@@ -93,7 +96,7 @@ class BacktestResult:
         status = "PASSED (Promoted)" if self.passed_promotion_gate else "FAILED (Unpromoted / Confluence-Only)"
         pf_str = "Inf (No Losses)" if math.isinf(self.profit_factor) else f"{self.profit_factor:.2f}"
         lines = [
-            f"=== Backtest Results: {self.asset} ({self.timeframe}) ===",
+            f"=== Backtest Results: {self.asset} ({self.timeframe}) [{self.strategy_name}] ===",
             f"Period           : {self.sample_start[:10]} to {self.sample_end[:10]} ({self.total_bars} bars)",
             f"Evaluation Mode  : {self.evaluation_mode}",
             f"Walk-Forward Split: Train {self.train_bars}b | Val {self.val_bars}b | Out-of-Sample {self.test_bars}b",
@@ -164,6 +167,7 @@ class BacktestRunner:
         slippage_pct: float = 0.0005,
         lot_size: int = 100,
         risk_per_trade_pct: float = 2.0,
+        strategy: Any = None,
     ) -> None:
         self.initial_capital = initial_capital
         self.asset_type = asset_type
@@ -172,6 +176,8 @@ class BacktestRunner:
         self.slippage_pct = slippage_pct
         self.lot_size = lot_size if asset_type == "EQUITY_ID" else 1
         self.risk_per_trade_pct = risk_per_trade_pct
+        from openbagus.domains.quant.strategies import BaseStrategy, EMATrendPullbackStrategy
+        self.strategy = strategy if isinstance(strategy, BaseStrategy) else EMATrendPullbackStrategy()
 
     def run(
         self,
@@ -181,6 +187,7 @@ class BacktestRunner:
         train_ratio: float = 0.60,
         val_ratio: float = 0.20,
         evaluation_mode: str = "HOLDOUT",
+        higher_tf_candles: list[dict[str, Any]] | None = None,
     ) -> BacktestResult:
         if len(candles) < 25:
             raise ValueError(f"Insufficient candles for backtest (need >= 25, got {len(candles)})")
@@ -200,10 +207,12 @@ class BacktestRunner:
         lows = [float(c["low"]) for c in candles]
         opens = [float(c["open"]) for c in candles]
 
-        # Calculate indicators without lookahead
-        ema_fast = ema(closes, 8)
-        ema_slow = ema(closes, 21)
-        atr_vals = wilder_atr(highs, lows, closes, 14)
+        # Precompute strategy cache without lookahead
+        strategy = self.strategy
+        strat_cache = strategy.precompute(candles, closes, highs, lows, opens, higher_tf_candles=higher_tf_candles)
+        warmup = max(21, strategy.warmup_bars)
+        if n <= warmup:
+            raise ValueError(f"Insufficient candles for strategy warmup (need > {warmup}, got {n})")
 
         train_len = int(n * train_ratio)
         val_len = int(n * val_ratio)
@@ -217,12 +226,12 @@ class BacktestRunner:
         total_fees = 0.0
         exposure_bars = 0
 
-        # Benchmark return over active strategy period (Buy and Hold from bar 21 to end)
-        b_entry = closes[21]
+        # Benchmark return over active strategy period (Buy and Hold from warmup bar to end)
+        b_entry = closes[warmup]
         b_exit = closes[-1]
         benchmark_ret = ((b_exit - b_entry) / b_entry * 100.0) if b_entry > 0 else 0.0
 
-        for i in range(21, n):
+        for i in range(warmup, n):
             current_bar = candles[i]
             prev_bar = candles[i - 1]
             c_high = highs[i]
@@ -234,8 +243,11 @@ class BacktestRunner:
             if pending_order is not None and active_trade is None:
                 entry_px = c_open * (1.0 + self.slippage_pct)
                 atr = pending_order["atr"]
-                stop_px = entry_px - 1.5 * atr
-                tp_px = entry_px + 2.5 * atr
+                stop_mult = pending_order.get("stop_atr_mult", 1.5)
+                tp_mult = pending_order.get("tp_atr_mult", 2.5)
+                max_hold = pending_order.get("max_holding_bars", 20)
+                stop_px = entry_px - stop_mult * atr
+                tp_px = entry_px + tp_mult * atr
                 risk_per_share = entry_px - stop_px
 
                 if risk_per_share > 0 and stop_px > 0:
@@ -265,6 +277,7 @@ class BacktestRunner:
                                 stop_price=stop_px,
                                 tp1_price=tp_px,
                                 fees_paid=fee_buy,
+                                max_holding_bars=max_hold,
                             )
                 pending_order = None
 
@@ -289,7 +302,7 @@ class BacktestRunner:
                 elif is_tp_hit:
                     exit_price = max(c_open, active_trade.tp1_price) * (1.0 - self.slippage_pct)
                     exit_reason = "TAKE_PROFIT"
-                elif active_trade.bars_held >= 20:
+                elif active_trade.bars_held >= getattr(active_trade, "max_holding_bars", 20):
                     exit_price = c_close * (1.0 - self.slippage_pct)
                     exit_reason = "TIME_EXIT"
 
@@ -321,14 +334,15 @@ class BacktestRunner:
 
             # 4. Evaluate entry signal at bar CLOSE for NEXT bar OPEN execution
             if active_trade is None and pending_order is None and i < n - 1:
-                is_uptrend = ema_fast[i] > ema_slow[i] and ema_fast[i - 1] > ema_slow[i - 1]
-                atr = atr_vals[i] if not math.isnan(atr_vals[i]) else (c_close * 0.02)
-                low_tested = prev_bar.get("low", c_low) <= ema_fast[i] + 0.25 * atr or c_low <= ema_fast[i] + 0.25 * atr
-
-                if is_uptrend and c_close > ema_fast[i] and low_tested:
+                sig = strategy.evaluate_bar(i, candles, closes, highs, lows, opens, strat_cache)
+                if sig is not None and sig.direction == "LONG":
                     pending_order = {
                         "signal_idx": i,
-                        "atr": atr,
+                        "atr": sig.atr,
+                        "stop_atr_mult": sig.stop_atr_mult,
+                        "tp_atr_mult": sig.tp_atr_mult,
+                        "max_holding_bars": sig.max_holding_bars,
+                        "reason": sig.reason,
                     }
 
         # Force-close position at last bar with exact cash conservation
@@ -487,6 +501,8 @@ class BacktestRunner:
             turnover=sum(t.cost_basis for t in trades) / self.initial_capital,
             exposure_pct=(exposure_bars / n * 100.0) if n > 0 else 0.0,
             total_fees_paid=total_fees,
+            strategy_name=self.strategy.name,
+            strategy_params=dict(self.strategy.parameters),
             in_sample_metrics=is_metrics,
             out_of_sample_metrics=oos_metrics,
             trades=trades,

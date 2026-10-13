@@ -239,19 +239,28 @@ def render_equity_curve_png(
     equities = []
     initial = getattr(backtest_result, "initial_capital", 100_000_000.0)
 
-    for pt in curve:
-        dt_val = pt.get("date") or pt.get("time")
+    for idx, pt in enumerate(curve):
+        if isinstance(pt, dict):
+            dt_val = pt.get("date") or pt.get("time")
+            eq_val = float(pt.get("equity", initial))
+        elif isinstance(pt, (int, float)):
+            dt_val = None
+            eq_val = float(pt)
+        else:
+            dt_val = None
+            eq_val = initial
+
         if isinstance(dt_val, str):
             try:
                 d = datetime.fromisoformat(dt_val.replace("Z", "+00:00"))
             except ValueError:
-                d = datetime.now(timezone.utc)
+                d = idx
         elif isinstance(dt_val, datetime):
             d = dt_val
         else:
-            d = datetime.now(timezone.utc)
+            d = idx
         dates.append(d)
-        equities.append(float(pt.get("equity", initial)))
+        equities.append(eq_val)
 
     if len(equities) < 2:
         raise ValueError("Data seri equity curve terlalu sedikit (minimal 2 titik).")

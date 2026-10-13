@@ -366,6 +366,18 @@ def run_equity_research(runner, req, session=None) -> str:
         return "\n".join(lines)
     if req.request_type == "BACKTEST":
         from openbagus.domains.quant.backtesting import BacktestRunner
+        from openbagus.domains.quant.strategies import (
+            EMATrendPullbackStrategy,
+            DonchianBreakoutStrategy,
+            RSIReversionStrategy,
+            MultiTimeframeStrategy,
+        )
+        from openbagus.domains.quant.visualization import (
+            render_ascii_equity_curve,
+            render_ascii_drawdown_chart,
+        )
+        from openbagus.domains.quant.optimization import ParameterSweepRunner
+
         candles = BacktestRunner.select_history(data.get("candles", []), req.raw_query, listing_date=asset.listing_date)
         if data.get("timeframe") and data["timeframe"] != req.timeframe:
             return f"{asset.id}: data tersedia {data['timeframe']}, bukan {req.timeframe}; impor timeframe yang sesuai."
@@ -373,21 +385,102 @@ def run_equity_research(runner, req, session=None) -> str:
             return f"{asset.id}: rentang '{req.raw_query}' menghasilkan {len(candles)} closed bar; minimal 25. " + EquityData.import_guidance(asset.symbol)
         if data.get("unresolved_corporate_actions") is not False:
             return f"{asset.id}: backtest diblokir; basis adjustment dan corporate actions belum dikonfirmasi sumber. Tidak menghitung return dari seri yang belum konsisten."
+
+        strategy_map = {
+            "donchian": DonchianBreakoutStrategy,
+            "breakout": DonchianBreakoutStrategy,
+            "rsi": RSIReversionStrategy,
+            "reversion": RSIReversionStrategy,
+            "mtf": MultiTimeframeStrategy,
+            "multitimeframe": MultiTimeframeStrategy,
+            "ema": EMATrendPullbackStrategy,
+        }
+        chosen_strat_cls = strategy_map.get(getattr(req, "topic", "ema") or "ema", EMATrendPullbackStrategy)
+        if getattr(req, "focus", "") == "mtf":
+            chosen_strat_cls = MultiTimeframeStrategy
+
+        buy_fee = float(data.get("fees", {}).get("buy", 0.0015))
+        sell_fee = float(data.get("fees", {}).get("sell", 0.0025))
+
+        # Parameter Sensitivity Sweep / Optimization
+        if getattr(req, "focus", "") == "sweep" or "sweep" in req.raw_query.lower() or "optimasi" in req.raw_query.lower():
+            param_grids = {
+                EMATrendPullbackStrategy: {
+                    "fast_ema": [5, 8, 13],
+                    "slow_ema": [21, 34],
+                    "stop_atr_mult": [1.5, 2.0],
+                    "tp_atr_mult": [2.5, 3.0],
+                },
+                DonchianBreakoutStrategy: {
+                    "lookback": [15, 20, 30],
+                    "stop_atr_mult": [1.5, 2.0],
+                    "tp_atr_mult": [2.5, 3.5],
+                },
+                RSIReversionStrategy: {
+                    "rsi_period": [10, 14],
+                    "oversold": [25.0, 30.0],
+                    "stop_atr_mult": [1.5, 2.0],
+                    "tp_atr_mult": [2.0, 2.5],
+                },
+                MultiTimeframeStrategy: {
+                    "htf_ratio": [4, 6],
+                    "htf_ema_fast": [10, 20],
+                    "htf_ema_slow": [30, 50],
+                    "ltf_ema_fast": [8],
+                    "ltf_ema_slow": [21],
+                },
+            }
+            grid = param_grids.get(chosen_strat_cls, param_grids[EMATrendPullbackStrategy])
+            sweep_runner = ParameterSweepRunner()
+            sweep_res = sweep_runner.run_sweep(
+                symbol=asset.symbol,
+                candles=candles,
+                strategy_cls=chosen_strat_cls,
+                param_grid=grid,
+                initial_capital=100_000_000.0,
+                asset_type="EQUITY_ID",
+                timeframe=req.timeframe,
+                buy_fee=buy_fee,
+                sell_fee=sell_fee,
+                lot_size=100,
+            )
+            if session and sweep_res.best_backtest:
+                session.last_backtest_result = sweep_res.best_backtest
+                session.last_backtest_asset = asset.symbol
+            out_lines = [sweep_res.summary_table(), ""]
+            if sweep_res.best_backtest and sweep_res.best_backtest.equity_curve:
+                out_lines.append(render_ascii_equity_curve(sweep_res.best_backtest.equity_curve, title=f"Best Strategy Equity: {asset.symbol}", currency="IDR"))
+            return "\n".join(out_lines)
+
+        # Standard or MTF execution
+        strategy_obj = chosen_strat_cls()
         bt_runner = BacktestRunner(
             initial_capital=100_000_000.0,
             asset_type="EQUITY_ID",
-            buy_fee=float(data.get("fees", {}).get("buy", 0.0015)),
-            sell_fee=float(data.get("fees", {}).get("sell", 0.0025)),
+            buy_fee=buy_fee,
+            sell_fee=sell_fee,
+            lot_size=100,
+            strategy=strategy_obj,
         )
         bt_res = bt_runner.run(asset.symbol, candles, timeframe=req.timeframe)
         if session:
             session.last_backtest_result = bt_res
             session.last_backtest_asset = asset.symbol
-        if getattr(req, "focus", "") == "equity_curve" or "equity curve" in req.raw_query.lower():
+
+        if getattr(req, "focus", "") == "equity_curve" or "equity curve" in req.raw_query.lower() or "kurva ekuitas" in req.raw_query.lower():
             from openbagus.reporting.static_charts import render_equity_curve_png
             png_path = render_equity_curve_png(bt_res, asset.symbol)
-            return f"{bt_res.summary_table()}\n\nGrafik Equity Curve berhasil diekspor ke:\n{png_path}"
-        return bt_res.summary_table()
+            ascii_curve = render_ascii_equity_curve(bt_res.equity_curve, title=f"Equity Curve: {asset.symbol}", currency="IDR")
+            ascii_dd = render_ascii_drawdown_chart(bt_res.drawdown_curve)
+            return (
+                f"{bt_res.summary_table()}\n\n"
+                f"{ascii_curve}\n\n"
+                f"{ascii_dd}\n\n"
+                f"Grafik Equity Curve PNG diekspor ke:\n{png_path}"
+            )
+
+        ascii_curve = render_ascii_equity_curve(bt_res.equity_curve, title=f"Equity Curve: {asset.symbol}", currency="IDR")
+        return f"{bt_res.summary_table()}\n\n{ascii_curve}"
     if req.request_type == "FOLLOW_UP" and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol:
         return _render_equity_followup(runner, session, asset, session.last_research_packet, session.last_quant_result, req.raw_query)
     if req.request_type in ("VISUALIZE", "CHART", "REPORT_HTML", "REPORT_WORD", "REPORT_PDF", "EXPORT_PNG") and session and session.last_research_packet and session.last_research_packet.asset == asset.symbol and session.last_quant_result:
