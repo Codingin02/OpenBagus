@@ -76,6 +76,7 @@ MODES = (
     "alerts",
     "delivery",
     "integrations",
+    "voice",
 )
 
 BANNER = r"""
@@ -906,6 +907,60 @@ def _run_delivery(sub_args: list[str]) -> int:
     return 1
 
 
+def _run_voice(sub_args: list[str]) -> int:
+    from openbagus.voice.audio_devices import AudioDeviceManager
+    from openbagus.voice.gpu_scheduler import GPUScheduler
+    from openbagus.voice.asr_engine import LocalASREngine
+    from openbagus.voice.tts_engine import LocalTTSEngine
+    from openbagus.voice.voice_session import VoiceSession
+
+    action = sub_args[0].lower() if sub_args else "status"
+    if action in ("devices", "device"):
+        in_devs = AudioDeviceManager.list_input_devices()
+        out_devs = AudioDeviceManager.list_output_devices()
+        def_in = AudioDeviceManager.get_default_input_device()
+        def_out = AudioDeviceManager.get_default_output_device()
+        print("\n=== Perangkat Audio Terdeteksi (Windows Native) ===")
+        print("Mikrofon (Input):")
+        for d in in_devs:
+            tag = " [DEFAULT]" if def_in and d.index == def_in.index else ""
+            print(f"  [{d.index}] {d.name} ({d.host_api}) - {d.max_input_channels} ch, {int(d.default_sample_rate)} Hz{tag}")
+        print("\nSpeaker / Headphone (Output):")
+        for d in out_devs:
+            tag = " [DEFAULT]" if def_out and d.index == def_out.index else ""
+            print(f"  [{d.index}] {d.name} ({d.host_api}) - {d.max_output_channels} ch, {int(d.default_sample_rate)} Hz{tag}")
+        print()
+        return 0
+
+    if action in ("status", "info"):
+        gpu = GPUScheduler.get_instance().query_gpu_status()
+        asr = LocalASREngine()
+        tts = LocalTTSEngine()
+        print("\n=== Status Sistem Suara OpenBagus ===")
+        print(f"GPU Hardware: {gpu.device_name} (CUDA: {gpu.cuda_available})")
+        print(f"VRAM        : {gpu.vram_used_mb:.0f} MB / {gpu.vram_total_mb:.0f} MB (Free: {gpu.vram_free_mb:.0f} MB)")
+        print(f"Whisper ASR : {asr.model_size_or_path} (Akselerasi: {asr.device.upper()} {asr.compute_type})")
+        print(f"Piper TTS   : {tts.model_path.name}")
+        print(f"Mode Default: FAST / DEEP_REASONING (Spoken selection)")
+        print()
+        return 0
+
+    if action in ("start", "run", "interactive"):
+        session = VoiceSession()
+        session.start(hands_free=True)
+        try:
+            print("Tekan Enter untuk menghentikan sesi suara...")
+            input()
+        except (KeyboardInterrupt, EOFError):
+            pass
+        finally:
+            session.stop()
+        return 0
+
+    print("Usage: openbagus voice [status|devices|start]")
+    return 1
+
+
 def _delivery_exit_code(steps: list[dict[str, Any]]) -> int:
     statuses = {str(step.get("status", "")) for step in steps}
     if any(status.startswith(("FAILED", "RUNTIME_FAILED", "SEND_FAILED")) or status in {"ANALYSIS_MISSING", "UNSUPPORTED_MODE"} for status in statuses):
@@ -1015,6 +1070,7 @@ class OpenBagusShell(cmd.Cmd):
         self.working_context = WorkingContext()
         self.runtime_profile = get_profile("BALANCED")
         self.trace_enabled = False
+        self.voice_session: Any = None
 
     def preloop(self) -> None:
         color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
@@ -1498,7 +1554,13 @@ class OpenBagusShell(cmd.Cmd):
         print("     /gmail                 manage official Google OAuth Gmail delivery")
         print("     /whatsapp              manage personal WhatsApp messaging")
         print("     /autonomy status|on    control background autonomous scheduler")
-        print("  7. System, Cache & Privacy:")
+        print("  7. Conversational AI & Local Native Voice (NVIDIA RTX CUDA):")
+        print("     /chat <pesan>          interact with conversational financial agent harness")
+        print("     /voice [start|ptt|stop] start or stop real-time Indonesian voice assistant")
+        print("     /voice status|devices  inspect audio devices, GPU VRAM telemetry, and latency")
+        print("     /voice mode [fast|deep] switch between Fast and Deep Reasoning voice modes")
+        print("     /voice mute|unmute     mute or unmute microphone capture")
+        print("  8. System, Cache & Privacy:")
         print("     /status                show system runtime, models, and providers")
         print("     /providers [--check]   view zero-key provider connectivity")
         print("     /cache [status|clear]  manage local market data cache")
@@ -3130,6 +3192,12 @@ class OpenBagusShell(cmd.Cmd):
             print(f"Verbose trace: {'Aktif' if self.trace_enabled else 'Nonaktif'}.\n")
 
     def do_exit(self, _arg: str) -> bool:
+        if getattr(self, "voice_session", None):
+            try:
+                self.voice_session.stop()
+            except Exception:
+                pass
+            self.voice_session = None
         if sys.stdin.isatty():
             try:
                 choice = self._ask("End session: [S] Save context  [C] Clear conversation  [X] Cancel: ").strip().lower()
@@ -3164,6 +3232,12 @@ class OpenBagusShell(cmd.Cmd):
         return self.do_exit(_arg)
 
     def do_EOF(self, _arg: str) -> bool:
+        if getattr(self, "voice_session", None):
+            try:
+                self.voice_session.stop()
+            except Exception:
+                pass
+            self.voice_session = None
         if self.session.is_persistence_enabled():
             self.session.save_persistent()
         else:
@@ -3213,6 +3287,123 @@ class OpenBagusShell(cmd.Cmd):
     def do_delivery(self, arg: str) -> None:
         parts = shlex.split(arg) if arg.strip() else []
         _run_delivery(parts)
+
+    def do_voice(self, arg: str) -> None:
+        """Sistem percakapan suara interaktif lokal (Whisper ASR, Piper TTS, NVIDIA RTX CUDA)."""
+        parts = arg.strip().split()
+        subcmd = parts[0].lower() if parts else "start"
+        subarg = parts[1].lower() if len(parts) > 1 else ""
+
+        from openbagus.voice.audio_devices import AudioDeviceManager
+        from openbagus.voice.voice_session import VoiceSession
+
+        if subcmd in ("devices", "device"):
+            in_devs = AudioDeviceManager.list_input_devices()
+            out_devs = AudioDeviceManager.list_output_devices()
+            def_in = AudioDeviceManager.get_default_input_device()
+            def_out = AudioDeviceManager.get_default_output_device()
+
+            print("=== Perangkat Audio Terdeteksi (Windows Native) ===")
+            print("\nMikrofon (Input):")
+            for d in in_devs:
+                tag = " [DEFAULT]" if def_in and d.index == def_in.index else ""
+                print(f"  [{d.index}] {d.name} ({d.host_api}) - {d.max_input_channels} ch, {int(d.default_sample_rate)} Hz{tag}")
+
+            print("\nSpeaker / Headphone (Output):")
+            for d in out_devs:
+                tag = " [DEFAULT]" if def_out and d.index == def_out.index else ""
+                print(f"  [{d.index}] {d.name} ({d.host_api}) - {d.max_output_channels} ch, {int(d.default_sample_rate)} Hz{tag}")
+            print()
+            return
+
+        if subcmd in ("status", "info"):
+            if not getattr(self, "voice_session", None):
+                from openbagus.voice.gpu_scheduler import GPUScheduler
+                from openbagus.voice.asr_engine import LocalASREngine
+                from openbagus.voice.tts_engine import LocalTTSEngine
+                gpu = GPUScheduler.get_instance().query_gpu_status()
+                asr = LocalASREngine()
+                tts = LocalTTSEngine()
+                print("=== Status Sistem Suara OpenBagus ===")
+                print(f"Sesi Suara Aktif : Tidak (Ketik '/voice start' untuk memulai)")
+                print(f"ASR Model (STT)  : {asr.model_size_or_path} (Akselerasi: {asr.device.upper()} {asr.compute_type})")
+                print(f"TTS Model (Suara): Piper Indonesian ({tts.model_path.name})")
+                print(f"NVIDIA GPU       : {gpu.device_name} (VRAM {gpu.vram_used_mb:.0f}/{gpu.vram_total_mb:.0f} MB)")
+                print(f"Mode Penalaran   : FAST / DEEP_REASONING (Konfirmasi vokal otomatis)")
+                print()
+                return
+
+            st = self.voice_session.get_status_summary()
+            print("=== Status Sesi Suara OpenBagus ===")
+            print(f"Status Sesi     : {'AKTIF' if st['active'] else 'NONAKTIF'} (State: {st['state']})")
+            print(f"Mode Penalaran  : {st['mode']}")
+            print(f"Mikrofon Muted  : {'Ya' if st['mic_muted'] else 'Tidak'}")
+            print(f"Assistant Play  : {'Sedang Berbicara' if st['playback_playing'] else 'Hening'}")
+            gpu = st.get("gpu", {})
+            print(f"NVIDIA GPU      : {gpu.get('device_name')} (VRAM Terpakai: {gpu.get('vram_used_mb', 0):.0f} MB)")
+            diag = st.get("diagnostics", {})
+            print(f"Total Turn Suara: {diag.get('total_turns', 0)}")
+            print(f"Rata-rata ASR   : {diag.get('avg_asr_latency_ms', 0):.1f} ms")
+            print(f"Rata-rata TTFA  : {diag.get('avg_tts_ttfa_ms', 0):.1f} ms")
+            print(f"Rata-rata E2E   : {diag.get('avg_e2e_latency_ms', 0):.1f} ms")
+            print()
+            return
+
+        if subcmd == "mute":
+            if self.voice_session:
+                self.voice_session.set_muted(True)
+            else:
+                print("Sesi suara belum aktif.")
+            return
+
+        if subcmd == "unmute":
+            if self.voice_session:
+                self.voice_session.set_muted(False)
+            else:
+                print("Sesi suara belum aktif.")
+            return
+
+        if subcmd in ("quiet", "shutup", "barge", "stop-speaking"):
+            if self.voice_session:
+                self.voice_session.stop_speaking()
+                print("[Output suara asisten dihentikan.]")
+            else:
+                print("Sesi suara belum aktif.")
+            return
+
+        if subcmd == "mode":
+            if not subarg:
+                curr = self.voice_session.controller.mode_controller.current_mode if self.voice_session else "FAST"
+                print(f"Mode suara aktif: {curr}")
+                print("Gunakan: /voice mode fast  atau  /voice mode deep\n")
+                return
+            if self.voice_session:
+                self.voice_session.set_mode(subarg)
+            else:
+                print(f"Mode akan digunakan saat sesi suara dimulai: {subarg.upper()}")
+            return
+
+        if subcmd == "stop":
+            if self.voice_session:
+                self.voice_session.stop()
+                self.voice_session = None
+            else:
+                print("Tidak ada sesi suara yang sedang berjalan.")
+            return
+
+        if subcmd in ("start", "on", "ptt", "continuous"):
+            hands_free = subcmd != "ptt"
+            if not getattr(self, "voice_session", None):
+                self.voice_session = VoiceSession(
+                    agent_harness=self.agent_harness,
+                    working_context=self.working_context,
+                )
+            started = self.voice_session.start(hands_free=hands_free)
+            if not started:
+                print("[Gagal memulai audio stream. Pastikan mikrofon terhubung dan izin audio aktif.]")
+            return
+
+        print("Perintah /voice tidak dikenal. Pilihan: start, ptt, stop, devices, status, mode, mute, unmute")
 
     def do_send(self, arg: str) -> None:
         channel = arg.strip().lower()
@@ -3494,6 +3685,9 @@ def main(argv: list[str] | None = None) -> int:
             client = TradingViewMCPClient(root=REPO_ROOT)
             print(format_integrations_view(client.status()))
             return 0
+        if args.mode == "voice":
+            sub_args = args.extra if getattr(args, "extra", None) else arguments[1:]
+            return _run_voice(sub_args)
         return _run_pipeline(args)
 
     query_text = " ".join(arguments)
