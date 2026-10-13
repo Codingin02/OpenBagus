@@ -16,6 +16,7 @@ import unittest
 from openbagus.domains.crypto.research import CryptoResearchRunner
 from openbagus.intelligence.intent import IntentRouter, SessionState
 from openbagus.monitoring.daily_brief import (
+    WIB_TZ,
     DailyBriefData,
     DailyBriefGenerator,
     DailyBriefItem,
@@ -116,7 +117,7 @@ class TestDailyBriefScheduler(unittest.TestCase):
 
     def test_scheduler_check_due(self):
         # Morning due check at 08:00 WIB
-        dt_morning = datetime(2026, 10, 14, 8, 0, tzinfo=timezone.utc)
+        dt_morning = datetime(2026, 10, 14, 8, 0, tzinfo=WIB_TZ)
         res = self.scheduler.check_and_run_due_brief(now_dt=dt_morning)
         self.assertIsNotNone(res)
         self.assertEqual(res["session_type"], "MORNING")
@@ -126,7 +127,7 @@ class TestDailyBriefScheduler(unittest.TestCase):
         self.assertIsNone(res_dup)
 
         # Evening due check at 17:30 WIB
-        dt_evening = datetime(2026, 10, 14, 17, 30, tzinfo=timezone.utc)
+        dt_evening = datetime(2026, 10, 14, 17, 30, tzinfo=WIB_TZ)
         res_eve = self.scheduler.check_and_run_due_brief(now_dt=dt_evening)
         self.assertIsNotNone(res_eve)
         self.assertEqual(res_eve["session_type"], "EVENING")

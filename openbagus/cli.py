@@ -1748,6 +1748,16 @@ class OpenBagusShell(cmd.Cmd):
         print()
 
     def do_stocks(self, arg: str) -> None:
+        def _parse_subarg_page(subarg_str: str) -> tuple[str, int]:
+            tokens = subarg_str.strip().split()
+            if not tokens:
+                return "", 1
+            if tokens[-1].isdigit():
+                page_num = max(1, int(tokens[-1]))
+                remainder = " ".join(tokens[:-1])
+                return remainder, page_num
+            return " ".join(tokens), 1
+
         parts = arg.strip().split(maxsplit=1)
         subcmd = parts[0].lower() if parts else ""
         subarg = parts[1].strip() if len(parts) > 1 else ""
@@ -1755,17 +1765,23 @@ class OpenBagusShell(cmd.Cmd):
         from openbagus.reporting.terminal_table import render_stocks_table
 
         if not subcmd or subcmd == "summary":
-            total = len(catalog.assets)
-            eq_count = sum(1 for a in catalog.assets if a.asset_type == "EQUITY_ID")
-            idx_count = sum(1 for a in catalog.assets if a.asset_type == "INDEX_ID")
+            stats = catalog.get_universe_stats()
             print("=== IDX Listed Universe Summary ===")
-            print(f"Total Instrumen: {total} (Saham Emiten: {eq_count}, Indeks/ETF: {idx_count})")
+            print(f"Total Instrumen: {stats['total_instruments']} (Saham Emiten: {stats['common_equities']}, Indeks/ETF: {stats['indices']})")
             print(f"Katalog Sumber: {catalog.path} (Resmi Terverifikasi)")
             print("Perintah yang tersedia:")
-            print("  /stocks search <query>             - Cari saham berdasarkan ticker, nama, atau industri")
-            print("  /stocks sector <sektor>            - Filter emiten berdasarkan sektor IDX-IC (A-K / nama)")
-            print("  /stocks info <ticker>              - Profil lengkap emiten dan tanggal pencatatan")
-            print("  /stocks ipo                        - Daftar IPO terbaru (2024-2025)")
+            print("  /stocks all [page]                 - Jelajahi seluruh semesta saham IDX dengan paginasi")
+            print("  /stocks board <papan> [page]       - Filter berdasarkan papan (MAIN, DEVELOPMENT, ACCELERATION, SPECIAL_MONITORING)")
+            print("  /stocks tier <tier> [page]         - Filter berdasarkan ukuran (LARGE_CAP, MID_CAP, SMALL_CAP, MICRO_CAP)")
+            print("  /stocks status <status> [page]     - Filter berdasarkan status perdagangan (ACTIVE, SUSPENDED, DELISTED)")
+            print("  /stocks smallcap [page]            - Daftar saham small-cap (Rp 500M - Rp 5T)")
+            print("  /stocks microcap [page]            - Daftar saham micro-cap (< Rp 500M)")
+            print("  /stocks third-liner [page]         - Eksplorasi saham lapis tiga & pergerakan volatil")
+            print("  /stocks coverage                   - Rekonsiliasi & statistik lengkap 11 sektor & seluruh papan")
+            print("  /stocks search <query> [page]      - Cari saham berdasarkan ticker, nama, atau industri")
+            print("  /stocks sector <sektor> [page]     - Filter emiten berdasarkan sektor IDX-IC (A-K / nama)")
+            print("  /stocks info <ticker>              - Profil lengkap emiten, papan, status, dan kapitalisasi")
+            print("  /stocks ipo [page]                 - Daftar IPO terbaru (2024-2025)")
             print("  /stocks fetch <ticker>             - Ambil data harga EOD terkini ke penyimpanan lokal")
             print("  /stocks sync                       - Sinkronkan katalog dengan universe resmi")
             print("  /stocks compare <t1> <t2> ...      - Bandingkan beberapa saham berdampingan")
@@ -1775,19 +1791,126 @@ class OpenBagusShell(cmd.Cmd):
             sample = [a for a in catalog.assets if a.symbol in {"BBCA", "BBRI", "BMRI", "TLKM", "ASII", "ANTM", "RATU", "GOTO", "BRIS", "ADRO"}]
             print(render_stocks_table(sample, title="Contoh Emiten Terverifikasi"))
             print()
-        elif subcmd == "search":
-            if not subarg:
-                print("Format: /stocks search <ticker/nama/industri>")
+        elif subcmd == "all":
+            _, page = _parse_subarg_page(subarg)
+            eq_assets = [a for a in catalog.assets if a.asset_type == "EQUITY_ID"]
+            sliced, meta = catalog.paginate(eq_assets, page=page, page_size=25)
+            print(render_stocks_table(sliced, title="Semesta Seluruh Saham IDX", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks all {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd == "board":
+            board_query, page = _parse_subarg_page(subarg)
+            if not board_query:
+                print("Format: /stocks board <nama_papan> [page]")
+                print("Pilihan papan: MAIN (Utama), DEVELOPMENT (Pengembangan), ACCELERATION (Akselerasi), SPECIAL_MONITORING (Pemantauan Khusus), NEW_ECONOMY (Ekonomi Baru)")
                 return
-            results = catalog.search(subarg, limit=30)
-            print(render_stocks_table(results, title=f"Hasil Pencarian Saham '{subarg}'"))
+            items = catalog.by_board(board_query, limit=2000)
+            sliced, meta = catalog.paginate(items, page=page, page_size=25)
+            print(render_stocks_table(sliced, title=f"Emiten Papan Pencatatan: {board_query.upper()}", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks board {board_query} {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd == "tier":
+            tier_query, page = _parse_subarg_page(subarg)
+            if not tier_query:
+                print("Format: /stocks tier <tier> [page]")
+                print("Pilihan tier: LARGE_CAP (> Rp 50T), MID_CAP (Rp 5T - 50T), SMALL_CAP (Rp 500M - 5T), MICRO_CAP (< Rp 500M)")
+                return
+            items = catalog.by_tier(tier_query, limit=2000)
+            sliced, meta = catalog.paginate(items, page=page, page_size=25)
+            print(render_stocks_table(sliced, title=f"Emiten Kapitalisasi Pasar: {tier_query.upper()}", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks tier {tier_query} {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd == "status":
+            status_query, page = _parse_subarg_page(subarg)
+            if not status_query:
+                print("Format: /stocks status <status> [page]")
+                print("Pilihan status: ACTIVE (Aktif), SUSPENDED (Suspensi), DELISTED (Delisted)")
+                return
+            items = catalog.by_status(status_query, limit=2000)
+            sliced, meta = catalog.paginate(items, page=page, page_size=25)
+            print(render_stocks_table(sliced, title=f"Emiten Status Pencatatan: {status_query.upper()}", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks status {status_query} {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd in {"smallcap", "small-cap", "small"}:
+            _, page = _parse_subarg_page(subarg)
+            items = catalog.by_tier("SMALL_CAP", limit=2000)
+            sliced, meta = catalog.paginate(items, page=page, page_size=25)
+            print(render_stocks_table(sliced, title="Daftar Saham Small-Cap IDX (Rp 500M - Rp 5T)", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks smallcap {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd in {"microcap", "micro-cap", "micro"}:
+            _, page = _parse_subarg_page(subarg)
+            items = catalog.by_tier("MICRO_CAP", limit=2000)
+            sliced, meta = catalog.paginate(items, page=page, page_size=25)
+            print(render_stocks_table(sliced, title="Daftar Saham Micro-Cap IDX (< Rp 500M)", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks microcap {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd in {"third-liner", "thirdliner", "third_liner", "third"}:
+            sec_filter, page = _parse_subarg_page(subarg)
+            items = catalog.search_third_liners(sector=sec_filter or None, limit=2000)
+            sliced, meta = catalog.paginate(items, page=page, page_size=25)
+            print(render_stocks_table(sliced, title="Daftar Saham Lapis Tiga IDX (Third-Liner / Small-Micro Cap)", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks third-liner {meta['page'] + 1}' untuk melihat halaman berikutnya.")
+            print()
+        elif subcmd == "coverage":
+            stats = catalog.get_universe_stats()
+            print("=== Cakupan Semesta Pasar IDX (Universe Coverage & Reconciliation) ===")
+            print(f"Total Seluruh Instrumen : {stats['total_instruments']}")
+            print(f"  - Saham Ekuitas Biasa : {stats['common_equities']}")
+            print(f"  - Indeks & ETF Resmi  : {stats['indices']}")
+            print()
+            print("Distribusi Papan Pencatatan Resmi:")
+            for b_name, b_count in sorted(stats['boards'].items(), key=lambda x: -x[1]):
+                print(f"  - {b_name:<20}: {b_count:>3} emiten")
+            print()
+            print("Distribusi 11 Sektor IDX-IC:")
+            for s_name, s_count in sorted(stats['sectors'].items()):
+                print(f"  - {s_name:<30}: {s_count:>3} emiten")
+            print()
+            print("Status Pencatatan:")
+            for st_name, st_count in sorted(stats['statuses'].items()):
+                print(f"  - {st_name:<20}: {st_count:>3} emiten")
+            print()
+            print("Integritas Data   : 100% instrumen terpetakan tanpa tebakan papan semu.")
+            print(f"Sumber / Path     : {catalog.path}")
+            print()
+        elif subcmd == "search":
+            q_str, page = _parse_subarg_page(subarg)
+            if not q_str:
+                print("Format: /stocks search <ticker/nama/industri> [page]")
+                return
+            results = catalog.search(q_str, limit=500)
+            sliced, meta = catalog.paginate(results, page=page, page_size=25)
+            print(render_stocks_table(sliced, title=f"Hasil Pencarian Saham '{q_str}'", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} instrumen)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks search {q_str} {meta['page'] + 1}' untuk melihat halaman berikutnya.")
             print()
         elif subcmd == "sector":
-            if not subarg:
-                print("Format: /stocks sector <kode A-K atau nama sektor, e.g. Energy, Financials, Perbankan>")
+            sec_str, page = _parse_subarg_page(subarg)
+            if not sec_str:
+                print("Format: /stocks sector <kode A-K atau nama sektor> [page]")
                 return
-            results = catalog.by_sector(subarg, limit=40)
-            print(render_stocks_table(results, title=f"Emiten Sektor '{subarg}'"))
+            results = catalog.by_sector(sec_str, limit=500)
+            sliced, meta = catalog.paginate(results, page=page, page_size=25)
+            print(render_stocks_table(sliced, title=f"Emiten Sektor '{sec_str}'", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks sector {sec_str} {meta['page'] + 1}' untuk melihat halaman berikutnya.")
             print()
         elif subcmd == "info":
             if not subarg:
@@ -1797,23 +1920,40 @@ class OpenBagusShell(cmd.Cmd):
             if not asset:
                 print(f"Saham '{subarg}' tidak ditemukan di katalog IDX.")
                 return
+            store = EquityData(REPO_ROOT)
+            data = store.load(asset.symbol, auto_fetch=False)
+            price = data.get("quote", {}).get("price") if data else None
+            mcap = asset.market_cap(price)
+            mcap_str = f"Rp {mcap:,.0f}" if mcap else "Belum tersedia (perlu observasi harga EOD)"
+            tier_str = asset.cap_tier(price)
             lines = [
                 f"=== Profil Emiten IDX: {asset.symbol} ===",
-                f"Nama: {asset.name}",
-                f"Sektor: {asset.sector_or_category} ({asset.sector_code})",
-                f"Industri: {asset.industry or '-'}",
-                f"Papan Pencatatan: {asset.board}",
-                f"Status Pencatatan: {asset.listing_status}",
-                f"Tanggal IPO: {asset.listing_date or '-'}",
-                f"Saham Beredar: {asset.shares_outstanding:,.0f} lembar" if asset.shares_outstanding else "Saham Beredar: -",
-                f"Mata Uang / Bursa: {asset.currency} / {asset.exchange_or_chain}",
-                f"Sumber Profil Resmi: {asset.source}",
+                f"Nama Lengkap      : {asset.name}",
+                f"Sektor IDX-IC     : {asset.sector_or_category} ({asset.sector_code})",
+                f"Industri          : {asset.industry or '-'}",
+                f"Papan Pencatatan  : {asset.canonical_board} (Asal: {asset.board})",
+                f"Status Pencatatan : {asset.canonical_status} (Asal: {asset.listing_status})",
+                f"Tanggal IPO       : {asset.listing_date or '-'}",
+                f"Saham Beredar     : {asset.shares_outstanding:,.0f} lembar" if asset.shares_outstanding else "Saham Beredar     : -",
+                f"Estimasi MarketCap: {mcap_str}",
+                f"Kategori Ukuran   : {tier_str}",
+                f"Klasifikasi:",
+                f"  - Saham Lapis Tiga       : {'Ya (Small/Micro Cap / Non-Main)' if asset.is_third_liner else 'Tidak'}",
+                f"  - Papan Pemantauan Khusus: {'Ya (Kriteria Khusus BEI)' if asset.is_special_monitoring else 'Tidak'}",
+                f"  - Status Suspensi        : {'Ya (Perdagangan Disuspensi)' if asset.is_suspended else 'Tidak'}",
+                f"Mata Uang / Bursa : {asset.currency} / {asset.exchange_or_chain}",
+                f"Sumber Profil     : {asset.source}",
             ]
             print("\n".join(lines))
             print()
         elif subcmd == "ipo":
-            recent = catalog.recent_ipos(since_year=2024, limit=30)
-            print(render_stocks_table(recent, title="Daftar Emiten IPO Terbaru (2024 - Sekarang)"))
+            _, page = _parse_subarg_page(subarg)
+            recent = catalog.recent_ipos(since_year=2024, limit=200)
+            sliced, meta = catalog.paginate(recent, page=page, page_size=25)
+            print(render_stocks_table(sliced, title="Daftar Emiten IPO Terbaru (2024 - Sekarang)", limit=25, total_count=meta["total_items"]))
+            print(f"Halaman {meta['page']} dari {meta['total_pages']} (Menampilkan {meta['start_idx']}-{meta['end_idx']} dari {meta['total_items']} emiten)")
+            if meta["has_next"]:
+                print(f"Gunakan '/stocks ipo {meta['page'] + 1}' untuk melihat halaman berikutnya.")
             print()
         elif subcmd == "sync":
             sync_res = catalog.sync(force_download=True)

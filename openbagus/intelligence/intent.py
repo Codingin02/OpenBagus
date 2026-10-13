@@ -138,6 +138,7 @@ REQUEST_TYPES = (
     "COMMODITY",
     "PORTFOLIO_RISK",
     "DAILY_BRIEF",
+    "EQUITY_DISCOVERY",
 )
 
 CRYPTO_VOCAB_CANONICAL = {
@@ -1287,12 +1288,56 @@ class IntentRouter:
             if any(token.upper().endswith(".JK") for token in tokens):
                 return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
                     clarification_prompt="SOURCE GAP: ticker .JK belum ada di catalog terverifikasi. Impor identitas IDX berizin.")
-            if re.search(r"\b(?:idx\s+sektor|banking\s+indonesia|sektor\s+(?:energi|keuangan|perbankan))\b", lower):
-                aliases = {"energi": "A", "perbankan": "G", "banking": "G", "keuangan": "G"}
+            # Full Universe Coverage / Reconciliation
+            if re.search(r"\b(?:coverage|universe|seluruh\s+saham|semua\s+saham|total\s+saham|cakupan\s+pasar)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="coverage", asset_type="EQUITY_ID")
+
+            # Third-Liner & Volatile / Low-Price Equity Discovery
+            if re.search(r"\b(?:lapis\s+tiga|lapis\s+3|third\s*-?\s*liner|saham\s+gorengan|gorengan)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="third_liner", asset_type="EQUITY_ID")
+
+            # Small-Cap & Micro-Cap Discovery
+            if re.search(r"\b(?:small\s*-?\s*cap|kapitalisasi\s+kecil|saham\s+kecil)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="small_cap", asset_type="EQUITY_ID")
+            if re.search(r"\b(?:micro\s*-?\s*cap|kapitalisasi\s+mikro|saham\s+mikro)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="micro_cap", asset_type="EQUITY_ID")
+
+            # Special Monitoring & Suspension
+            if re.search(r"\b(?:pemantauan\s+khusus|special\s+monitoring|notasi\s+khusus|fca)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="special_monitoring", asset_type="EQUITY_ID")
+            if re.search(r"\b(?:suspensi|disuspensi|suspended)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="suspended", asset_type="EQUITY_ID")
+
+            # Listing Boards Discovery
+            if re.search(r"\b(?:papan\s+akselerasi|akselerasi|acceleration\s+board)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="acceleration", asset_type="EQUITY_ID")
+            if re.search(r"\b(?:papan\s+pengembangan|pengembangan|development\s+board)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="development", asset_type="EQUITY_ID")
+            if re.search(r"\b(?:papan\s+utama|utama|main\s+board)\b", lower) and not re.search(r"\b(?:ihsg|idx|bursa)\b", lower):
+                return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="main_board", asset_type="EQUITY_ID")
+
+            # Sector matching across all 11 IDX-IC sectors
+            if re.search(r"\b(?:idx\s+sektor|banking\s+indonesia|perbankan\s+indonesia|sektor|sector|daftar\s+saham\s+sektor)\b", lower) or any(
+                f"sektor {k}" in lower or f"saham {k}" in lower for k in ("energi", "barang baku", "industri", "konsumen", "kesehatan", "keuangan", "perbankan", "properti", "teknologi", "infrastruktur", "transportasi")
+            ):
+                aliases = {
+                    "energi": "A", "energy": "A", "minyak": "A", "batubara": "A",
+                    "barang baku": "B", "basic materials": "B",
+                    "perindustrian": "C", "industri": "C", "industrials": "C",
+                    "konsumen primer": "D", "consumer non-cyclicals": "D",
+                    "konsumen non-primer": "E", "consumer cyclicals": "E",
+                    "kesehatan": "F", "healthcare": "F", "farmasi": "F",
+                    "keuangan": "G", "financials": "G", "perbankan": "G", "bank": "G", "banking": "G",
+                    "properti": "H", "real estate": "H", "property": "H",
+                    "teknologi": "I", "technology": "I", "tech": "I",
+                    "infrastruktur": "J", "infrastructure": "J", "telco": "J",
+                    "transportasi": "K", "transportation": "K", "logistik": "K",
+                }
                 sector = next((code for code, names in SECTORS.items() if any(n.lower() in lower for n in names)), None)
                 sector = sector or next((code for key, code in aliases.items() if key in lower), None)
-                return IntentRequest("CATEGORY", "EQUITY_SECTOR", raw_query=text, category=sector,
-                    asset_type="EQUITY_ID", relation_to_context="UNRELATED")
+                if sector:
+                    return IntentRequest("CATEGORY", "EQUITY_SECTOR", raw_query=text, category=sector,
+                        asset_type="EQUITY_ID", relation_to_context="UNRELATED")
             if current and not resolved and re.search(r"\b(?:kenapa|mengapa|why|rate|suku bunga|rupiah|nikel|nickel|emas|gold|tadi|sederhana|simpl|fundamental|valuasi)\b", lower):
                 tf, _ = _parse_timeframe(text, default_tf=session.timeframe)
                 return IntentRequest("ANALYZE", "FOLLOW_UP", asset=current.symbol, raw_query=text,
@@ -1549,6 +1594,35 @@ class IntentRouter:
         # -------------------------------------------------------------
         if cleaned.startswith("/"):
             cmd = cleaned[1:].strip().lower()
+            if cmd.startswith("stocks"):
+                s_parts = cmd.split(maxsplit=2)
+                sub_cmd = s_parts[1].lower() if len(s_parts) > 1 else "summary"
+                extra_arg = s_parts[2] if len(s_parts) > 2 else ""
+                focus_map = {
+                    "all": "all",
+                    "coverage": "coverage",
+                    "third-liner": "third_liner",
+                    "thirdliner": "third_liner",
+                    "third_liner": "third_liner",
+                    "smallcap": "small_cap",
+                    "small-cap": "small_cap",
+                    "microcap": "micro_cap",
+                    "micro-cap": "micro_cap",
+                    "board": "board",
+                    "tier": "tier",
+                    "status": "status",
+                    "special-monitoring": "special_monitoring",
+                    "acceleration": "acceleration",
+                }
+                focus = focus_map.get(sub_cmd, "coverage" if sub_cmd == "coverage" else "general")
+                return IntentRequest(
+                    intent="CATEGORY",
+                    request_type="EQUITY_DISCOVERY",
+                    raw_query=text,
+                    focus=focus,
+                    category=extra_arg or sub_cmd,
+                    asset_type="EQUITY_ID",
+                )
             if cmd in ("harness", "harness status"):
                 return IntentRequest(intent="SYSTEM_INFO", request_type="HARNESS", timeframe=detected_tf, raw_query=text)
             if cmd in ("harness clear", "harness reset"):

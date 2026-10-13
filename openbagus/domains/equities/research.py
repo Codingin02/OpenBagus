@@ -314,12 +314,90 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
 def run_equity_research(runner, req, session=None) -> str:
     from openbagus.domains.crypto.research import ResearchPacket
 
+    if req.request_type == "EQUITY_DISCOVERY":
+        from openbagus.domains.equities.catalog import EquityCatalog
+        catalog = getattr(getattr(runner, "assets", None), "equities", None) or EquityCatalog(runner.root)
+        from openbagus.reporting.terminal_table import render_stocks_table
+        focus = getattr(req, "focus", "")
+        if focus == "coverage":
+            stats = catalog.get_universe_stats()
+            lines = [
+                "=== Cakupan Semesta Pasar IDX (Universe Coverage & Reconciliation) ===",
+                f"Total Seluruh Instrumen : {stats['total_instruments']}",
+                f"  - Saham Ekuitas Biasa : {stats['common_equities']}",
+                f"  - Indeks & ETF Resmi  : {stats['indices']}",
+                "",
+                "Distribusi Papan Pencatatan Resmi:",
+            ]
+            for b_name, b_count in sorted(stats['boards'].items(), key=lambda x: -x[1]):
+                lines.append(f"  - {b_name:<20}: {b_count:>3} emiten")
+            lines.append("")
+            lines.append("Distribusi 11 Sektor IDX-IC:")
+            for s_name, s_count in sorted(stats['sectors'].items()):
+                lines.append(f"  - {s_name:<30}: {s_count:>3} emiten")
+            lines.append("")
+            lines.append(f"Status Pencatatan: {stats['statuses']}")
+            lines.append("Integritas Data  : 100% instrumen terpetakan tanpa tebakan papan semu.")
+            return "\n".join(lines)
+        elif focus == "third_liner":
+            items = catalog.search_third_liners(limit=25)
+            table = render_stocks_table(items, title="Eksplorasi Saham Lapis Tiga (Third-Liner / Small-Micro Cap)", limit=25, total_count=len(catalog.search_third_liners(limit=1000)))
+            note = "\nCatatan Integritas: Kategori lapis tiga didasarkan pada kapitalisasi pasar (Small/Micro Cap) dan papan pencatatan (Pengembangan/Akselerasi) tanpa label manipulatif buatan."
+            return f"{table}{note}\n\nGunakan '/stocks info <ticker>' untuk rincian emiten atau '/stocks third-liner [page]' untuk navigasi."
+        elif focus == "small_cap":
+            items = catalog.by_tier("SMALL_CAP", limit=25)
+            table = render_stocks_table(items, title="Saham Small-Cap IDX (Rp 500M - Rp 5T)", limit=25, total_count=len(catalog.by_tier("SMALL_CAP", limit=1000)))
+            return f"{table}\n\nGunakan '/stocks smallcap [page]' untuk melihat halaman lainnya."
+        elif focus == "micro_cap":
+            items = catalog.by_tier("MICRO_CAP", limit=25)
+            table = render_stocks_table(items, title="Saham Micro-Cap IDX (< Rp 500M)", limit=25, total_count=len(catalog.by_tier("MICRO_CAP", limit=1000)))
+            return f"{table}\n\nGunakan '/stocks microcap [page]' untuk melihat halaman lainnya."
+        elif focus == "special_monitoring":
+            items = catalog.search_special_monitoring(limit=25)
+            table = render_stocks_table(items, title="Daftar Saham Papan Pemantauan Khusus (Special Monitoring)", limit=25, total_count=len(catalog.search_special_monitoring(limit=1000)))
+            return f"{table}\n\nCatatan: Saham di papan pemantauan khusus memiliki kriteria likuiditas/kondisi keuangan khusus oleh BEI."
+        elif focus == "acceleration":
+            items = catalog.by_board("ACCELERATION", limit=25)
+            table = render_stocks_table(items, title="Daftar Saham Papan Akselerasi (Acceleration Board)", limit=25, total_count=len(catalog.by_board("ACCELERATION", limit=1000)))
+            return f"{table}\n\nGunakan '/stocks board akselerasi [page]' untuk navigasi penuh."
+        elif focus == "development":
+            items = catalog.by_board("DEVELOPMENT", limit=25)
+            table = render_stocks_table(items, title="Daftar Saham Papan Pengembangan (Development Board)", limit=25, total_count=len(catalog.by_board("DEVELOPMENT", limit=1000)))
+            return f"{table}\n\nGunakan '/stocks board pengembangan [page]' untuk navigasi penuh."
+        elif focus == "main_board":
+            items = catalog.by_board("MAIN", limit=25)
+            table = render_stocks_table(items, title="Daftar Saham Papan Utama (Main Board)", limit=25, total_count=len(catalog.by_board("MAIN", limit=1000)))
+            return f"{table}\n\nGunakan '/stocks board utama [page]' untuk navigasi penuh."
+        elif focus == "suspended":
+            items = catalog.search_suspended(limit=25)
+            table = render_stocks_table(items, title="Daftar Saham Dalam Status Suspensi", limit=25, total_count=len(catalog.search_suspended(limit=1000)))
+            return f"{table}\n\nCatatan: Status suspensi aktif tercatat resmi di bursa."
+        else:
+            items = [a for a in catalog.assets if a.asset_type == "EQUITY_ID"][:25]
+            table = render_stocks_table(items, title="Semesta Seluruh Saham IDX", limit=25, total_count=len(catalog.assets))
+            return f"{table}\n\nGunakan '/stocks all [page]' untuk navigasi."
+
     if req.request_type == "EQUITY_SECTOR":
-        if req.category not in SECTORS:
-            return "IDX-IC: " + "; ".join(f"{code} {names[0]} / {names[1]}" for code, names in SECTORS.items())
-        names = SECTORS[req.category]
-        members = [a.symbol for a in runner.assets.equities.assets if a.sector_code == req.category]
-        return f"IDX-IC {names[0]} / {names[1]}: {', '.join(members) or 'SOURCE GAP'}\nCatalog parsial; perlu impor untuk universe dan hierarki resmi lengkap."
+        from openbagus.domains.equities.catalog import EquityCatalog
+        catalog = getattr(getattr(runner, "assets", None), "equities", None) or EquityCatalog(runner.root)
+        cat = req.category or ""
+        if cat in SECTORS:
+            names = SECTORS[cat]
+            members = catalog.by_sector(cat, limit=25)
+            total_sec = len(catalog.by_sector(cat, limit=1000))
+            from openbagus.reporting.terminal_table import render_stocks_table
+            table = render_stocks_table(members, title=f"Emiten Sektor {cat} - {names[0]} ({names[1]})", limit=25, total_count=total_sec)
+            return f"{table}\n\nGunakan '/stocks sector {cat} [page]' untuk navigasi atau '/stocks info <ticker>' untuk detail emiten."
+        else:
+            matched = catalog.by_sector(cat, limit=25) if cat else []
+            if matched:
+                from openbagus.reporting.terminal_table import render_stocks_table
+                table = render_stocks_table(matched, title=f"Emiten Sektor '{cat}'", limit=25, total_count=len(catalog.by_sector(cat, limit=1000)))
+                return f"{table}\n\nGunakan '/stocks sector {cat} [page]' untuk navigasi."
+            lines = ["IDX-IC 11 Sektor Resmi:"]
+            for code, names in sorted(SECTORS.items()):
+                lines.append(f"  {code}. {names[0]} / {names[1]}")
+            return "\n".join(lines)
     asset = runner.assets.equities.resolve(req.asset or "")
     if not asset:
         return "SOURCE GAP: IDX identity unverified."

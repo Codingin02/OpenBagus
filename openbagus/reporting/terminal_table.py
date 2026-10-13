@@ -14,12 +14,13 @@ except ImportError:
     _RICH_AVAILABLE = False
 
 
-def render_stocks_table(assets: Sequence[Any], title: str = "IDX Listed Universe", limit: int = 50) -> str:
+def render_stocks_table(assets: Sequence[Any], title: str = "IDX Listed Universe", limit: int = 50, total_count: int | None = None) -> str:
     """Renders a clean, formatted table of listed IDX stocks."""
     if not assets:
         return "Tidak ada instrumen yang cocok dengan kriteria pencarian."
 
     items = list(assets[:limit])
+    shown_total = total_count if total_count is not None else len(assets)
     headers = ["Ticker", "Nama Perusahaan", "Sektor", "Papan", "Status", "IPO Date"]
 
     rows = []
@@ -41,7 +42,7 @@ def render_stocks_table(assets: Sequence[Any], title: str = "IDX Listed Universe
         is_win_non_utf8 = sys.platform == "win32" and (getattr(sys.stdout, "encoding", None) or "").lower() not in {"utf-8", "utf8"}
         box_style = box.ASCII if is_win_non_utf8 else box.ROUNDED
         console = Console(file=io.StringIO(), force_terminal=False, width=100)
-        table = Table(title=f"{title} ({len(items)} dari {len(assets)} instrumen)", box=box_style)
+        table = Table(title=f"{title} ({len(items)} dari {shown_total} instrumen)", box=box_style)
         table.add_column("Ticker", style="bold green", no_wrap=True)
         table.add_column("Nama Perusahaan", style="white")
         table.add_column("Sektor", style="cyan")
@@ -57,7 +58,7 @@ def render_stocks_table(assets: Sequence[Any], title: str = "IDX Listed Universe
     else:
         # Plain text tabular fallback
         col_widths = [8, 34, 20, 12, 10, 12]
-        lines = [f"=== {title} ({len(items)}/{len(assets)}) ==="]
+        lines = [f"=== {title} ({len(items)}/{shown_total}) ==="]
         header_line = " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
         lines.append(header_line)
         lines.append("-" * len(header_line))

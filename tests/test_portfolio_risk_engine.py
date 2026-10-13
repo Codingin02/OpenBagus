@@ -212,6 +212,86 @@ class TestPortfolioRiskEngine(unittest.TestCase):
         self.assertIn("Value at Risk", out_var)
         self.assertIn("Expected Shortfall", out_var)
 
+    def test_mandatory_risk_budget_violation_rejection(self):
+        # Section 8.4: Capital Rp 10M, Risk 0.1% (Rp 10k), Entry Rp 5000, Stop Rp 4500
+        # Risk per unit = Rp 500 -> 20 shares. 1 lot = 100 shares -> 1 lot risks Rp 50,000 > Rp 10,000
+        res = calculate_position_size(
+            capital=10000000.0,
+            entry_price=5000.0,
+            stop_loss=4500.0,
+            risk_pct=0.1,
+            asset_type="EQUITY_ID",
+            currency="IDR",
+            lot_size=100,
+        )
+        self.assertEqual(res.lots, 0)
+        self.assertEqual(res.units, 0.0)
+        self.assertEqual(res.max_loss, 0.0)
+        self.assertFalse(res.trade_eligible)
+        self.assertIn("melebihi batas anggaran risiko", res.rejection_reason)
+        self.assertEqual(res.details["min_lot_loss"], 50000.0)
+        self.assertEqual(res.details["excess_risk"], 40000.0)
+
+    def test_invalid_stop_loss_geometry(self):
+        res = calculate_position_size(
+            capital=10000000.0,
+            entry_price=5000.0,
+            stop_loss=5200.0,  # Stop higher than entry for long
+            risk_pct=1.0,
+            asset_type="EQUITY_ID",
+        )
+        self.assertFalse(res.trade_eligible)
+        self.assertEqual(res.lots, 0)
+        self.assertEqual(res.method, "INVALID_STOP")
+        self.assertIn("Stop loss harus berada di bawah", res.rejection_reason)
+
+    def test_kelly_zero_or_negative_edge(self):
+        res = calculate_position_size(
+            capital=10000000.0,
+            entry_price=5000.0,
+            stop_loss=4800.0,
+            risk_pct=2.0,
+            win_rate=0.30,
+            reward_risk=1.0,  # Negative Kelly edge: 0.3 * 1 - 0.7 = -0.4
+        )
+        self.assertFalse(res.trade_eligible)
+        self.assertEqual(res.method, "KELLY_ZERO_EDGE")
+        self.assertEqual(res.lots, 0)
+        self.assertIn("tidak memiliki edge", res.rejection_reason)
+
+    def test_date_aligned_correlation_with_crypto_and_idx(self):
+        # BTC trades 7 days (including weekend Oct 3 & Oct 4)
+        # BBCA trades 5 weekdays only (Oct 1, Oct 2, Oct 5, Oct 6, Oct 7)
+        btc_dates = ["2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04", "2026-10-05", "2026-10-06", "2026-10-07"]
+        btc_returns = [0.01, -0.02, 0.015, -0.005, 0.03, -0.01, 0.02]
+
+        bbca_dates = ["2026-10-01", "2026-10-02", "2026-10-05", "2026-10-06", "2026-10-07"]
+        bbca_returns = [0.005, -0.01, 0.02, -0.005, 0.015]
+
+        res = calculate_correlation_matrix(
+            returns_by_asset={"BTC": btc_returns, "BBCA": bbca_returns},
+            dates_by_asset={"BTC": btc_dates, "BBCA": bbca_dates},
+        )
+        # Should strictly align on the 5 common business days!
+        self.assertEqual(res.observations_used, 5)
+        self.assertTrue(res.alignment_metadata["date_aligned"])
+        self.assertIn("BTC", res.matrix)
+        self.assertIn("BBCA", res.matrix)
+
+    def test_hedging_component_var_negative_contribution(self):
+        # Asset A and Asset B are negatively correlated (hedge)
+        rets_a = [0.02, -0.01, 0.03, -0.02, 0.04, -0.03]
+        rets_b = [-0.02, 0.01, -0.03, 0.02, -0.04, 0.03]
+        res = calculate_portfolio_var(
+            weights={"A": 0.5, "B": 0.5},
+            returns_by_asset={"A": rets_a, "B": rets_b},
+            portfolio_value=100000000.0,
+            confidence=0.95,
+        )
+        # Perfectly offsetting hedge should produce zero or near-zero portfolio volatility and VaR
+        self.assertAlmostEqual(res.portfolio_daily_volatility, 0.0, places=4)
+        self.assertAlmostEqual(res.parametric_var, 0.0, places=1)
+
 
 if __name__ == "__main__":
     unittest.main()
