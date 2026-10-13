@@ -185,13 +185,23 @@ def calculate_valuation_multiples(
             multiples["PBV_note"] = "N/A (Harga pasar tidak tersedia)"
 
     # 3. Enterprise Value & Multiples
+    nci_val = values.get("non_controlling_interests") or values.get("minority_interest")
+    pref_val = values.get("preferred_equity") or values.get("preferred_stock")
+    nci = (float(nci_val) * mult) if nci_val is not None else 0.0
+    pref = (float(pref_val) * mult) if pref_val is not None else 0.0
+
     if market_cap:
         multiples[f"Market_Cap_{currency}"] = round(market_cap, 0)
         multiples["Market_Cap"] = round(market_cap, 0)
         if total_debt is not None and cash is not None:
-            ev = market_cap + total_debt - cash
+            ev = market_cap + total_debt - cash + nci + pref
             multiples[f"EV_{currency}"] = round(ev, 0)
             multiples["EV"] = round(ev, 0)
+            multiples["Enterprise_Value"] = round(ev, 0)
+            if nci_val is not None:
+                multiples[f"Minority_Interest_{currency}"] = round(nci, 0)
+            if pref_val is not None:
+                multiples[f"Preferred_Equity_{currency}"] = round(pref, 0)
             if ebit is not None and ebit > 0 and not is_bank:
                 multiples["EV_to_EBIT"] = round(ev / ebit, 2)
         else:
@@ -400,16 +410,239 @@ def evaluate_earnings_quality(statement: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def calculate_cash_flows(
+    statement: dict[str, Any],
+    previous_statement: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Calculates Damodaran-compliant multi-stream cash flows and empirical reinvestment rates.
+
+    Identifies and distinguishes:
+    - Actual historical FCF (Operating Cash Flow - Capital Expenditures), strictly preserving negative figures.
+    - FCFF (Free Cash Flow to Firm / Unlevered Free Cash Flow):
+      CFO + Interest Expense * (1 - t) - Capex  (or NOPAT - Reinvestment).
+    - FCFE (Free Cash Flow to Equity / Levered Free Cash Flow):
+      CFO - Capex + Net Debt Issued.
+    - Reinvestment: Net Capex + Delta Non-Cash Working Capital.
+    - Reinvestment Rate: Reinvestment / NOPAT.
+    - Sustainable Growth: Reinvestment Rate * ROIC.
+    """
+    values = statement.get("values", {})
+    currency = statement.get("currency", "IDR")
+    unit = statement.get("unit", "million_IDR" if currency == "IDR" else "USD")
+    mult = _get_multiplier(unit, currency)
+    sector = statement.get("sector", "")
+
+    is_bank = (
+        sector.upper() in {"FINANCIALS", "KEUANGAN", "BANK"}
+        or "NIM" in statement.get("reported_ratios_pct", {})
+        or "CAR" in statement.get("reported_ratios_pct", {})
+    )
+    if is_bank:
+        return {
+            "status": "NOT_APPLICABLE",
+            "is_bank": True,
+            "message": "Arus kas industri korporasi (FCF/FCFF/FCFE) tidak relevan untuk institusi perbankan/keuangan.",
+            "actual_historical_fcf": None,
+            "fcff": None,
+            "fcfe": None,
+            "reinvestment": None,
+            "reinvestment_rate": None,
+            "sustainable_growth_rate": None,
+        }
+
+    ocf_raw = values.get("operating_cash_flow")
+    capex_raw = values.get("capital_expenditure") or values.get("capital_expenditures")
+    ebit_raw = values.get("operating_income")
+    tax_raw = values.get("tax_expense")
+    interest_raw = values.get("interest_expense") or values.get("finance_costs")
+    da_raw = values.get("depreciation_and_amortization") or values.get("depreciation")
+    net_debt_raw = values.get("net_debt_issued")
+
+    ca_raw = values.get("current_assets")
+    cl_raw = values.get("current_liabilities")
+    cash_raw = values.get("cash_and_equivalents")
+    st_debt_raw = values.get("short_term_debt")
+    tot_debt_raw = values.get("interest_bearing_debt")
+    eq_raw = values.get("equity_attributable") or values.get("equity")
+
+    ocf = (float(ocf_raw) * mult) if ocf_raw is not None else None
+    capex = abs(float(capex_raw) * mult) if capex_raw is not None else None
+    ebit = (float(ebit_raw) * mult) if ebit_raw is not None else None
+    tax = abs(float(tax_raw) * mult) if tax_raw is not None else None
+    interest = abs(float(interest_raw) * mult) if interest_raw is not None else None
+    da = abs(float(da_raw) * mult) if da_raw is not None else None
+    net_debt_issued = (float(net_debt_raw) * mult) if net_debt_raw is not None else None
+
+    # 1. Actual Historical FCF (strictly preserves negative values)
+    historical_fcf = (ocf - capex) if (ocf is not None and capex is not None) else None
+
+    # 2. Effective Tax Rate & NOPAT
+    eff_tax_rate = (tax / ebit) if (tax is not None and ebit is not None and ebit > 0 and 0 < tax < ebit) else (0.22 if currency == "IDR" else 0.21)
+    nopat = (ebit * (1.0 - eff_tax_rate)) if ebit is not None else None
+
+    # 3. Non-Cash Working Capital
+    non_cash_wc = None
+    if ca_raw is not None and cl_raw is not None:
+        ca = float(ca_raw) * mult
+        cl = float(cl_raw) * mult
+        cash = (float(cash_raw) * mult) if cash_raw is not None else 0.0
+        st_debt = (float(st_debt_raw) * mult) if st_debt_raw is not None else 0.0
+        non_cash_wc = (ca - cash) - (cl - st_debt)
+
+    delta_non_cash_wc = None
+    if previous_statement and non_cash_wc is not None:
+        p_vals = previous_statement.get("values", {})
+        p_unit = previous_statement.get("unit", unit)
+        p_curr = previous_statement.get("currency", currency)
+        p_mult = _get_multiplier(p_unit, p_curr)
+        p_ca = p_vals.get("current_assets")
+        p_cl = p_vals.get("current_liabilities")
+        if p_ca is not None and p_cl is not None:
+            p_cash = (float(p_vals.get("cash_and_equivalents") or 0.0)) * p_mult
+            p_st_debt = (float(p_vals.get("short_term_debt") or 0.0)) * p_mult
+            p_nc_wc = (float(p_ca) * p_mult - p_cash) - (float(p_cl) * p_mult - p_st_debt)
+            delta_non_cash_wc = non_cash_wc - p_nc_wc
+
+    # 4. Reinvestment
+    net_capex = (capex - (da or 0.0)) if capex is not None else None
+    reinvestment = None
+    reinvestment_type = "UNAVAILABLE"
+    if net_capex is not None:
+        if delta_non_cash_wc is not None:
+            reinvestment = net_capex + delta_non_cash_wc
+            reinvestment_type = "EMPIRICAL_NET_CAPEX_PLUS_DELTA_WC"
+        else:
+            reinvestment = net_capex
+            reinvestment_type = "NET_CAPEX_ESTIMATE"
+
+    reinvestment_rate = (reinvestment / nopat) if (reinvestment is not None and nopat is not None and nopat > 0) else None
+
+    # Invested capital & ROIC
+    invested_capital = None
+    if tot_debt_raw is not None and eq_raw is not None:
+        c_debt = float(tot_debt_raw) * mult
+        c_eq = float(eq_raw) * mult
+        c_cash = (float(cash_raw) * mult) if cash_raw is not None else 0.0
+        invested_capital = c_debt + c_eq - c_cash
+    roic = (nopat / invested_capital) if (nopat is not None and invested_capital is not None and invested_capital > 0) else None
+
+    sustainable_growth = (reinvestment_rate * roic) if (reinvestment_rate is not None and roic is not None) else None
+
+    # 5. FCFF (Free Cash Flow to Firm)
+    fcff = None
+    fcff_method = "UNAVAILABLE"
+    if ocf is not None and capex is not None:
+        int_shield = (interest * (1.0 - eff_tax_rate)) if interest is not None else 0.0
+        fcff = ocf + int_shield - capex
+        fcff_method = "CFO_PLUS_AFTER_TAX_INTEREST_MINUS_CAPEX"
+    elif nopat is not None and reinvestment is not None:
+        fcff = nopat - reinvestment
+        fcff_method = "NOPAT_MINUS_REINVESTMENT"
+
+    # 6. FCFE (Free Cash Flow to Equity)
+    fcfe = None
+    fcfe_method = "UNAVAILABLE"
+    if ocf is not None and capex is not None:
+        net_borrowing = net_debt_issued if net_debt_issued is not None else 0.0
+        fcfe = ocf - capex + net_borrowing
+        fcfe_method = "CFO_MINUS_CAPEX_PLUS_NET_DEBT"
+
+    return {
+        "status": "CALCULATED",
+        "currency": currency,
+        "actual_historical_fcf": historical_fcf,
+        "actual_historical_fcf_is_negative": (historical_fcf < 0) if historical_fcf is not None else False,
+        "nopat": nopat,
+        "effective_tax_rate": eff_tax_rate,
+        "non_cash_working_capital": non_cash_wc,
+        "delta_non_cash_working_capital": delta_non_cash_wc,
+        "net_capex": net_capex,
+        "reinvestment": reinvestment,
+        "reinvestment_type": reinvestment_type,
+        "reinvestment_rate": reinvestment_rate,
+        "invested_capital": invested_capital,
+        "roic": roic,
+        "sustainable_growth_rate": sustainable_growth,
+        "fcff": fcff,
+        "fcff_method": fcff_method,
+        "fcfe": fcfe,
+        "fcfe_method": fcfe_method,
+    }
+
+
+def calculate_fcff(
+    statement: dict[str, Any],
+    previous_statement: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Computes Free Cash Flow to Firm (FCFF) according to Damodaran's methodology."""
+    cf = calculate_cash_flows(statement, previous_statement)
+    return {
+        "status": cf["status"],
+        "currency": cf.get("currency", "IDR"),
+        "fcff": cf.get("fcff"),
+        "method": cf.get("fcff_method"),
+        "actual_historical_fcf": cf.get("actual_historical_fcf"),
+        "nopat": cf.get("nopat"),
+        "reinvestment": cf.get("reinvestment"),
+    }
+
+
+def calculate_fcfe(statement: dict[str, Any]) -> dict[str, Any]:
+    """Computes Free Cash Flow to Equity (FCFE)."""
+    cf = calculate_cash_flows(statement)
+    return {
+        "status": cf["status"],
+        "currency": cf.get("currency", "IDR"),
+        "fcfe": cf.get("fcfe"),
+        "method": cf.get("fcfe_method"),
+        "actual_historical_fcf": cf.get("actual_historical_fcf"),
+    }
+
+
+def calculate_reinvestment(
+    statement: dict[str, Any],
+    previous_statement: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Computes net capital expenditures and non-cash working capital reinvestment."""
+    cf = calculate_cash_flows(statement, previous_statement)
+    return {
+        "status": cf["status"],
+        "currency": cf.get("currency", "IDR"),
+        "net_capex": cf.get("net_capex"),
+        "delta_non_cash_working_capital": cf.get("delta_non_cash_working_capital"),
+        "reinvestment": cf.get("reinvestment"),
+        "reinvestment_type": cf.get("reinvestment_type"),
+        "reinvestment_rate": cf.get("reinvestment_rate"),
+    }
+
+
+def calculate_sustainable_growth(
+    statement: dict[str, Any],
+    previous_statement: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Computes sustainable growth rate g = Reinvestment Rate * ROIC."""
+    cf = calculate_cash_flows(statement, previous_statement)
+    return {
+        "status": cf["status"],
+        "currency": cf.get("currency", "IDR"),
+        "reinvestment_rate": cf.get("reinvestment_rate"),
+        "roic": cf.get("roic"),
+        "sustainable_growth_rate": cf.get("sustainable_growth_rate"),
+    }
+
+
 def dcf_scenario_model(
     statement: dict[str, Any],
     price: float | None,
     shares_outstanding: float | None = None,
     sector: str = "",
+    previous_statement: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Generates 3-scenario intrinsic valuation (Base, Bull, Bear) and two 2D sensitivity matrices.
 
     For banks, applies the Excess Return / Dividend Discount Model.
-    For non-financials, computes FCF projections without fabricating positive numbers on losses.
+    For non-financials, computes Damodaran cash flow projections without fabricating positive numbers on losses.
+    Preserves actual negative FCF as negative in historical reporting.
     """
     values = statement.get("values", {})
     currency = statement.get("currency", "IDR")
@@ -472,11 +705,15 @@ def dcf_scenario_model(
     ebit_raw = values.get("operating_income")
     ebit = (float(ebit_raw) * mult) if ebit_raw is not None else None
     ocf_raw = values.get("operating_cash_flow")
-    capex_raw = values.get("capital_expenditure")
+    capex_raw = values.get("capital_expenditure") or values.get("capital_expenditures")
 
     base_fcf = None
     if ocf_raw is not None and capex_raw is not None:
         base_fcf = (float(ocf_raw) * mult) - abs(float(capex_raw) * mult)
+
+    # Calculate cash flow breakdown
+    cf_breakdown = calculate_cash_flows(statement, previous_statement)
+    historical_fcf = cf_breakdown.get("actual_historical_fcf")
 
     # Guard: When neither cash flow nor operating earnings are provided, data is insufficient
     if base_fcf is None and ebit is None:
@@ -493,6 +730,8 @@ def dcf_scenario_model(
     eff_tax_rate = (abs(tax_expense * mult) / ebit) if (tax_expense is not None and ebit is not None and ebit > 0 and 0 < abs(tax_expense * mult) < ebit) else (0.22 if currency == "IDR" else 0.21)
 
     normalization_note = None
+    reinvestment_rate_pct = None
+
     if base_fcf is not None and base_fcf > 0:
         fcf_state = "CALCULABLE"
         used_fcf = base_fcf
@@ -500,12 +739,31 @@ def dcf_scenario_model(
     elif ebit is not None and ebit > 0:
         fcf_state = "REQUIRES_NORMALIZATION"
         nopat = ebit * (1.0 - eff_tax_rate)
-        used_fcf = nopat * 0.65  # Normalized steady-state FCF (35% reinvestment rate)
-        fcf_basis = "normalized_nopat_free_cash_flow"
-        normalization_note = (
-            "FCF aktual negatif atau belum dilaporkan; valuasi menggunakan NOPAT ternormalisasi "
-            "(reinvestasi modal 35%) atas laba operasional yang positif."
-        )
+        roic = cf_breakdown.get("roic")
+
+        if roic is not None and roic > 0:
+            target_g = 0.07
+            calc_b = min(0.85, max(0.15, target_g / roic))
+            reinvestment_rate_pct = round(calc_b * 100.0, 1)
+            used_fcf = nopat * (1.0 - calc_b)
+            fcf_basis = "sustainable_reinvestment_rate_scenario"
+            normalization_note = (
+                f"FCF aktual dilaporkan negatif ({historical_fcf:,.0f} {currency}) akibat belanja modal tinggi. "
+                f"Berdasarkan metodologi Damodaran, proyeksi DCF menggunakan tingkat reinvestasi keberlanjutan "
+                f"(b = g / ROIC = {reinvestment_rate_pct}%) atas NOPAT positif ({nopat:,.0f} {currency}). "
+                "Angka ini adalah skenario model fundamental keberlanjutan, bukan observasi historis emiten."
+            )
+        else:
+            calc_b = 0.35
+            reinvestment_rate_pct = 35.0
+            used_fcf = nopat * (1.0 - calc_b)
+            fcf_basis = "assumption_based_scenario"
+            normalization_note = (
+                f"FCF aktual dilaporkan bernilai negatif ({historical_fcf:,.0f} {currency}) atau belum dilaporkan. "
+                f"Karena ROIC historis tidak dapat diobservasi secara langsung, proyeksi DCF menggunakan skenario asumsi terdisklosur "
+                f"(tingkat reinvestasi diasumsikan {reinvestment_rate_pct}%) atas NOPAT ({nopat:,.0f} {currency}). "
+                "Angka ini merupakan asumsi model skenario hipotesis, bukan observasi historis emiten."
+            )
     elif (base_fcf is not None and base_fcf <= 0) or (ebit is not None and ebit <= 0):
         return {
             "status": "UNSUITABLE_FCF",
@@ -515,7 +773,11 @@ def dcf_scenario_model(
             "currency": currency,
             "current_price": price,
             "base_fcf": round(base_fcf, 2 if currency == "USD" else 0) if base_fcf is not None else None,
+            "historical_fcf": round(base_fcf, 2 if currency == "USD" else 0) if base_fcf is not None else None,
+            f"historical_fcf_{currency}": round(base_fcf, 2 if currency == "USD" else 0) if base_fcf is not None else None,
+            "actual_negative_fcf_preserved": True,
             "ebit": round(ebit, 2 if currency == "USD" else 0) if ebit is not None else None,
+            "cash_flows": cf_breakdown,
         }
     else:
         return {
@@ -536,6 +798,10 @@ def dcf_scenario_model(
         debt_basis = "unspecified_debt"
 
     cash = (values.get("cash_and_equivalents") or 0.0) * mult
+    nci_raw = values.get("non_controlling_interests") or values.get("minority_interest")
+    pref_raw = values.get("preferred_equity") or values.get("preferred_stock")
+    nci = (float(nci_raw) * mult) if nci_raw is not None else 0.0
+    pref = (float(pref_raw) * mult) if pref_raw is not None else 0.0
 
     wacc_base = 0.10 if currency == "IDR" else 0.085
     scenarios_params = {
@@ -565,7 +831,7 @@ def dcf_scenario_model(
         tv = (proj_fcf * (1.0 + tg)) / (wacc - tg)
         pv_tv = tv / ((1.0 + wacc) ** 5)
         ev = pv_fcfs + pv_tv
-        equity_val = ev - debt + cash
+        equity_val = ev - debt + cash - nci - pref
         return max(0.0, equity_val / shares)
 
     scenario_outputs = {}
@@ -617,7 +883,7 @@ def dcf_scenario_model(
             else:
                 tv = (proj_fcf * (1.0 + tv_tg)) / (wacc_base - tv_tg)
                 pv_tv = tv / ((1.0 + wacc_base) ** 5)
-                iv = max(0.0, (pv_fcfs + pv_tv - debt + cash) / shares)
+                iv = max(0.0, (pv_fcfs + pv_tv - debt + cash - nci - pref) / shares)
                 row[f"rev_g_{round(rg*100, 1)}%"] = round(iv, 2 if currency == "USD" else 0)
         matrix_margin_growth.append(row)
 
@@ -630,9 +896,16 @@ def dcf_scenario_model(
         "currency": currency,
         "current_price": price,
         f"base_fcf_{currency}": round(used_fcf, 2 if currency == "USD" else 0),
+        f"historical_fcf_{currency}": round(historical_fcf, 2 if currency == "USD" else 0) if historical_fcf is not None else None,
+        "actual_historical_fcf": round(historical_fcf, 2 if currency == "USD" else 0) if historical_fcf is not None else None,
+        "actual_negative_fcf_preserved": (historical_fcf < 0) if historical_fcf is not None else False,
+        "reinvestment_rate_pct": reinvestment_rate_pct,
         "debt_basis": debt_basis,
+        "minority_interest": round(nci, 0) if nci_raw is not None else 0.0,
+        "preferred_equity": round(pref, 0) if pref_raw is not None else 0.0,
         "scenarios": scenario_outputs,
         "sensitivity_matrix": matrix_wacc_tg,
         "sensitivity_wacc_terminal_growth": matrix_wacc_tg,
         "sensitivity_margin_revenue_growth": matrix_margin_growth,
+        "cash_flows": cf_breakdown,
     }

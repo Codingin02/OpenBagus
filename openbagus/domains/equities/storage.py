@@ -171,3 +171,121 @@ class FinancialStatementStorage:
             "total_statements": total_stmts,
             "symbols": symbols_map,
         }
+
+    def compute_ttm_statement(self, symbol: str) -> dict[str, Any] | None:
+        """Computes Trailing Twelve Month (TTM) financial statement from available periods.
+
+        Supports:
+        1. Latest FY if no newer interim filings exist.
+        2. Four consecutive quarters summation (Q_t + Q_{t-1} + Q_{t-2} + Q_{t-3}).
+        3. Interim YTD adjustment (TTM = Interim_curr + (FY_prior - Interim_prior)).
+        Flow items are aggregated; balance sheet items are retained from the latest point-in-time filing.
+        """
+        periods = self.list_periods(symbol)
+        if not periods:
+            return None
+
+        statements = [self.get_statement(symbol, p) for p in periods if self.get_statement(symbol, p)]
+        if not statements:
+            return None
+
+        flow_keys = {
+            "revenue",
+            "cost_of_revenue",
+            "gross_profit",
+            "operating_expenses",
+            "operating_income",
+            "finance_costs",
+            "interest_expense",
+            "profit_before_tax",
+            "tax_expense",
+            "net_income_total",
+            "net_income_attributable",
+            "net_income_non_controlling",
+            "net_income",
+            "operating_cash_flow",
+            "capital_expenditure",
+            "capital_expenditures",
+            "investing_cash_flow",
+            "financing_cash_flow",
+            "dividends_paid",
+            "free_cash_flow",
+        }
+
+        latest = statements[-1]
+        p_type = (latest.get("period_type") or "").upper()
+        p_str = (latest.get("period") or "").upper()
+
+        # Case 1: Latest is full year
+        if p_type == "FY" or p_str.endswith("FY"):
+            ttm = dict(latest)
+            ttm["period"] = f"{latest.get('period', 'FY')}-TTM"
+            ttm["period_type"] = "TTM"
+            ttm["ttm_method"] = "LATEST_FULL_YEAR"
+            return ttm
+
+        # Case 2: Interim YTD adjustment with prior FY (e.g., 2024-9M + 2023-FY - 2023-9M)
+        m = re.match(r"(\d{4})[-_]?([A-Z0-9]+)", p_str)
+        if m:
+            curr_year = int(m.group(1))
+            interim_sub = m.group(2)
+            prior_year = curr_year - 1
+            prior_fy_key = f"{prior_year}-FY"
+            prior_interim_key = f"{prior_year}-{interim_sub}"
+
+            stmt_prior_fy = next((s for s in statements if (s.get("period") or "").upper().replace("_", "-") == prior_fy_key), None)
+            stmt_prior_interim = next((s for s in statements if (s.get("period") or "").upper().replace("_", "-") == prior_interim_key), None)
+
+            if stmt_prior_fy and stmt_prior_interim:
+                ttm_vals = dict(latest.get("values", {}))
+                curr_vals = latest.get("values", {})
+                pfy_vals = stmt_prior_fy.get("values", {})
+                pinterim_vals = stmt_prior_interim.get("values", {})
+
+                for k in flow_keys:
+                    c_v = curr_vals.get(k)
+                    pfy_v = pfy_vals.get(k)
+                    pi_v = pinterim_vals.get(k)
+                    if c_v is not None and pfy_v is not None and pi_v is not None:
+                        ttm_vals[k] = c_v + (pfy_v - pi_v)
+
+                ttm_stmt = dict(latest)
+                ttm_stmt["period"] = f"{latest.get('period')}-TTM"
+                ttm_stmt["period_type"] = "TTM"
+                ttm_stmt["ttm_method"] = "INTERIM_YTD_PLUS_PRIOR_FY_ADJUSTED"
+                ttm_stmt["values"] = ttm_vals
+                return ttm_stmt
+
+        # Case 3: Sum of last 4 quarters if available
+        quarterly_stmts = [s for s in statements if (s.get("period_type") or "").upper() in {"Q1", "Q2", "Q3", "Q4", "QUARTER"}]
+        if len(quarterly_stmts) >= 4:
+            last_4 = quarterly_stmts[-4:]
+            ttm_vals = dict(last_4[-1].get("values", {}))
+            for k in flow_keys:
+                vals = [s.get("values", {}).get(k) for s in last_4]
+                if all(v is not None for v in vals):
+                    ttm_vals[k] = sum(vals)
+
+            ttm_stmt = dict(last_4[-1])
+            ttm_stmt["period"] = f"{last_4[-1].get('period')}-TTM"
+            ttm_stmt["period_type"] = "TTM"
+            ttm_stmt["ttm_method"] = "FOUR_CONSECUTIVE_QUARTERS"
+            ttm_stmt["values"] = ttm_vals
+            return ttm_stmt
+
+        # Fallback to latest statement with TTM designation note
+        ttm_fallback = dict(latest)
+        ttm_fallback["period"] = f"{latest.get('period')}-TTM"
+        ttm_fallback["period_type"] = "TTM"
+        ttm_fallback["ttm_method"] = "LATEST_AVAILABLE_FALLBACK"
+        return ttm_fallback
+
+    def get_ttm_statement(self, symbol: str) -> dict[str, Any] | None:
+        """Returns TTM statement for symbol, computing it if not stored directly."""
+        clean_sym = symbol.strip().upper()
+        # Check if stored directly
+        direct = self.get_statement(clean_sym, f"{clean_sym}_TTM") or self.get_statement(clean_sym, "TTM")
+        if direct:
+            return direct
+        return self.compute_ttm_statement(clean_sym)
+

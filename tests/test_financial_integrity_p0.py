@@ -16,10 +16,16 @@ from unittest.mock import patch
 
 from openbagus.domains.equities.catalog import EquityAsset, EquityCatalog
 from openbagus.domains.equities.sec_edgar import SecEdgarClient, SEC_DEFAULT_USER_AGENT
+from openbagus.domains.equities.storage import FinancialStatementStorage
 from openbagus.domains.equities.valuation import (
     _get_multiplier,
     calculate_valuation_multiples,
     dcf_scenario_model,
+    calculate_cash_flows,
+    calculate_fcff,
+    calculate_fcfe,
+    calculate_reinvestment,
+    calculate_sustainable_growth,
 )
 
 
@@ -28,7 +34,7 @@ class TestFinancialIntegrityP0(unittest.TestCase):
     # P0.1 DCF Positive FCF Fabrication Fallback Elimination & States
     # -------------------------------------------------------------------------
     def test_dcf_negative_fcf_with_positive_ebit_requires_normalization(self) -> None:
-        """When FCF is negative due to growth capex but EBIT is positive, use normalized NOPAT."""
+        """When FCF is negative due to growth capex but EBIT is positive, use Damodaran reinvestment scenario and preserve negative historical FCF."""
         stmt = {
             "symbol": "GROWTH",
             "period": "2024-FY",
@@ -49,10 +55,93 @@ class TestFinancialIntegrityP0(unittest.TestCase):
         res = dcf_scenario_model(statement=stmt, price=1000.0, shares_outstanding=10_000_000_000.0)
         self.assertEqual(res["status"], "COMPLETED")
         self.assertEqual(res["fcf_state"], "REQUIRES_NORMALIZATION")
-        self.assertEqual(res["fcf_basis"], "normalized_nopat_free_cash_flow")
+        self.assertIn(res["fcf_basis"], {"sustainable_reinvestment_rate_scenario", "assumption_based_scenario"})
         self.assertIsNotNone(res["normalization_note"])
-        # NOPAT = 20M * (1 - 0.22) = 15.6M; normalized FCF = 15.6M * 0.65 = 10.14M * 1e6
+        # Actual negative FCF is strictly preserved as negative!
+        self.assertTrue(res["actual_negative_fcf_preserved"])
+        self.assertEqual(res["actual_historical_fcf"], -10_000_000.0 * 1e6)
+        self.assertEqual(res["historical_fcf_IDR"], -10_000_000.0 * 1e6)
+        # NOPAT = 20M * (1 - 0.22) = 15.6M; projected cash flow for discounting is positive
         self.assertGreater(res["base_fcf_IDR"], 0.0)
+
+    def test_dcf_damodaran_sustainable_reinvestment_rate_with_roic(self) -> None:
+        """When equity is provided, ROIC is calculated and sustainable reinvestment b = g / ROIC is derived."""
+        stmt = {
+            "symbol": "SUSTAIN",
+            "period": "2024-FY",
+            "period_type": "FY",
+            "currency": "IDR",
+            "unit": "million_IDR",
+            "values": {
+                "revenue": 100_000_000.0,
+                "operating_income": 20_000_000.0,
+                "tax_expense": 4_400_000.0,
+                "operating_cash_flow": 12_000_000.0,
+                "capital_expenditure": 20_000_000.0,
+                "interest_bearing_debt": 10_000_000.0,
+                "equity_attributable": 70_000_000.0,
+                "cash_and_equivalents": 5_000_000.0,
+                "shares_outstanding": 10_000_000_000.0,
+            },
+        }
+        res = dcf_scenario_model(statement=stmt, price=1000.0, shares_outstanding=10_000_000_000.0)
+        self.assertEqual(res["status"], "COMPLETED")
+        self.assertEqual(res["fcf_state"], "REQUIRES_NORMALIZATION")
+        self.assertEqual(res["fcf_basis"], "sustainable_reinvestment_rate_scenario")
+        self.assertTrue(res["actual_negative_fcf_preserved"])
+        self.assertEqual(res["historical_fcf_IDR"], -8_000_000.0 * 1e6)
+        self.assertIsNotNone(res["reinvestment_rate_pct"])
+        self.assertIn("tingkat reinvestasi keberlanjutan", res["normalization_note"].lower())
+
+    def test_damodaran_calculate_cash_flows_and_fcff_fcfe(self) -> None:
+        stmt = {
+            "symbol": "CASHFLOW_TEST",
+            "period": "2024-FY",
+            "currency": "IDR",
+            "unit": "million_IDR",
+            "values": {
+                "operating_income": 20_000_000.0,
+                "tax_expense": 4_400_000.0,
+                "operating_cash_flow": 16_000_000.0,
+                "capital_expenditure": 10_000_000.0,
+                "interest_expense": 2_000_000.0,
+                "current_assets": 40_000_000.0,
+                "current_liabilities": 20_000_000.0,
+                "cash_and_equivalents": 8_000_000.0,
+                "short_term_debt": 4_000_000.0,
+                "interest_bearing_debt": 15_000_000.0,
+                "equity_attributable": 50_000_000.0,
+            },
+        }
+        prev_stmt = {
+            "period": "2023-FY",
+            "unit": "million_IDR",
+            "currency": "IDR",
+            "values": {
+                "current_assets": 35_000_000.0,
+                "current_liabilities": 18_000_000.0,
+                "cash_and_equivalents": 6_000_000.0,
+                "short_term_debt": 3_000_000.0,
+            },
+        }
+        cf = calculate_cash_flows(stmt, prev_stmt)
+        self.assertEqual(cf["status"], "CALCULATED")
+        self.assertEqual(cf["actual_historical_fcf"], 6_000_000.0 * 1e6)
+        self.assertFalse(cf["actual_historical_fcf_is_negative"])
+        # Non-cash WC 2024: (40 - 8) - (20 - 4) = 32 - 16 = 16M
+        # Non-cash WC 2023: (35 - 6) - (18 - 3) = 29 - 15 = 14M
+        # Delta Non-cash WC = 2M * 1e6
+        self.assertEqual(cf["delta_non_cash_working_capital"], 2_000_000.0 * 1e6)
+        # Reinvestment: Capex 10M + Delta WC 2M = 12M * 1e6
+        self.assertEqual(cf["reinvestment"], 12_000_000.0 * 1e6)
+
+        # Test helper wrappers
+        fcff_res = calculate_fcff(stmt, prev_stmt)
+        self.assertEqual(fcff_res["status"], "CALCULATED")
+        self.assertIsNotNone(fcff_res["fcff"])
+
+        reinv_res = calculate_reinvestment(stmt, prev_stmt)
+        self.assertEqual(reinv_res["reinvestment"], 12_000_000.0 * 1e6)
 
     def test_dcf_negative_fcf_with_negative_ebit_returns_unsuitable_fcf(self) -> None:
         """When company burns cash AND has operating loss, DCF must return UNSUITABLE_FCF, never Rp 100k fallback."""
@@ -238,6 +327,84 @@ class TestFinancialIntegrityP0(unittest.TestCase):
         self.assertIn("@", client_default.user_agent)
         self.assertNotIn("codingindong02@gmail.com", client_default.user_agent)
 
+    # -------------------------------------------------------------------------
+    # EV Reconciliation with Minority Interest & Preferred Equity
+    # -------------------------------------------------------------------------
+    def test_enterprise_value_minority_interest_and_preferred_equity(self) -> None:
+        stmt = {
+            "symbol": "CONGLOMERATE",
+            "period": "2024-FY",
+            "currency": "IDR",
+            "unit": "million_IDR",
+            "values": {
+                "revenue": 100_000_000.0,
+                "operating_income": 15_000_000.0,
+                "interest_bearing_debt": 20_000_000.0,
+                "cash_and_equivalents": 5_000_000.0,
+                "equity_attributable": 50_000_000.0,
+                "non_controlling_interests": 8_000_000.0,
+                "preferred_equity": 2_000_000.0,
+                "shares_outstanding": 10_000_000_000.0,
+            },
+        }
+        res = calculate_valuation_multiples(stmt, price=10.0, shares_outstanding=10_000_000_000.0)
+        mults = res["multiples"]
+        # Market Cap = 10 * 10B = 100B
+        # Debt = 20M * 1e6 = 20T
+        # Cash = 5M * 1e6 = 5T
+        # NCI = 8M * 1e6 = 8T
+        # Preferred = 2M * 1e6 = 2T
+        # EV = 100B + 20T - 5T + 8T + 2T = 25.1T
+        self.assertEqual(mults["EV"], 25_100_000_000_000.0)
+        self.assertEqual(mults["Minority_Interest_IDR"], 8_000_000_000_000.0)
+        self.assertEqual(mults["Preferred_Equity_IDR"], 2_000_000_000_000.0)
+
+    # -------------------------------------------------------------------------
+    # TTM Period Aggregation and Interim Adjustment
+    # -------------------------------------------------------------------------
+    def test_ttm_statement_aggregation_interim_and_quarters(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            storage = FinancialStatementStorage(Path(tmp_dir))
+            # Store 2023-FY
+            storage.store_statement({
+                "symbol": "TTMCO",
+                "period": "2023-FY",
+                "period_type": "FY",
+                "currency": "IDR",
+                "unit": "million_IDR",
+                "values": {"revenue": 1000.0, "net_income": 100.0, "total_assets": 5000.0},
+            })
+            # Store 2023-9M
+            storage.store_statement({
+                "symbol": "TTMCO",
+                "period": "2023-9M",
+                "period_type": "9M",
+                "currency": "IDR",
+                "unit": "million_IDR",
+                "values": {"revenue": 700.0, "net_income": 70.0, "total_assets": 4800.0},
+            })
+            # Store 2024-9M
+            storage.store_statement({
+                "symbol": "TTMCO",
+                "period": "2024-9M",
+                "period_type": "9M",
+                "currency": "IDR",
+                "unit": "million_IDR",
+                "values": {"revenue": 850.0, "net_income": 95.0, "total_assets": 5500.0},
+            })
+            ttm = storage.compute_ttm_statement("TTMCO")
+            self.assertIsNotNone(ttm)
+            self.assertEqual(ttm["period_type"], "TTM")
+            self.assertEqual(ttm["ttm_method"], "INTERIM_YTD_PLUS_PRIOR_FY_ADJUSTED")
+            # TTM Revenue = 2024-9M (850) + (2023-FY (1000) - 2023-9M (700)) = 850 + 300 = 1150
+            self.assertEqual(ttm["values"]["revenue"], 1150.0)
+            # TTM Net income = 95 + (100 - 70) = 125
+            self.assertEqual(ttm["values"]["net_income"], 125.0)
+            # Total assets point in time from latest 2024-9M
+            self.assertEqual(ttm["values"]["total_assets"], 5500.0)
+
 
 if __name__ == "__main__":
     unittest.main()
+

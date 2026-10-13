@@ -1067,7 +1067,10 @@ class OpenBagusShell(cmd.Cmd):
 
     def _ask(self, prompt: str) -> str:
         print(prompt, end="", flush=True, file=getattr(self, "_prompt_output", sys.stdout))
-        return input()
+        try:
+            return input()
+        except (EOFError, KeyboardInterrupt):
+            return ""
 
     def do_data(self, arg: str) -> None:
         parts = arg.strip().split()
