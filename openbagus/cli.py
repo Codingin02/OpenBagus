@@ -1008,6 +1008,13 @@ class OpenBagusShell(cmd.Cmd):
         self.researcher = CryptoResearchRunner(repo_root=REPO_ROOT)
         self.session = SessionState()
         self.session.load_if_enabled()
+        from openbagus.ai.harness.orchestrator import AgentHarness
+        from openbagus.ai.memory.working_context import WorkingContext
+        from openbagus.ai.runtime.profiles import get_profile
+        self.agent_harness = AgentHarness()
+        self.working_context = WorkingContext()
+        self.runtime_profile = get_profile("BALANCED")
+        self.trace_enabled = False
 
     def preloop(self) -> None:
         color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
@@ -2967,6 +2974,161 @@ class OpenBagusShell(cmd.Cmd):
     def do_clear(self, _arg: str) -> None:
         os.system("cls" if os.name == "nt" else "clear")
 
+    def do_chat(self, arg: str) -> None:
+        cleaned = arg.strip()
+        if cleaned:
+            resp = self.agent_harness.run(cleaned, context=self.working_context, profile=self.runtime_profile)
+            print(resp.content)
+            if self.trace_enabled:
+                print(f"\n[Trace: Provider={resp.provider_name} | Latency={resp.latency_ms:.1f}ms | Tools={len(resp.tool_calls_executed)}]")
+            print()
+            return
+        p = self.agent_harness.provider
+        info = p.get_model_info()
+        print("=== OpenBagus Conversational AI Terminal ===")
+        print(f"Active Provider : {p.get_provider_name()}")
+        print(f"Model Name      : {info.get('model_name', '-')}")
+        print(f"Execution Mode  : {self.runtime_profile.name} (Max Tokens: {self.runtime_profile.max_tokens})")
+        print(f"Active Ticker   : {self.working_context.active_ticker or 'None'}")
+        print(f"Active Strategy : {self.working_context.strategy} | Horizon: {self.working_context.time_horizon}")
+        print(f"Candidate Cards : {len(self.working_context.active_candidates)} aset tersimpan")
+        print("Ketik pertanyaan natural dalam Bahasa Indonesia untuk memulai riset.\n")
+
+    def do_new(self, _arg: str) -> None:
+        from openbagus.ai.memory.working_context import WorkingContext
+        self.working_context = WorkingContext()
+        print("Sesi percakapan baru dimulai. Konteks emiten dan kandidat telah direset.\n")
+
+    def do_sessions(self, _arg: str) -> None:
+        from openbagus.ai.memory.session_store import SessionStore
+        store = SessionStore()
+        sessions = store.list_sessions()
+        if not sessions:
+            print("Belum ada sesi percakapan tersimpan.\n")
+            return
+        print(f"{'Session ID':<20} {'Ticker':<8} {'Strategy':<12} {'Turns':<6} {'Updated At'}")
+        print("-" * 65)
+        for s in sessions:
+            print(f"{s['session_id']:<20} {s['active_ticker'] or '-':<8} {s['strategy'] or '-':<12} {s['turns_count']:<6} {s['updated_at'][:19]}")
+        print("\nGunakan '/resume <session_id>' untuk memuat sesi tertentu.\n")
+
+    def do_resume(self, arg: str) -> None:
+        s_id = arg.strip()
+        if not s_id:
+            print("Gunakan: /resume <session_id>\n")
+            return
+        from openbagus.ai.memory.session_store import SessionStore
+        store = SessionStore()
+        ctx = store.load(s_id)
+        self.working_context = ctx
+        print(f"Sesi '{s_id}' berhasil dimuat. Emiten aktif: {ctx.active_ticker or '-'}, Strategi: {ctx.strategy}.\n")
+
+    def do_model(self, arg: str) -> None:
+        parts = arg.strip().split()
+        if not parts:
+            p = self.agent_harness.provider
+            info = p.get_model_info()
+            print("=== Status Model Provider Aktif ===")
+            print(f"Provider       : {p.get_provider_name()}")
+            print(f"Model          : {info.get('model_name', '-')}")
+            print(f"Backend        : {info.get('backend', 'N/A')}")
+            print(f"Tersedia       : {'Ya' if p.is_available() else 'Tidak'}")
+            print(f"Context Window : {info.get('context_window', 4096)} tokens")
+            print("Gunakan '/model [llama|ollama|fallback]' untuk berganti provider.\n")
+            return
+        target = parts[0].lower()
+        try:
+            self.agent_harness.provider = self.agent_harness.provider_mgr.switch_provider(target)
+            print(f"Model provider dialihkan ke: {self.agent_harness.provider.get_provider_name()}\n")
+        except Exception as e:
+            print(f"Gagal beralih provider: {e}\n")
+
+    def do_models(self, _arg: str) -> None:
+        hw = self.agent_harness.provider_mgr.detector.detect()
+        print("=== Model & Hardware Discovery ===")
+        print(f"OS / Hardware : {hw.os_name} {hw.os_version} ({hw.architecture}) | CPU: {hw.cpu_cores} cores")
+        print(f"RAM Fisik     : {hw.total_ram_gb:.1f} GB (Free: {hw.free_ram_gb:.1f} GB)")
+        print(f"GPU Akselerasi: {hw.gpu_name or 'None'} | VRAM: {hw.vram_total_mb:.0f} MB (CUDA: {hw.cuda_available})")
+        print(f"llama-server  : {'Terdeteksi' if hw.llama_server_path else 'Tidak ditemukan'}")
+        print(f"Ollama CLI    : {'Terdeteksi' if hw.ollama_path else 'Tidak ditemukan'}")
+        print("\nModel GGUF Lokal Terdeteksi:")
+        if hw.available_local_models:
+            for m in hw.available_local_models:
+                print(f"  - {m['name']} ({m['size_mb']} MB, Format: {m['format']})")
+        else:
+            print("  - Tidak ada model GGUF di direktori lokal.")
+        print()
+
+    def do_mode(self, arg: str) -> None:
+        from openbagus.ai.runtime.profiles import get_profile
+        target = arg.strip().upper()
+        if not target:
+            print(f"Mode aktif saat ini: {self.runtime_profile.name} ({self.runtime_profile.description})")
+            print("Pilihan mode tersedia: FAST, BALANCED, DEEP_RESEARCH, LOCAL_PRIVATE, CUSTOM")
+            print("Gunakan: /mode <nama_mode>\n")
+            return
+        self.runtime_profile = get_profile(target)
+        print(f"Mode eksekusi dialihkan ke: {self.runtime_profile.name} (Max Tokens: {self.runtime_profile.max_tokens}, Iters: {self.runtime_profile.max_tool_iterations})\n")
+
+    def do_tools(self, arg: str) -> None:
+        target = arg.strip()
+        reg = self.agent_harness.tools
+        if target:
+            tool = reg.get(target)
+            if not tool:
+                print(f"Tool '{target}' tidak ditemukan.\n")
+                return
+            d = tool.to_definition()
+            print(f"Tool: {d.name}")
+            print(f"Deskripsi : {d.description}")
+            print(f"Parameter : {json.dumps(d.parameters, indent=2, ensure_ascii=False)}\n")
+            return
+        print(f"=== Daftar Financial Tools Terdaftar ({len(reg.list_tool_names())} tools) ===")
+        for d in reg.list_definitions():
+            print(f"- {d.name:<32}: {d.description}")
+        print("\nGunakan '/tools <tool_name>' untuk melihat skema parameter lengkap.\n")
+
+    def do_memory(self, arg: str) -> None:
+        if "clear" in arg.lower():
+            from openbagus.ai.memory.working_context import WorkingContext
+            self.working_context = WorkingContext()
+            print("Memori working context berhasil dibersihkan.\n")
+            return
+        ctx = self.working_context
+        print("=== Working Context & Memory ===")
+        print(f"Emiten Aktif      : {ctx.active_ticker or '-'}")
+        print(f"Nama Emiten       : {ctx.active_ticker_name or '-'}")
+        print(f"Strategi Aktif    : {ctx.strategy}")
+        print(f"Horizon Investasi : {ctx.time_horizon}")
+        print(f"Periode Keuangan  : {ctx.financial_period}")
+        print(f"Batasan Filter    : {json.dumps(ctx.explicit_constraints, ensure_ascii=False)}")
+        print(f"Kandidat Aktif    : {[c.get('ticker', c.get('symbol')) for c in ctx.active_candidates]}")
+        print(f"Riwayat Percakapan: {len(ctx.turns)} turn dicatat")
+        print("Gunakan '/memory clear' untuk mereset memori.\n")
+
+    def do_strategies(self, _arg: str) -> None:
+        from openbagus.ai.strategy.registry import CANONICAL_STRATEGIES
+        print("=== Strategy Registry (Discoverable Financial Strategies) ===")
+        for s in CANONICAL_STRATEGIES:
+            print(f"[{s.strategy_id}] {s.name} (v{s.version}, {s.family})")
+            print(f"  Tujuan: {s.research_purpose}")
+            print(f"  Horizon: {s.timeframe} | Pasar: {', '.join(s.applicable_markets)}")
+            print(f"  Entry  : {s.entry_conditions}")
+            print(f"  Batas  : {s.invalidation_conditions}")
+            print()
+
+    def do_trace(self, arg: str) -> None:
+        state = arg.strip().lower()
+        if state in {"on", "1", "true", "yes"}:
+            self.trace_enabled = True
+            print("Verbose trace diaktifkan.\n")
+        elif state in {"off", "0", "false", "no"}:
+            self.trace_enabled = False
+            print("Verbose trace dinonaktifkan.\n")
+        else:
+            self.trace_enabled = not self.trace_enabled
+            print(f"Verbose trace: {'Aktif' if self.trace_enabled else 'Nonaktif'}.\n")
+
     def do_exit(self, _arg: str) -> bool:
         if sys.stdin.isatty():
             try:
@@ -3155,21 +3317,29 @@ class OpenBagusShell(cmd.Cmd):
                 print(f"[Konteks {curr} dipertahankan.]\n")
                 return
 
-        if req.needs_asset:
-            print(req.clarification_prompt or "Which asset do you want to analyze?")
-            print()
-            return
-        if req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
+        if not req.needs_asset and (req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
             "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART",
             "VISUALIZE", "BACKTEST", "REPORT_WORD", "REPORT_HTML", "EQUITY_OWNERSHIP", "EQUITY_ANALYSIS", "EQUITY_QUOTE", "EQUITY_SECTOR"
-        ):
+        )):
             result = self.researcher.execute(req, session=self.session)
-            self.session.add_turn(cleaned, result[:300])
-            print(result)
-            print()
-            return
-        print(f"Unknown coin or command: '{cleaned}'.")
-        print("Type a coin symbol (e.g. 'ETH', 'SOL') or '/help' for commands.")
+            if result and not ("Unknown coin or command" in result or "SOURCE GAP" in result):
+                self.session.add_turn(cleaned, result[:300])
+                print(result)
+                print()
+                return
+
+        # Natural Conversational AI Agent Harness primary execution path
+        agent_resp = self.agent_harness.run(
+            user_query=cleaned,
+            context=self.working_context,
+            profile=self.runtime_profile,
+        )
+        print(agent_resp.content)
+        if self.trace_enabled:
+            print(f"\n[Trace: Provider={agent_resp.provider_name} | Latency={agent_resp.latency_ms:.1f}ms | Tools={len(agent_resp.tool_calls_executed)}]")
+            for tc in agent_resp.tool_calls_executed:
+                print(f"  - Tool: {tc['name']}({tc['arguments']}) -> Success: {tc['success']} ({tc['latency_ms']:.1f}ms)")
+        print()
 
 
 def main(argv: list[str] | None = None) -> int:

@@ -221,7 +221,7 @@ class _ManagedLlamaServer:
                 sock.bind(("127.0.0.1", 0))
                 port = int(sock.getsockname()[1])
             command = [
-                str(server_bin), "-m", str(model_path), "-c", "4096", "--host", "127.0.0.1",
+                str(server_bin), "-m", str(model_path), "-c", "16384", "--host", "127.0.0.1",
                 "--port", str(port), "--no-webui", "--flash-attn", "auto",
                 "--reasoning", "off",
             ]
