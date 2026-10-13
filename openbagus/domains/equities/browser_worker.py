@@ -229,8 +229,18 @@ class BrowserWorkerManager:
                                 with page.expect_download(timeout=15000) as download_info:
                                     link.click()
                                 download = download_info.value
-                                target_path = dest_dir / download.suggested_filename
+                                safe_name = Path(download.suggested_filename).name
+                                safe_name = re.sub(r"[^\w\.\-]", "_", safe_name)
+                                target_path = (dest_dir / safe_name).resolve()
+                                # Guard against path traversal
+                                if dest_dir.resolve() not in target_path.parents and target_path.parent != dest_dir.resolve():
+                                    logger.warning("Path traversal attempt detected: %s", download.suggested_filename)
+                                    continue
                                 download.save_as(str(target_path))
+                                if target_path.exists() and target_path.stat().st_size > 50 * 1024 * 1024:
+                                    logger.warning("File exceeds 50MB limit, deleting: %s", target_path)
+                                    target_path.unlink(missing_ok=True)
+                                    continue
                                 found_files.append(str(target_path))
                                 logger.info("Downloaded statement: %s", target_path)
                             except Exception as dl_err:
@@ -246,15 +256,92 @@ class BrowserWorkerManager:
                         job.message = f"Mem-parsing berkas dokumen yang diunduh ({len(found_files)} berkas)..."
                         self._save_job(job)
 
-                        # Step 3: VALIDATING & CALCULATING
-                        job.state = "VALIDATING"
-                        job.progress_pct = 80
-                        job.message = "Memvalidasi invarian neraca dan angka laba rugi..."
-                        self._save_job(job)
+                        parsed_stmt = None
+                        parse_error = None
+                        for file_str in found_files:
+                            f_path = Path(file_str)
+                            if f_path.exists() and f_path.stat().st_size > 50 * 1024 * 1024:
+                                logger.warning("Skipping oversized file > 50MB: %s", f_path)
+                                continue
 
-                        job.state = "READY"
-                        job.progress_pct = 100
-                        job.message = f"Dokumen laporan berhasil diunduh dan diproses: {Path(found_files[0]).name}"
+                            ext = f_path.suffix.lower()
+                            try:
+                                if ext in {".zip", ".xbrl", ".xml"}:
+                                    from openbagus.domains.equities.xbrl import IdxXbrlParser
+                                    parser = IdxXbrlParser()
+                                    parsed_stmt = parser.parse_file(f_path, ticker=job.symbol)
+                                elif ext == ".xlsx":
+                                    from openbagus.domains.equities.parsers.xlsx_parser import IdxXlsxParser
+                                    parser = IdxXlsxParser()
+                                    parsed_stmt = parser.parse_file(f_path, ticker=job.symbol)
+                                elif ext == ".pdf":
+                                    from openbagus.domains.equities.parsers.pdf_parser import IdxPdfParser
+                                    parser = IdxPdfParser()
+                                    parsed_stmt = parser.parse_file(f_path, ticker=job.symbol)
+
+                                if parsed_stmt is not None:
+                                    break
+                            except Exception as p_err:
+                                logger.warning("Failed parsing %s: %s", f_path, p_err)
+                                parse_error = str(p_err)
+
+                        if parsed_stmt is not None:
+                            # Step 3: VALIDATING
+                            job.state = "VALIDATING"
+                            job.progress_pct = 75
+                            job.message = "Memvalidasi invarian akuntansi neraca dan laba rugi..."
+                            self._save_job(job)
+
+                            parsed_stmt.validate_accounting_relationships()
+
+                            # Persistence: Save statement and granular facts DB
+                            from openbagus.domains.equities.storage import FinancialStatementStorage
+                            storage = FinancialStatementStorage(self.root)
+                            storage.store_statement(parsed_stmt)
+
+                            try:
+                                from openbagus.domains.equities.facts_db import FinancialFactsDatabase
+                                facts_db = FinancialFactsDatabase(root=self.root)
+                                fy_int = int(parsed_stmt.period[:4]) if (parsed_stmt.period and parsed_stmt.period[:4].isdigit()) else None
+                                facts_db.record_filing(
+                                    symbol=parsed_stmt.symbol,
+                                    exchange="IDX",
+                                    filing_type=parsed_stmt.period_type,
+                                    period=parsed_stmt.period,
+                                    fiscal_year=fy_int,
+                                    period_end_date=parsed_stmt.period_end_date,
+                                    filing_date=parsed_stmt.filing_date,
+                                    source_provider="BROWSER_ACQUISITION",
+                                    source_url=job.target_url,
+                                    local_path=found_files[0],
+                                )
+                            except Exception as facts_err:
+                                logger.debug("Facts database index notice: %s", facts_err)
+
+                            # Step 4: CALCULATING
+                            job.state = "CALCULATING"
+                            job.progress_pct = 90
+                            job.message = "Menghitung rasio fundamental dan model valuasi..."
+                            self._save_job(job)
+
+                            from openbagus.domains.equities.valuation import calculate_valuation_multiples
+                            stmt_dict = parsed_stmt.to_dict()
+                            job.parsed_statement = stmt_dict
+                            calculate_valuation_multiples(
+                                statement=stmt_dict,
+                                price=None,
+                                shares_outstanding=parsed_stmt.shares_outstanding,
+                                sector="",
+                            )
+
+                            # Step 5: READY
+                            job.state = "READY"
+                            job.progress_pct = 100
+                            job.message = f"Dokumen berhasil diunduh, divalidasi, dan dihitung: {Path(found_files[0]).name}"
+                        else:
+                            job.state = "PARTIAL_DATA"
+                            job.progress_pct = 60
+                            job.message = f"Berkas berhasil diunduh namun belum dapat diekstrak otomatis: {parse_error or 'Format dokumen belum didukung'}"
                     else:
                         job.state = "PARTIAL_DATA"
                         job.progress_pct = 50

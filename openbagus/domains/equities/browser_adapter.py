@@ -20,6 +20,12 @@ import urllib.robotparser
 
 logger = logging.getLogger(__name__)
 
+# Unified export alias with primary browser worker
+from openbagus.domains.equities.browser_worker import (  # noqa: F401
+    BrowserWorkerManager,
+    APPROVED_DOMAINS as WORKER_APPROVED_DOMAINS,
+)
+
 # Permitted domain suffixes for issuer Investor Relations portals
 PERMITTED_IR_DOMAINS = {
     "adaro.com",

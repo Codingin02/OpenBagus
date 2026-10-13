@@ -27,17 +27,20 @@ def _get_multiplier(unit: str, currency: str = "IDR") -> float:
         "thousand_IDR": 1e3,
         "million_IDR": 1e6,
         "billion_IDR": 1e9,
+        "trillion_IDR": 1e12,
         "USD": 1.0,
         "thousand_USD": 1e3,
         "million_USD": 1e6,
         "billion_USD": 1e9,
+        "trillion_USD": 1e12,
         "exact": 1.0,
+        "1": 1.0,
     }
+    if not unit:
+        return 1.0 if currency == "USD" else 1e6
     if unit in unit_map:
         return unit_map[unit]
-    if currency == "USD":
-        return 1.0
-    return 1e6
+    raise ValueError(f"Unrecognized monetary unit: '{unit}' for currency '{currency}'")
 
 
 def calculate_valuation_multiples(
@@ -89,14 +92,15 @@ def calculate_valuation_multiples(
     if ebit is not None:
         ebit = ebit * mult
 
-    total_debt = values.get("interest_bearing_debt")
-    if total_debt is not None:
-        total_debt = total_debt * mult
-    else:
-        # Fallback to total liabilities
-        t_liab = values.get("total_liabilities")
-        if t_liab is not None:
-            total_debt = t_liab * mult
+    interest_bearing_debt = values.get("interest_bearing_debt")
+    if interest_bearing_debt is not None:
+        interest_bearing_debt = interest_bearing_debt * mult
+
+    total_liabilities = values.get("total_liabilities")
+    if total_liabilities is not None:
+        total_liabilities = total_liabilities * mult
+
+    total_debt = interest_bearing_debt
 
     cash = values.get("cash_and_equivalents")
     if cash is not None:
@@ -190,6 +194,12 @@ def calculate_valuation_multiples(
             multiples["EV"] = round(ev, 0)
             if ebit is not None and ebit > 0 and not is_bank:
                 multiples["EV_to_EBIT"] = round(ev / ebit, 2)
+        else:
+            multiples[f"EV_{currency}"] = None
+            multiples["EV"] = None
+            multiples["EV_to_EBIT"] = None
+            if total_debt is None:
+                multiples["EV_note"] = "N/A (Hutang berbunga diperlukan untuk Enterprise Value)"
     else:
         multiples[f"Market_Cap_{currency}"] = None
         multiples["Market_Cap"] = None
@@ -235,8 +245,16 @@ def calculate_valuation_multiples(
 
     # 7. Solvency & Liquidity (Non-bank)
     if not is_bank:
-        if equity_attributable and equity_attributable > 0 and total_debt is not None:
-            ratios["Debt_to_Equity"] = round(total_debt / equity_attributable, 2)
+        if equity_attributable and equity_attributable > 0:
+            if total_debt is not None:
+                ratios["Debt_to_Equity"] = round(total_debt / equity_attributable, 2)
+            else:
+                ratios["Debt_to_Equity"] = None
+                ratios["Debt_to_Equity_note"] = "N/A (Hutang berbunga tidak dilaporkan terpisah)"
+
+            if total_liabilities is not None:
+                ratios["Total_Liabilities_to_Equity"] = round(total_liabilities / equity_attributable, 2)
+
         if current_liabilities and current_liabilities > 0:
             if current_assets is not None:
                 ratios["Current_Ratio"] = round(current_assets / current_liabilities, 2)
@@ -391,6 +409,7 @@ def dcf_scenario_model(
     """Generates 3-scenario intrinsic valuation (Base, Bull, Bear) and two 2D sensitivity matrices.
 
     For banks, applies the Excess Return / Dividend Discount Model.
+    For non-financials, computes FCF projections without fabricating positive numbers on losses.
     """
     values = statement.get("values", {})
     currency = statement.get("currency", "IDR")
@@ -450,15 +469,72 @@ def dcf_scenario_model(
 
     # Non-financial Corporate DCF Model
     revenue = (values.get("revenue") or 0.0) * mult
-    ebit = (values.get("operating_income") or 0.0) * mult
-    ocf = (values.get("operating_cash_flow") or 0.0) * mult
-    capex = abs((values.get("capital_expenditure") or 0.0) * mult)
-    base_fcf = ocf - capex
+    ebit_raw = values.get("operating_income")
+    ebit = (float(ebit_raw) * mult) if ebit_raw is not None else None
+    ocf_raw = values.get("operating_cash_flow")
+    capex_raw = values.get("capital_expenditure")
 
-    net_income = (values.get("net_income_attributable") or values.get("net_income") or 0.0) * mult
-    used_fcf = base_fcf if base_fcf > 0 else max(100_000.0, net_income * 0.7)
+    base_fcf = None
+    if ocf_raw is not None and capex_raw is not None:
+        base_fcf = (float(ocf_raw) * mult) - abs(float(capex_raw) * mult)
 
-    debt = (values.get("interest_bearing_debt") or values.get("total_liabilities") or 0.0) * mult
+    # Guard: When neither cash flow nor operating earnings are provided, data is insufficient
+    if base_fcf is None and ebit is None:
+        return {
+            "status": "INSUFFICIENT_DATA",
+            "message": "Data arus kas operasional dan laba operasional tidak mencukupi untuk memproyeksikan DCF.",
+            "model_type": "FCF_DISCOUNTED_CASH_FLOW",
+            "fcf_state": "INSUFFICIENT_DATA",
+            "currency": currency,
+            "current_price": price,
+        }
+
+    tax_expense = values.get("tax_expense")
+    eff_tax_rate = (abs(tax_expense * mult) / ebit) if (tax_expense is not None and ebit is not None and ebit > 0 and 0 < abs(tax_expense * mult) < ebit) else (0.22 if currency == "IDR" else 0.21)
+
+    normalization_note = None
+    if base_fcf is not None and base_fcf > 0:
+        fcf_state = "CALCULABLE"
+        used_fcf = base_fcf
+        fcf_basis = "reported_free_cash_flow"
+    elif ebit is not None and ebit > 0:
+        fcf_state = "REQUIRES_NORMALIZATION"
+        nopat = ebit * (1.0 - eff_tax_rate)
+        used_fcf = nopat * 0.65  # Normalized steady-state FCF (35% reinvestment rate)
+        fcf_basis = "normalized_nopat_free_cash_flow"
+        normalization_note = (
+            "FCF aktual negatif atau belum dilaporkan; valuasi menggunakan NOPAT ternormalisasi "
+            "(reinvestasi modal 35%) atas laba operasional yang positif."
+        )
+    elif (base_fcf is not None and base_fcf <= 0) or (ebit is not None and ebit <= 0):
+        return {
+            "status": "UNSUITABLE_FCF",
+            "message": "Emiten membukukan Free Cash Flow negatif dan rugi operasional (EBIT <= 0). Model proyeksi DCF standar tidak dapat diaplikasikan tanpa arus kas positif atau laba operasional untuk dinormalisasi.",
+            "model_type": "FCF_DISCOUNTED_CASH_FLOW",
+            "fcf_state": "UNSUITABLE_FCF",
+            "currency": currency,
+            "current_price": price,
+            "base_fcf": round(base_fcf, 2 if currency == "USD" else 0) if base_fcf is not None else None,
+            "ebit": round(ebit, 2 if currency == "USD" else 0) if ebit is not None else None,
+        }
+    else:
+        return {
+            "status": "INSUFFICIENT_DATA",
+            "message": "Data arus kas operasional dan laba operasional tidak mencukupi untuk memproyeksikan DCF.",
+            "model_type": "FCF_DISCOUNTED_CASH_FLOW",
+            "fcf_state": "INSUFFICIENT_DATA",
+            "currency": currency,
+            "current_price": price,
+        }
+
+    ib_debt_raw = values.get("interest_bearing_debt")
+    if ib_debt_raw is not None:
+        debt = float(ib_debt_raw) * mult
+        debt_basis = "interest_bearing_debt"
+    else:
+        debt = 0.0
+        debt_basis = "unspecified_debt"
+
     cash = (values.get("cash_and_equivalents") or 0.0) * mult
 
     wacc_base = 0.10 if currency == "IDR" else 0.085
@@ -468,13 +544,25 @@ def dcf_scenario_model(
         "Bull": {"growth": 0.12, "wacc": wacc_base - 0.01, "terminal_g": 0.035},
     }
 
+    # Guard: WACC must be strictly greater than terminal growth
+    for sc_name, p in scenarios_params.items():
+        if p["wacc"] <= p["terminal_g"]:
+            return {
+                "status": "INVALID_ASSUMPTIONS",
+                "message": f"Skenario {sc_name} tidak valid: WACC ({p['wacc']:.1%}) harus lebih besar dari tingkat pertumbuhan terminal ({p['terminal_g']:.1%}).",
+                "model_type": "FCF_DISCOUNTED_CASH_FLOW",
+                "currency": currency,
+            }
+
     def _calc_dcf(g: float, wacc: float, tg: float) -> float:
+        if wacc <= tg:
+            raise ValueError("WACC must be strictly greater than terminal growth rate (wacc > terminal_g).")
         pv_fcfs = 0.0
         proj_fcf = used_fcf
         for year in range(1, 6):
             proj_fcf *= (1.0 + g)
             pv_fcfs += proj_fcf / ((1.0 + wacc) ** year)
-        tv = (proj_fcf * (1.0 + tg)) / max(0.005, (wacc - tg))
+        tv = (proj_fcf * (1.0 + tg)) / (wacc - tg)
         pv_tv = tv / ((1.0 + wacc) ** 5)
         ev = pv_fcfs + pv_tv
         equity_val = ev - debt + cash
@@ -501,12 +589,15 @@ def dcf_scenario_model(
     for w in wacc_rates:
         row = {"wacc_pct": round(w * 100.0, 1)}
         for tg in tg_rates:
-            iv = _calc_dcf(base_g, w, tg)
-            row[f"g_{round(tg*100, 1)}%"] = round(iv, 2 if currency == "USD" else 0)
+            if w <= tg:
+                row[f"g_{round(tg*100, 1)}%"] = None
+            else:
+                iv = _calc_dcf(base_g, w, tg)
+                row[f"g_{round(tg*100, 1)}%"] = round(iv, 2 if currency == "USD" else 0)
         matrix_wacc_tg.append(row)
 
     # Sensitivity Matrix 2: Operating Margin vs Revenue Growth
-    base_op_margin = (ebit / revenue) if (revenue > 0 and ebit > 0) else 0.15
+    base_op_margin = (ebit / revenue) if (revenue > 0 and ebit is not None and ebit > 0) else 0.15
     rev_growth_rates = [0.03, 0.05, 0.07, 0.10, 0.12]
     op_margins = [max(0.05, base_op_margin * 0.8), base_op_margin, base_op_margin * 1.2]
     matrix_margin_growth = []
@@ -514,25 +605,32 @@ def dcf_scenario_model(
     for mg in op_margins:
         row = {"operating_margin_pct": round(mg * 100.0, 1)}
         for rg in rev_growth_rates:
-            # Scale FCF proportionally by margin relative to base
             margin_scalar = mg / base_op_margin if base_op_margin > 0 else 1.0
             pv_fcfs = 0.0
             proj_fcf = used_fcf * margin_scalar
             for year in range(1, 6):
                 proj_fcf *= (1.0 + rg)
                 pv_fcfs += proj_fcf / ((1.0 + wacc_base) ** year)
-            tv = (proj_fcf * (1.0 + 0.03)) / max(0.005, (wacc_base - 0.03))
-            pv_tv = tv / ((1.0 + wacc_base) ** 5)
-            iv = max(0.0, (pv_fcfs + pv_tv - debt + cash) / shares)
-            row[f"rev_g_{round(rg*100, 1)}%"] = round(iv, 2 if currency == "USD" else 0)
+            tv_tg = 0.03
+            if wacc_base <= tv_tg:
+                row[f"rev_g_{round(rg*100, 1)}%"] = None
+            else:
+                tv = (proj_fcf * (1.0 + tv_tg)) / (wacc_base - tv_tg)
+                pv_tv = tv / ((1.0 + wacc_base) ** 5)
+                iv = max(0.0, (pv_fcfs + pv_tv - debt + cash) / shares)
+                row[f"rev_g_{round(rg*100, 1)}%"] = round(iv, 2 if currency == "USD" else 0)
         matrix_margin_growth.append(row)
 
     return {
         "status": "COMPLETED",
         "model_type": "FCF_DISCOUNTED_CASH_FLOW",
+        "fcf_state": fcf_state,
+        "fcf_basis": fcf_basis,
+        "normalization_note": normalization_note,
         "currency": currency,
         "current_price": price,
         f"base_fcf_{currency}": round(used_fcf, 2 if currency == "USD" else 0),
+        "debt_basis": debt_basis,
         "scenarios": scenario_outputs,
         "sensitivity_matrix": matrix_wacc_tg,
         "sensitivity_wacc_terminal_growth": matrix_wacc_tg,

@@ -178,15 +178,6 @@ class EquityAsset:
         px = last_price if last_price is not None else price
         mc = self.market_cap(px)
         if mc is None:
-            # Fallback estimation using shares outstanding when price not provided
-            if self.shares_outstanding >= 100_000_000_000:
-                return "LARGE_CAP"
-            if self.shares_outstanding >= 20_000_000_000:
-                return "MID_CAP"
-            if self.shares_outstanding >= 3_000_000_000:
-                return "SMALL_CAP"
-            if self.shares_outstanding > 0:
-                return "MICRO_CAP"
             return "UNKNOWN_CAP"
         if mc >= 50_000_000_000_000.0:  # Rp 50 Triliun+
             return "LARGE_CAP"
@@ -287,7 +278,7 @@ class EquityCatalog:
                 try:
                     rows = json.loads(bundled.read_text(encoding="utf-8"))
                     self._merge([self._validate(row) for row in rows])
-                    self.sync_status = "ONLINE_PROVIDER_SYNCED"
+                    self.sync_status = "BUNDLED_SNAPSHOT_LOADED"
                 except (OSError, ValueError, TypeError, KeyError):
                     pass
 
@@ -383,6 +374,18 @@ class EquityCatalog:
             status = normalize_listing_status(status_raw) if status_raw else "UNKNOWN"
 
             l_date = str(clean.get("tanggal pencatatan") or clean.get("listing date") or clean.get("listing_date") or "").strip()
+            eff_raw = clean.get("effective_date") or clean.get("tanggal efektif") or clean.get("effective date")
+            if eff_raw:
+                try:
+                    eff_date = date.fromisoformat(str(eff_raw).strip()).isoformat()
+                except ValueError:
+                    eff_date = date.today().isoformat()
+            else:
+                try:
+                    eff_date = date.fromisoformat(l_date).isoformat() if l_date else date.today().isoformat()
+                except ValueError:
+                    eff_date = date.today().isoformat()
+
             shares_raw = clean.get("jumlah saham beredar") or clean.get("jumlah saham") or clean.get("shares outstanding") or clean.get("shares_outstanding") or 0
             try:
                 shares = float(str(shares_raw).replace(",", ""))
@@ -394,7 +397,7 @@ class EquityCatalog:
                 "name": name,
                 "sector_code": sec_code,
                 "board": board,
-                "effective_date": "2026-01-01",
+                "effective_date": eff_date,
                 "listing_date": l_date,
                 "listing_status": status,
                 "shares_outstanding": shares,

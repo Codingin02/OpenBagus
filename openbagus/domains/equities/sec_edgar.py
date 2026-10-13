@@ -32,7 +32,10 @@ from openbagus.domains.equities.financial_model import (
 logger = logging.getLogger(__name__)
 
 # SEC Fair Access requires user-agent in format: "Sample Company Name AdminContact@<sample company domain>.com"
-SEC_DEFAULT_USER_AGENT = "OpenBagus-FinancialResearch/1.0 (Ahmad Bagus Idkholus Surur; codingindong02@gmail.com)"
+SEC_DEFAULT_USER_AGENT = os.environ.get(
+    "OPENBAGUS_SEC_USER_AGENT",
+    "OpenBagus-FinancialResearch/1.0 (openbagus-dev@openbagus.org)",
+)
 SEC_RATE_LIMIT_INTERVAL = 0.2  # Max 5 requests/sec, safely below SEC's 10 req/sec limit
 
 
@@ -222,12 +225,14 @@ class SecEdgarClient:
     def __init__(
         self,
         root: Path | None = None,
-        user_agent: str = SEC_DEFAULT_USER_AGENT,
+        user_agent: str | None = None,
     ) -> None:
         self.root = root or Path.cwd()
         self.cache_dir = self.root / "data" / "equities" / "sec"
         self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.user_agent = user_agent
+        self.user_agent = user_agent or os.environ.get(
+            "OPENBAGUS_SEC_USER_AGENT", SEC_DEFAULT_USER_AGENT
+        )
         self._ticker_map: dict[str, int] = {}
         self._cik_map: dict[int, dict[str, Any]] = {}
         self._load_cached_tickers()
@@ -364,10 +369,35 @@ class SecEdgarClient:
         # We index observations by (year, fp, form)
         period_data: dict[str, dict[str, Any]] = {}
         citations_data: dict[str, dict[str, SourceCitation]] = {}
+        obs_scores: dict[str, dict[str, tuple]] = {}
+
+        def _observation_score(obs: dict[str, Any], concept_idx: int, period_type: str, statement_type: str) -> tuple[int, int, int, str]:
+            concept_priority = -concept_idx
+            start = obs.get("start")
+            end = obs.get("end")
+            if statement_type == "Balance Sheet":
+                duration_score = 1
+            else:
+                duration_score = 0
+                if start and end:
+                    try:
+                        from datetime import date
+                        d_days = (date.fromisoformat(end) - date.fromisoformat(start)).days
+                        if period_type == "FY":
+                            duration_score = 3 if 330 <= d_days <= 385 else (2 if d_days > 180 else 1)
+                        else:
+                            duration_score = 3 if 75 <= d_days <= 105 else (2 if d_days <= 180 else 1)
+                    except Exception:
+                        duration_score = 1
+
+            form = (obs.get("form") or "").upper()
+            form_score = 2 if form.endswith("/A") else (1 if form in {"10-K", "20-F", "10-Q"} else 0)
+            filed = str(obs.get("filed") or "")
+            return (concept_priority, duration_score, form_score, filed)
 
         def _extract_metric(concept_dict: dict[str, list[str]], target_key: str, statement_type: str) -> None:
             for canonical_key, concepts in concept_dict.items():
-                for concept in concepts:
+                for c_idx, concept in enumerate(concepts):
                     if concept not in us_gaap:
                         continue
                     concept_obj = us_gaap[concept]
@@ -382,7 +412,7 @@ class SecEdgarClient:
                         fp = (obs.get("fp") or "").upper()
                         val = obs.get("val")
                         end = obs.get("end")
-                        filed = obs.get("filed")
+                        filed = str(obs.get("filed") or "")
                         accn = obs.get("accn")
                         frame = obs.get("frame", "")
 
@@ -390,7 +420,7 @@ class SecEdgarClient:
                             continue
 
                         # Determine period string
-                        if form in {"10-K", "20-F"} or fp == "FY":
+                        if form in {"10-K", "10-K/A", "20-F"} or fp == "FY":
                             period_str = f"{fy}-FY"
                             period_type = "FY"
                         else:
@@ -406,21 +436,26 @@ class SecEdgarClient:
                                 "unit": "USD",
                                 "unit_multiplier": 1.0,
                                 "basis": "consolidated",
-                                "audit_status": "audited" if form in {"10-K", "20-F"} else "reviewed",
+                                "audit_status": "audited" if form in {"10-K", "10-K/A", "20-F"} else "reviewed",
                                 "period_end_date": end,
                                 "filing_date": filed,
                             }
                             citations_data[period_str] = {}
+                            obs_scores[period_str] = {}
 
-                        # Only set if not already set (first matching concept is preferred)
-                        if canonical_key not in period_data[period_str] or period_data[period_str][canonical_key] is None:
-                            # Sign normalization for capex: SEC reported as positive outflow or payments
+                        score = _observation_score(obs, c_idx, period_type, statement_type)
+                        curr_score = obs_scores[period_str].get(canonical_key)
+                        if curr_score is None or score > curr_score:
                             if canonical_key == "capital_expenditure":
                                 norm_val = abs(float(val))
                             else:
                                 norm_val = float(val)
 
+                            obs_scores[period_str][canonical_key] = score
                             period_data[period_str][canonical_key] = norm_val
+                            if filed and filed > (period_data[period_str].get("filing_date") or ""):
+                                period_data[period_str]["filing_date"] = filed
+
                             citations_data[period_str][canonical_key] = SourceCitation(
                                 statement_type=statement_type,
                                 xbrl_concept=f"us-gaap:{concept}",
@@ -441,15 +476,14 @@ class SecEdgarClient:
             if share_concept in dei:
                 units = dei[share_concept].get("units", {})
                 obs_list = units.get("shares") or []
-                for obs in obs_list:
+                for obs in sorted(obs_list, key=lambda o: str(o.get("filed") or "")):
                     fy = obs.get("fy")
                     fp = (obs.get("fp") or "").upper()
                     val = obs.get("val")
                     if fy and val:
-                        period_str = f"{fy}-FY" if fp == "FY" else f"{fy}-{fp}"
+                        period_str = f"{fy}-FY" if (fp == "FY" or obs.get("form", "").upper() in {"10-K", "10-K/A", "20-F"}) else f"{fy}-{fp}"
                         if period_str in period_data:
-                            if "shares_outstanding" not in period_data[period_str]:
-                                period_data[period_str]["shares_outstanding"] = float(val)
+                            period_data[period_str]["shares_outstanding"] = float(val)
 
         # Build CanonicalFinancialStatement instances
         statements: list[CanonicalFinancialStatement] = []

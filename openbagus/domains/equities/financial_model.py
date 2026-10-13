@@ -272,6 +272,10 @@ class CanonicalFinancialStatement:
             "validation_notes": self.validation_notes,
         }
 
+    def to_dict(self) -> dict[str, Any]:
+        """Alias for to_legacy_dict()."""
+        return self.to_legacy_dict()
+
 
 def detect_period(text_or_filename: str) -> tuple[str, str] | None:
     """Explicitly extracts fiscal period and period type.
