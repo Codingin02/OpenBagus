@@ -90,6 +90,13 @@ ALLOWED_INTENTS = (
     "COMMODITY",
     "PORTFOLIO_RISK",
     "DAILY_BRIEF",
+    "ALL_IDX_SCAN",
+    "EVENT_DISCOVERY",
+    "EVENT_IMPACT_ANALYSIS",
+    "SWING_SETUP_SCAN",
+    "LIQUIDITY_SCAN",
+    "AUCTION_BOARD_RESEARCH",
+    "TRADING_RISK_REVIEW",
 )
 
 REQUEST_TYPES = (
@@ -138,6 +145,13 @@ REQUEST_TYPES = (
     "COMMODITY",
     "PORTFOLIO_RISK",
     "DAILY_BRIEF",
+    "ALL_IDX_SCAN",
+    "EVENT_DISCOVERY",
+    "EVENT_IMPACT_ANALYSIS",
+    "SWING_SETUP_SCAN",
+    "LIQUIDITY_SCAN",
+    "AUCTION_BOARD_RESEARCH",
+    "TRADING_RISK_REVIEW",
     "EQUITY_DISCOVERY",
 )
 
@@ -1288,6 +1302,28 @@ class IntentRouter:
             if any(token.upper().endswith(".JK") for token in tokens):
                 return IntentRequest("UNKNOWN", "UNKNOWN", raw_query=text, needs_asset=True,
                     clarification_prompt="SOURCE GAP: ticker .JK belum ada di catalog terverifikasi. Impor identitas IDX berizin.")
+            # Dedicated Event & Full-Universe Scan Intents
+            if re.search(r"\b(?:scan\s+seluruh\s+saham|scan\s+all\s+idx|scan\s+seluruh\s+idx|scan\s+semua\s+saham)\b", lower):
+                return IntentRequest("ALL_IDX_SCAN", "ALL_IDX_SCAN", raw_query=text, focus="all_idx", asset_type="EQUITY_ID")
+
+            if re.search(r"\b(?:material\s+terhadap\s+pendapatan|dampak\s+pengumuman|dampak\s+keterbukaan)\b", lower):
+                return IntentRequest("EVENT_IMPACT_ANALYSIS", "EVENT_IMPACT_ANALYSIS", raw_query=text, asset_type="EQUITY_ID")
+
+            if re.search(r"\b(?:kontrak\s+material|announcement\s+material|keterbukaan\s+informasi|catalyst\s+positif|pengumuman\s+material|berita\s+fundamental\s+negatif|event\s+today|events\s+today)\b", lower):
+                return IntentRequest("EVENT_DISCOVERY", "EVENT_DISCOVERY", raw_query=text, asset_type="EQUITY_ID")
+
+            if re.search(r"\b(?:volume.*naik.*keterbukaan|volume.*expansion|breakout\s+volume|swing\s+trading|scan\s+swing)\b", lower):
+                return IntentRequest("SWING_SETUP_SCAN", "SWING_SETUP_SCAN", raw_query=text, asset_type="EQUITY_ID")
+
+            if re.search(r"\b(?:mulai\s+aktif|volume\s+naik.*eksekusi|likuiditas.*naik|cek\s+likuiditas|likuiditasnya)\b", lower) and not re.search(r"\bpapan\s+pemantauan\s+khusus\b", lower):
+                return IntentRequest("LIQUIDITY_SCAN", "LIQUIDITY_SCAN", raw_query=text, asset_type="EQUITY_ID")
+
+            if re.search(r"\b(?:alasan\s+setup.*ditolak|ditolak\s+(?:oleh\s+)?risk)\b", lower):
+                return IntentRequest("TRADING_RISK_REVIEW", "TRADING_RISK_REVIEW", raw_query=text, asset_type="EQUITY_ID")
+
+            if re.search(r"\b(?:pemantauan\s+khusus.*swing|pemantauan\s+khusus.*likuiditas|fca.*swing|fca.*likuiditas)\b", lower) or re.search(r"pemantauan\s+khusus.*(?:likuiditas|risiko|auction|mekanisme)", lower):
+                return IntentRequest("AUCTION_BOARD_RESEARCH", "AUCTION_BOARD_RESEARCH", raw_query=text, focus="special_monitoring", asset_type="EQUITY_ID")
+
             # Full Universe Coverage / Reconciliation
             if re.search(r"\b(?:coverage|universe|seluruh\s+saham|semua\s+saham|total\s+saham|cakupan\s+pasar)\b", lower):
                 return IntentRequest("CATEGORY", "EQUITY_DISCOVERY", raw_query=text, focus="coverage", asset_type="EQUITY_ID")

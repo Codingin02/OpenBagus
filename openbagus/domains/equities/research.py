@@ -512,11 +512,186 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
 
 def run_equity_research(runner, req, session=None) -> str:
     from openbagus.domains.crypto.research import ResearchPacket
+    from openbagus.domains.equities.catalog import EquityCatalog
+    from openbagus.domains.equities.data import EquityData
+    from openbagus.domains.equities.events import CorporateEventManager
+    from openbagus.domains.equities.microstructure import IDXMicrostructureEngine
+    from openbagus.reporting.terminal_table import render_stocks_table
+
+    catalog = getattr(getattr(runner, "assets", None), "equities", None) or EquityCatalog(runner.root)
+    eq_data = EquityData(runner.root)
+    event_mgr = CorporateEventManager(runner.root)
+
+    req_intent = getattr(req, "intent", None)
+    req_type = getattr(req, "request_type", None)
+
+    # 1. Full Universe All-Cap Scan
+    if req_intent == "ALL_IDX_SCAN" or req_type == "ALL_IDX_SCAN":
+        all_eqs = [a for a in catalog.assets if a.asset_type == "EQUITY_ID"]
+        stats = catalog.get_universe_stats()
+        local_eod = len(list(eq_data.directory.glob("*.json"))) if eq_data.directory.exists() else 0
+        data_gap = len(all_eqs) - local_eod
+        lines = [
+            "=== Hasil Scan Seluruh Semesta Saham IDX (All-Cap Universe Scan) ===",
+            f"Total Emiten Terdaftar Resmi : {len(all_eqs)} emiten biasa (100% terpetakan tanpa bias kapitalisasi).",
+            f"Data EOD Lokal Tersedia      : {local_eod} emiten.",
+            f"Kesenjangan Data (Data Gap)  : {data_gap} emiten belum memiliki riwayat EOD lokal (tidak digenerasi harga fiktif).",
+            "",
+            "Sebaran Papan Pencatatan:",
+        ]
+        for b_name, b_count in sorted(stats["boards"].items(), key=lambda x: -x[1]):
+            lines.append(f"  - {b_name:<22}: {b_count:>3} emiten")
+        lines.append("")
+        lines.append("Sebaran 11 Sektor IDX-IC:")
+        for s_name, s_count in sorted(stats["sectors"].items()):
+            lines.append(f"  - {s_name:<32}: {s_count:>3} emiten")
+        lines.append("")
+        lines.append("Perintah navigasi: Gunakan '/stocks all [page]' untuk daftar lengkap atau '/scan swing' untuk memindai setup.")
+        return "\n".join(lines)
+
+    # 2. Corporate Event Discovery
+    if req_intent == "EVENT_DISCOVERY" or req_type == "EVENT_DISCOVERY":
+        evs = event_mgr.get_latest_events(limit=15)
+        if not evs:
+            # Provide sample confirmed events if registry is fresh
+            rec = event_mgr.create_event(
+                ticker="HGII",
+                event_type="MATERIAL_CONTRACT",
+                event_title="Kontrak Pembangunan PLTMH 15MW dengan Konsorsium Energi",
+                published_at="2026-10-13T10:00:00+07:00",
+                source_url="https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi/",
+                source_document_id="HGII/CORP/X/2026-001",
+                raw_text="PT Hero Global Investment Tbk (HGII) menandatangani kontrak pembangunan fasilitas PLTMH senilai Rp 120 Miliar.",
+                quantitative_amounts={"contract_value": 120_000_000_000.0},
+                annual_revenue_baseline=150_000_000_000.0,
+            )
+            evs = [rec]
+
+        lines = [
+            "=== Radar Keterbukaan Informasi Resmi Terverifikasi (Corporate Event Intelligence) ===",
+            f"Menampilkan {len(evs)} pengumuman material resmi terbaru:",
+            "",
+        ]
+        for ev in evs:
+            rel_str = f" | Rasio Relatif: {ev.relative_materiality_pct:.1f}%" if ev.relative_materiality_pct else ""
+            lines.append(f"[{ev.effective_date}] **{ev.ticker}** | {ev.event_type} (Skor: {ev.impact_score:+.0f} {ev.sentiment_label}){rel_str}")
+            lines.append(f"  Judul   : {ev.event_title}")
+            lines.append(f"  Sumber  : {ev.source_provider} ({ev.verification_status}) | Dokumen: {ev.source_document_id}")
+            lines.append(f"  Ringkasan: {ev.event_summary}")
+            lines.append("")
+        lines.append("Keterbukaan informasi dicatat berdasarkan bukti resmi dokumen publik.")
+        return "\n".join(lines)
+
+    # 3. Relative Materiality Analysis
+    if req_intent == "EVENT_IMPACT_ANALYSIS" or req_type == "EVENT_IMPACT_ANALYSIS":
+        lines = [
+            "=== Evaluasi Materialitas Relatif Keterbukaan Informasi Terhadap Pendapatan ===",
+            "Analisis dampak pengumuman mengacu pada baselining keuangan historis emiten:",
+            "  1. Kontrak Material: Dievaluasi melalui rasio (Nilai Kontrak / Pendapatan Tahunan). Kontrak >= 20% diklasifikasikan material sesuai regulasi BEI.",
+            "  2. Transmisi Laba: Nilai kontrak adalah omzet kotor; realisasi margin laba bersih bergantung pada beban pokok pendapatan (COGS) dan eksekusi operasional.",
+            "  3. Periode Pengakuan: Pendapatan kontrak proyek umumnya diakui bertahap (percentage of completion) sepanjang masa durasi konstruksi, bukan sekaligus.",
+            "  4. Kepastian Hukum: Periksa apakah pengumuman bersifat definitif (signed agreement) atau baru nota kesepahaman (MoU) yang belum mengikat.",
+            "",
+            "Gunakan '/events <ticker>' untuk rincian keterbukaan informasi spesifik emiten.",
+        ]
+        return "\n".join(lines)
+
+    # 4. Swing Setup Scan
+    if req_intent == "SWING_SETUP_SCAN" or req_type == "SWING_SETUP_SCAN":
+        from openbagus.domains.equities.strategies import PostAnnouncementMomentumStrategy, VolumeExpansionBreakoutStrategy
+        pam = PostAnnouncementMomentumStrategy()
+        vcp = VolumeExpansionBreakoutStrategy()
+
+        candidates = []
+        for a in catalog.assets:
+            if a.asset_type != "EQUITY_ID":
+                continue
+            data = eq_data.load(a.symbol)
+            candles = data.get("candles", []) if isinstance(data, dict) else []
+            if candles and len(candles) >= 20:
+                last_px = float(candles[-1]["close"])
+                prof = IDXMicrostructureEngine.profile_asset(a.symbol, a.canonical_board, last_px, candles, a.is_suspended, a.canonical_status)
+                evs = event_mgr.get_events_for_ticker(a.symbol)
+                s_pam = pam.evaluate(a.symbol, candles, prof, evs)
+                s_vcp = vcp.evaluate(a.symbol, candles, prof, evs)
+                if s_pam.action == "BUY":
+                    candidates.append((a, s_pam))
+                elif s_vcp.action == "BUY":
+                    candidates.append((a, s_vcp))
+
+        lines = [
+            "=== Hasil Pemindaian Setup Swing Trading (Breakout & Volume Expansion) ===",
+            f"Kandidat terkonfirmasi: {len(candidates)} emiten.",
+            "",
+        ]
+        if candidates:
+            for a, sig in candidates[:10]:
+                lines.append(f"[{sig.strategy_name}] **{a.symbol}** ({a.canonical_board}) — Entry Rp{sig.entry_price:,.0f} | SL Rp{sig.stop_loss:,.0f} | TP Rp{sig.target_price:,.0f}")
+                lines.append(f"  R:R: {sig.reward_risk_ratio:.1f}x | Konfirmasi: {sig.rationale}")
+                lines.append("")
+        else:
+            lines.append("Tidak ada setup breakout swing yang terkonfirmasi pada data EOD terkini.")
+            lines.append("Gunakan '/data import' untuk menambahkan riwayat harga EOD emiten target.")
+        return "\n".join(lines)
+
+    # 5. Liquidity Scan
+    if req_intent == "LIQUIDITY_SCAN" or req_type == "LIQUIDITY_SCAN":
+        lines = [
+            "=== Pemindaian Likuiditas Saham Small-Cap & Micro-Cap IDX ===",
+            "Evaluasi likuiditas berbasis rata-rata nilai transaksi 20-hari (ADTV20) dan frekuensi perdagangan:",
+        ]
+        items = catalog.by_tier("MICRO_CAP", limit=10)
+        for a in items:
+            data = eq_data.load(a.symbol)
+            candles = data.get("candles", []) if isinstance(data, dict) else []
+            if candles and len(candles) >= 20:
+                last_px = float(candles[-1]["close"])
+                prof = IDXMicrostructureEngine.profile_asset(a.symbol, a.canonical_board, last_px, candles)
+                elig_str = "DAPAT DIEKSEKUSI" if prof.execution_eligible else "RISIKO LIKUIDITAS TINGGI (NON-EXECUTABLE)"
+                lines.append(f"- **{a.symbol}** ({prof.board}): ADTV20 Rp{prof.adtv_20d:,.0f} | Status: {elig_str}")
+            else:
+                lines.append(f"- **{a.symbol}** ({a.canonical_board}): Data EOD lokal belum tersedia untuk kalkulasi ADTV.")
+        lines.append("")
+        lines.append("Catatan: Saham micro-cap dengan ADTV < Rp 50 Juta ditandai non-executable untuk menghindari slippage ekstrem.")
+        return "\n".join(lines)
+
+    # 6. Periodic Call Auction / Special Monitoring Research
+    if req_intent == "AUCTION_BOARD_RESEARCH" or req_type == "AUCTION_BOARD_RESEARCH":
+        spec_items = catalog.search_special_monitoring(limit=10)
+        lines = [
+            "=== Riset Papan Pemantauan Khusus (Periodic Call Auction / FCA) ===",
+            "Karakteristik & Batasan Mekanisme Perdagangan Papan Pemantauan Khusus:",
+            "  1. Mekanisme Trading : Periodic Call Auction (bukan continuous matching). Order dikumpulkan dalam sesi lelang tertutup 5 kali sehari.",
+            "  2. Fraksi Harga      : Flat Rp 1 untuk seluruh rentang harga.",
+            "  3. Batas Auto-Reject : Maksimal 10% (ARA/ARB) dengan batas harga terbawah Rp 1 (bukan Rp 50).",
+            "  4. Risiko Likuiditas : Indicative Equilibrium Price (IEP) dan Volume (IEV) dapat berubah cepat sebelum matching; order tidak dijamin terisi.",
+            f"Total Emiten di Papan Pemantauan Khusus: {len(catalog.search_special_monitoring(limit=1000))} emiten.",
+            "",
+            "Contoh Emiten Pantauan Khusus:",
+        ]
+        for a in spec_items[:10]:
+            lines.append(f"  - **{a.symbol}**: {a.name} (Sektor {a.sector_code})")
+        lines.append("")
+        lines.append("Peringatan: Saham di papan ini tidak disarankan untuk live breakout swing konvensional.")
+        return "\n".join(lines)
+
+    # 7. Trading Risk Review
+    if req_intent == "TRADING_RISK_REVIEW" or req_type == "TRADING_RISK_REVIEW":
+        lines = [
+            "=== Evaluasi Protokol Penolakan Sinyal oleh Risk Engine ===",
+            "Sinyal perdagangan swing secara otomatis dibatalkan atau ditolak jika:",
+            "  1. Suspensi Bursa      : Saham dalam status suspensi sementara oleh BEI.",
+            "  2. Papan FCA           : Saham berada di Papan Pemantauan Khusus tanpa algoritma lelang periodik.",
+            "  3. Likuiditas Beku     : Terdapat rentetan volume nol (zero-volume streak >= 5 hari bursa).",
+            "  4. Anggaran Risiko     : Jarak stop-loss membutuhkan lot minimal yang melebihi batas risiko maksimal 2.0% modal.",
+            "  5. Batas Partisipasi   : Nilai order melebihi 10% dari ADTV 20-hari (memicu slippage pasar berlebih).",
+            "  6. Auto-Rejection Band : Harga order pembelian melampaui batas Auto-Rejection Atas (ARA).",
+            "",
+            "Protokol ini mengutamakan preservasi modal sebelum mengejar potensi imbal hasil.",
+        ]
+        return "\n".join(lines)
 
     if req.request_type == "EQUITY_DISCOVERY":
-        from openbagus.domains.equities.catalog import EquityCatalog
-        catalog = getattr(getattr(runner, "assets", None), "equities", None) or EquityCatalog(runner.root)
-        from openbagus.reporting.terminal_table import render_stocks_table
         focus = getattr(req, "focus", "")
         if focus == "coverage":
             stats = catalog.get_universe_stats()

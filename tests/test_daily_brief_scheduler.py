@@ -63,10 +63,10 @@ class TestDailyBriefScheduler(unittest.TestCase):
         brief = self.generator.generate(session_type="MORNING")
         md = render_brief_markdown(brief)
         self.assertIn("# OPENBAGUS — RISALAH RISET PAGI (PRE-MARKET)", md)
-        self.assertIn("## 1. Konteks Makroekonomi & Pasar", md)
-        self.assertIn("## 3. Matriks Pengamatan Aset Unggulan (Watchlist)", md)
+        self.assertIn("## 1. Market Overview", md)
+        self.assertIn("## 3. Matriks Pengamatan Aset Unggulan", md)
         self.assertIn("| Aset | Tipe | Harga Referensi |", md)
-        self.assertIn("## 5. Protokol Manajemen Risiko", md)
+        self.assertIn("## 10. Data Coverage Warnings & Risk Protocol", md)
 
     def test_render_brief_pdf(self):
         brief = self.generator.generate(session_type="MORNING")

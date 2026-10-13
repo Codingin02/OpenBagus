@@ -145,3 +145,7 @@ node_modules/
 cloud/
 feedback/
 
+# Rust build target
+target/
+rust/**/target/
+

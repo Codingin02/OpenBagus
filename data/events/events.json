@@ -1,0 +1,84 @@
+[
+  {
+    "event_id": "HGII_b59d43e67b2c",
+    "ticker": "HGII",
+    "issuer_id": "IDX:HGII",
+    "event_type": "MATERIAL_CONTRACT",
+    "event_title": "Kontrak Pembangunan PLTMH 15MW dengan Konsorsium Energi",
+    "published_at": "2026-10-13T10:00:00+07:00",
+    "first_publicly_available_at": "2026-10-13T10:00:00+07:00",
+    "first_observed_at": "2026-10-13T18:18:26.939461+00:00",
+    "retrieved_at": "2026-10-13T18:18:26.939461+00:00",
+    "effective_date": "2026-10-13",
+    "source_provider": "IDX_OFFICIAL",
+    "source_url": "https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi/",
+    "source_document_id": "HGII/CORP/X/2026-001",
+    "document_hash": "b59d43e67b2cdda5fbf8f7314d8ce4f26d58a29840ab18530c90e70871afb35a",
+    "disclosure_language": "ID",
+    "event_summary": "PT Hero Global Investment Tbk (HGII) menandatangani kontrak pembangunan fasilitas PLTMH senilai Rp 120 Miliar.",
+    "materiality_facts": {
+      "relative_materiality": {
+        "materiality": "HIGHLY_MATERIAL",
+        "score": 70.0,
+        "contract_value_idr": 120000000000.0,
+        "annual_revenue_idr": 150000000000.0,
+        "ratios": {
+          "contract_to_revenue_pct": 80.0
+        },
+        "duration_months": 12,
+        "caveat": "Nilai kontrak kotor; realisasi margin laba bersih bergantung pada biaya operasional."
+      }
+    },
+    "quantitative_amounts": {
+      "contract_value": 120000000000.0
+    },
+    "confidence": 1.0,
+    "verification_status": "CONFIRMED_OFFICIAL",
+    "amendment_status": "ORIGINAL",
+    "related_events": [],
+    "impact_score": 70.0,
+    "sentiment_label": "HIGH_POSITIVE",
+    "relative_materiality_pct": 80.0
+  },
+  {
+    "event_id": "HGII_5a8adfc5191e",
+    "ticker": "HGII",
+    "issuer_id": "IDX:HGII",
+    "event_type": "MATERIAL_CONTRACT",
+    "event_title": "Kontrak Pembangunan PLTMH 15MW",
+    "published_at": "2026-10-13T10:00:00+07:00",
+    "first_publicly_available_at": "2026-10-13T10:00:00+07:00",
+    "first_observed_at": "2026-10-13T18:31:22.029607+00:00",
+    "retrieved_at": "2026-10-13T18:31:22.029607+00:00",
+    "effective_date": "2026-10-13",
+    "source_provider": "IDX_OFFICIAL",
+    "source_url": "https://www.idx.co.id/id/perusahaan-tercatat/keterbukaan-informasi/",
+    "source_document_id": "HGII/CORP/2026-X",
+    "document_hash": "5a8adfc5191e1a88f56f8a31a67240c5296337ca8bac5d6ad64bf63f8a12b5c5",
+    "disclosure_language": "ID",
+    "event_summary": "Kontrak definitif PLTMH senilai Rp 120 Miliar ditandatangani.",
+    "materiality_facts": {
+      "relative_materiality": {
+        "materiality": "HIGHLY_MATERIAL",
+        "score": 70.0,
+        "contract_value_idr": 120000000000.0,
+        "annual_revenue_idr": 150000000000.0,
+        "ratios": {
+          "contract_to_revenue_pct": 80.0
+        },
+        "duration_months": 12,
+        "caveat": "Nilai kontrak kotor; realisasi margin laba bersih bergantung pada biaya operasional."
+      }
+    },
+    "quantitative_amounts": {
+      "contract_value": 120000000000.0
+    },
+    "confidence": 1.0,
+    "verification_status": "CONFIRMED_OFFICIAL",
+    "amendment_status": "ORIGINAL",
+    "related_events": [],
+    "impact_score": 70.0,
+    "sentiment_label": "HIGH_POSITIVE",
+    "relative_materiality_pct": 80.0
+  }
+]

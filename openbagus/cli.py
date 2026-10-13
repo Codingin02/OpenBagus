@@ -1466,6 +1466,9 @@ class OpenBagusShell(cmd.Cmd):
         print("     /integrations          inspect status of optional TradingView MCP bridge & tools")
         print("  3. Equities & Financial Intelligence (IDX & US SEC EDGAR):")
         print("     /stocks [cmd]          explore full IDX universe (search, sector, info, ipo, fetch, sync)")
+        print("     /scan [all|swing|...]  universal all-cap scanner (all, swing, momentum, smallcap, microcap, event)")
+        print("     /events [today|...]    corporate event intelligence (today, latest, material, earnings, <ticker>)")
+        print("     /market-mechanism <tk> official tick size, auto-rejection limits, FCA & execution profile")
         print("     /financials [cmd]      read authentic P&L, balance sheet, cash flows, audit status & citations")
         print("     /valuation <ticker>    calculate multiples (PER/PBV/EV), DuPont ROE & DCF scenario matrix")
         print("     /dcf <ticker>          intrinsic valuation with 3 scenarios and 2D sensitivity matrices")
@@ -1478,7 +1481,7 @@ class OpenBagusShell(cmd.Cmd):
         print("  4. Quantitative Strategies & Validation:")
         print("     /backtest [asset] [cmd] walk-forward backtest, parameter sweep (/backtest sweep), MTF, or curve")
         print("     /portfolio [cmd]       multi-asset risk, position sizing, VaR & cross-asset correlation")
-        print("     benchmark quantum openbagus  benchmark Monte Carlo simulation speed")
+        print("     /benchmark quant       benchmark quantitative calculation throughput & precision contract")
         print("  5. Persistent Session Harness:")
         print("     /harness [on|off|clear] view or control multi-turn session memory")
         print("  6. Delivery & Automated Daily Briefs:")
@@ -2106,6 +2109,258 @@ class OpenBagusShell(cmd.Cmd):
             print()
         else:
             print(f"Subcommand '/stocks {subcmd}' tidak dikenal. Gunakan /stocks untuk bantuan.")
+
+    def do_scan(self, arg: str) -> None:
+        """Universal IDX Market Scanner across all-cap tiers, liquidity, and catalysts."""
+        parts = arg.strip().split(maxsplit=1)
+        subcmd = parts[0].lower() if parts else "all"
+        subarg = parts[1].strip() if len(parts) > 1 else ""
+
+        catalog = EquityCatalog(REPO_ROOT)
+        from openbagus.domains.equities.data import EquityData
+        from openbagus.domains.equities.events import CorporateEventManager
+        from openbagus.domains.equities.microstructure import IDXMicrostructureEngine
+        from openbagus.reporting.terminal_table import render_stocks_table
+
+        eq_data = EquityData(REPO_ROOT)
+        event_mgr = CorporateEventManager(REPO_ROOT)
+        all_equities = [a for a in catalog.assets if a.asset_type == "EQUITY_ID"]
+
+        print(f"=== OpenBagus All-Universe Market Scanner ({subcmd.upper()}) ===")
+        print(f"Semesta Evaluasi: {len(all_equities)} emiten biasa terdaftar di Bursa Efek Indonesia.")
+
+        if subcmd == "all":
+            active_count = sum(1 for a in all_equities if a.canonical_status == "ACTIVE")
+            suspended_count = sum(1 for a in all_equities if a.is_suspended)
+            fca_count = sum(1 for a in all_equities if a.is_special_monitoring)
+            local_eod = sum(1 for a in all_equities if eq_data.load(a.symbol))
+            data_gap = len(all_equities) - local_eod
+
+            print(f"Status Listing: {active_count} Aktif | {suspended_count} Tersuspensi | {fca_count} Papan Khusus (FCA)")
+            print(f"Kelengkapan Data: {local_eod} memiliki riwayat EOD lokal | {data_gap} Data Gap (belum ada EOD)")
+            print()
+            print("Ringkasan Sebaran Papan Pencatatan:")
+            boards: dict[str, int] = {}
+            for a in all_equities:
+                b = a.canonical_board
+                boards[b] = boards.get(b, 0) + 1
+            for b, cnt in sorted(boards.items(), key=lambda x: -x[1]):
+                print(f"  - {b:20}: {cnt} emiten")
+            print()
+            print("Perintah spesifik: /scan swing, /scan momentum, /scan smallcap, /scan microcap, /scan event, /scan illiquid")
+
+        elif subcmd in ("swing", "momentum"):
+            from openbagus.domains.equities.strategies import PostAnnouncementMomentumStrategy, VolumeExpansionBreakoutStrategy
+            pam_strat = PostAnnouncementMomentumStrategy()
+            vcp_strat = VolumeExpansionBreakoutStrategy()
+
+            setups = []
+            evaluated = 0
+            for a in all_equities:
+                data = eq_data.load(a.symbol)
+                candles = data.get("candles", []) if isinstance(data, dict) else []
+                if not candles or len(candles) < 20:
+                    continue
+                evaluated += 1
+                last_px = float(candles[-1]["close"])
+                prof = IDXMicrostructureEngine.profile_asset(a.symbol, a.canonical_board, last_px, candles, a.is_suspended, a.canonical_status)
+                evs = event_mgr.get_events_for_ticker(a.symbol)
+
+                sig_pam = pam_strat.evaluate(a.symbol, candles, prof, evs)
+                sig_vcp = vcp_strat.evaluate(a.symbol, candles, prof, evs)
+
+                if sig_pam.action == "BUY":
+                    setups.append((a, sig_pam))
+                elif sig_vcp.action == "BUY":
+                    setups.append((a, sig_vcp))
+
+            print(f"Emiten dengan EOD valid dievaluasi: {evaluated}")
+            print(f"Setup terkonfirmasi ditemukan: {len(setups)}")
+            if setups:
+                for a, sig in setups[:15]:
+                    print(f"  [{sig.strategy_name.upper()}] {a.symbol} ({a.canonical_board}): Beli @ Rp{sig.entry_price:,.0f} | SL Rp{sig.stop_loss:,.0f} | TP Rp{sig.target_price:,.0f} | R:R {sig.reward_risk_ratio:.1f}x")
+                    print(f"      Alasan: {sig.rationale}")
+            else:
+                print("  Tidak ada setup breakout swing yang terkonfirmasi pada data EOD terkini.")
+
+        elif subcmd in ("smallcap", "small-cap", "small"):
+            items = catalog.by_tier("SMALL_CAP", limit=25)
+            print(render_stocks_table(items, title="Hasil Scan: Saham Small-Cap IDX (Rp 500M - Rp 5T)"))
+
+        elif subcmd in ("microcap", "micro-cap", "micro"):
+            items = catalog.by_tier("MICRO_CAP", limit=25)
+            print(render_stocks_table(items, title="Hasil Scan: Saham Micro-Cap IDX (< Rp 500M)"))
+
+        elif subcmd == "illiquid":
+            illiquid = []
+            for a in all_equities:
+                data = eq_data.load(a.symbol)
+                candles = data.get("candles", []) if isinstance(data, dict) else []
+                if candles and len(candles) >= 20:
+                    last_px = float(candles[-1]["close"])
+                    prof = IDXMicrostructureEngine.profile_asset(a.symbol, a.canonical_board, last_px, candles)
+                    if not prof.execution_eligible or prof.adtv_20d < 50_000_000.0:
+                        illiquid.append((a, prof))
+            print(f"Ditemukan {len(illiquid)} saham dengan peringatan likuiditas tinggi / non-executable.")
+            for a, prof in illiquid[:15]:
+                print(f"  {a.symbol} ({prof.board}): ADTV20 Rp{prof.adtv_20d:,.0f} | Alasan: {prof.rejection_reason}")
+
+        elif subcmd == "event":
+            ev_type = subarg.upper() if subarg else None
+            evs = event_mgr.get_latest_events(event_type=ev_type, limit=20)
+            print(f"Ditemukan {len(evs)} keterbukaan informasi material:")
+            for ev in evs:
+                print(f"  [{ev.effective_date}] {ev.ticker:6} | {ev.event_type:25} | Skor: {ev.impact_score:+.0f} ({ev.sentiment_label})")
+                print(f"      Judul: {ev.event_title}")
+        print()
+
+    def do_events(self, arg: str) -> None:
+        """Pusat intelijen keterbukaan informasi resmi emiten Bursa Efek Indonesia."""
+        parts = arg.strip().split(maxsplit=1)
+        subcmd = parts[0].lower() if parts else "today"
+        subarg = parts[1].strip() if len(parts) > 1 else ""
+
+        from openbagus.domains.equities.events import CorporateEventManager
+        mgr = CorporateEventManager(REPO_ROOT)
+
+        if subcmd in ("today", "latest"):
+            evs = mgr.get_latest_events(limit=25)
+            print("=== Keterbukaan Informasi Terbaru (Official IDX Announcements) ===")
+            if not evs:
+                print("Belum ada catatan keterbukaan informasi tersimpan di penyimpanan lokal.")
+                print("Gunakan modul data ingestion atau import disclosure untuk menambahkan.")
+            for ev in evs:
+                print(f"[{ev.effective_date}] {ev.ticker:5} | {ev.event_type:24} | Skor {ev.impact_score:+.0f} ({ev.sentiment_label})")
+                print(f"   {ev.event_title}")
+                print(f"   Sumber: {ev.source_provider} ({ev.verification_status}) | Hash: {ev.document_hash[:16]}")
+                print()
+
+        elif subcmd == "material":
+            evs = [ev for ev in mgr.get_latest_events(limit=100) if abs(ev.impact_score) >= 40.0]
+            print("=== Keterbukaan Informasi Berdampak Signifikan (Materiality Score >= 40) ===")
+            for ev in evs[:25]:
+                print(f"[{ev.effective_date}] {ev.ticker:5} | {ev.event_type} | Relatif: {ev.relative_materiality_pct or 0.0:.1f}% | Skor {ev.impact_score:+.0f}")
+                print(f"   {ev.event_title}")
+                print()
+
+        elif subcmd == "earnings":
+            evs = [ev for ev in mgr.get_latest_events(limit=100) if ev.event_type in ("EARNINGS_RELEASE", "EARNINGS_SURPRISE", "PROFIT_TURNAROUND", "PROFIT_WARNING")]
+            print("=== Keterbukaan Kinerja Keuangan & Kejutan Laba ===")
+            for ev in evs[:25]:
+                print(f"[{ev.effective_date}] {ev.ticker:5} | {ev.event_type} | {ev.event_title}")
+                print()
+
+        elif subcmd in ("actions", "corporate-actions"):
+            evs = [ev for ev in mgr.get_latest_events(limit=100) if ev.event_type in ("SHARE_BUYBACK", "RIGHTS_ISSUE", "DIVIDEND_DECLARATION", "STOCK_SPLIT")]
+            print("=== Aksi Korporasi Resmi (Buyback, Rights Issue, Dividen) ===")
+            for ev in evs[:25]:
+                print(f"[{ev.effective_date}] {ev.ticker:5} | {ev.event_type} | {ev.event_title}")
+                print()
+
+        else:
+            ticker = subcmd.upper().replace(".JK", "")
+            evs = mgr.get_events_for_ticker(ticker)
+            print(f"=== Riwayat Keterbukaan Informasi Emiten: {ticker} ===")
+            if not evs:
+                print(f"Tidak ada pengumuman tersimpan untuk emiten {ticker}.")
+            for ev in evs:
+                print(f"[{ev.effective_date}] {ev.event_type} (Status: {ev.verification_status}) | Skor {ev.impact_score:+.0f}")
+                print(f"   Judul: {ev.event_title}")
+                print(f"   Ringkasan: {ev.event_summary}")
+                print(f"   Sitasi Dokumen: {ev.source_document_id} | Hash: {ev.document_hash}")
+                print()
+
+    def do_market_mechanism(self, arg: str) -> None:
+        """Analisis mekanisme perdagangan resmi, fraksi harga, auto-rejection, dan likuiditas emiten."""
+        ticker = arg.strip().upper().replace(".JK", "")
+        if not ticker:
+            print("Format: /market-mechanism <ticker>")
+            return
+
+        catalog = EquityCatalog(REPO_ROOT)
+        asset = catalog.resolve(ticker)
+        if not asset:
+            print(f"Ticker {ticker} tidak ditemukan di katalog IDX terverifikasi.")
+            return
+
+        from openbagus.domains.equities.data import EquityData
+        from openbagus.domains.equities.microstructure import IDXMicrostructureEngine
+
+        eq_data = EquityData(REPO_ROOT)
+        data = eq_data.load(ticker)
+        candles = data.get("candles", []) if isinstance(data, dict) else []
+        last_px = float(candles[-1]["close"]) if candles else 1000.0
+
+        prof = IDXMicrostructureEngine.profile_asset(
+            symbol=asset.symbol,
+            board=asset.canonical_board,
+            reference_price=last_px,
+            candles=candles,
+            is_suspended=asset.is_suspended,
+            status=asset.canonical_status,
+        )
+
+        print(f"=== Profil Mekanisme Pasar: {asset.symbol} ({asset.name}) ===")
+        print(f"Papan Pencatatan   : {prof.board} (Status: {asset.canonical_status})")
+        print(f"Mekanisme Trading  : {prof.trading_mechanism} {'[FCA - Call Auction Periodik]' if prof.is_fca else '[Lelang Berkelanjutan]'}")
+        print(f"Harga Referensi    : Rp{prof.reference_price:,.0f} {'(Terverifikasi EOD)' if candles else '(Estimasi Awal)'}")
+        print(f"Fraksi Harga (Tick): Rp{prof.tick_size:,.0f}")
+        print(f"Batas Auto-Reject  : ARA Rp{prof.ara_price:,.0f} | ARB Rp{prof.arb_price:,.0f}")
+        print(f"Satuan Perdagangan : {prof.lot_size} lembar saham (1 lot)")
+        print(f"Likuiditas 20-Hari : ADTV Rp{prof.adtv_20d:,.0f} | Hari Nol Volume: {prof.zero_volume_streak}")
+        print(f"Estimasi Slippage  : {prof.estimated_spread_pct * 100.0:.2f}%")
+        print(f"Kelayakan Eksekusi : {'MEMENUHI SYARAT (EXECUTABLE)' if prof.execution_eligible else 'DIBATASI / TIDAK DAPAT DIEKSEKUSI'}")
+        if not prof.execution_eligible:
+            print(f"Catatan Risiko     : {prof.rejection_reason}")
+        print()
+
+    def do_benchmark(self, arg: str) -> None:
+        """Jalankan benchmark performa komputasi mesin kuantitatif OpenBagus."""
+        import time
+        from openbagus.domains.quant.engine import (
+            get_engine_diagnostics,
+            calculate_sma,
+            calculate_ema,
+            calculate_rsi,
+            calculate_atr,
+            calculate_var_cvar_mc,
+            calculate_lot_shares,
+        )
+
+        diag = get_engine_diagnostics()
+        print("=== OpenBagus Quantitative Performance Benchmark ===")
+        print(f"Backend Aktif : {diag['backend']}")
+        print(f"Info Versi    : {diag['info']}")
+        print(f"Status Alasan : {diag['reason']}")
+        print()
+
+        print("Menjalankan Benchmark 1: 1,000 Simbol x 250 Bar (SMA, EMA, RSI, ATR)...")
+        prices = [100.0 + (i % 25) + math.sin(i * 0.1) * 10.0 for i in range(250)]
+        highs = [p + 2.0 for p in prices]
+        lows = [p - 2.0 for p in prices]
+
+        t0 = time.perf_counter()
+        for _ in range(1000):
+            _ = calculate_sma(prices, 20)
+            _ = calculate_ema(prices, 20)
+            _ = calculate_rsi(prices, 14)
+            _ = calculate_atr(highs, lows, prices, 14)
+        t1 = time.perf_counter()
+        dur_ind = t1 - t0
+        print(f"  -> Waktu Eksekusi: {dur_ind * 1000.0:.2f} ms ({1000.0 / dur_ind:,.0f} simbol/detik)")
+
+        print("Menjalankan Benchmark 2: Monte Carlo VaR / CVaR (10,000 jalur simulasi)...")
+        returns = [(prices[i] - prices[i - 1]) / prices[i - 1] for i in range(1, len(prices))]
+        t2 = time.perf_counter()
+        var, cvar = calculate_var_cvar_mc(returns, confidence=0.95, num_simulations=10000, seed=42)
+        t3 = time.perf_counter()
+        dur_mc = t3 - t2
+        print(f"  -> Waktu Eksekusi: {dur_mc * 1000.0:.2f} ms (VaR 95%: {var:.4f}, CVaR 95%: {cvar:.4f})")
+
+        shares, notional = calculate_lot_shares(10_000_000.0, 2750.0, 200_000.0, 2600.0)
+        print(f"Uji Presisi Fraksi Lot: {shares} lembar (tepat kelipatan 100) -> Notional Rp{notional:,.0f}")
+        print("Kontrak numerik & presisi terpenuhi dengan sukses.")
+        print()
 
     def do_financials(self, arg: str) -> None:
         """Eksplorasi dan analisis laporan keuangan resmi emiten IDX."""

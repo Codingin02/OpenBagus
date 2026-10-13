@@ -84,6 +84,15 @@ class DailyBriefData:
     special_monitoring_count: int = 0
     suspended_count: int = 0
     is_market_closed: bool = False
+    material_disclosures: list[str] = field(default_factory=list)
+    large_cap_setups: list[str] = field(default_factory=list)
+    mid_cap_setups: list[str] = field(default_factory=list)
+    small_micro_setups: list[str] = field(default_factory=list)
+    ipo_acceleration_watch: list[str] = field(default_factory=list)
+    special_monitoring_watch: list[str] = field(default_factory=list)
+    negative_catalyst_alerts: list[str] = field(default_factory=list)
+    rejected_setups: list[str] = field(default_factory=list)
+    coverage_warnings: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return asdict(self)
@@ -98,51 +107,63 @@ class DailyBriefGenerator:
     def select_dynamic_watchlist(
         self,
         user_watchlist: list[tuple[str, str]] | None = None,
-        max_items: int = 7,
+        max_items: int = 12,
     ) -> list[tuple[str, str]]:
-        """Dynamically selects candidate assets across sectors without defaulting solely to blue chips."""
+        """Dynamically selects all-cap candidates across tiers and boards without blue-chip bias."""
         if user_watchlist:
             return user_watchlist
 
         from openbagus.domains.equities.catalog import EquityCatalog
         from openbagus.domains.equities.data import EquityData
+        from openbagus.domains.equities.events import CorporateEventManager
+
         catalog = EquityCatalog(self.root)
         eq_data = EquityData(self.root)
+        event_mgr = CorporateEventManager(self.root)
 
         selected: list[tuple[str, str]] = []
-        # 1. Search locally imported equity files
+
+        # 1. Prioritize symbols with recent material announcements
+        recent_events = event_mgr.get_latest_events(limit=5)
+        for ev in recent_events:
+            if (ev.ticker, "EQUITY_ID") not in selected and len(selected) < 3:
+                selected.append((ev.ticker, "EQUITY_ID"))
+
+        # 2. Add candidates with local EOD data across diverse tiers
         local_symbols = set()
         if eq_data.directory.exists():
             for p in sorted(eq_data.directory.glob("*.json")):
                 if p.stem.upper() not in ("CATALOG", "RULES"):
                     local_symbols.add(p.stem.upper())
 
-        # Group local symbols by sector for diversity
-        by_sec: dict[str, list[str]] = {}
         for sym in sorted(local_symbols):
-            asset = catalog.resolve(sym)
-            sec = asset.sector_code if asset else "UNKNOWN"
-            by_sec.setdefault(sec, []).append(sym)
+            if (sym, "EQUITY_ID") not in selected and len(selected) < max_items - 2:
+                selected.append((sym, "EQUITY_ID"))
 
-        for sec in sorted(by_sec.keys()):
-            for s in by_sec[sec]:
-                if (s, "EQUITY_ID") not in selected and len(selected) < max_items - 2:
-                    selected.append((s, "EQUITY_ID"))
+        # 3. If needed, sample across acceleration/development boards and diverse sectors
+        if len(selected) < max_items - 2:
+            for a in catalog.assets:
+                if a.asset_type == "EQUITY_ID" and a.canonical_board in ("ACCELERATION", "DEVELOPMENT"):
+                    if (a.symbol, "EQUITY_ID") not in selected:
+                        selected.append((a.symbol, "EQUITY_ID"))
+                        break
+
+            for a in catalog.assets:
+                if a.asset_type == "EQUITY_ID" and a.is_special_monitoring:
+                    if (a.symbol, "EQUITY_ID") not in selected:
+                        selected.append((a.symbol, "EQUITY_ID"))
+                        break
+
+            for sec_code in ("A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K"):
+                for a in catalog.assets:
+                    if a.asset_type == "EQUITY_ID" and a.sector_code == sec_code:
+                        if (a.symbol, "EQUITY_ID") not in selected:
+                            selected.append((a.symbol, "EQUITY_ID"))
+                            break
+                if len(selected) >= max_items - 2:
                     break
 
-        # 2. If fewer candidates with local data, pick across multiple sectors (including third-liners)
-        if len(selected) < max_items - 2:
-            sectors_order = ["A", "C", "D", "F", "G", "I", "K", "B", "E", "H", "J"]
-            for sec_code in sectors_order:
-                candidates = [a.symbol for a in catalog.assets if a.sector_code == sec_code and a.asset_type == "EQUITY_ID"]
-                for sym in candidates:
-                    if (sym, "EQUITY_ID") not in selected:
-                        selected.append((sym, "EQUITY_ID"))
-                        break
-                    if len(selected) >= max_items - 2:
-                        break
-
-        # 3. Add Crypto benchmarks
+        # 4. Crypto benchmarks
         selected.append(("BTC", "CRYPTO"))
         selected.append(("ETH", "CRYPTO"))
         return selected[:max_items]
@@ -161,18 +182,19 @@ class DailyBriefGenerator:
         if s_type not in ("MORNING", "EVENING"):
             s_type = "MORNING"
 
-        is_weekend = now_wib.weekday() >= 5  # Saturday=5, Sunday=6
+        is_weekend = now_wib.weekday() >= 5
 
-        # 1. Universe Metrics from Catalog
         from openbagus.domains.equities.catalog import EquityCatalog
         from openbagus.domains.equities.data import EquityData
         from openbagus.domains.equities.policy import EquityMarketPolicy
         from openbagus.domains.crypto.quant import QuantEngine
+        from openbagus.domains.equities.events import CorporateEventManager
 
         catalog = EquityCatalog(self.root)
         eq_data = EquityData(self.root)
         policy = EquityMarketPolicy(self.root)
         quant = QuantEngine()
+        event_mgr = CorporateEventManager(self.root)
 
         total_catalog = len(catalog.assets)
         common_eqs = sum(1 for a in catalog.assets if a.asset_type == "EQUITY_ID")
@@ -180,10 +202,9 @@ class DailyBriefGenerator:
         suspended = sum(1 for a in catalog.assets if a.is_suspended)
         local_data_count = len(list(eq_data.directory.glob("*.json"))) if eq_data.directory.exists() else 0
 
-        # Dynamic Watchlist Selection
-        active_list = watchlist or self.select_dynamic_watchlist(user_watchlist=watchlist, max_items=7)
+        active_list = watchlist or self.select_dynamic_watchlist(user_watchlist=watchlist, max_items=12)
 
-        # 2. Macro Calendar Integration (Real Events Only)
+        # Macro Calendar Integration
         macro_lines: list[str] = []
         try:
             from openbagus.intelligence.macro.events import MacroEventManager
@@ -198,9 +219,22 @@ class DailyBriefGenerator:
         if not macro_lines:
             macro_lines.append("Tidak ada agenda rilis data makro berdampak tinggi yang terjadwal dalam 48 jam ke depan.")
 
-        # 3. Watchlist Analysis (Real Data Only; No Fake Prices or Multipliers)
+        # Disclosures
+        material_disclosures: list[str] = []
+        for ev in event_mgr.get_latest_events(limit=5):
+            material_disclosures.append(f"[{ev.effective_date}] {ev.ticker}: {ev.event_title} ({ev.verification_status})")
+        if not material_disclosures:
+            material_disclosures.append("Belum ada keterbukaan informasi material baru yang tercatat.")
+
         items: list[DailyBriefItem] = []
         top_setups: list[str] = []
+        large_setups: list[str] = []
+        mid_setups: list[str] = []
+        small_micro_setups: list[str] = []
+        ipo_acc_watch: list[str] = []
+        spec_mon_watch: list[str] = []
+        negative_alerts: list[str] = []
+        rejected_setups: list[str] = []
         screened_sectors_set: set[str] = set()
 
         for sym, a_type in active_list:
@@ -215,26 +249,41 @@ class DailyBriefGenerator:
                 data = eq_data.load(sym) if asset else {}
                 candles = data.get("candles", []) if isinstance(data, dict) else []
 
+                if asset and asset.is_special_monitoring:
+                    spec_mon_watch.append(f"{sym}: Papan Pemantauan Khusus (FCA) — Likuiditas call auction periodik, eksekusi continuous dibatasi.")
+                if asset and asset.is_suspended:
+                    negative_alerts.append(f"{sym}: Suspensi perdagangan sementara oleh Bursa — Tidak dapat dieksekusi.")
+                if asset and b_name in ("ACCELERATION", "NEW_IPO"):
+                    ipo_acc_watch.append(f"{sym} ({b_name}): Auto-rejection maksimal 10%, fraksi harga flat Rp 1.")
+
                 if candles:
                     c_now = float(candles[-1]["close"])
                     c_prev = float(candles[-2]["close"]) if len(candles) >= 2 else c_now
                     chg = ((c_now - c_prev) / c_prev * 100.0) if c_prev > 0 else 0.0
                     obs_date = str(candles[-1].get("open_at", ""))[:10]
 
-                    # Genuine technical levels from price action
                     if len(candles) >= 20:
                         s_val = min(float(c["low"]) for c in candles[-20:])
                         r_val = max(float(c["high"]) for c in candles[-20:])
                         levels = f"Support: Rp{s_val:,.0f} | Resistance: Rp{r_val:,.0f}"
                     else:
-                        levels = "Data historis tidak cukup untuk level teknikal"
+                        levels = "Data historis terbatas"
 
-                    # Authoritative Quant Evaluation
                     q_res = quant.evaluate_equity(sym, data, policy)
                     decision = q_res.decision if q_res.price else q_res.decision_status
                     reason = q_res.decision_reason or "Menunggu konfirmasi volume dan breakout"
+
+                    desc_line = f"{sym} ({tier_name}): {decision} — {reason}"
                     if decision in ("BUY", "HOLD/BUY"):
                         top_setups.append(f"{sym}: Skenario swing beli terkonfirmasi (R:R {q_res.reward_risk:.1f}x) batas invalidasi Rp{q_res.stop_loss:,.0f}")
+                        if tier_name == "LARGE_CAP":
+                            large_setups.append(desc_line)
+                        elif tier_name == "MID_CAP":
+                            mid_setups.append(desc_line)
+                        else:
+                            small_micro_setups.append(desc_line)
+                    else:
+                        rejected_setups.append(f"{sym}: {decision} — {reason}")
 
                     items.append(DailyBriefItem(
                         asset=sym,
@@ -251,7 +300,6 @@ class DailyBriefGenerator:
                         data_quality="VERIFIED_EOD",
                     ))
                 else:
-                    # Honest missing data reporting
                     items.append(DailyBriefItem(
                         asset=sym,
                         asset_type="EQUITY_ID",
@@ -267,7 +315,6 @@ class DailyBriefGenerator:
                         data_quality="NO_DATA",
                     ))
             else:
-                # Crypto reference values (Real Data Check)
                 items.append(DailyBriefItem(
                     asset=sym,
                     asset_type="CRYPTO",
@@ -283,26 +330,30 @@ class DailyBriefGenerator:
                     data_quality="AWAITING_LIVE_QUOTE",
                 ))
 
-        # Truthful top setups: Never fabricate canned recommendations
         if not top_setups:
-            top_setups.append("Tidak ada setup perdagangan tervalidasi pada data yang tersedia.")
+            top_setups.append("Tidak ada setup perdagangan terkonfirmasi pada data EOD yang tersedia.")
 
-        # 4. Contextual Narratives (Factual only, no invented macroeconomic claims)
         if is_weekend:
             ihsg_summary = f"Pasar Tutup (Akhir Pekan): Perdagangan reguler BEI libur. Menampilkan analisis pengamatan penutupan EOD terakhir ({len(items)} aset dipantau)."
-            crypto_summary = "Pasar Kripto / Bitcoin Akhir Pekan: Likuiditas pasar berjalan 24/7; waspadai potensi gap pembukaan bursa tradisional."
+            crypto_summary = "Pasar Kripto 24/7: Likuiditas pasar berjalan kontinu; waspadai potensi gap pembukaan bursa reguler."
         elif s_type == "MORNING":
-            ihsg_summary = f"Pra-Pembukaan Sesi 1 (07:30 WIB): Menampilkan pengamatan EOD sesi terakhir ({len(items)} aset dipantau lintas sektor). Disiplin rencana perdagangan sebelum open."
-            crypto_summary = "Ringkasan Aset Kripto / Bitcoin Overnight: Pasar beroperasi kontinu; pantau keselarasan volatilitas pasar global."
+            ihsg_summary = f"Pra-Pembukaan Sesi 1 (07:30 WIB): Pengamatan EOD terakhir ({len(items)} aset dipantau lintas sektor dan tier kapitalisasi)."
+            crypto_summary = "Ringkasan Aset Kripto Overnight (Bitcoin & Altcoins): Pasar beroperasi kontinu; pantau korelasi silang risiko makro."
         else:
-            ihsg_summary = f"Penutupan Perdagangan (17:00 WIB): Evaluasi penutupan pasar domestik ({len(items)} instrumen dipantau). Periksa realisasi setup dan evaluasi batas risiko."
-            crypto_summary = "Tinjauan Sesi Sore Kripto / Bitcoin: Transisi menuju sesi likuiditas Amerika Serikat; evaluasi korelasi silang portofolio."
+            ihsg_summary = f"Penutupan Perdagangan (17:00 WIB): Evaluasi penutupan pasar domestik ({len(items)} instrumen dipantau). Disiplin stop-loss."
+            crypto_summary = "Tinjauan Sesi Sore (Pasar Kripto): Likuiditas pasar memasuki sesi AS; tinjau rotasi portofolio."
 
         checklist = [
             "Verifikasi likuiditas dan status perdagangan sebelum eksekusi (hindari saham tersuspensi).",
             "Disiplin batas risiko maksimal 2.0% modal per trade (posisi dibatalkan jika 1 lot melebihi anggaran risiko).",
             "Periksa konfirmasi breakout volume pada emiten kandidat sebelum entry.",
             "Pantau agenda makro terjadwal untuk antisipasi volatilitas tak terduga.",
+        ]
+
+        cov_warnings = [
+            f"Cakupan Katalog: {common_eqs} emiten terdaftar resmi.",
+            f"Data EOD Lokal Tersedia: {local_data_count} emiten.",
+            f"Kesenjangan Data (Data Gap): {max(0, common_eqs - local_data_count)} emiten belum memiliki riwayat EOD lokal; tidak ada harga fiktif yang digenerasi.",
         ]
 
         return DailyBriefData(
@@ -323,6 +374,15 @@ class DailyBriefGenerator:
             special_monitoring_count=spec_mon,
             suspended_count=suspended,
             is_market_closed=is_weekend,
+            material_disclosures=material_disclosures,
+            large_cap_setups=large_setups or ["Tidak ada setup Large-Cap terkonfirmasi."],
+            mid_cap_setups=mid_setups or ["Tidak ada setup Mid-Cap terkonfirmasi."],
+            small_micro_setups=small_micro_setups or ["Tidak ada setup Small/Micro-Cap terkonfirmasi."],
+            ipo_acceleration_watch=ipo_acc_watch or ["Tidak ada pergerakan anomali pada papan akselerasi/IPO hari ini."],
+            special_monitoring_watch=spec_mon_watch or ["Tidak ada emiten pemantauan khusus dalam pantauan aktif."],
+            negative_catalyst_alerts=negative_alerts or ["Tidak ada pengumuman katalis negatif berdampak tinggi."],
+            rejected_setups=rejected_setups or ["Semua kandidat aktif memenuhi kriteria filter awal."],
+            coverage_warnings=cov_warnings,
         )
 
 
@@ -336,19 +396,19 @@ def render_brief_markdown(brief: DailyBriefData) -> str:
         f"# OPENBAGUS — {tag}",
         f"**Tanggal:** {brief.date_str}  |  **Waktu Rilis:** {brief.generated_at}  |  **Status:** Draf Tersimpan",
         "",
-        "## 1. Konteks Makroekonomi & Pasar",
+        "## 1. Market Overview & Makroekonomi",
         f"- **IHSG & Pasar Domestik:** {brief.ihsg_context}",
         f"- **Pasar Kripto:** {brief.crypto_context}",
-        f"- **Cakupan Semesta:** {brief.total_active_equities} emiten katalog | {brief.equities_with_data} data EOD | Papan Khusus: {brief.special_monitoring_count} | Suspen: {brief.suspended_count} | Sektor: {', '.join(brief.screened_sectors) if brief.screened_sectors else 'Semua'}",
+        f"- **Cakupan Semesta:** {brief.total_active_equities} emiten katalog | {brief.equities_with_data} data EOD | Papan Khusus: {brief.special_monitoring_count} | Suspen: {brief.suspended_count}",
         "",
-        "## 2. Agenda Rilis Data Makro Terjadwal",
+        "## 2. New Material Disclosures (Keterbukaan Informasi)",
     ]
-    for ev in brief.macro_events:
-        lines.append(f"- {ev}")
+    for md in brief.material_disclosures:
+        lines.append(f"- {md}")
 
     lines.extend([
         "",
-        "## 3. Matriks Pengamatan Aset Unggulan (Watchlist)",
+        "## 3. Matriks Pengamatan Aset Unggulan (All-Cap Watchlist)",
         "| Aset | Tipe | Harga Referensi | Papan / Tier | Status Quant | Rencana & Batas Kunci |",
         "| :--- | :--- | :--- | :--- | :--- | :--- |",
     ])
@@ -362,17 +422,58 @@ def render_brief_markdown(brief: DailyBriefData) -> str:
 
     lines.extend([
         "",
-        "## 4. Peluang & Skenario Perdagangan (Actionable Setups)",
+        "## 4. Large-Cap Opportunities",
     ])
-    for s in brief.top_setups:
+    for s in brief.large_cap_setups:
         lines.append(f"- {s}")
 
     lines.extend([
         "",
-        "## 5. Protokol Manajemen Risiko",
+        "## 5. Mid-Cap Opportunities",
     ])
-    for r in brief.risk_checklist:
-        lines.append(f"- [x] {r}")
+    for s in brief.mid_cap_setups:
+        lines.append(f"- {s}")
+
+    lines.extend([
+        "",
+        "## 6. Small/Micro-Cap Opportunities",
+    ])
+    for s in brief.small_micro_setups:
+        lines.append(f"- {s}")
+
+    lines.extend([
+        "",
+        "## 7. New IPO & Acceleration-Board Watch",
+    ])
+    for s in brief.ipo_acceleration_watch:
+        lines.append(f"- {s}")
+
+    lines.extend([
+        "",
+        "## 8. Special-Monitoring Risk Watch (FCA)",
+    ])
+    for s in brief.special_monitoring_watch:
+        lines.append(f"- {s}")
+
+    lines.extend([
+        "",
+        "## 9. Negative Catalyst Alerts & Rejected Setups",
+    ])
+    for a in brief.negative_catalyst_alerts:
+        lines.append(f"- [PERINGATAN] {a}")
+    for r in brief.rejected_setups[:5]:
+        lines.append(f"- [DITOLAK] {r}")
+
+    lines.extend([
+        "",
+        "## 10. Data Coverage Warnings & Risk Protocol",
+    ])
+    for cw in brief.coverage_warnings:
+        lines.append(f"- {cw}")
+    for rc in brief.risk_checklist:
+        lines.append(f"- [x] {rc}")
+
+    return "\n".join(lines)
 
     return "\n".join(lines)
 

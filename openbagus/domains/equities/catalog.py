@@ -128,6 +128,9 @@ class EquityAsset:
     hierarchy: list[str] = field(default_factory=list)
     listing_date: str = ""
     shares_outstanding: float = 0.0
+    trading_mechanism: str = "CONTINUOUS"
+    delisting_date: str = ""
+    verification_date: str = "2026-10-14"
 
     @property
     def id(self) -> str:
@@ -148,6 +151,34 @@ class EquityAsset:
     @property
     def canonical_status(self) -> str:
         return normalize_listing_status(self.listing_status)
+
+    @property
+    def canonical_mechanism(self) -> str:
+        """Determines official trading mechanism based on board, status, and configuration."""
+        if self.is_suspended:
+            return "SUSPENDED"
+        if self.canonical_status == "DELISTED":
+            return "DELISTED"
+        if self.canonical_board == "SPECIAL_MONITORING":
+            return "PERIODIC_CALL_AUCTION"
+        mech = str(self.trading_mechanism).strip().upper()
+        if mech in ("PERIODIC_CALL_AUCTION", "CALL_AUCTION", "FCA"):
+            return "PERIODIC_CALL_AUCTION"
+        if mech in ("CASH_MARKET", "NEGOTIATED_MARKET"):
+            return mech
+        return "CONTINUOUS"
+
+    @property
+    def research_eligible(self) -> bool:
+        """All legitimate listed securities are research-eligible without market cap gates."""
+        return True
+
+    @property
+    def execution_eligible(self) -> bool:
+        """Suspended, delisted, or unverified instruments are not eligible for live execution."""
+        if self.is_suspended or self.canonical_status in ("SUSPENDED", "DELISTED"):
+            return False
+        return True
     @property
     def categories(self) -> list[str]:
         if self.sector_code in SECTORS:
@@ -492,6 +523,17 @@ class EquityCatalog:
             return [a for a in self.assets if q in a.board.lower()][:limit]
         return [a for a in self.assets if a.canonical_board == b_target][:limit]
 
+    def all_universe(self, include_indices: bool = False, include_delisted: bool = True) -> list[EquityAsset]:
+        """Returns all research-eligible assets in the catalog without market capitalization gates."""
+        assets = []
+        for a in self.assets:
+            if not include_indices and a.asset_type == "INDEX_ID":
+                continue
+            if not include_delisted and a.canonical_status == "DELISTED":
+                continue
+            assets.append(a)
+        return assets
+
     def by_status(self, status_query: str, limit: int = 100) -> list[EquityAsset]:
         s_target = normalize_listing_status(status_query)
         if s_target == "UNKNOWN":
@@ -500,9 +542,18 @@ class EquityCatalog:
         return [a for a in self.assets if a.canonical_status == s_target][:limit]
 
     def by_tier(self, tier_query: str, price_lookup: dict[str, float] | None = None, limit: int = 100) -> list[EquityAsset]:
+        return self.by_cap_tier(tier_query, price_lookup, limit)
+
+    def by_cap_tier(self, tier_query: str, price_lookup: dict[str, float] | None = None, limit: int = 1000) -> list[EquityAsset]:
+        """Filter universe by analytical market cap tier (LARGE_CAP, MID_CAP, SMALL_CAP, MICRO_CAP, UNKNOWN_CAP)."""
         t_clean = tier_query.strip().upper()
         prices = price_lookup or {}
         return [a for a in self.assets if a.asset_type == "EQUITY_ID" and a.cap_tier(prices.get(a.symbol)) == t_clean][:limit]
+
+    def by_mechanism(self, mechanism_query: str, limit: int = 1000) -> list[EquityAsset]:
+        """Filter universe by trading mechanism (CONTINUOUS, PERIODIC_CALL_AUCTION, SUSPENDED, DELISTED)."""
+        m_target = mechanism_query.strip().upper()
+        return [a for a in self.assets if a.canonical_mechanism == m_target][:limit]
 
     def search_third_liners(self, sector: str | None = None, price_lookup: dict[str, float] | None = None, limit: int = 100) -> list[EquityAsset]:
         prices = price_lookup or {}
