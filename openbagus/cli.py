@@ -1461,11 +1461,15 @@ class OpenBagusShell(cmd.Cmd):
         print("     /export word [asset]   export native Microsoft Word (.docx) report with DrawingML")
         print("     /export html [asset]   export interactive HTML research report to disk")
         print("     /integrations          inspect status of optional TradingView MCP bridge & tools")
-        print("  3. Indonesian Equities & Universe:")
+        print("  3. Equities & Financial Intelligence (IDX & US SEC EDGAR):")
         print("     /stocks [cmd]          explore full IDX universe (search, sector, info, ipo, fetch, sync)")
         print("     /financials [cmd]      read authentic P&L, balance sheet, cash flows, audit status & citations")
         print("     /valuation <ticker>    calculate multiples (PER/PBV/EV), DuPont ROE & DCF scenario matrix")
+        print("     /dcf <ticker>          intrinsic valuation with 3 scenarios and 2D sensitivity matrices")
+        print("     /sec <ticker> [mode]   zero-key US SEC EDGAR filing intelligence (CIK, 10-K, 10-Q XBRL facts)")
+        print("     /compare <t1> <t2>     side-by-side fundamental & valuation comparison table")
         print("     /fcf <ticker>          waterfall Free Cash Flow (OCF - Capex) or banking sector exclusion")
+        print("     /job [list|status]     inspect background browser engine & document download jobs")
         print("     /data [import|fetch]   import authorized local CSV/XLSX/XBRL/PDF or fetch live online EOD")
         print("     /ownership [asset]     view shareholder concentration & KSEI disclosures")
         print("  4. Quantitative Strategies & Validation:")
@@ -2345,9 +2349,9 @@ class OpenBagusShell(cmd.Cmd):
             if candles:
                 price = candles[-1].get("close")
 
-        if not price:
-            print(f"Quote harga pasar untuk {sym} belum tersedia di data lokal. Menggunakan harga indikatif Rp1.000.")
-            price = 1000.0
+        if not price or price <= 0:
+            print(f"Quote harga pasar untuk {sym} belum tersedia. Metrik berbasis harga (PER, PBV, EV, Market Cap) ditandai N/A; rasio fundamental tetap dihitung.")
+            price = None
 
         sector = data.get("sector") or (stmt.get("sector") or "")
         history = storage.get_history(sym, max_periods=2)
@@ -2357,18 +2361,24 @@ class OpenBagusShell(cmd.Cmd):
         dupont_res = dupont_analysis(stmt, previous_statement=prev_stmt)
         quality_res = evaluate_earnings_quality(stmt)
         dcf_res = dcf_scenario_model(stmt, price, sector=sector)
+        cur = stmt.get("currency", "IDR")
 
+        price_disp = f"{cur} {price:,.2f}" if (price and cur == "USD") else (f"Rp{price:,.0f}" if price else "N/A (Tidak tersedia)")
         print(f"=== Analisis Valuasi & Kualitas Laba {sym} ===")
-        print(f"Periode Laporan: {stmt.get('period')} | Harga As-Of: Rp{price:,.0f}")
+        print(f"Periode Laporan: {stmt.get('period')} | Harga As-Of: {price_disp} | Mata Uang: {cur}")
 
         mults = multiples_res.get("multiples", {})
         print("\n[ Multiples Valuasi Pasar ]")
-        if "EPS_IDR" in mults:
-            print(f"  - EPS: Rp{mults['EPS_IDR']:,.2f}")
+        eps_key = f"EPS_{cur}"
+        if eps_key in mults:
+            print(f"  - EPS: {cur} {mults[eps_key]:,.2f}")
         if "PER" in mults and mults["PER"] is not None:
             print(f"  - Price to Earnings (PER): {mults['PER']:.2f}x")
         elif "PER_note" in mults:
             print(f"  - Price to Earnings (PER): {mults['PER_note']}")
+        bvps_key = f"BVPS_{cur}"
+        if bvps_key in mults:
+            print(f"  - BVPS: {cur} {mults[bvps_key]:,.2f}")
         if "PBV" in mults and mults["PBV"] is not None:
             print(f"  - Price to Book Value (PBV): {mults['PBV']:.2f}x")
         elif "PBV_note" in mults:
@@ -2396,13 +2406,13 @@ class OpenBagusShell(cmd.Cmd):
         print(f"Model: {dcf_res.get('model_type')}")
         scenarios = dcf_res.get("scenarios", {})
         for sc_name, sc in scenarios.items():
-            mos = sc.get("margin_of_safety_pct", 0)
-            mos_str = f"+{mos:.1f}%" if mos > 0 else f"{mos:.1f}%"
-            print(f"  - Skenario {sc_name:<5s}: Nilai Wajar Rp{sc.get('intrinsic_value_per_share', 0):,.0f} | Margin of Safety: {mos_str}")
+            mos = sc.get("margin_of_safety_pct")
+            mos_str = f"{mos}%" if isinstance(mos, str) else (f"+{mos:.1f}%" if mos and mos > 0 else (f"{mos:.1f}%" if mos is not None else "N/A"))
+            print(f"  - Skenario {sc_name:<5s}: Nilai Wajar {cur} {sc.get('intrinsic_value_per_share', 0):,.2f} | Margin of Safety: {mos_str}")
 
-        if "sensitivity_matrix" in dcf_res:
+        if "sensitivity_wacc_terminal_growth" in dcf_res:
             print("\n[ Matriks Sensitivitas WACC vs Pertumbuhan Terminal ]")
-            s_mat = dcf_res["sensitivity_matrix"]
+            s_mat = dcf_res["sensitivity_wacc_terminal_growth"]
             if s_mat:
                 cols = list(s_mat[0].keys())
                 header_str = " | ".join(f"{c:<10s}" for c in cols)
@@ -2491,6 +2501,152 @@ class OpenBagusShell(cmd.Cmd):
             yield_pct = (fcf / market_cap) * 100.0
             print(f"Kapitalisasi Pasar: Rp{market_cap * mult:,.0f}")
             print(f"Yield Arus Kas Bebas (FCF Yield): {yield_pct:.2f}%")
+        print()
+
+    def do_dcf(self, arg: str) -> None:
+        """Analisis valuasi intrinsik DCF lengkap dengan 2 matriks sensitivitas 2D."""
+        parts = arg.strip().split()
+        if not parts:
+            print("Gunakan: /dcf <ticker>")
+            return
+        sym = parts[0].upper()
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        from openbagus.domains.equities.valuation import dcf_scenario_model
+        storage = FinancialStatementStorage(REPO_ROOT)
+        store = EquityData(REPO_ROOT)
+        data = store.load(sym, auto_fetch=True)
+        stmt = storage.get_statement(sym) or data.get("fundamentals")
+        if not stmt:
+            print(f"Laporan keuangan untuk {sym} belum tersedia.")
+            return
+
+        quote = data.get("quote", {})
+        price = quote.get("price") or (quote.get("close") if "close" in quote else None)
+        sector = data.get("sector") or stmt.get("sector") or ""
+        dcf_res = dcf_scenario_model(stmt, price, sector=sector)
+        cur = dcf_res.get("currency", "IDR")
+
+        print(f"=== Discounted Cash Flow (DCF) & Sensitivity Valuation: {sym} ===")
+        print(f"Model: {dcf_res.get('model_type')}")
+        price_disp = f"{cur} {price:,.2f}" if (price and cur == "USD") else (f"Rp{price:,.0f}" if price else "N/A (Harga tidak tersedia)")
+        print(f"Harga Pasar Terkini: {price_disp}")
+        print("\n[ Skenario Valuasi Intrinsik ]")
+        scenarios = dcf_res.get("scenarios", {})
+        for sc_name, sc in scenarios.items():
+            mos = sc.get("margin_of_safety_pct")
+            mos_str = f"{mos}%" if isinstance(mos, str) else (f"+{mos:.1f}%" if mos and mos > 0 else (f"{mos:.1f}%" if mos is not None else "N/A"))
+            print(f"  * Skenario {sc_name:<5s}: Nilai Wajar {cur} {sc.get('intrinsic_value_per_share', 0):,.2f} | Margin of Safety: {mos_str}")
+
+        if "sensitivity_wacc_terminal_growth" in dcf_res:
+            print("\n[ Matriks Sensitivitas 1: WACC vs Terminal Growth Rate ]")
+            s_mat = dcf_res["sensitivity_wacc_terminal_growth"]
+            if s_mat:
+                cols = list(s_mat[0].keys())
+                header_str = " | ".join(f"{c:<10s}" for c in cols)
+                print(f"  {header_str}")
+                print("  " + "-" * len(header_str))
+                for row in s_mat:
+                    row_str = " | ".join(f"{row[c]:<10}" for c in cols)
+                    print(f"  {row_str}")
+
+        if "sensitivity_margin_revenue_growth" in dcf_res:
+            print("\n[ Matriks Sensitivitas 2: Operating Margin vs Pertumbuhan Pendapatan ]")
+            s_mat2 = dcf_res["sensitivity_margin_revenue_growth"]
+            if s_mat2:
+                cols2 = list(s_mat2[0].keys())
+                header_str2 = " | ".join(f"{c:<14s}" for c in cols2)
+                print(f"  {header_str2}")
+                print("  " + "-" * len(header_str2))
+                for row in s_mat2:
+                    row_str2 = " | ".join(f"{row[c]:<14}" for c in cols2)
+                    print(f"  {row_str2}")
+        print()
+
+    def do_sec(self, arg: str) -> None:
+        """Eksplorasi dan integrasi data pengarsipan resmi US SEC EDGAR (Zero-Key)."""
+        parts = arg.strip().split()
+        if not parts:
+            print("Gunakan: /sec <ticker> [facts|submissions]")
+            return
+        sym = parts[0].upper()
+        mode = parts[1].lower() if len(parts) > 1 else "facts"
+        from openbagus.domains.equities.sec_edgar import SecEdgarClient
+        sec = SecEdgarClient(REPO_ROOT)
+        cik = sec.resolve_ticker(sym)
+        if not cik:
+            print(f"Ticker US '{sym}' tidak ditemukan dalam katalog resmi SEC EDGAR.")
+            return
+
+        print(f"=== SEC EDGAR Filing Intelligence: {sym} (CIK {cik:010d}) ===")
+        print(f"User-Agent Resmi: {sec.user_agent}")
+        print(f"Portal SEC EDGAR : https://www.sec.gov/edgar/browse/?CIK={cik:010d}")
+
+        if mode == "submissions":
+            subs = sec.get_submissions(cik)
+            if subs:
+                recent = subs.get("filings", {}).get("recent", {})
+                forms = recent.get("form", [])
+                filing_dates = recent.get("filingDate", [])
+                accns = recent.get("accessionNumber", [])
+                print("\n10 Dokumen Pengarsipan Terkini:")
+                for i in range(min(10, len(forms))):
+                    print(f"  - {forms[i]:<10s} | Tanggal: {filing_dates[i]} | Accn: {accns[i]}")
+            else:
+                print("Pengarsipan tidak dapat diakses dari API SEC saat ini.")
+        else:
+            stmts = sec.extract_canonical_statements(sym)
+            if stmts:
+                print(f"\n{len(stmts)} Periode Laporan Keuangan Kanonikal Ditemukan:")
+                for s in stmts[-5:]:
+                    rev = f"USD {s.revenue:,.0f}" if s.revenue else "-"
+                    ni = f"USD {s.net_income_attributable:,.0f}" if s.net_income_attributable else "-"
+                    ocf = f"USD {s.operating_cash_flow:,.0f}" if s.operating_cash_flow else "-"
+                    fcf = f"USD {s.free_cash_flow:,.0f}" if s.free_cash_flow else "-"
+                    print(f"  * {s.period:<8s} ({s.audit_status:<8s}): Rev={rev} | Net Income={ni} | FCF={fcf}")
+            else:
+                print(f"Belum ada fakta XBRL kanonikal yang diekstraksi untuk {sym}.")
+        print()
+
+    def do_compare(self, arg: str) -> None:
+        """Bandingkan metrik fundamental beberapa saham berdampingan."""
+        parts = [p.upper() for p in arg.strip().split()]
+        if len(parts) < 2:
+            print("Gunakan: /compare <ticker1> <ticker2> [ticker3 ...]")
+            return
+        cmd = f"Bandingkan valuasi {' dan '.join(parts)}"
+        req = self.router.parse(cmd, session=self.session)
+        res = self.researcher.execute(req, session=self.session)
+        print(res)
+        print()
+
+    def do_job(self, arg: str) -> None:
+        """Periksa status antrean background browser engine dan worker."""
+        parts = arg.strip().split()
+        sub = parts[0].lower() if parts else "list"
+        from openbagus.domains.equities.browser_worker import BrowserWorkerManager
+        mgr = BrowserWorkerManager(REPO_ROOT)
+        if sub == "status" and len(parts) > 1:
+            job_id = parts[1]
+            job = mgr.get_job(job_id)
+            if not job:
+                print(f"Job {job_id} tidak ditemukan.")
+                return
+            print(f"=== Background Job Status: {job.job_id} ===")
+            print(f"Emiten  : {job.symbol} | Status: [{job.state}] ({job.progress_pct}%)")
+            print(f"Pesan   : {job.message}")
+            print(f"URL     : {job.target_url}")
+            if job.downloaded_files:
+                print(f"Berkas  : {', '.join(job.downloaded_files)}")
+            if job.error:
+                print(f"Error   : {job.error}")
+        else:
+            jobs = mgr.list_jobs(limit=10)
+            if not jobs:
+                print("Tidak ada tugas latar belakang yang tercatat saat ini.")
+            else:
+                print("=== Daftar Tugas Latar Belakang Terkini ===")
+                for j in jobs:
+                    print(f"  * {j.job_id:<18s} | {j.symbol:<6s} | [{j.state:<12s}] {j.progress_pct}% | {j.message}")
         print()
 
     def do_export(self, arg: str) -> None:

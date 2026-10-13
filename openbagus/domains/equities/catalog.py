@@ -93,6 +93,23 @@ def source_url(value: str) -> str:
     return value
 
 
+US_ANCHOR_STOCKS = {
+    "AAPL": ("Apple Inc.", "Technology", "NASDAQ"),
+    "MSFT": ("Microsoft Corporation", "Technology", "NASDAQ"),
+    "GOOGL": ("Alphabet Inc.", "Communication Services", "NASDAQ"),
+    "GOOG": ("Alphabet Inc.", "Communication Services", "NASDAQ"),
+    "AMZN": ("Amazon.com, Inc.", "Consumer Cyclical", "NASDAQ"),
+    "NVDA": ("NVIDIA Corporation", "Technology", "NASDAQ"),
+    "META": ("Meta Platforms, Inc.", "Communication Services", "NASDAQ"),
+    "TSLA": ("Tesla, Inc.", "Consumer Cyclical", "NASDAQ"),
+    "JPM": ("JPMorgan Chase & Co.", "Financial Services", "NYSE"),
+    "BAC": ("Bank of America Corporation", "Financial Services", "NYSE"),
+    "WMT": ("Walmart Inc.", "Consumer Defensive", "NYSE"),
+    "DIS": ("The Walt Disney Company", "Communication Services", "NYSE"),
+    "NFLX": ("Netflix, Inc.", "Communication Services", "NASDAQ"),
+}
+
+
 @dataclass
 class EquityAsset:
     symbol: str
@@ -131,10 +148,15 @@ class EquityAsset:
     @property
     def canonical_status(self) -> str:
         return normalize_listing_status(self.listing_status)
-
     @property
     def categories(self) -> list[str]:
-        return [SECTORS[self.sector_code][0]] if self.sector_code in SECTORS else ["IDX Index"]
+        if self.sector_code in SECTORS:
+            return [SECTORS[self.sector_code][0]]
+        if self.industry:
+            return [self.industry]
+        if self.asset_type == "EQUITY_US":
+            return ["US Equities"]
+        return ["IDX Index"]
 
     @property
     def sector_or_category(self) -> str:
@@ -386,8 +408,55 @@ class EquityCatalog:
         self.path.write_text(json.dumps([asdict(a) for a in self.assets if a.effective_date], indent=2), encoding="utf-8")
         return len(assets)
 
-    def resolve(self, term: str) -> EquityAsset | None:
-        return next((a for a in self.assets if a.matches(term.strip())), None)
+    def resolve(self, term: str, allow_us: bool = False) -> EquityAsset | None:
+        clean = term.strip().upper()
+        is_explicit_us = False
+        for prefix in ("US:", "NASDAQ:", "NYSE:", "SEC:"):
+            if clean.startswith(prefix):
+                clean = clean[len(prefix):].strip()
+                is_explicit_us = True
+                break
+
+        # 1. Match IDX assets
+        matched = next((a for a in self.assets if a.matches(term.strip())), None)
+        if matched and not is_explicit_us:
+            return matched
+
+        # 2. Match US Anchor stocks or SEC mapping if allowed or explicitly requested
+        if allow_us or is_explicit_us:
+            if clean in US_ANCHOR_STOCKS:
+                name, industry, exchange = US_ANCHOR_STOCKS[clean]
+                return EquityAsset(
+                    symbol=clean,
+                    name=name,
+                    industry=industry,
+                    board="US_MAIN",
+                    listing_status="TRADING_ACTIVE",
+                    currency="USD",
+                    exchange_or_chain=exchange,
+                    asset_type="EQUITY_US",
+                    source=f"https://www.sec.gov/edgar/browse/?CIK={clean}",
+                )
+            # Match SEC EDGAR CIK mapping
+            try:
+                from openbagus.domains.equities.sec_edgar import SecEdgarClient
+                sec = SecEdgarClient(self.root)
+                cik = sec.resolve_ticker(clean)
+                if cik:
+                    return EquityAsset(
+                        symbol=clean,
+                        name=f"{clean} (US Listed)",
+                        industry="US Equity",
+                        board="US_MAIN",
+                        listing_status="TRADING_ACTIVE",
+                        currency="USD",
+                        exchange_or_chain="US",
+                        asset_type="EQUITY_US",
+                        source=f"https://www.sec.gov/edgar/browse/?CIK={clean}",
+                    )
+            except Exception:
+                pass
+        return None
 
     def search(self, query: str, limit: int = 50) -> list[EquityAsset]:
         q = query.strip().lower()

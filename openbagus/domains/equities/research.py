@@ -195,6 +195,171 @@ def _render_equity_followup(runner, session, asset, packet, quant, query: str) -
     lower = query.lower()
     english = session.language == "EN" if session else False
 
+    # 0a. Complete Financial Statement Breakdown (Bedah laporan keuangan)
+    if re.search(r"\b(?:bedah\s+laporan(?:nya)?|laporan\s+keuangan(?:nya)?|financial\s+statement|pos\s+keuangan)\b", lower):
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        storage = FinancialStatementStorage(runner.root)
+        stmt = storage.get_statement(asset.symbol)
+        if not stmt and packet and getattr(packet, "fundamentals", None):
+            stmt = packet.fundamentals
+        if stmt:
+            v = stmt.get("values", {})
+            cur = stmt.get("currency", "IDR")
+            unit = stmt.get("unit", "million_IDR" if cur == "IDR" else "USD")
+            period = stmt.get("period", "-")
+            basis = stmt.get("basis", "konsolidasi")
+            audit = stmt.get("audit_status", "-")
+            lines = [
+                f"=== Bedah Laporan Keuangan {asset.symbol} ({asset.name}) — {period} ({basis}) ===",
+                f"Sektor: {asset.categories[0]} | Bursa: {asset.exchange_or_chain} | Audit: {audit}",
+                f"Mata Uang / Unit: {cur} ({unit}) | Sumber: {stmt.get('source', '-')}",
+                "",
+                "[ Laba Rugi / Income Statement ]",
+                f"  - Pendapatan Bersih (Revenue) : {v.get('revenue', 0):,.0f}" if v.get('revenue') is not None else "  - Revenue: -",
+                f"  - Beban Pokok (COGS)          : {v.get('cost_of_revenue', 0):,.0f}" if v.get('cost_of_revenue') is not None else "  - COGS: -",
+                f"  - Laba Kotor (Gross Profit)   : {v.get('gross_profit', 0):,.0f}" if v.get('gross_profit') is not None else "  - Gross Profit: -",
+                f"  - Laba Operasional (EBIT)     : {v.get('operating_income', 0):,.0f}" if v.get('operating_income') is not None else "  - EBIT: -",
+                f"  - Laba Bersih Total           : {v.get('net_income_total', v.get('net_income', 0)):,.0f}" if (v.get('net_income_total') or v.get('net_income')) is not None else "  - Net Income: -",
+                f"  - Laba Diatribusikan ke Induk : {v.get('net_income_attributable', 0):,.0f}" if v.get('net_income_attributable') is not None else "  - Attributable Net Income: -",
+                "",
+                "[ Neraca / Balance Sheet ]",
+                f"  - Kas & Setara Kas            : {v.get('cash_and_equivalents', 0):,.0f}" if v.get('cash_and_equivalents') is not None else "  - Kas: -",
+                f"  - Piutang Usaha               : {v.get('trade_receivables', 0):,.0f}" if v.get('trade_receivables') is not None else "  - Piutang: -",
+                f"  - Persediaan                  : {v.get('inventories', 0):,.0f}" if v.get('inventories') is not None else "  - Persediaan: -",
+                f"  - Jumlah Aset Lancar          : {v.get('current_assets', 0):,.0f}" if v.get('current_assets') is not None else "  - Aset Lancar: -",
+                f"  - TOTAL ASET                  : {v.get('total_assets', 0):,.0f}" if v.get('total_assets') is not None else "  - Total Aset: -",
+                f"  - Utang Berbunga              : {v.get('interest_bearing_debt', 0):,.0f}" if v.get('interest_bearing_debt') is not None else "  - Utang Berbunga: -",
+                f"  - Jumlah Liabilitas           : {v.get('total_liabilities', 0):,.0f}" if v.get('total_liabilities') is not None else "  - Total Liabilitas: -",
+                f"  - Ekuitas Entitas Induk       : {v.get('equity_attributable', 0):,.0f}" if v.get('equity_attributable') is not None else "  - Ekuitas Induk: -",
+                f"  - TOTAL EKUITAS               : {v.get('total_equity', v.get('equity', 0)):,.0f}" if (v.get('total_equity') or v.get('equity')) is not None else "  - Total Ekuitas: -",
+                "",
+                "[ Arus Kas / Cash Flow ]",
+                f"  - Arus Kas Operasi (OCF)      : {v.get('operating_cash_flow', 0):,.0f}" if v.get('operating_cash_flow') is not None else "  - OCF: -",
+                f"  - Belanja Modal (Capex)       : {abs(v.get('capital_expenditure', 0)):,.0f}" if v.get('capital_expenditure') is not None else "  - Capex: -",
+                f"  - Free Cash Flow (FCF)        : {v.get('free_cash_flow', (v.get('operating_cash_flow', 0) - abs(v.get('capital_expenditure', 0)))):,.0f}" if (v.get('operating_cash_flow') and v.get('capital_expenditure')) is not None else "  - FCF: -",
+            ]
+            if stmt.get("validation_notes"):
+                lines.append("\n[ Catatan Rekonsiliasi Akuntansi ]")
+                for note in stmt["validation_notes"]:
+                    lines.append(f"  * {note}")
+            return "\n".join(lines)
+        return f"Laporan keuangan untuk {asset.symbol} belum diimpor ke penyimpanan lokal."
+
+    # 0b. Intrinsic Value & DCF valuation
+    if re.search(r"\b(?:intrinsic\s+value|nilai\s+intrinsik|dcf|valuasi\s+intrinsik)\b", lower):
+        from openbagus.domains.equities.valuation import dcf_scenario_model
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        storage = FinancialStatementStorage(runner.root)
+        stmt = storage.get_statement(asset.symbol) or (packet.fundamentals if packet else None)
+        if stmt:
+            dcf_res = dcf_scenario_model(stmt, price=quant.price, sector=asset.categories[0])
+            if dcf_res.get("status") == "COMPLETED":
+                cur = dcf_res.get("currency", "IDR")
+                lines = [
+                    f"=== Valuasi Intrinsik {asset.symbol} ({dcf_res['model_type']}) ===",
+                    f"Harga Pasar Terkini: {cur} {quant.price:,.2f}" if quant.price else f"Harga Pasar Terkini: {cur} N/A (Harga tidak tersedia)",
+                    "",
+                    "Skenario Proyeksi:",
+                ]
+                for sc_name, sc_data in dcf_res.get("scenarios", {}).items():
+                    iv_val = sc_data['intrinsic_value_per_share']
+                    mos_val = sc_data['margin_of_safety_pct']
+                    lines.append(f"  * {sc_name:<6}: Nilai Intrinsik = {cur} {iv_val:,.2f} | Margin of Safety = {mos_val}%")
+                if "sensitivity_wacc_terminal_growth" in dcf_res:
+                    lines.append("\nMatriks Sensitivitas (WACC vs Terminal Growth):")
+                    for r in dcf_res["sensitivity_wacc_terminal_growth"][:3]:
+                        w_pct = r.get("wacc_pct")
+                        row_vals = ", ".join(f"{k}: {v:,.0f}" for k, v in r.items() if k != "wacc_pct")
+                        lines.append(f"  - WACC {w_pct}% -> {row_vals}")
+                return "\n".join(lines)
+        return f"Data fundamental untuk perhitungan valuasi intrinsik {asset.symbol} belum lengkap."
+
+    # 0c. Solvency & Debt safety analysis
+    if re.search(r"\b(?:utang(?:nya)?\s+aman|solvabilitas|apakah\s+utang|der(?:nya)?\s+aman)\b", lower):
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        storage = FinancialStatementStorage(runner.root)
+        stmt = storage.get_statement(asset.symbol) or (packet.fundamentals if packet else None)
+        if stmt:
+            v = stmt.get("values", {})
+            cur = stmt.get("currency", "IDR")
+            t_debt = v.get("interest_bearing_debt") or v.get("total_liabilities") or 0.0
+            eq = v.get("equity_attributable") or v.get("equity") or v.get("total_equity") or 0.0
+            cash = v.get("cash_and_equivalents") or 0.0
+            ebit = v.get("operating_income") or 0.0
+            interest = v.get("interest_expense") or v.get("finance_costs") or 0.0
+            der = (t_debt / eq) if eq > 0 else None
+            net_debt = t_debt - cash
+            int_cov = (ebit / interest) if interest > 0 else None
+
+            lines = [
+                f"=== Analisis Keamanan Utang & Solvabilitas {asset.symbol} ===",
+                f"  - Utang Berbunga / Total Kewajiban : {cur} {t_debt:,.0f}",
+                f"  - Kas & Setara Kas                 : {cur} {cash:,.0f}",
+                f"  - Net Debt (Utang Bersih)          : {cur} {net_debt:,.0f}",
+                f"  - Total Ekuitas                    : {cur} {eq:,.0f}",
+                f"  - Debt to Equity (DER)             : {der:.2f}x" if der is not None else "  - DER: N/A",
+                f"  - Interest Coverage (EBIT / Bunga) : {int_cov:.2f}x" if int_cov is not None else "  - Interest Coverage: N/A",
+                "",
+                "Kesimpulan Solvabilitas:",
+            ]
+            if der is not None and der < 1.0 and (int_cov is None or int_cov > 3.0):
+                lines.append(f"  * AMAN: Rasio DER {der:.2f}x berada di bawah 1.0x dan posisi kas/coverage memadai.")
+            elif der is not None and der < 2.0:
+                lines.append(f"  * MODERAT: Rasio DER {der:.2f}x dalam rentang wajar industri, pantau jatuh tempo utang.")
+            elif der is not None:
+                lines.append(f"  * WASPADA: Rasio leverage relatif tinggi (DER {der:.2f}x), periksa likuiditas kas.")
+            else:
+                lines.append("  * Posisi utang memerlukan rincian liabilitas lebih lanjut.")
+            return "\n".join(lines)
+        return f"Data neraca utang untuk {asset.symbol} belum tersedia."
+
+    # 0d. Earnings quality & cash conversion analysis
+    if re.search(r"\b(?:laba\s+naik.*arus\s+kas|laba\s+naik.*ocf|kualitas\s+laba|earnings\s+quality)\b", lower):
+        from openbagus.domains.equities.valuation import evaluate_earnings_quality
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        storage = FinancialStatementStorage(runner.root)
+        stmt = storage.get_statement(asset.symbol) or (packet.fundamentals if packet else None)
+        if stmt:
+            eq_res = evaluate_earnings_quality(stmt)
+            lines = [
+                f"=== Evaluasi Kualitas Laba & Divergensi Kas {asset.symbol} ===",
+                f"Rasio Konversi Kas (OCF / Laba Bersih): {eq_res.get('cash_conversion_ratio', 'N/A')}x",
+                f"Rasio Akrual Neraca                   : {eq_res.get('accruals_to_assets', 'N/A')}",
+                f"Penilaian                             : {eq_res.get('assessment', '-')}",
+                "",
+                "Penyebab Umum Divergensi Laba vs Arus Kas:",
+                "  1. Kenaikan Piutang Usaha (Revenue diakui secara akrual, tetapi pelanggan belum membayar kas).",
+                "  2. Penumpukan Persediaan / Modal Kerja (Kas keluar untuk memproduksi barang yang belum terjual).",
+                "  3. Keuntungan Non-Kas (misal keuntungan selisih kurs yang belum terealisasi atau revaluasi aset).",
+            ]
+            return "\n".join(lines)
+        return f"Data arus kas dan laba bersih untuk {asset.symbol} belum tersedia."
+
+    # 0e. Capital Expenditure breakdown
+    if re.search(r"\b(?:breakdown\s+capex|capital\s+expenditure|belanja\s+modal)\b", lower):
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        storage = FinancialStatementStorage(runner.root)
+        stmt = storage.get_statement(asset.symbol) or (packet.fundamentals if packet else None)
+        if stmt:
+            v = stmt.get("values", {})
+            cur = stmt.get("currency", "IDR")
+            unit = stmt.get("unit", "million_IDR" if cur == "IDR" else "USD")
+            capex = abs(v.get("capital_expenditure", 0)) if v.get("capital_expenditure") is not None else None
+            ocf = v.get("operating_cash_flow")
+            rev = v.get("revenue")
+            lines = [
+                f"=== Rincian Belanja Modal (Capex) {asset.symbol} ({stmt.get('period', '')}) ===",
+                f"Mata Uang / Unit: {cur} ({unit})",
+                f"  - Belanja Modal (Capex)      : {capex:,.0f}" if capex is not None else "  - Capex: N/A",
+                f"  - Arus Kas Operasi (OCF)     : {ocf:,.0f}" if ocf is not None else "  - OCF: N/A",
+                f"  - Intensitas Capex-to-OCF    : {(capex / ocf * 100):.1f}%" if (capex is not None and ocf and ocf > 0) else "  - Capex / OCF: N/A",
+                f"  - Intensitas Capex-to-Revenue: {(capex / rev * 100):.1f}%" if (capex is not None and rev and rev > 0) else "  - Capex / Revenue: N/A",
+                f"  - Free Cash Flow (FCF)       : {(ocf - capex):,.0f}" if (capex is not None and ocf is not None) else "  - FCF: N/A",
+                f"Sumber Dokumen: {stmt.get('source', '-')}",
+            ]
+            return "\n".join(lines)
+        return f"Data belanja modal untuk {asset.symbol} belum tersedia."
+
     # 1. Rate / macro transmission impact follow-up (answerable conceptually even if quote has source gap)
     if re.search(r"\b(?:suku bunga|bi.?rate|rate|dampak|pengaruh|makro|inflasi|jisdor)\b", lower):
         return equity_context(asset, query, packet=packet)
@@ -432,9 +597,48 @@ def run_equity_research(runner, req, session=None) -> str:
             for code, names in sorted(SECTORS.items()):
                 lines.append(f"  {code}. {names[0]} / {names[1]}")
             return "\n".join(lines)
+    if req.request_type == "COMPARE" and len(req.target_assets) >= 2:
+        from openbagus.domains.equities.storage import FinancialStatementStorage
+        from openbagus.domains.equities.valuation import calculate_valuation_multiples
+        storage = FinancialStatementStorage(runner.root)
+        comp_rows = []
+        for sym in req.target_assets:
+            a = runner.assets.equities.resolve(sym)
+            if not a:
+                continue
+            d = EquityData(runner.root).load(a.symbol, auto_fetch=True)
+            stmt = d.get("fundamentals") or storage.get_statement(a.symbol)
+            q_px = d.get("quote", {}).get("price")
+            m_res = calculate_valuation_multiples(stmt, price=q_px, sector=a.categories[0]) if stmt else {}
+            mults = m_res.get("multiples", {})
+            ratios = m_res.get("ratios", {})
+            cur = m_res.get("currency", "IDR")
+            comp_rows.append({
+                "symbol": a.symbol,
+                "name": a.name,
+                "price": f"{cur} {q_px:,.0f}" if q_px else "N/A",
+                "per": f"{mults.get('PER', '-'):.2f}x" if isinstance(mults.get("PER"), (int, float)) else (mults.get("PER_note") or "-"),
+                "pbv": f"{mults.get('PBV', '-'):.2f}x" if isinstance(mults.get("PBV"), (int, float)) else (mults.get("PBV_note") or "-"),
+                "roe": f"{ratios.get('ROE_pct', '-'):.2f}%" if isinstance(ratios.get("ROE_pct"), (int, float)) else "-",
+                "der": f"{ratios.get('Debt_to_Equity', '-'):.2f}x" if isinstance(ratios.get("Debt_to_Equity"), (int, float)) else "-",
+                "opm": f"{ratios.get('Operating_Margin_pct', '-'):.2f}%" if isinstance(ratios.get("Operating_Margin_pct"), (int, float)) else "-",
+                "period": stmt.get("period", "-") if stmt else "-",
+            })
+
+        if comp_rows:
+            lines = [
+                f"=== Perbandingan Fundamental Saham ({', '.join(r['symbol'] for r in comp_rows)}) ===",
+                f"{'Emiten':<8} | {'Harga':<12} | {'PER':<10} | {'PBV':<8} | {'ROE':<8} | {'DER':<8} | {'OPM':<8} | {'Periode':<10}",
+                "-" * 85,
+            ]
+            for r in comp_rows:
+                lines.append(f"{r['symbol']:<8} | {r['price']:<12} | {r['per']:<10} | {r['pbv']:<8} | {r['roe']:<8} | {r['der']:<8} | {r['opm']:<8} | {r['period']:<10}")
+            lines.append("\nCatatan Integritas: Perbandingan bersumber dari laporan keuangan resmi masing-masing emiten.")
+            return "\n".join(lines)
+
     asset = runner.assets.equities.resolve(req.asset or "")
     if not asset:
-        return "SOURCE GAP: IDX identity unverified."
+        return "SOURCE GAP: IDX / US identity unverified."
     auto_fetch = bool(re.search(r"\b(?:analisa|analyze|prospek|valuasi|valuation|bandingkan|compare|cek|fetch|gimana|bagaimana|review|outlook)\b", req.raw_query, re.I)) or req.request_type == "COMPARE"
     data = EquityData(runner.root).load(asset.symbol, auto_fetch=auto_fetch)
     if req.request_type == "REPORT_WORD" and not data.get("quote") and not data.get("fundamentals"):

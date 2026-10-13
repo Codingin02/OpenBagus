@@ -81,6 +81,40 @@ class EquityData:
         if auto_fetch:
             fetched = self.fetch_live_data(symbol)
             if fetched and not fetched.get("gaps"):
+                catalog = EquityCatalog(self.root)
+                res_asset = catalog.resolve(symbol, allow_us=True)
+                storage = FinancialStatementStorage(self.root)
+                if res_asset and res_asset.asset_type == "EQUITY_US":
+                    if not storage.list_periods(symbol):
+                        try:
+                            from openbagus.domains.equities.sec_edgar import SecEdgarClient
+                            from openbagus.domains.equities.facts_db import FinancialFactsDatabase
+                            sec = SecEdgarClient(self.root)
+                            stmts = sec.extract_canonical_statements(symbol)
+                            facts_db = FinancialFactsDatabase(root=self.root)
+                            for stmt in stmts:
+                                storage.store_statement(stmt)
+                                for m_key, m_val in stmt.to_legacy_dict().get("values", {}).items():
+                                    if m_val is not None:
+                                        facts_db.store_fact(
+                                            symbol=symbol,
+                                            exchange=res_asset.exchange_or_chain,
+                                            period=stmt.period,
+                                            period_type=stmt.period_type,
+                                            metric_name=m_key,
+                                            value=m_val,
+                                            currency="USD",
+                                            source_provider="SEC_EDGAR",
+                                            source_url=f"https://data.sec.gov/api/xbrl/companyfacts/CIK{sec.resolve_ticker(symbol) or 0:010d}.json",
+                                        )
+                        except Exception as sec_err:
+                            pass
+                stored_periods = storage.list_periods(symbol)
+                if stored_periods:
+                    fetched["financial_history"] = stored_periods
+                    latest_stmt = storage.get_statement(symbol)
+                    if latest_stmt:
+                        fetched["fundamentals"] = latest_stmt
                 return fetched
         return {"gaps": ["SOURCE GAP: impor harga/fundamental IDX berizin belum tersedia"]}
 
@@ -88,11 +122,25 @@ class EquityData:
         sym = symbol.strip().upper()
         if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", sym):
             return {"gaps": ["INVALID_SYMBOL"]}
-        ticker = f"{sym}.JK"
-        if sym in {"IHSG", "COMPOSITE"}:
+        catalog = EquityCatalog(self.root)
+        resolved_asset = catalog.resolve(sym, allow_us=True)
+        is_us = bool(resolved_asset and resolved_asset.asset_type == "EQUITY_US")
+        if is_us:
+            ticker = sym
+            curr = "USD"
+            board_label = "US_MAIN"
+        elif sym in {"IHSG", "COMPOSITE"}:
             ticker = "^JKSE"
+            curr = "IDR"
+            board_label = "INDEX"
         elif sym.startswith("^"):
             ticker = sym
+            curr = "IDR"
+            board_label = "INDEX"
+        else:
+            ticker = f"{sym}.JK"
+            curr = "IDR"
+            board_label = resolved_asset.canonical_board if resolved_asset else "MAIN"
         url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range={range_str}&interval=1d&events=div%2Csplit"
         headers = {"User-Agent": "OpenBagus/1.0 (Financial Terminal Research)"}
         try:
@@ -193,13 +241,13 @@ class EquityData:
                 "authorized_use": True,
                 "source": f"https://finance.yahoo.com/quote/{ticker}",
                 "retrieved_at": retrieved_at,
-                "currency": "IDR",
+                "currency": curr,
                 "volume_unit": "index_not_applicable" if is_index else "shares",
                 "timeframe": "D1",
                 "adjustment": "adjusted" if adj_arr else "unadjusted",
                 "unresolved_corporate_actions": unresolved_corp,
                 "listing_status": "ACTIVE",
-                "board": "MAIN",
+                "board": board_label,
                 "quote": {
                     "price": reg_price,
                     "previous_close": prev_close,
