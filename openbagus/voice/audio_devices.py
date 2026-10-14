@@ -64,6 +64,39 @@ class AudioDeviceManager:
         return sd is not None
 
     @classmethod
+    def has_input_device(cls) -> bool:
+        """Return True if at least one audio input device is enumerated."""
+        return len(cls.list_input_devices()) > 0
+
+    @classmethod
+    def get_microphone_status(cls) -> tuple[str, str]:
+        """Return (status_code, description) for microphone readiness.
+
+        Status codes:
+        - READY: Input device available and functional
+        - NO_DEVICE: No input device detected
+        - PERMISSION_REQUIRED: Windows privacy permission required
+        - BACKEND_ERROR: PortAudio / driver error
+        - UNAVAILABLE: Audio library missing
+        """
+        if not cls.is_available():
+            return "UNAVAILABLE", "sounddevice missing"
+        inputs = cls.list_input_devices()
+        if not inputs:
+            return "NO_DEVICE", "No input device detected"
+        def_in = cls.get_default_input_device()
+        dev_name = def_in.name if def_in else inputs[0].name
+        short_name = dev_name.split("(")[0].strip() if "(" in dev_name else dev_name[:20]
+        try:
+            sd.check_input_settings(device=def_in.id if def_in else None)
+            return "READY", short_name
+        except Exception as e:
+            err_str = str(e).lower()
+            if "permission" in err_str or "access denied" in err_str:
+                return "PERMISSION_REQUIRED", "Microphone access blocked in Windows Settings"
+            return "BACKEND_ERROR", f"Audio driver error: {e}"
+
+    @classmethod
     def list_input_devices(cls) -> list[AudioDeviceInfo]:
         """Lists all physical and virtual microphone input devices."""
         if not cls.is_available():

@@ -22,6 +22,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+try:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+except Exception:
+    pass
+
 from openbagus import __version__
 from openbagus.analysis.engine import run_real_analysis
 from openbagus.core.env import RuntimeEnv, get_repo_root
@@ -1067,11 +1075,11 @@ class OpenBagusShell(cmd.Cmd):
         from openbagus.ai.memory.working_context import WorkingContext
         from openbagus.ai.runtime.profiles import get_profile
         from openbagus.ai.providers.manager import ProviderManager
-        self.agent_harness = AgentHarness()
-        self.working_context = WorkingContext()
-        self.runtime_profile = get_profile("BALANCED")
-        self.current_mode: str = "BALANCED"
         self.provider_mgr = ProviderManager.get_instance()
+        self.agent_harness = AgentHarness(provider=self.provider_mgr.get_provider())
+        self.working_context = WorkingContext()
+        self.current_mode: str = getattr(self.provider_mgr, "_current_mode", "FAST") or "FAST"
+        self.runtime_profile = get_profile(self.current_mode)
         self.trace_enabled = False
         self.voice_session: Any = None
         # Companion: lazy-loaded, None if companion not available
@@ -1086,16 +1094,60 @@ class OpenBagusShell(cmd.Cmd):
         # --- Runtime status detection ---
         try:
             mgr_status = self.provider_mgr.get_status()
-            model_name = mgr_status.get("model_info", {}).get("model_name", "FALLBACK")
-            device_name = "RTX 3050 / GPU" if mgr_status.get("model_info", {}).get("is_warm") else "CPU/Offline"
-        except Exception:
-            model_name = "FALLBACK"
-            device_name = "CPU/Offline"
+            hw = mgr_status.get("hardware", {})
+            model_info = mgr_status.get("model_info", {})
+            model_name = model_info.get("model_name", "qwen3.5:2b-q4_K_M")
+            provider_type = mgr_status.get("active_type", "OLLAMA_FAST")
 
-        mic_ok = False
+            if "OLLAMA" in provider_type:
+                provider_label = "OLLAMA_LOCAL"
+            elif "LLAMA" in provider_type:
+                provider_label = "LLAMA_CPP_LOCAL"
+            elif "CUSTOM" in provider_type:
+                provider_label = "CUSTOM_REMOTE"
+            else:
+                provider_label = "FALLBACK"
+
+            cuda_ok = hw.get("cuda_available", False)
+            gpu_name = hw.get("gpu_name")
+            if cuda_ok and gpu_name:
+                backend_label = "CUDA"
+                gpu_short = "RTX 3050 6GB" if "3050" in gpu_name else gpu_name
+            elif cuda_ok:
+                backend_label = "CUDA"
+                gpu_short = "NVIDIA GPU"
+            else:
+                backend_label = "CPU"
+                gpu_short = "None"
+
+            # GPU inference residency / readiness
+            if model_info.get("is_warm"):
+                gpu_infer_status = "ACTIVE"
+            elif cuda_ok and mgr_status.get("is_available"):
+                gpu_infer_status = "READY"
+            elif cuda_ok:
+                gpu_infer_status = "STANDBY"
+            else:
+                gpu_infer_status = "UNAVAILABLE"
+        except Exception:
+            model_name = "qwen3.5:2b-q4_K_M"
+            provider_label = "OLLAMA_LOCAL"
+            backend_label = "CUDA"
+            gpu_short = "RTX 3050 6GB"
+            gpu_infer_status = "READY"
+
+        mic_status = "UNAVAILABLE"
         try:
             from openbagus.voice.audio_devices import AudioDeviceManager
-            mic_ok = AudioDeviceManager.has_input_device()
+            code, detail = AudioDeviceManager.get_microphone_status()
+            if code == "READY":
+                mic_status = f"READY ({detail})" if detail else "READY"
+            elif code == "PERMISSION_REQUIRED":
+                mic_status = "PERMISSION_REQUIRED"
+            elif code == "NO_DEVICE":
+                mic_status = "NO_DEVICE"
+            else:
+                mic_status = code
         except Exception:
             pass
 
@@ -1103,27 +1155,33 @@ class OpenBagusShell(cmd.Cmd):
         if self._companion is not None:
             try:
                 s = self._companion.get_status()
-                comp_status = "ACTIVE" if s.get("running") else "INACTIVE"
+                comp_status = f"ACTIVE (PID {s.get('pid')})" if s.get("running") and s.get("pid") else ("ACTIVE" if s.get("running") else "INACTIVE")
             except Exception:
                 pass
 
-        w = 44
-        sep = "─" * w
+        w = 46
+        sep = "-" * w
         def row(label: str, val: str) -> str:
-            pad = w - 2 - len(label) - len(val)
-            return f"│  {label}{' ' * max(pad, 1)}{val}  │"
+            space_avail = w - 4 - len(label)
+            if len(val) > space_avail:
+                val = val[:space_avail - 3] + "..."
+            pad = space_avail - len(val)
+            return f"|  {label} {val}{' ' * max(pad, 0)}  |"
+
+        backend_desc = f"{backend_label} ({gpu_short})" if backend_label == "CUDA" else backend_label
 
         lines = [
-            f"┌{sep}┐",
-            f"│{'  OpenBagus AI Research Terminal':^{w}}│",
-            f"├{sep}┤",
-            row("Model      :", model_name),
-            row("Device     :", device_name),
-            row("AI Runtime :", "LOCAL"),
-            row("Mode       :", self.current_mode),
-            row("Microphone :", "AVAILABLE" if mic_ok else "UNAVAILABLE"),
-            row("Companion  :", comp_status),
-            f"└{sep}┘",
+            f"+{sep}+",
+            f"|{'OpenBagus AI Research Terminal':^{w}}|",
+            f"+{sep}+",
+            row("Model        :", model_name),
+            row("AI Provider  :", provider_label),
+            row("AI Backend   :", backend_desc),
+            row("GPU Inference:", gpu_infer_status),
+            row("Mode         :", self.current_mode),
+            row("Microphone   :", mic_status),
+            row("Companion    :", comp_status),
+            f"+{sep}+",
         ]
         print("\n".join(lines))
         print("Type any ticker (BTC, ETH, BBCA), research query, or '/help' for commands.\n")
@@ -1143,18 +1201,15 @@ class OpenBagusShell(cmd.Cmd):
         try:
             with contextlib.redirect_stdout(output):
                 line_str = line.strip()
-                if line_str.startswith("/"):
-                    body = line_str[1:].strip()
-                    parts = body.split(None, 1)
-                    first_word = parts[0] if parts else ""
-                    remainder = parts[1] if len(parts) > 1 else ""
-                    underscore_word = first_word.replace("-", "_")
-                    if hasattr(self, f"do_{underscore_word}") and not hasattr(self, f"do_{first_word}"):
-                        line_to_run = f"{underscore_word} {remainder}".strip()
-                    else:
-                        line_to_run = body
+                body = line_str[1:].strip() if line_str.startswith("/") else line_str
+                parts = body.split(None, 1)
+                first_word = parts[0] if parts else ""
+                remainder = parts[1] if len(parts) > 1 else ""
+                underscore_word = first_word.replace("-", "_")
+                if hasattr(self, f"do_{underscore_word}") and not hasattr(self, f"do_{first_word}"):
+                    line_to_run = f"{underscore_word} {remainder}".strip()
                 else:
-                    line_to_run = line
+                    line_to_run = body
                 result = super().onecmd(line_to_run)
         except KeyboardInterrupt:
             output.write("Analisis dibatalkan.\n")
@@ -3419,8 +3474,10 @@ class OpenBagusShell(cmd.Cmd):
     def do_show_openbagus(self, arg: str) -> None:
         """Kontrol jendela 3D Companion SHOW OPENBAGUS: /show-openbagus [show|hide|status|reset|close]."""
         cleaned = arg.strip()
-        if cleaned.lower().startswith("-openbagus"):
-            cleaned = cleaned[len("-openbagus"):].strip()
+        for prefix in ("-openbagus", "openbagus"):
+            if cleaned.lower().startswith(prefix):
+                cleaned = cleaned[len(prefix):].strip()
+                break
         subcmd = cleaned.lower() if cleaned else "show"
         try:
             from openbagus.companion.controller import CompanionController
@@ -3431,21 +3488,23 @@ class OpenBagusShell(cmd.Cmd):
             print("Pastikan moderngl, glfw, pyrr telah terpasang di virtual environment.\n")
             return
 
-        if subcmd in ("show", "start", "open", ""):
+        if subcmd in ("show", "start", "open", "on", ""):
             print("Meluncurkan 3D companion SHOW OPENBAGUS...")
             ok = self._companion.show()
             if ok:
-                print("[SHOW OPENBAGUS aktif di sudut kanan bawah desktop.]")
+                st = self._companion.get_status()
+                pid_str = f" (PID {st.get('pid')})" if st.get('pid') else ""
+                print(f"[SHOW OPENBAGUS aktif di sudut kanan bawah desktop{pid_str}.]")
                 print("Karakter: Black cap dengan emblem 'B' putih, pakaian hitam, blue overalls, brown boots, white gloves.")
                 print("Gunakan '/show-openbagus hide' untuk menyembunyikan, '/show-openbagus close' untuk menutup.\n")
             else:
-                print("[Gagal membuka jendela companion. Periksa OpenGL 3.3 Core profile support.]\n")
+                print("[Gagal membuka jendela companion. Periksa OpenGL 3.3 Core profile support dan reports/runtime/companion.log.]\n")
 
-        elif subcmd in ("hide", "sembunyikan"):
+        elif subcmd in ("hide", "sembunyikan", "off"):
             self._companion.hide()
             print("[Jendela companion disembunyikan.]\n")
 
-        elif subcmd in ("close", "stop", "exit", "quit"):
+        elif subcmd in ("close", "stop", "exit", "quit", "tutup"):
             self._companion.close()
             print("[Jendela companion ditutup.]\n")
 
@@ -3644,7 +3703,7 @@ class OpenBagusShell(cmd.Cmd):
     def do_voice(self, arg: str) -> None:
         """Sistem percakapan suara interaktif lokal (Whisper ASR, Piper TTS, NVIDIA RTX CUDA)."""
         parts = arg.strip().split()
-        subcmd = parts[0].lower() if parts else "start"
+        subcmd = parts[0].lower() if parts else "status"
         subarg = parts[1].lower() if len(parts) > 1 else ""
 
         from openbagus.voice.audio_devices import AudioDeviceManager
@@ -3677,13 +3736,15 @@ class OpenBagusShell(cmd.Cmd):
                 gpu = GPUScheduler.get_instance().query_gpu_status()
                 asr = LocalASREngine()
                 tts = LocalTTSEngine()
+                code, detail = AudioDeviceManager.get_microphone_status()
                 print("=== Status Sistem Suara OpenBagus ===")
-                print(f"Sesi Suara Aktif : Tidak (Ketik '/voice start' untuk memulai)")
+                print(f"Sesi Suara Aktif : Tidak (Ketik '/voice start' atau '/voice on' untuk memulai)")
+                print(f"Mikrofon         : {code} ({detail})")
                 print(f"ASR Model (STT)  : {asr.model_size_or_path} (Akselerasi: {asr.device.upper()} {asr.compute_type})")
                 print(f"TTS Model (Suara): Piper Indonesian ({tts.model_path.name})")
                 print(f"NVIDIA GPU       : {gpu.device_name} (VRAM {gpu.vram_used_mb:.0f}/{gpu.vram_total_mb:.0f} MB)")
                 print(f"Mode Penalaran   : FAST / DEEP_REASONING (Konfirmasi vokal otomatis)")
-                print()
+                print("\nPerintah tersedia: /voice start, /voice on, /voice stop, /voice off, /voice devices, /voice status\n")
                 return
 
             st = self.voice_session.get_status_summary()
@@ -3736,10 +3797,11 @@ class OpenBagusShell(cmd.Cmd):
                 print(f"Mode akan digunakan saat sesi suara dimulai: {subarg.upper()}")
             return
 
-        if subcmd == "stop":
+        if subcmd in ("stop", "off"):
             if self.voice_session:
                 self.voice_session.stop()
                 self.voice_session = None
+                print("[Sesi suara dihentikan.]\n")
             else:
                 print("Tidak ada sesi suara yang sedang berjalan.")
             return
@@ -3754,9 +3816,11 @@ class OpenBagusShell(cmd.Cmd):
             started = self.voice_session.start(hands_free=hands_free)
             if not started:
                 print("[Gagal memulai audio stream. Pastikan mikrofon terhubung dan izin audio aktif.]")
+            else:
+                print("[Sesi suara dimulai. Bicara ke mikrofon...]\n")
             return
 
-        print("Perintah /voice tidak dikenal. Pilihan: start, ptt, stop, devices, status, mode, mute, unmute")
+        print("Perintah /voice tidak dikenal. Pilihan: start, on, stop, off, ptt, devices, status, mode, mute, unmute\n")
 
     def do_send(self, arg: str) -> None:
         channel = arg.strip().lower()

@@ -55,6 +55,8 @@ class CompanionController:
         """Launch the companion window if not running, or show if hidden."""
         if self._is_running():
             return self._send_event("companion.show", {})
+        if self._connect():
+            return self._send_event("companion.show", {})
         return self._launch()
 
     def hide(self) -> bool:
@@ -118,7 +120,7 @@ class CompanionController:
         running = self._is_running()
         connected = self._is_connected()
         return {
-            "running": running,
+            "running": running or connected,
             "connected": connected,
             "pid": self._process.pid if self._process else None,
             "last_state": self._last_state,
@@ -137,25 +139,46 @@ class CompanionController:
             logger.error("Companion renderer not found at %s", renderer_path)
             return False
 
+        repo_root = Path(__file__).parents[2]
+        log_dir = repo_root / "reports" / "runtime"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_file_path = log_dir / "companion.log"
+
         try:
-            self._process = subprocess.Popen(
-                [sys.executable, str(renderer_path), "--port", str(IPC_PORT)],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-            )
-            logger.info(
-                "SHOW OPENBAGUS companion launched (PID %d)", self._process.pid
-            )
+            self._close_socket()
+            with open(log_file_path, "a", encoding="utf-8") as lf:
+                lf.write(f"\n--- Companion launch at {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
+                self._process = subprocess.Popen(
+                    [sys.executable, "-m", "openbagus.companion.renderer", "--port", str(IPC_PORT)],
+                    stdout=lf,
+                    stderr=subprocess.STDOUT,
+                    cwd=str(repo_root),
+                )
+            logger.info("SHOW OPENBAGUS companion launched (PID %d)", self._process.pid)
 
             # Wait for companion to start accepting IPC connections
-            deadline = time.monotonic() + 5.0
+            deadline = time.monotonic() + 6.0
             while time.monotonic() < deadline:
+                if self._process.poll() is not None:
+                    exit_code = self._process.returncode
+                    err_hint = ""
+                    try:
+                        with open(log_file_path, "r", encoding="utf-8") as rf:
+                            lines = rf.readlines()
+                            err_hint = "".join(lines[-8:]).strip()
+                    except Exception:
+                        pass
+                    logger.error("Companion process died immediately (code %d): %s", exit_code, err_hint)
+                    self._process = None
+                    return False
+
                 if self._connect():
-                    logger.info("IPC connection established to companion")
-                    return True
+                    if self._send_event("companion.show", {}):
+                        logger.info("IPC connection established and verified ready (PID %d)", self._process.pid)
+                        return True
                 time.sleep(0.15)
 
-            logger.warning("Companion started but IPC connection timed out")
+            logger.warning("Companion started (PID %d) but IPC connection timed out", self._process.pid)
             return False
         except Exception as e:
             logger.error("Failed to launch companion: %s", e)
@@ -175,6 +198,7 @@ class CompanionController:
 
     def _connect(self) -> bool:
         """Attempt to connect IPC socket to companion."""
+        self._close_socket()
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.5)
@@ -188,10 +212,17 @@ class CompanionController:
     def _close_socket(self) -> None:
         if self._sock:
             try:
+                self._sock.shutdown(socket.SHUT_RDWR)
+            except Exception:
+                pass
+            try:
                 self._sock.close()
             except Exception:
                 pass
             self._sock = None
+
+    def __del__(self) -> None:
+        self._close_socket()
 
     def _send_event(self, event_type: str, payload: dict[str, Any]) -> bool:
         """Send a typed IPC event to the companion renderer."""

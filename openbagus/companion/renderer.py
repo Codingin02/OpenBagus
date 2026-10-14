@@ -792,9 +792,11 @@ def run_renderer(port: int) -> None:
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
     glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 3)
     glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    glfw.window_hint(glfw.VISIBLE, glfw.TRUE)
     glfw.window_hint(glfw.DECORATED, glfw.FALSE)
     glfw.window_hint(glfw.FLOATING, glfw.TRUE)       # always-on-top
     glfw.window_hint(glfw.RESIZABLE, glfw.FALSE)
+    glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
     glfw.window_hint(glfw.FOCUS_ON_SHOW, glfw.FALSE)  # don't steal focus
     if hasattr(glfw, "TRANSPARENT_FRAMEBUFFER"):
         glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, glfw.TRUE)

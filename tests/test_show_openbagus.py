@@ -143,5 +143,88 @@ class TestCompanionController(unittest.TestCase):
         self.assertIsInstance(res, bool)
 
 
+class TestCliCompanionCommands(unittest.TestCase):
+    """Verifies that interactive CLI commands (/show-openbagus, /mode, /voice) route cleanly."""
+
+    def setUp(self) -> None:
+        from openbagus.cli import OpenBagusShell
+        self.shell = OpenBagusShell()
+
+    @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
+    def test_bare_show_openbagus_command(self, mock_show: MagicMock) -> None:
+        """The bare command /show-openbagus MUST immediately trigger show() without 'Perintah tidak dikenal'."""
+        with patch("sys.stdout") as mock_stdout:
+            self.shell.onecmd("/show-openbagus")
+        mock_show.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
+    def test_explicit_show_command(self, mock_show: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/show-openbagus show")
+        mock_show.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.hide", return_value=True)
+    def test_hide_command(self, mock_hide: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/show-openbagus hide")
+        mock_hide.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.get_status", return_value={"running": True, "connected": True, "pid": 1234, "last_state": "IDLE"})
+    def test_status_command(self, mock_status: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/show-openbagus status")
+        mock_status.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.reset", return_value=True)
+    def test_reset_command(self, mock_reset: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/show-openbagus reset")
+        mock_reset.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.close", return_value=True)
+    def test_close_command(self, mock_close: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/show-openbagus close")
+        mock_close.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
+    def test_alias_and_unprefixed_routing(self, mock_show: MagicMock) -> None:
+        """Both 'show-openbagus' and '/show' must invoke show()."""
+        with patch("sys.stdout"):
+            self.shell.onecmd("show-openbagus")
+            self.shell.onecmd("/show")
+        self.assertEqual(mock_show.call_count, 2)
+
+    def test_mode_switch_fast_and_deep(self) -> None:
+        """Switching mode to fast and deep must update shell current_mode."""
+        with patch("sys.stdout"):
+            self.shell.onecmd("/mode fast")
+            self.assertEqual(self.shell.current_mode, "FAST")
+            self.shell.onecmd("/mode deep")
+            self.assertEqual(self.shell.current_mode, "DEEP_REASONING")
+
+    def test_voice_status_and_devices(self) -> None:
+        """Voice commands /voice status and /voice devices must execute without crashing."""
+        with patch("sys.stdout"):
+            self.shell.onecmd("/voice status")
+            self.shell.onecmd("/voice devices")
+
+
+class TestAudioDeviceDiagnostics(unittest.TestCase):
+    """Verifies AudioDeviceManager diagnostics and status queries."""
+
+    def test_has_input_device(self) -> None:
+        from openbagus.voice.audio_devices import AudioDeviceManager
+        # Must be a boolean and not raise AttributeError
+        res = AudioDeviceManager.has_input_device()
+        self.assertIsInstance(res, bool)
+
+    def test_get_microphone_status(self) -> None:
+        from openbagus.voice.audio_devices import AudioDeviceManager
+        code, detail = AudioDeviceManager.get_microphone_status()
+        self.assertIn(code, {"READY", "NO_DEVICE", "PERMISSION_REQUIRED", "BACKEND_ERROR", "UNAVAILABLE"})
+        self.assertIsInstance(detail, str)
+
+
 if __name__ == "__main__":
     unittest.main()
