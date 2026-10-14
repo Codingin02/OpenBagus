@@ -1,8 +1,8 @@
 # OpenBagus — Local AI & 3D Companion Resume Checkpoint
 
-**Last Updated:** 2026-10-14T18:12 WIB  
+**Last Updated:** 2026-10-14T18:55 WIB  
 **Current Branch:** `fix/financial-integrity-recovery`  
-**Current HEAD:** `d2c48cd` (feat(local-ai+companion): add Ollama thinking FAST/DEEP modes, Show OpenBagus 3D companion, and CLI upgrades)  
+**Current HEAD:** `e9650ac` (feat(companion): apply strict Super Mario 3D visual likeness with black cap, black shirt, and capital B emblem)  
 
 ---
 
@@ -17,7 +17,7 @@
 | **M5: Local Indonesian ASR** | `openbagus/voice/asr_engine.py` | Faster-Whisper CPU execution, 69ms latency, normalizer | `test_voice_conversation.py` (26/26 OK) | **VERIFIED_COMPLETE** | None |
 | **M6: Local Indonesian TTS** | `openbagus/voice/tts_engine.py` | Piper ONNX Indonesian voice, RTF ~0.45, audio playback | `test_voice_conversation.py` (26/26 OK) | **VERIFIED_COMPLETE** | None |
 | **M7: Spoken Interaction & Barge-In** | `openbagus/voice/turn_controller.py` | Real-time Silero VAD, barge-in interruption, mode negotiation | `test_voice_conversation.py` (26/26 OK) | **VERIFIED_COMPLETE** | None |
-| **M8: Show OpenBagus 3D Companion** | `openbagus/companion/renderer.py` | OpenGL (moderngl + glfw) 3D cartoon plumber: black cap with 'B' emblem, black shirt, blue overalls, brown boots, white gloves, 14 animation states | `test_show_openbagus.py` (10/10 OK) | **VERIFIED_COMPLETE** | None |
+| **M8: Show OpenBagus 3D Companion** | `openbagus/companion/renderer.py`, `docs/local_ai/screenshots/` | Strict classic Super Mario 3D visual likeness: 6-scallop moustache, bulbous nose, expressive oval blue eyes, arched brows, chubby blush cheeks, black cap with circular white badge & 3D capital "B" emblem, black shirt, blue overalls with TWO BRIGHT YELLOW BUTTONS, white gloves, brown boots. Cel-shading with Fresnel rim lighting. | `test_show_openbagus.py` (10/10 OK), 6 inspection screenshots verified | **VERIFIED_COMPLETE** | None |
 | **M9: CLI-to-3D IPC & Voice Sync** | `openbagus/companion/controller.py`, `turn_controller.py` | TCP socket port 7432, lip-sync audio RMS amplitude streaming, state events | `test_show_openbagus.py`, `turn_controller.py` | **VERIFIED_COMPLETE** | None |
 | **M10: VRAM / RAM Optimization** | `manager.py`, `hardware_audit.md` | Strict single-model residence in VRAM (< 4.2 GB peak), ASR on CPU to conserve VRAM | Hardware memory limits respected | **VERIFIED_COMPLETE** | None |
 | **M11: Financial Tools & Data Freshness** | `openbagus/cli.py`, `finance_tools.py` | 21 registered tools, 6 canonical strategies, `/data freshness` command, zero-key adapters | 25/25 harness tests passed | **VERIFIED_COMPLETE** | None |
@@ -38,5 +38,5 @@
 ## 3. Git Status
 
 - **Branch:** `fix/financial-integrity-recovery`
-- **Latest Commit:** `d2c48cd`
-- **Status:** Clean working tree. All milestones verified.
+- **Latest Commit:** `e9650ac`
+- **Status:** Clean working tree. Super Mario 3D visual correction fully applied and verified.
