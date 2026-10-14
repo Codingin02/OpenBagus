@@ -1,8 +1,8 @@
 # OpenBagus — Local AI & 3D Companion Resume Checkpoint
 
-**Last Updated:** 2026-10-14T21:18 WIB  
+**Last Updated:** 2026-10-14T21:34 WIB  
 **Current Branch:** `fix/financial-integrity-recovery`  
-**Current HEAD:** `3c84b8f` (feat(companion): replace Mario with dual-form Bagusmax synced to FAST and DEEP modes)  
+**Current HEAD:** `455c1f1` (feat(companion): implement 360 rotation, dragging, sizing, presets, and preferences persistence for Bagusmax)  
 
 ---
 
