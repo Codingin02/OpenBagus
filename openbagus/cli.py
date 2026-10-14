@@ -1307,7 +1307,79 @@ class OpenBagusShell(cmd.Cmd):
             return
 
         cmd = parts[0].lower()
-        if cmd in ("freshness", "status", "audit"):
+        if cmd == "providers":
+            from openbagus.data.registry import DataProviderRegistry
+            reg = DataProviderRegistry.get_instance(REPO_ROOT)
+            status = reg.get_registry_status()
+            print("=== Registered Data Providers (OpenBagus Live Engine) ===")
+            print(f"Total Providers: {status['total_providers']}")
+            for p_id, p_info in status["providers"].items():
+                health = p_info["health"]
+                diag = health.get("status", "UNKNOWN")
+                lat = health.get("latency_ms", 0)
+                caps = ", ".join(p_info.get("capabilities", []))
+                print(f"  • {p_info['name']} ({p_id}) [{diag}] - {lat:.1f}ms")
+                print(f"    Domains: {', '.join(p_info['supported_domains'])} | Datasets: {caps}")
+            print()
+            return
+
+        if cmd in ("coverage", "audit"):
+            ticker = parts[1].upper() if len(parts) > 1 else ""
+            from openbagus.ai.tools.finance_tools import GetDataCoverageTool
+            tool = GetDataCoverageTool()
+            res, _ = tool.run(ticker=ticker)
+            if ticker:
+                print(f"=== Status Cakupan Data Emiten {ticker} ===")
+                print(f"Nama Emiten            : {res.get('name')}")
+                print(f"Papan / Sektor         : {res.get('board')} / {res.get('sector')}")
+                print(f"Profil Emiten          : {res.get('profile_status')}")
+                print(f"Harga Pasar Harian EOD : {res.get('daily_eod_status')}")
+                print(f"Laporan Keuangan       : {res.get('financial_statements')} ({', '.join(res.get('available_periods', [])) or 'Belum ada'})")
+                print(f"Sumber Resmi           : {res.get('official_source')}")
+            else:
+                print("=== Audit Cakupan Semesta IDX (951+ Emiten) ===")
+                print(f"Total Emiten Tercatat  : {res.get('total_issuers')}")
+                print(f"Profil Emiten Tersedia : {res.get('issuers_with_profile')}")
+                print(f"EOD Tersimpan di Cache : {res.get('issuers_with_eod_cached')}")
+                print(f"Emiten Memiliki Lapkeu : {res.get('issuers_with_financials')}")
+                print(f"Total Laporan Finansial: {res.get('total_statements_stored')}")
+            print()
+            return
+
+        if cmd == "sync" and len(parts) >= 2:
+            ticker = parts[1].upper()
+            from openbagus.data.scheduler import DataSyncScheduler
+            sched = DataSyncScheduler.get_instance(REPO_ROOT)
+            print(f"Melakukan sinkronisasi data untuk {ticker}...")
+            res = sched.sync_ticker(ticker)
+            print(f"Status: {res.status} (Success: {res.success}, Latency: {res.latency_ms:.1f}ms, Records: {res.records_synced})")
+            if res.error_message:
+                print(f"Detail: {res.error_message}")
+            return
+
+        if cmd == "refresh" and len(parts) >= 2:
+            ticker = parts[1].upper()
+            from openbagus.ai.tools.finance_tools import RefreshAssetDataTool
+            tool = RefreshAssetDataTool()
+            res, _ = tool.run(ticker=ticker)
+            if res.get("refreshed"):
+                print(f"Pembaruan sukses untuk {ticker}: {res.get('candles_count')} bar daily diperbarui (Close: Rp {res.get('latest_close', 0):,.0f}).")
+            else:
+                print(f"Pembaruan gagal: {res.get('message')}")
+            return
+
+        if cmd == "scheduler":
+            from openbagus.data.scheduler import DataSyncScheduler
+            sched = DataSyncScheduler.get_instance(REPO_ROOT)
+            st = sched.get_status()
+            print("=== Status Data Sync Scheduler ===")
+            print(f"Total Syncs: {st['total_syncs']} (Sukses: {st['successful_syncs']}, Gagal: {st['failed_syncs']})")
+            print("Rate Limits Per Provider:")
+            for p, cfg in st["rate_limits"].items():
+                print(f"  • {p}: {cfg['calls_last_minute']}/{cfg['max_per_minute']} req/min (Backed-off: {cfg['is_backed_off']})")
+            return
+
+        if cmd in ("freshness", "status"):
             print("=== Status Kesegaran Data Finansial OpenBagus ===")
             cat_path = REPO_ROOT / "data" / "equities" / "idx_universe.json"
             if cat_path.exists():
@@ -1451,6 +1523,115 @@ class OpenBagusShell(cmd.Cmd):
             print(f"HISTORICAL_ANALYSIS_AVAILABLE: {asset.symbol}; current market data belum terverifikasi.")
         except (OSError, ValueError, KeyError, TypeError, EOFError) as exc:
             print(f"Impor gagal ({type(exc).__name__}); periksa schema, unit, izin, tanggal dan OHLC. Dataset existing dipertahankan.")
+
+    def do_provider(self, arg: str) -> None:
+        parts = arg.strip().split()
+        if not parts or parts[0].lower() in ("help", "?"):
+            print("Gunakan:")
+            print("  /provider list                      - Tampilkan daftar AI/Data Provider & status kredensial")
+            print("  /provider add <openai|gemini> <key> - Simpan API key secara aman di kredensial lokal")
+            print("  /provider verify <openai|gemini>    - Jalankan verifikasi 2-Level konektivitas & eksekusi")
+            print("  /provider remove <openai|gemini>    - Hapus API key dari penyimpanan kredensial")
+            return
+
+        cmd = parts[0].lower()
+        from openbagus.ai.credentials import CredentialManager
+
+        cm = CredentialManager.get_instance()
+
+        if cmd == "list":
+            print("=== Status Kredensial AI Provider (User Storage) ===")
+            creds = cm.list_credentials()
+            for p, info in creds.items():
+                print(f"  • {p.upper()}: Status: {info['status']} | Key: {info['masked_key']} (Updated: {info.get('updated_at', '-')})")
+            print()
+            return
+
+        if cmd == "add" and len(parts) >= 3:
+            p_name = parts[1].lower()
+            key_val = parts[2].strip()
+            ok, msg = cm.set_credential(p_name, key_val)
+            print(msg)
+            return
+
+        if cmd == "remove" and len(parts) >= 2:
+            p_name = parts[1].lower()
+            ok, msg = cm.delete_credential(p_name)
+            print(msg)
+            return
+
+        if cmd == "verify" and len(parts) >= 2:
+            p_name = parts[1].lower()
+            if p_name == "openai":
+                from openbagus.ai.providers.openai_provider import OpenAIProvider
+                prov = OpenAIProvider()
+                print("1. Menjalankan Verifikasi Level 1 (GET /v1/models)...")
+                v1, m1 = prov.verify_level_1()
+                print(f"   Level 1: {'SUKSES' if v1 else 'GAGAL'} - {m1}")
+                if v1:
+                    print("2. Menjalankan Verifikasi Level 2 (POST /v1/chat/completions minimal)...")
+                    v2, m2 = prov.verify_level_2()
+                    print(f"   Level 2: {'SUKSES' if v2 else 'GAGAL'} - {m2}")
+            elif p_name == "gemini":
+                from openbagus.ai.providers.gemini_provider import GeminiProvider
+                prov = GeminiProvider()
+                print("1. Menjalankan Verifikasi Level 1 (GET /v1beta/models)...")
+                v1, m1 = prov.verify_level_1()
+                print(f"   Level 1: {'SUKSES' if v1 else 'GAGAL'} - {m1}")
+                if v1:
+                    print("2. Menjalankan Verifikasi Level 2 (POST /v1beta/models/{model}:generateContent minimal)...")
+                    v2, m2 = prov.verify_level_2()
+                    print(f"   Level 2: {'SUKSES' if v2 else 'GAGAL'} - {m2}")
+            else:
+                print(f"Provider tidak didukung untuk verifikasi: {p_name}")
+            return
+
+    def do_ai(self, arg: str) -> None:
+        parts = arg.strip().split()
+        if not parts or parts[0].lower() in ("help", "?"):
+            print("Gunakan:")
+            print("  /ai routing                   - Tampilkan status routing, alokasi peran, dan guardrails biaya")
+            print("  /ai budget <usd>              - Atur batas pengeluaran bulanan Cloud ($0 default = strictly local)")
+            print("  /ai mode <fast|deep|balanced> - Ganti mode runtime model")
+            return
+
+        cmd = parts[0].lower()
+        from openbagus.ai.routing.cost_router import CostAwareModelRouter
+        router = CostAwareModelRouter.get_instance()
+
+        if cmd in ("routing", "status"):
+            st = router.get_status()
+            print("=== Status Cost-Aware Model Router & Budget ===")
+            print(f"Cloud Allowed        : {st['cloud_enabled']}")
+            print(f"Batas Biaya Bulanan  : ${st['monthly_budget_usd']:.2f} USD")
+            print(f"Pengeluaran 30 Hari  : ${st['monthly_spend_usd']:.4f} USD")
+            print(f"Sisa Anggaran        : ${st['remaining_budget_usd']:.4f} USD")
+            print(f"Total Transaksi      : {st['total_transactions']}")
+            print(f"Kredensial Terdeteksi: OpenAI={st['cloud_providers_configured']['openai']}, Gemini={st['cloud_providers_configured']['gemini']}")
+            print()
+            return
+
+        if cmd == "budget" and len(parts) >= 2:
+            try:
+                b_val = float(parts[1])
+                router.set_budget(b_val, enable_cloud=b_val > 0.0)
+                print(f"Batas anggaran Cloud berhasil diatur ke ${b_val:.2f} USD (Cloud Enabled: {b_val > 0.0}).")
+            except ValueError:
+                print("Nilai anggaran tidak valid. Masukkan angka dalam USD (misal: /ai budget 5.0).")
+            return
+
+        if cmd == "mode" and len(parts) >= 2:
+            m = parts[1].upper()
+            if m in ("FAST", "DEEP", "BALANCED"):
+                self.current_mode = m
+                if m == "FAST":
+                    self.provider_mgr.switch_to_fast()
+                elif m == "DEEP":
+                    self.provider_mgr.switch_to_deep()
+                print(f"Mode AI berhasil diubah ke: {m}")
+            else:
+                print("Mode tidak dikenal. Pilih: FAST, DEEP, atau BALANCED.")
+            return
 
     def do_macro(self, arg: str) -> None:
         from openbagus.data.indonesia_official import (

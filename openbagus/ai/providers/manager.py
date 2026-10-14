@@ -188,7 +188,19 @@ class ProviderManager:
                 think=kwargs.get("think", False),
                 keep_alive=kwargs.get("keep_alive", "30m"),
             )
-        elif pt in {"OPENAI", "REMOTE", "CUSTOM"}:
+        elif pt in {"OPENAI_OFFICIAL", "OPENAI"}:
+            from openbagus.ai.providers.openai_provider import OpenAIProvider
+            p = OpenAIProvider(
+                api_key=kwargs.get("api_key"),
+                default_model=kwargs.get("model", "gpt-4o-mini"),
+            )
+        elif pt in {"GEMINI", "GEMINI_OFFICIAL"}:
+            from openbagus.ai.providers.gemini_provider import GeminiProvider
+            p = GeminiProvider(
+                api_key=kwargs.get("api_key"),
+                default_model=kwargs.get("model", "gemini-2.5-flash"),
+            )
+        elif pt in {"REMOTE", "CUSTOM", "OPENAI_COMPAT"}:
             p = OpenAICompatibleProvider(
                 base_url=kwargs.get("base_url", "http://127.0.0.1:8000/v1"),
                 model=kwargs.get("model", "default"),

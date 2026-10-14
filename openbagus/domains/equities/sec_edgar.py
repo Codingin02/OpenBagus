@@ -311,9 +311,16 @@ class SecEdgarClient:
         self.refresh_ticker_map()
         return self._ticker_map.get(clean_sym)
 
-    def get_company_facts(self, cik: int, force_refresh: bool = False) -> dict[str, Any] | None:
+    def get_company_facts(self, cik: int | str, force_refresh: bool = False) -> dict[str, Any] | None:
         """Retrieves aggregated XBRL company facts for a CIK from data.sec.gov."""
-        cik_str = f"{cik:010d}"
+        if isinstance(cik, str) and not cik.isdigit():
+            resolved = self.resolve_ticker(cik)
+            if not resolved:
+                return None
+            cik_int = int(resolved)
+        else:
+            cik_int = int(cik)
+        cik_str = f"{cik_int:010d}"
         cache_file = self.cache_dir / f"companyfacts_CIK{cik_str}.json"
         if not force_refresh and cache_file.exists():
             try:

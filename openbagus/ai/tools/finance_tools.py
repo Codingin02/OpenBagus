@@ -181,16 +181,45 @@ class GetMarketPriceTool(BaseFinancialTool):
         target = ticker or symbol or query
         if not target and kwargs:
             target = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
+        clean_target = target.strip().upper()
+
+        # Check if target is a cryptocurrency
+        if clean_target in ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA") or clean_target.endswith("USDT") or clean_target.endswith("/USDT"):
+            from openbagus.data.zerokey import ZeroKeyMarketData
+            zk = ZeroKeyMarketData()
+            sym_clean = clean_target.replace("/USDT", "").replace("USDT", "")
+            spot = zk.get_spot_ticker(sym_clean)
+            if spot and spot.get("price") is not None:
+                p_val = float(spot["price"])
+                chg = float(spot.get("pct_change") or 0.0)
+                vol = float(spot.get("volume") or 0.0)
+                obs_dt = spot.get("observed_at", "")[:10]
+                return {
+                    "symbol": f"{sym_clean}USDT",
+                    "close": p_val,
+                    "price": p_val,
+                    "open": spot.get("open") or p_val,
+                    "high": spot.get("high") or p_val,
+                    "low": spot.get("low") or p_val,
+                    "volume": vol,
+                    "change_pct": chg,
+                    "observation_date": obs_dt,
+                    "data_quality": "VERIFIED_SPOT_CROSS_EXCHANGE" if spot.get("is_cross_confirmed") else "VERIFIED_SPOT",
+                    "currency": "USDT",
+                    "is_crypto": True,
+                    "sources": spot.get("cross_exchange_sources", [spot.get("provider", "Binance Vision")]),
+                }, {"source": spot.get("provider", "Binance Vision (Public)"), "date": obs_dt}
+
         root = get_repo_root()
         eq_data = EquityData(root)
-        data = eq_data.load(target)
+        data = eq_data.load(clean_target, auto_fetch=True)
         candles = data.get("candles", []) if isinstance(data, dict) else []
         if not candles:
             return {
-                "symbol": target.upper(),
+                "symbol": clean_target,
                 "price": None,
                 "status": "DATA_GAP",
-                "message": f"Data harga EOD lokal belum diimpor untuk {target.upper()}.",
+                "message": f"Data harga EOD lokal belum diimpor untuk {clean_target}.",
             }, {"source": "Local EOD Data", "status": "INSUFFICIENT_DATA"}
 
         last = candles[-1]
@@ -198,18 +227,20 @@ class GetMarketPriceTool(BaseFinancialTool):
         c_now = float(last.get("close", 0.0))
         c_prev = float(prev.get("close", c_now))
         chg_pct = round(((c_now - c_prev) / c_prev) * 100, 2) if c_prev > 0 else 0.0
+        obs_date = last.get("date") or (last.get("close_at", "")[:10] if last.get("close_at") else "-")
 
         return {
-            "symbol": target.upper(),
+            "symbol": clean_target,
             "close": c_now,
+            "price": c_now,
             "open": float(last.get("open", c_now)),
             "high": float(last.get("high", c_now)),
             "low": float(last.get("low", c_now)),
             "volume": float(last.get("volume", 0.0)),
             "change_pct": chg_pct,
-            "observation_date": last.get("date", "-"),
+            "observation_date": obs_date,
             "data_quality": "VERIFIED_EOD",
-        }, {"source": "Verified IDX EOD Storage", "date": last.get("date", "-")}
+        }, {"source": "Verified IDX EOD Storage", "date": obs_date}
 
 
 class GetOHLCVTool(BaseFinancialTool):
@@ -218,7 +249,7 @@ class GetOHLCVTool(BaseFinancialTool):
     parameters_schema = {
         "type": "object",
         "properties": {
-            "ticker": {"type": "string", "description": "Kode saham"},
+            "ticker": {"type": "string", "description": "Kode saham atau pair kripto"},
             "limit": {"type": "integer", "description": "Jumlah bar terakhir (default 30)"},
         },
         "required": ["ticker"],
@@ -228,19 +259,38 @@ class GetOHLCVTool(BaseFinancialTool):
         target = ticker or symbol or query
         if not target and kwargs:
             target = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
+        clean_target = target.strip().upper()
+
+        # Check if target is a cryptocurrency
+        if clean_target in ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE", "ADA") or clean_target.endswith("USDT") or clean_target.endswith("/USDT"):
+            from openbagus.data.zerokey import ZeroKeyMarketData
+            zk = ZeroKeyMarketData()
+            sym_clean = clean_target.replace("/USDT", "").replace("USDT", "")
+            klines = zk.get_klines(sym_clean, interval="1h", limit=limit)
+            if klines:
+                return {
+                    "symbol": f"{sym_clean}USDT",
+                    "count": len(klines),
+                    "bars": klines,
+                    "currency": "USDT",
+                    "is_crypto": True,
+                }, {"source": "Binance Vision (Public)", "interval": "1h"}
+
         root = get_repo_root()
         eq_data = EquityData(root)
-        data = eq_data.load(target)
+        data = eq_data.load(clean_target, auto_fetch=True)
         candles = data.get("candles", []) if isinstance(data, dict) else []
         if not candles:
-            return {"symbol": target.upper(), "bars": [], "status": "DATA_GAP"}, {"source": "Local EOD Storage"}
+            return {"symbol": clean_target, "bars": [], "status": "DATA_GAP"}, {"source": "Local EOD Storage"}
 
         sliced = candles[-limit:]
+        d_start = sliced[0].get("close_at", sliced[0].get("date", ""))[:10]
+        d_end = sliced[-1].get("close_at", sliced[-1].get("date", ""))[:10]
         return {
-            "symbol": ticker.upper(),
+            "symbol": clean_target,
             "count": len(sliced),
             "bars": sliced,
-        }, {"source": "Local EOD Storage", "range": f"{sliced[0].get('date')} s/d {sliced[-1].get('date')}"}
+        }, {"source": "Local EOD Storage", "range": f"{d_start} s/d {d_end}"}
 
 
 class GetLiquidityMetricsTool(BaseFinancialTool):
@@ -445,9 +495,9 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
         rev = vals.get("revenue") or vals.get("total_revenue", 0.0)
         gp = vals.get("gross_profit", 0.0)
         op = vals.get("operating_income") or vals.get("operating_profit", 0.0)
-        ni = vals.get("net_income") or vals.get("net_profit", 0.0)
-        debt = vals.get("total_debt") or vals.get("short_term_debt", 0.0) + vals.get("long_term_debt", 0.0)
-        equity = vals.get("total_equity", 0.0)
+        ni = vals.get("net_income") or vals.get("net_income_attributable") or vals.get("net_profit", 0.0)
+        debt = vals.get("total_debt") or (vals.get("short_term_debt", 0.0) + vals.get("long_term_debt", 0.0))
+        equity = vals.get("total_equity") or vals.get("equity_attributable", 0.0)
         ca = vals.get("current_assets", 0.0)
         cl = vals.get("current_liabilities", 0.0)
 
@@ -458,6 +508,8 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
         roe = round((ni / equity) * 100, 2) if equity > 0 else None
         cr = round(ca / cl, 2) if cl > 0 else None
 
+        reported_ratios = stmt.get("reported_ratios_pct", {})
+
         return {
             "symbol": ticker.upper(),
             "period": stmt.get("period"),
@@ -467,7 +519,8 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
             "net_margin_pct": nm,
             "roe_pct": roe,
             "current_ratio": cr,
-            "accounting_health": "Solvent" if der and der < 1.5 else "Moderate/Leveraged",
+            "reported_banking_ratios": reported_ratios if reported_ratios else None,
+            "accounting_health": "Solvent" if der is not None and der < 1.5 else "Moderate/Leveraged",
         }, {"source": "Filing Financial Calculations", "period": stmt.get("period")}
 
 
@@ -491,7 +544,7 @@ class CalculateValuationTool(BaseFinancialTool):
 
         asset = catalog.resolve(ticker)
         stmt = storage.get_statement(ticker.upper())
-        data = eq_data.load(ticker)
+        data = eq_data.load(ticker, auto_fetch=True)
         candles = data.get("candles", []) if isinstance(data, dict) else []
         last_px = float(candles[-1]["close"]) if candles else None
 
@@ -533,7 +586,7 @@ class CompareCompanyFundamentalsTool(BaseFinancialTool):
         for sym in tickers:
             s_upper = sym.upper()
             stmt = storage.get_statement(s_upper)
-            data = eq_data.load(s_upper)
+            data = eq_data.load(s_upper, auto_fetch=True)
             candles = data.get("candles", []) if isinstance(data, dict) else []
             last_px = float(candles[-1]["close"]) if candles else None
 
@@ -904,8 +957,124 @@ class CalculatePositionSizingTool(BaseFinancialTool):
         }, {"source": "IDX Microstructure Risk Sizing"}
 
 
+class GetMacroSeriesTool(BaseFinancialTool):
+    name = "get_macro_series"
+    description = (
+        "Mengambil data makroekonomi resmi: Inflasi IHK (CPI), Pertumbuhan PDB, "
+        "Neraca Perdagangan Indonesia, dan Kurs Acuan JISDOR Bank Indonesia."
+    )
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "series": {
+                "type": "string",
+                "enum": ["CPI", "INFLASI", "GDP", "PDB", "TRADE", "JISDOR"],
+                "description": "Indikator makro yang diinginkan.",
+            }
+        },
+        "required": ["series"],
+    }
+
+    def run(self, series: str = "CPI", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        from openbagus.data.registry import DataProviderRegistry
+        reg = DataProviderRegistry.get_instance()
+        prov = reg.select_best_provider("MACRO", "macro_series")
+        if not prov:
+            return {"error": "Penyedia data makro tidak tersedia."}, {"source": "MacroEngine"}
+
+        res = prov.fetch_macro_series(series)
+        if res.success:
+            return res.data, {"source": res.provider_id, "quality": res.quality_status, "as_of": res.as_of}
+        return {"error": res.error_message}, {"source": res.provider_id}
+
+
+class RefreshAssetDataTool(BaseFinancialTool):
+    name = "refresh_asset_data"
+    description = "Melakukan sinkronisasi dan pembaruan paksa data pasar dan profil emiten langsung dari penyedia data."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "ticker": {"type": "string", "description": "Kode saham IDX atau pair kripto"},
+            "timeframe": {"type": "string", "description": "Timeframe data (default D1)"},
+        },
+        "required": ["ticker"],
+    }
+
+    def run(self, ticker: str, timeframe: str = "D1", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        clean = ticker.strip().upper()
+        root = get_repo_root()
+        eq_data = EquityData(root)
+        fresh_data = eq_data.fetch_live_data(clean, save=True)
+        if fresh_data.get("gaps"):
+            return {
+                "symbol": clean,
+                "refreshed": False,
+                "message": f"Gagal memperbarui data {clean}: {fresh_data.get('gaps')}",
+            }, {"source": "LiveSyncEngine", "status": "FAILED"}
+
+        candles = fresh_data.get("candles", [])
+        return {
+            "symbol": clean,
+            "refreshed": True,
+            "candles_count": len(candles),
+            "latest_close": candles[-1]["close"] if candles else None,
+            "retrieved_at": fresh_data.get("retrieved_at"),
+            "source": fresh_data.get("source"),
+        }, {"source": "LiveSyncEngine", "status": "SUCCESS"}
+
+
+class GetDataCoverageTool(BaseFinancialTool):
+    name = "get_data_coverage"
+    description = "Memeriksa audit ketersediaan data (profil, harga EOD, lapkeu, keterbukaan informasi) per emiten atau semesta IDX."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "ticker": {"type": "string", "description": "Kode saham spesifik (opsional)"},
+        },
+    }
+
+    def run(self, ticker: str = "", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        root = get_repo_root()
+        catalog = EquityCatalog(root)
+        storage = FinancialStatementStorage(root)
+        eq_data = EquityData(root)
+
+        if ticker:
+            clean = ticker.strip().upper()
+            asset = catalog.resolve(clean)
+            cached_path = eq_data.directory / f"{clean}.json"
+            has_eod = cached_path.exists()
+            periods = storage.list_periods(clean)
+            return {
+                "symbol": clean,
+                "name": asset.name if asset else "UNKNOWN",
+                "board": asset.canonical_board if asset else "UNKNOWN",
+                "sector": asset.sector_or_category if asset else "UNKNOWN",
+                "profile_status": "AVAILABLE" if asset else "NOT_FOUND",
+                "daily_eod_status": "AVAILABLE" if has_eod else "DATA_GAP",
+                "financial_statements": "AVAILABLE" if periods else "DATA_GAP",
+                "available_periods": periods,
+                "official_source": "IDX Listing & Local EOD Storage",
+            }, {"source": "DataCoverageEngine", "symbol": clean}
+
+        # Universe level coverage summary
+        stats = catalog.get_universe_stats()
+        summary = storage.get_coverage_summary()
+        eod_files = list(eq_data.directory.glob("*.json")) if eq_data.directory.exists() else []
+
+        return {
+            "total_issuers": stats.get("common_equities", 951),
+            "issuers_with_profile": stats.get("total_instruments", 968),
+            "issuers_with_eod_cached": len(eod_files),
+            "issuers_with_financials": len(summary["symbols"]),
+            "total_statements_stored": summary["total_statements"],
+            "boards_breakdown": stats["boards"],
+            "sectors_breakdown": stats["sectors"],
+        }, {"source": "DataCoverageEngine", "universe": "ALL_IDX"}
+
+
 def register_all_financial_tools(registry: ToolRegistry) -> None:
-    """Registers all 20+ authoritative financial tools with the tool registry."""
+    """Registers all 24+ authoritative financial tools with the tool registry."""
     tools = [
         ResolveSecurityTool(),
         GetIDXUniverseTool(),
@@ -928,6 +1097,9 @@ def register_all_financial_tools(registry: ToolRegistry) -> None:
         RunBacktestTool(),
         CalculatePortfolioRiskTool(),
         CalculatePositionSizingTool(),
+        GetMacroSeriesTool(),
+        RefreshAssetDataTool(),
+        GetDataCoverageTool(),
     ]
     for t in tools:
         registry.register(t)

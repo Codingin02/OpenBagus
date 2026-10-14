@@ -14,6 +14,8 @@ from openbagus.data.http import SecureHttpClient, validate_finite_number
 
 
 class ZeroKeyMarketData:
+    _instance: ZeroKeyMarketData | None = None
+
     def __init__(
         self,
         timeout: float = 3.5,
@@ -23,6 +25,12 @@ class ZeroKeyMarketData:
         self.timeout = timeout
         self.http = http_client or SecureHttpClient(timeout=timeout)
         self.cache = cache or MarketDataCache.get_instance()
+
+    @classmethod
+    def get_instance(cls) -> ZeroKeyMarketData:
+        if cls._instance is None:
+            cls._instance = cls()
+        return cls._instance
 
     def _get_json(self, url: str, ttl_seconds: float = 15.0) -> Any | None:
         if self.http is not self.cache.http:

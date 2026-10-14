@@ -153,26 +153,41 @@ class AgentHarness:
             from openbagus.core.env import get_repo_root
             cat = EquityCatalog(get_repo_root())
 
-            # 1. Explicit prefix ("saham DATA", "emiten RATU")
+            # 1. Crypto ticker detection
+            found_crypto = False
+            for c in ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"):
+                if re.search(r"\b" + c + r"\b", user_query, re.IGNORECASE) or ("bitcoin" in lower_q and c == "BTC") or ("ethereum" in lower_q and c == "ETH"):
+                    ctx.active_ticker = c
+                    found_crypto = True
+                    break
+
+            # 2. US Equities detection
+            if not found_crypto:
+                for u in ("AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"):
+                    if re.search(r"\b" + u + r"\b", user_query, re.IGNORECASE) or ("apple" in lower_q and u == "AAPL"):
+                        ctx.active_ticker = u
+                        found_crypto = True
+                        break
+
+            # 3. Explicit prefix ("saham DATA", "emiten RATU")
             pref_m = re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
             if pref_m:
                 cand = pref_m.group(1).upper()
                 if cand not in LEXICAL_NON_TICKERS and cat.resolve(cand):
                     ctx.active_ticker = cand
 
-            # 2. Comparison ("Bandingkan DATA dengan TLKM")
-            if not ctx.active_ticker:
-                comp_m = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\s+(?:dengan|dan|vs|versus)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
-                if comp_m:
-                    t1, t2 = comp_m.group(1).upper(), comp_m.group(2).upper()
-                    if t1 not in LEXICAL_NON_TICKERS and cat.resolve(t1):
-                        ctx.active_ticker = t1
-                    if t2 not in LEXICAL_NON_TICKERS and cat.resolve(t2):
-                        if t2 not in ctx.comparison_tickers:
-                            ctx.comparison_tickers.append(t2)
+            # 4. Comparison ("Bandingkan DATA dengan TLKM")
+            comp_m = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\s+(?:dengan|dan|vs|versus)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
+            if comp_m:
+                t1, t2 = comp_m.group(1).upper(), comp_m.group(2).upper()
+                if t1 not in LEXICAL_NON_TICKERS and cat.resolve(t1):
+                    ctx.active_ticker = t1
+                if t2 not in LEXICAL_NON_TICKERS and cat.resolve(t2):
+                    if t2 not in ctx.comparison_tickers:
+                        ctx.comparison_tickers.append(t2)
 
-            # 3. Standalone words
-            if not ctx.active_ticker:
+            # 5. Standalone words
+            if not ctx.active_ticker and not found_crypto:
                 raw_words = re.findall(r"\b[A-Za-z]{4}\b", user_query)
                 for w in raw_words:
                     upper = w.upper()
@@ -265,10 +280,11 @@ class AgentHarness:
             if cov_tool:
                 cov_res = cov_tool.execute_with_telemetry({"symbol": target_sym})
                 data = cov_res.data or {}
+                eod_st = data.get('eod_price_history', 'DATA_GAP')
                 cov_text = (
-                    f"Katalog OpenBagus memuat profil seluruh 951 emiten BEI secara offline. Namun untuk emiten seperti "
-                    f"{data.get('symbol', target_sym)} ({data.get('company_name', '')}), data historis harga harian (EOD) "
-                    f"berstatus {data.get('eod_price_history', 'DATA_GAP')} karena belum diimpor ke database lokal. "
+                    f"Katalog OpenBagus memuat profil seluruh 951 emiten BEI secara offline. "
+                    f"Untuk emiten {data.get('symbol', target_sym)}, status harga EOD adalah {eod_st}. "
+                    f"Bila ada data historis yang belum diimpor ke database lokal, sistem menandainya sebagai DATA_GAP. "
                     f"Data akan dilengkapi saat sinkronisasi feed pasar terhubung."
                 )
             else:
@@ -607,19 +623,60 @@ class AgentHarness:
         executed_tools: list[dict[str, Any]],
         user_query: str,
     ) -> str:
-        """Synthesizes structured tool results into a fluent, natural Indonesian answer."""
-        ticker = ctx.active_ticker or "Emiten Target"
+        """Synthesizes structured tool results into a fluent, natural Indonesian answer with real numerical evidence."""
+        ticker = ctx.active_ticker or "Aset / Pasar"
         lines = []
 
+        macro_tool = next((t for t in executed_tools if t["name"] == "get_macro_series"), None)
+        coverage_tool = next((t for t in executed_tools if t["name"] == "get_data_coverage"), None)
+        screener_tool = next((t for t in executed_tools if t["name"] == "run_screener"), None)
         profile_tool = next((t for t in executed_tools if t["name"] in ("resolve_security", "get_company_profile")), None)
         price_tool = next((t for t in executed_tools if t["name"] == "get_market_price"), None)
         ohlcv_tool = next((t for t in executed_tools if t["name"] == "get_ohlcv"), None)
         events_tool = next((t for t in executed_tools if t["name"] in ("get_recent_company_events", "search_official_disclosures")), None)
         ratios_tool = next((t for t in executed_tools if t["name"] == "calculate_financial_ratios"), None)
         val_tool = next((t for t in executed_tools if t["name"] == "calculate_valuation"), None)
-        screener_tool = next((t for t in executed_tools if t["name"] == "run_screener"), None)
         liquidity_tool = next((t for t in executed_tools if t["name"] == "get_liquidity_metrics"), None)
+        stmt_tool = next((t for t in executed_tools if t["name"] == "get_financial_statement"), None)
 
+        # 1. Macro indicators special formatting
+        if macro_tool and macro_tool.get("success"):
+            m_data = macro_tool.get("data") or {}
+            ind = m_data.get("indicator", "MACRO")
+            val = m_data.get("latest_value")
+            unit = m_data.get("unit", "")
+            period = m_data.get("period", "")
+            source = m_data.get("source", "World Bank Open Data")
+            lines.append(f"Berikut data indikator makroekonomi resmi untuk **{ind} (Indonesia)**:")
+            lines.append(f"- **Nilai Terakhir:** {val} {unit} (Tahun/Periode: {period})")
+            lines.append(f"- **Sumber Resmi:** {source}")
+            hist = m_data.get("history", [])
+            if len(hist) > 1:
+                hist_str = ", ".join(f"{h.get('date')}: {h.get('value')} {unit}" for h in hist[1:5])
+                lines.append(f"- **Tren Historis:** {hist_str}")
+            lines.append("\nApakah Anda ingin memeriksa indikator makro lainnya seperti PDB atau Kurs Acuan?")
+            return "\n".join(lines)
+
+        # 2. Coverage audit formatting
+        if coverage_tool and coverage_tool.get("success"):
+            c_data = coverage_tool.get("data") or {}
+            sym = c_data.get("symbol")
+            if sym:
+                lines.append(f"Hasil audit ketersediaan data untuk emiten **{sym}**:")
+                lines.append(f"- **Nama Emiten:** {c_data.get('name', '-')}")
+                lines.append(f"- **Papan & Sektor:** {c_data.get('board', '-')} / {c_data.get('sector', '-')}")
+                lines.append(f"- **Status Profil:** {c_data.get('profile_status')}")
+                lines.append(f"- **Harga Harian EOD:** {c_data.get('daily_eod_status')}")
+                lines.append(f"- **Laporan Keuangan:** {c_data.get('financial_statements')} (Periode: {', '.join(c_data.get('available_periods', [])) or 'Belum ada'})")
+                lines.append(f"- **Sumber Data:** {c_data.get('official_source')}")
+            else:
+                lines.append("Audit cakupan semesta pasar saham BEI:")
+                lines.append(f"- **Total Emiten Terdaftar:** {c_data.get('total_issuers', 951)} emiten")
+                lines.append(f"- **Emiten dengan Profil:** {c_data.get('issuers_with_profile', 968)}")
+                lines.append(f"- **Laporan Keuangan Tersedia:** {c_data.get('issuers_with_financials')} emiten ({c_data.get('total_statements_stored')} laporan)")
+            return "\n".join(lines)
+
+        # 3. Screener formatting
         if screener_tool:
             cands = ctx.active_candidates
             if cands:
@@ -635,7 +692,8 @@ class AgentHarness:
                 lines.append("\n**Rekomendasi Langkah Berikutnya:** Anda dapat menanyakan rincian salah satu kandidat (misal: *'Analisis yang nomor 1'* atau *'Bagaimana likuiditasnya?'*).")
                 return "\n".join(lines)
 
-        lines.append(f"Berikut hasil pemeriksaan analitis untuk **{ticker}**:")
+        # 4. Asset / Issuer Specific Synthesis
+        lines.append(f"Berikut hasil pemeriksaan data terverifikasi untuk **{ticker}**:")
 
         if profile_tool and profile_tool.get("success"):
             p_data = profile_tool.get("data") or {}
@@ -645,36 +703,75 @@ class AgentHarness:
             if c_name:
                 lines.append(f"- **Profil Emiten:** {c_name} (Papan: {board}, Sektor: {sector}).")
 
-        if price_tool:
+        if price_tool and price_tool.get("success"):
             p_data = price_tool.get("data") or {}
-            if p_data.get("status") == "DATA_GAP" or (p_data.get("price") is None and not p_data.get("close")):
-                lines.append("- **Harga Pasar EOD:** Data harga pasar harian berstatus DATA_GAP (belum diimpor ke database lokal).")
-            else:
-                c_close = p_data.get("close", 0.0)
+            if p_data.get("asset_type") == "CRYPTO":
+                px = p_data.get("price", 0.0)
+                h24 = p_data.get("high_24h", 0.0)
+                l24 = p_data.get("low_24h", 0.0)
+                v24 = p_data.get("volume_24h", 0.0)
+                bps = p_data.get("basis_spread_bps", 0.0)
                 obs = p_data.get("observation_date", "-")
-                lines.append(f"- **Harga Pasar EOD:** Rp {c_close:,.0f} (per tanggal {obs}, data EOD terverifikasi).")
+                lines.append(f"- **Harga Spot Kripto:** $ {px:,.2f} (Rentang 24j: $ {l24:,.2f} - $ {h24:,.2f})")
+                lines.append(f"- **Likuiditas & Volume:** Volume 24j: {v24:,.2f} {ticker} | Spread konsensus: {bps:.1f} bps | Observasi: {obs}")
+            elif p_data.get("close") is not None:
+                c_close = p_data.get("close", 0.0)
+                c_open = p_data.get("open", 0.0)
+                c_high = p_data.get("high", 0.0)
+                c_low = p_data.get("low", 0.0)
+                c_vol = p_data.get("volume", 0)
+                obs = p_data.get("observation_date", "-")
+                lines.append(f"- **Harga Pasar Terakhir:** Rp {c_close:,.0f} (Open: Rp {c_open:,.0f}, High: Rp {c_high:,.0f}, Low: Rp {c_low:,.0f})")
+                lines.append(f"- **Volume Perdagangan:** {c_vol:,.0f} lembar saham (per {obs}).")
+            elif p_data.get("status") == "DATA_GAP":
+                lines.append("- **Harga Pasar EOD:** Data harga pasar harian berstatus DATA_GAP (belum diimpor ke database lokal).")
 
-        if ohlcv_tool:
+        if ohlcv_tool and ohlcv_tool.get("success"):
             o_data = ohlcv_tool.get("data") or {}
-            if o_data.get("status") == "DATA_GAP" or not o_data.get("bars"):
-                lines.append("- **Riwayat Bar OHLCV:** Data bar harga historis belum diimpor (DATA_GAP).")
+            bars_cnt = o_data.get("count", len(o_data.get("bars", [])))
+            lines.append(f"- **Riwayat Bar OHLCV:** Tersedia {bars_cnt} bar harga terverifikasi ({o_data.get('timeframe', 'D1')}).")
+
+        if ratios_tool and ratios_tool.get("success"):
+            r_data = ratios_tool.get("data") or {}
+            per = r_data.get("period", "")
+            prof = r_data.get("profitability", {})
+            solv = r_data.get("solvency", {})
+            liq = r_data.get("liquidity", {})
+            bank = r_data.get("reported_banking_ratios")
+
+            if bank:
+                nim = bank.get("nim_net_interest_margin_pct", "-")
+                car = bank.get("car_capital_adequacy_ratio_pct", "-")
+                npl = bank.get("npl_gross_pct", "-")
+                lines.append(f"- **Rasio Finansial Perbankan ({per}):** NIM: {nim}%, CAR: {car}%, NPL Gross: {npl}%, ROE: {prof.get('return_on_equity_pct', 0.0):.2f}%, ROA: {prof.get('return_on_assets_pct', 0.0):.2f}%.")
             else:
-                lines.append(f"- **Riwayat Bar OHLCV:** Tersedia {o_data.get('count', len(o_data.get('bars', [])))} bar harga harian.")
+                lines.append(f"- **Rasio Finansial ({per}):** DER: {solv.get('debt_to_equity', 0.0):.2f}x | CR: {liq.get('current_ratio', 0.0):.2f}x | ROE: {prof.get('return_on_equity_pct', 0.0):.2f}% | NPM: {prof.get('net_profit_margin_pct', 0.0):.2f}%. Status Solvabilitas: {r_data.get('accounting_health', 'Normal')}.")
 
-        if events_tool:
-            lines.append("- **Keterbukaan Informasi:** Pengumuman material telah diverifikasi terhadap dokumen publik resmi BEI.")
+        if val_tool and val_tool.get("success"):
+            v_data = val_tool.get("data") or {}
+            pe = v_data.get("price_to_earnings")
+            pb = v_data.get("price_to_book")
+            eps = v_data.get("earnings_per_share")
+            mcap = v_data.get("market_cap")
+            mcap_str = f"Rp {mcap / 1e12:,.2f} Triliun" if mcap and mcap >= 1e12 else (f"Rp {mcap / 1e9:,.2f} Miliar" if mcap else "-")
+            lines.append(f"- **Valuasi & Kapitalisasi:** PER: {pe:.2f}x | PBV: {pb:.2f}x | EPS: Rp {eps:,.2f} | Market Cap: {mcap_str} (Status: {v_data.get('valuation_status', 'FAIR')}).")
 
-        if ratios_tool:
-            lines.append("- **Kesehatan Keuangan:** Rasio solvabilitas dan profitabilitas telah dihitung secara matematis dari laporan keuangan.")
+        if liquidity_tool and liquidity_tool.get("success"):
+            l_data = liquidity_tool.get("data") or {}
+            lines.append(f"- **Likuiditas & Fraksi BEI:** Fraksi Harga (Tick): Rp {l_data.get('tick_size', 0)} | Transaksi ADTV: Rp {l_data.get('turnover_value', 0):,.0f} (Kategori: {l_data.get('liquidity_category', 'LIQUID')}).")
 
-        if val_tool:
-            lines.append("- **Valuasi Intrinsik:** Estimasi nilai wajar dihitung berbasis proyeksi arus kas dan margin of safety.")
+        if events_tool and events_tool.get("success"):
+            e_data = events_tool.get("data") or {}
+            items = e_data.get("disclosures", []) if isinstance(e_data, dict) else (e_data if isinstance(e_data, list) else [])
+            if items:
+                lines.append(f"- **Keterbukaan Informasi Terakhir:** {len(items)} pengumuman resmi terverifikasi BEI.")
 
-        if liquidity_tool:
-            lines.append("- **Mikrostruktur & Likuiditas:** Likuiditas dan aturan fraksi harga bursa telah diverifikasi.")
+        if stmt_tool and stmt_tool.get("success"):
+            s_data = stmt_tool.get("data") or {}
+            lines.append(f"- **Laporan Keuangan Terverifikasi:** Periode {s_data.get('period', '')} ({s_data.get('statement_type', '')}).")
 
-        if not any([events_tool, ratios_tool, val_tool, liquidity_tool]):
-            lines.append("- **Status Fundamental & Finansial:** Laporan keuangan mendalam saat ini berstatus DATA_GAP (offline) dan dapat diimpor saat feed pasar sinkron.")
+        if not any([events_tool, ratios_tool, val_tool, liquidity_tool, price_tool, ohlcv_tool]):
+            lines.append("- **Status Fundamental & Finansial:** Data mendalam dapat diimpor langsung via feed sinkronisasi pasar.")
 
-        lines.append("\nApakah Anda ingin membedah sisi fundamentalnya lebih dalam, atau menguji setup teknikal/swing-nya?")
+        lines.append("\nApakah Anda ingin memeriksa aspek fundamental, rasio valuasi, atau pergerakan harga aset ini lebih detail?")
         return "\n".join(lines)

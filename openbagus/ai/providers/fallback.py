@@ -39,8 +39,12 @@ FINANCIAL_CONTEXT_KEYWORDS = {
     "dividen", "laporan", "keuangan", "neraca", "arus kas", "valuasi", "dcf",
     "per", "pbv", "roe", "roic", "der", "ihsg", "idx", "bei", "harga", "ohlcv",
     "volume", "katalis", "swing", "screener", "pasar modal", "reksadana", "porto",
-    "bandingkan", "komparasi", "versus", "vs",
+    "bandingkan", "komparasi", "versus", "vs", "kripto", "crypto", "bitcoin",
+    "btc", "eth", "ethereum", "solana", "inflasi", "cpi", "ihk", "pdb", "gdp",
+    "makro", "jisdor", "penutupan", "closing", "quote", "coverage", "cakupan",
 }
+
+CRYPTO_TICKERS = {"BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"}
 
 
 class DeterministicFallbackProvider(BaseModelProvider):
@@ -121,14 +125,30 @@ class DeterministicFallbackProvider(BaseModelProvider):
         ticker: str | None = None
         has_financial_intent = any(kw in lower for kw in FINANCIAL_CONTEXT_KEYWORDS)
 
-        # Look for explicit prefix: "saham BBCA", "emiten RATU", "ticker BBRI", "saham DATA"
-        explicit_match = re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_msg, re.IGNORECASE)
-        if explicit_match:
-            cand = explicit_match.group(1).upper()
-            if cand not in LEXICAL_NON_TICKERS:
-                ticker = cand
+        # 1. Crypto ticker detection
+        for c in CRYPTO_TICKERS:
+            if re.search(r"\b" + c + r"\b", user_msg, re.IGNORECASE) or ("bitcoin" in lower and c == "BTC") or ("ethereum" in lower and c == "ETH"):
+                ticker = c
+                has_financial_intent = True
+                break
 
-        # Comparison intent: "Bandingkan DATA dengan TLKM"
+        # 2. US Equities detection
+        if not ticker:
+            for u in ("AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META"):
+                if re.search(r"\b" + u + r"\b", user_msg, re.IGNORECASE) or ("apple" in lower and u == "AAPL"):
+                    ticker = u
+                    has_financial_intent = True
+                    break
+
+        # 3. Look for explicit prefix: "saham BBCA", "emiten RATU", "ticker BBRI", "saham DATA"
+        if not ticker:
+            explicit_match = re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_msg, re.IGNORECASE)
+            if explicit_match:
+                cand = explicit_match.group(1).upper()
+                if cand not in LEXICAL_NON_TICKERS:
+                    ticker = cand
+
+        # 4. Comparison intent: "Bandingkan DATA dengan TLKM"
         if not ticker:
             comp_match = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\b", user_msg, re.IGNORECASE)
             if comp_match:
@@ -136,7 +156,7 @@ class DeterministicFallbackProvider(BaseModelProvider):
                 if cand not in LEXICAL_NON_TICKERS:
                     ticker = cand
 
-        # Standalone word extraction when financial intent is present
+        # 5. Standalone word extraction when financial intent is present
         if not ticker and has_financial_intent:
             words = re.findall(r"\b[A-Za-z]{4}\b", user_msg)
             for w in words:
@@ -164,19 +184,38 @@ class DeterministicFallbackProvider(BaseModelProvider):
         if tools and has_financial_intent:
             tool_names = {t.name for t in tools}
 
-            if ("kontrak" in lower or "event" in lower or "pengumuman" in lower or "katalis" in lower) and "get_recent_company_events" in tool_names and ticker:
+            # Macro indicator query
+            if any(m in lower for m in ("inflasi", "cpi", "ihk", "pdb", "gdp", "pertumbuhan ekonomi", "jisdor")) and "get_macro_series" in tool_names:
+                m_series = "CPI" if any(x in lower for x in ("inflasi", "cpi", "ihk")) else ("GDP" if any(x in lower for x in ("pdb", "gdp")) else "JISDOR")
+                tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_macro_series", arguments={"series": m_series}))
+            # Coverage audit query
+            elif any(c in lower for c in ("coverage", "cakupan data", "audit data", "status data")) and "get_data_coverage" in tool_names:
+                tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_data_coverage", arguments={"ticker": ticker or ""}))
+            # Price / Quote / Volume queries
+            elif (any(p in lower for p in ("harga", "price", "closing", "penutupan", "volume", "quote", "berapa")) or ticker in CRYPTO_TICKERS) and "get_market_price" in tool_names and ticker:
+                tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_market_price", arguments={"ticker": ticker}))
+            # Company events / Disclosures
+            elif ("kontrak" in lower or "event" in lower or "pengumuman" in lower or "katalis" in lower) and "get_recent_company_events" in tool_names and ticker:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_recent_company_events", arguments={"ticker": ticker, "limit": 5}))
+            # Financial statements
             elif ("laporan keuangan" in lower or "neraca" in lower or "arus kas" in lower or "statement" in lower) and "get_financial_statement" in tool_names and ticker:
                 st = "BALANCE_SHEET" if "neraca" in lower else ("CASH_FLOW" if "arus kas" in lower else "INCOME_STATEMENT")
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_financial_statement", arguments={"ticker": ticker, "statement_type": st}))
+            # Financial ratios
             elif ("rasio" in lower or "der" in lower or "roic" in lower or "roe" in lower) and "calculate_financial_ratios" in tool_names and ticker:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="calculate_financial_ratios", arguments={"ticker": ticker}))
+            # Valuation
             elif ("valuasi" in lower or "dcf" in lower or "fcf" in lower) and "calculate_valuation" in tool_names and ticker:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="calculate_valuation", arguments={"ticker": ticker, "method": "ALL"}))
+            # Screener
             elif ("swing" in lower or "breakout" in lower or "screener" in lower or "scan" in lower) and "run_screener" in tool_names:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="run_screener", arguments={"strategy": "SWING_BREAKOUT", "universe": "ALL_IDX"}))
+            # Liquidity
             elif ("likuiditas" in lower or "adtv" in lower) and "get_liquidity_metrics" in tool_names and ticker:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_liquidity_metrics", arguments={"ticker": ticker}))
+            # Fallback to market price or company profile
+            elif ticker and "get_market_price" in tool_names:
+                tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_market_price", arguments={"ticker": ticker}))
             elif ticker and "get_company_profile" in tool_names:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_company_profile", arguments={"ticker": ticker}))
 
