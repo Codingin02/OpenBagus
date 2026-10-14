@@ -1,8 +1,8 @@
 # OpenBagus — Local AI & 3D Companion Resume Checkpoint
 
-**Last Updated:** 2026-10-14T18:55 WIB  
+**Last Updated:** 2026-10-14T20:05 WIB  
 **Current Branch:** `fix/financial-integrity-recovery`  
-**Current HEAD:** `e9650ac` (feat(companion): apply strict Super Mario 3D visual likeness with black cap, black shirt, and capital B emblem)  
+**Current HEAD:** `3f7b4cf` (feat(companion): add desktop transparency, IPC screenshot capture, and verify live desktop popup)  
 
 ---
 
@@ -22,6 +22,7 @@
 | **M10: VRAM / RAM Optimization** | `manager.py`, `hardware_audit.md` | Strict single-model residence in VRAM (< 4.2 GB peak), ASR on CPU to conserve VRAM | Hardware memory limits respected | **VERIFIED_COMPLETE** | None |
 | **M11: Financial Tools & Data Freshness** | `openbagus/cli.py`, `finance_tools.py` | 21 registered tools, 6 canonical strategies, `/data freshness` command, zero-key adapters | 25/25 harness tests passed | **VERIFIED_COMPLETE** | None |
 | **M12: CLI Commands & Acceptance** | `openbagus/cli.py` | `/mode fast/deep`, `/model status/list/benchmark`, `/gpu`, `/hardware`, `/show-openbagus`, `/cancel` | `test_local_ai_integration.py` | **VERIFIED_COMPLETE** | None |
+| **M13: Real Desktop 3D Acceptance** | `openbagus/companion/renderer.py`, `openbagus/cli.py` | Verified actual running Windows desktop companion overlay with DWM transparent framebuffer, lower-right positioning, `/show-openbagus` interactive routing, live speaking lip-sync, and live framebuffer screen captures. | `docs/local_ai/screenshots/desktop_live_popup_*.png`, 10/10 tests OK | **VERIFIED_COMPLETE** | None |
 
 ---
 
@@ -31,12 +32,13 @@
 - `tests.test_local_ai_integration`: **17 / 17 PASSED**
 - `tests.test_show_openbagus`: **10 / 10 PASSED**
 - `tests.test_voice_conversation`: **26 / 26 PASSED**
-- **Total:** **78 / 78 PASSED (100% Pass Rate)**
+- **Total Local AI / Companion Suite:** **78 / 78 PASSED (100% Pass Rate)**
+- **Full Repository Suite:** **512 / 512 PASSED (100% Pass Rate)**
 
 ---
 
 ## 3. Git Status
 
 - **Branch:** `fix/financial-integrity-recovery`
-- **Latest Commit:** `e9650ac`
-- **Status:** Clean working tree. Super Mario 3D visual correction fully applied and verified.
+- **Latest Commit:** `3f7b4cf`
+- **Status:** Clean working tree. Final real desktop 3D companion verified and accepted.
