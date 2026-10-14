@@ -81,25 +81,54 @@ class ProviderManager:
 
     def switch_to_fast(self) -> BaseModelProvider:
         """Switch active provider to FAST, unloading DEEP from VRAM first."""
-        if self._deep_provider is not None and self._deep_provider.is_model_warm():
-            logger.info("Unloading DEEP model from VRAM before switching to FAST")
-            self._deep_provider.unload_model()
         fast = self.get_fast_provider()
-        self._provider = fast
-        self._active_type = "OLLAMA_FAST"
+        if fast.is_available():
+            if self._deep_provider is not None and self._deep_provider.is_model_warm():
+                logger.info("Unloading DEEP model from VRAM before switching to FAST")
+                self._deep_provider.unload_model()
+            self._provider = fast
+            self._active_type = "OLLAMA_FAST"
+            self._current_mode = "FAST"
+            return fast
+
+        # Fallback to local llama-server if Ollama is not running/available
+        llama_p = LlamaServerProvider()
+        if llama_p.is_available():
+            self._provider = llama_p
+            self._active_type = "LLAMA_CPP_LOCAL"
+            self._current_mode = "FAST"
+            return llama_p
+
+        self._provider = DeterministicFallbackProvider()
+        self._active_type = "FALLBACK"
         self._current_mode = "FAST"
-        return fast
+        return self._provider
 
     def switch_to_deep(self) -> BaseModelProvider:
         """Switch active provider to DEEP, unloading FAST from VRAM first."""
-        if self._fast_provider is not None and self._fast_provider.is_model_warm():
-            logger.info("Unloading FAST model from VRAM before switching to DEEP")
-            self._fast_provider.unload_model()
         deep = self.get_deep_provider()
-        self._provider = deep
-        self._active_type = "OLLAMA_DEEP"
+        if deep.is_available():
+            if self._fast_provider is not None and self._fast_provider.is_model_warm():
+                logger.info("Unloading FAST model from VRAM before switching to DEEP")
+                self._fast_provider.unload_model()
+            self._provider = deep
+            self._active_type = "OLLAMA_DEEP"
+            self._current_mode = "DEEP_REASONING"
+            return deep
+
+        # Fallback to local llama-server if Ollama is not running/available
+        llama_p = LlamaServerProvider()
+        if llama_p.is_available():
+            self._provider = llama_p
+            self._active_type = "LLAMA_CPP_LOCAL"
+            self._current_mode = "DEEP_REASONING"
+            return llama_p
+
+        self._provider = DeterministicFallbackProvider()
+        self._active_type = "FALLBACK"
         self._current_mode = "DEEP_REASONING"
-        return deep
+        return self._provider
+
 
     # ------------------------------------------------------------------
     # Generic provider API (backward-compatible)

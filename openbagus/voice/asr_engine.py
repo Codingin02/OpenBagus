@@ -37,11 +37,9 @@ except ImportError:
     faster_whisper = None
 
 DEFAULT_INITIAL_PROMPT = (
-    "Percakapan pasar modal Indonesia IDX BEI. "
-    "Membahas saham emiten BBCA, BBRI, BMRI, TLKM, ASII, HGII, YOII, "
-    "analisis teknikal, swing breakout, indikator RSI ATR VWAP, "
-    "laporan keuangan, valuasi DCF, dividen, rasio PER, PBV, ROE, ROIC, DER, ADTV."
+    "Percakapan santai, asisten komputer, dan riset pasar modal Indonesia dalam Bahasa Indonesia."
 )
+
 
 
 class LocalASREngine:
@@ -141,7 +139,7 @@ class LocalASREngine:
         sample_rate: int = 16000,
         language: str | None = None,
     ) -> tuple[NormalizedASRResult, dict[str, Any]]:
-        """Transcribes float32 16kHz audio into normalized financial text.
+        """Transcribes float32 16kHz audio with multi-signal acoustic gating.
 
         Returns:
             (NormalizedASRResult, telemetry: dict)
@@ -157,6 +155,21 @@ class LocalASREngine:
         audio_duration = len(audio) / sample_rate
         t_start = time.perf_counter()
 
+        # Acoustic energy floor check (reject silence, subtle breath, or ambient hum)
+        rms = float(np.sqrt(np.mean(audio ** 2)))
+        if rms < 0.0035:
+            logger.debug("Audio RMS %.5f below acoustic floor (0.0035); discarding silence", rms)
+            empty = NormalizedASRResult("", "", [], None, None, [])
+            return empty, {
+                "latency_ms": 0.0,
+                "audio_duration_s": round(audio_duration, 2),
+                "device": self._device,
+                "rms": round(rms, 5),
+                "rejected": "LOW_ENERGY_SILENCE",
+                "gate": "acoustic_rms_silence_floor",
+            }
+
+        valid_segments = []
         try:
             segments, info = self._model.transcribe(
                 audio,
@@ -165,11 +178,56 @@ class LocalASREngine:
                 beam_size=5,
                 temperature=0.0,
                 vad_filter=False,  # Outer VAD already performed frame endpointing
+                no_speech_threshold=0.55,
+                log_prob_threshold=-1.0,
+                compression_ratio_threshold=2.4,
+                condition_on_previous_text=False,
+                hallucination_silence_threshold=1.5,
             )
-            raw_text = " ".join(seg.text for seg in segments).strip()
+            discarded_segments = 0
+            for seg in segments:
+                # Filter out segments where Whisper detected silence/no-speech
+                if getattr(seg, "no_speech_prob", 0.0) > 0.55:
+                    logger.debug("Ignoring segment with high no_speech_prob: %.3f ('%s')", seg.no_speech_prob, seg.text)
+                    discarded_segments += 1
+                    continue
+                if getattr(seg, "avg_logprob", 0.0) < -1.4:
+                    logger.debug("Ignoring segment with low avg_logprob: %.3f ('%s')", seg.avg_logprob, seg.text)
+                    discarded_segments += 1
+                    continue
+                valid_segments.append(seg)
+
+            raw_text = " ".join(seg.text for seg in valid_segments).strip()
         except Exception as e:
             logger.error("Transcription error: %s", e)
             raw_text = ""
+            discarded_segments = 0
+
+        # YouTube / Outro hallucination gate:
+        # Reject common YouTube outro artifacts unless supported by genuine acoustic speech evidence
+        lower_raw = raw_text.lower().strip()
+        phantom_markers = (
+            "terima kasih telah menonton",
+            "terima kasih sudah menonton",
+            "terima kasih telah menyaksikan",
+            "jangan lupa subscribe",
+            "jangan lupa like",
+            "sampai jumpa di video",
+            "tonton terus video",
+        )
+        outro_suppressed = False
+        if any(marker in lower_raw for marker in phantom_markers):
+            avg_no_speech = float(np.mean([getattr(s, "no_speech_prob", 0.0) for s in valid_segments])) if valid_segments else 1.0
+            # Genuine user speech has higher RMS (>0.012) and low no_speech_prob (<0.25)
+            if rms < 0.012 or avg_no_speech > 0.25:
+                logger.info(
+                    "Rejected phantom ASR hallucination: '%s' (rms=%.4f, avg_no_speech=%.3f)",
+                    raw_text, rms, avg_no_speech,
+                )
+                raw_text = ""
+                outro_suppressed = True
+
+        hallucination_suppressed = outro_suppressed or (discarded_segments > 0 and not raw_text)
 
         latency_ms = (time.perf_counter() - t_start) * 1000.0
         rtf = (latency_ms / 1000.0) / audio_duration if audio_duration > 0 else 0.0
@@ -181,7 +239,10 @@ class LocalASREngine:
             "real_time_factor": round(rtf, 3),
             "device": self._device,
             "compute_type": self._compute_type,
+            "rms": round(rms, 5),
+            "hallucination_suppressed": hallucination_suppressed,
             "detected_language": getattr(info, "language", self.language) if "info" in locals() else self.language,
         }
 
         return normalized_res, telemetry
+

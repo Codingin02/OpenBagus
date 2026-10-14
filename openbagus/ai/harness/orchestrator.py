@@ -27,16 +27,22 @@ from openbagus.ai.tools.registry import ToolRegistry, get_global_tool_registry
 
 logger = logging.getLogger(__name__)
 
-SYSTEM_PROMPT_TEMPLATE = """Anda adalah OpenBagus, Asisten Riset Finansial Kuantitatif, Analis Fundamental & Swing Trading Pasar Modal Indonesia (IDX/BEI) dan Multi-Aset.
+GENERAL_SYSTEM_PROMPT = """Anda adalah Bagusmax, asisten AI desktop Windows pribadi yang ramah, santun, tenang, cerdas, dan solutif.
+PRINSIP:
+1. Berkomunikasi secara alami dalam Bahasa Indonesia yang santun, hangat, dan nyaman didengar.
+2. Jawablah secara ringkas, lugas, jujur, dan tidak bertele-tele. Hindari jawaban terlalu panjang untuk obrolan santai.
+3. JANGAN mengarang data atau memaksakan topik pasar modal/saham jika pengguna tidak menanyakannya.
+4. Gunakan tools sistem terdaftar untuk memeriksa status laptop (CPU, RAM, GPU, audio) jika pengguna menanyakan kinerja komputer.
+5. Anda berjalan 100% lokal dan offline pada GPU NVIDIA GeForce RTX 3050 di laptop Windows pengguna.
+"""
+
+FINANCIAL_SYSTEM_PROMPT = """Anda adalah OpenBagus (Bagusmax), Asisten Riset Finansial Kuantitatif, Analis Fundamental & Swing Trading Pasar Modal Indonesia (IDX/BEI) dan Multi-Aset.
 
 PRINSIP UTAMA:
 1. Anda berkomunikasi secara alami dalam Bahasa Indonesia yang profesional, cerdas, ramah, dan solutif.
 2. Anda TIDAK PERNAH memalsukan (hallucinate) harga saham, rasio keuangan, atau berita keterbukaan informasi. Setiap angka harus berasal dari data/tool terverifikasi.
-3. Jika data EOD atau laporan keuangan belum tersedia secara lokal, sampaikan secara jujur sebagai 'Data Gap' tanpa mengarang nilai fiktif.
-4. Anda meneliti SELURUH 951 emiten IDX lintas papan (Utama, Pengembangan, Akselerasi, dan Pemantauan Khusus/FCA) tanpa bias hanya pada saham blue-chip.
-5. Anda membedakan secara tegas antara riset swing trading (berbasis katalis, volume, momentum, likuiditas) dan riset investasi jangka panjang (berbasis valuasi DCF, FCFF, ROIC, margin of safety).
-6. Gunakan alat analitis (tools) yang disediakan untuk menghitung, mengambil data, dan memverifikasi fakta sebelum memberikan kesimpulan.
-7. Bersikap skeptis jika terdapat klaim kepastian sepihak dari pengguna. Jelaskan risiko, kondisi invalidasi, dan alternatif yang lebih likuid bila relevan.
+3. Jika data EOD atau laporan keuangan belum tersedia secara lokal, sampaikan secara jujur sebagai 'DATA_GAP / OFFLINE_UNAVAILABLE' tanpa mengarang nilai fiktif.
+4. Gunakan alat analitis (tools) yang disediakan untuk mengambil data dan memverifikasi fakta sebelum memberikan kesimpulan.
 
 KONTEKS AKTIF SAAT INI:
 - Emiten Aktif        : {active_ticker}
@@ -45,6 +51,9 @@ KONTEKS AKTIF SAAT INI:
 - Batasan Khusus      : {active_constraints}
 - Kandidat Shortlist  : {active_candidates}
 """
+
+SYSTEM_PROMPT_TEMPLATE = FINANCIAL_SYSTEM_PROMPT
+
 
 
 @dataclass
@@ -115,35 +124,67 @@ class AgentHarness:
         corrections = ctx.handle_corrections(user_query)
         cand_ref = ctx.resolve_candidate_reference(user_query)
 
-        # Extract explicit ticker if mentioned
-        raw_words = re.findall(r"\b[A-Za-z]{4}\b", user_query)
-        known_skip = {"BUAT", "CARA", "DARI", "YANG", "BISA", "HOLD", "KOK", "TAPI", "JIKA", "ATAU", "DENG"}
-        for w in raw_words:
-            upper = w.upper()
-            if upper not in known_skip and not corrections.get("entity_corrected"):
-                # verify with catalog if plausible ticker
-                from openbagus.domains.equities.catalog import EquityCatalog
-                from openbagus.core.env import get_repo_root
-                cat = EquityCatalog(get_repo_root())
-                if cat.resolve(upper):
-                    ctx.active_ticker = upper
-                    break
-
-        # STEP 3: Complexity Classification
         lower_q = user_query.lower().strip()
-        is_greeting = bool(re.match(r"^(?:halo|hi|hai|selamat\s+(?:pagi|siang|sore|malam)|assalamualaikum)\b", lower_q)) and not any(
-            k in lower_q for k in ("analisis", "bedah", "saham", "bandingkan", "laporan", "harga", "berapa", "cari", "screener", "rekomendasi")
+
+        # Disambiguate "reset saham RATU ..." from 3D companion reset
+        if "reset" in lower_q and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q):
+            ctx.explicit_constraints.clear()
+            if "satu hari" in lower_q or "1 hari" in lower_q or "harian" in lower_q:
+                ctx.time_horizon = "1 hari"
+
+        # Check financial intent strictly before extracting tickers
+        from openbagus.ai.providers.fallback import COMMON_INDONESIAN_NON_TICKERS, FINANCIAL_CONTEXT_KEYWORDS
+        is_financial = any(kw in lower_q for kw in FINANCIAL_CONTEXT_KEYWORDS) or any(
+            t in lower_q for t in ("bbca", "bbri", "bmri", "tlkm", "asii", "ratu", "goto", "bren", "cuang")
         )
+        has_explicit_prefix = bool(re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE))
+
+        # Extract explicit ticker if mentioned WITH financial context
+        if is_financial or has_explicit_prefix:
+            raw_words = re.findall(r"\b[A-Za-z]{4}\b", user_query)
+            for w in raw_words:
+                upper = w.upper()
+                if upper not in COMMON_INDONESIAN_NON_TICKERS and not corrections.get("entity_corrected"):
+                    from openbagus.domains.equities.catalog import EquityCatalog
+                    from openbagus.core.env import get_repo_root
+                    cat = EquityCatalog(get_repo_root())
+                    if cat.resolve(upper):
+                        ctx.active_ticker = upper
+                        break
+
+        # STEP 3: Complexity Classification & Fast Conversational Paths
+        is_ack = bool(re.match(r"^(?:oke|ok|iya|ya|baik|sip|paham|siap|noted|mengerti)[\.\!\?]?\s*$", lower_q))
+        is_greeting = bool(re.match(r"^(?:halo|hi|hai|selamat\s+(?:pagi|siang|sore|malam)|assalamualaikum)\b", lower_q)) and not is_financial
         is_thanks = bool(re.search(r"^(?:terima\s+kasih|makasih|matur\s+nuwun|thanks|thank\s+you|syukran)\b", lower_q))
-        is_pause = bool(re.search(r"^(?:tunggu\s+sebentar|stop\s+dulu|sebentar|pause|tunggu|tahan\s+dulu)\b", lower_q))
+        is_pause = bool(re.search(r"^(?:tunggu\s+sebentar|stop\s+dulu|sebentar|pause|tunggu|tahan\s+dulu)\b", lower_q)) and not is_financial
+        is_casual = any(p in lower_q for p in ("ngobrol santai", "bicara santai", "obrolan santai", "cerita santai"))
+        is_tutor_req = ("belajar bahasa inggris" in lower_q or "kursus bahasa inggris" in lower_q or "mode bahasa inggris" in lower_q)
+        is_coverage_q = ("kenapa data" in lower_q or "data tidak lengkap" in lower_q or "data anda tidak lengkap" in lower_q)
+        is_ctrl_q = ("mengontrol laptop" in lower_q or "kontrol laptop" in lower_q or "bisa mengontrol" in lower_q)
+        is_local_q = ("lokal atau cloud" in lower_q or "berjalan secara lokal" in lower_q or "offline atau online" in lower_q) and not is_financial
+        is_gpu_q = (("gpu" in lower_q and "100" in lower_q) or "kenapa gpu saya" in lower_q)
         is_simple_qa = ("apa itu per" in lower_q or "apa itu pbv" in lower_q or "apa itu dcf" in lower_q or "siapa kamu" in lower_q)
 
         executed_tools: list[dict[str, Any]] = []
         data_gaps: list[str] = []
 
-        # FAST PATH: Direct conversational response for greetings / thanks / basic glossary
+        # FAST PATH 1: Short acknowledgment ("Oke.", "Baik.", "Sip.") -> Brief acknowledgement without sales pitch
+        if is_ack:
+            ack_text = "Baik."
+            if stream_callback:
+                stream_callback(ack_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", ack_text)
+            return AgentResponse(
+                content=ack_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="FAST_PATH_ACK",
+            )
+
+        # FAST PATH 2: Friendly natural greeting (Warm, unhurried, not an IDX sales pitch)
         if is_greeting:
-            greet_text = "Halo! Saya OpenBagus, asisten riset pasar modal 951 emiten IDX. Ada saham atau topik yang ingin Anda teliti hari ini?"
+            greet_text = "Halo! Saya Bagusmax. Ada yang ingin kamu diskusikan atau tanyakan hari ini?"
             if stream_callback:
                 stream_callback(greet_text)
             ctx.record_turn("user", user_query)
@@ -152,11 +193,124 @@ class AgentHarness:
                 content=greet_text,
                 working_context=ctx,
                 latency_ms=(time.perf_counter() - t_start) * 1000,
-                provider_name=self.provider.get_provider_name(),
+                provider_name="LOCAL_DIRECT",
+            )
+
+        # FAST PATH 3: Casual conversation topic switch
+        if is_casual:
+            cas_text = "Tentu! Kita bisa ngobrol santai tentang apa saja. Ada hal menarik yang ingin kamu ceritakan atau tanyakan hari ini?"
+            if stream_callback:
+                stream_callback(cas_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", cas_text)
+            return AgentResponse(
+                content=cas_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
+            )
+
+        # FAST PATH 4: Future English Tutor Request (Honest explanation without downloading)
+        if is_tutor_req:
+            from openbagus.ai.profiles.model_registry import ModelProfileRegistry
+            tutor_text = ModelProfileRegistry.get_instance().request_english_tutor_activation()
+            if stream_callback:
+                stream_callback(tutor_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", tutor_text)
+            return AgentResponse(
+                content=tutor_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="MODEL_REGISTRY",
+            )
+
+        # FAST PATH 5: Data Coverage Explanation (Truthful DATA_GAP diagnosis, not ticker DATA)
+        if is_coverage_q:
+            target_sym = ctx.active_ticker or "RATU"
+            cov_tool = self.tools.get("get_data_coverage_status")
+            if cov_tool:
+                cov_res = cov_tool.execute_with_telemetry({"symbol": target_sym})
+                data = cov_res.data or {}
+                cov_text = (
+                    f"Katalog OpenBagus memuat profil seluruh 951 emiten BEI secara offline. Namun untuk emiten seperti "
+                    f"{data.get('symbol', target_sym)} ({data.get('company_name', '')}), data historis harga harian (EOD) "
+                    f"berstatus {data.get('eod_price_history', 'DATA_GAP')} karena belum diimpor ke database lokal. "
+                    f"Data akan dilengkapi saat sinkronisasi feed pasar terhubung."
+                )
+            else:
+                cov_text = (
+                    "Katalog OpenBagus memuat profil seluruh 951 emiten BEI secara offline. "
+                    "Namun beberapa data harga historis harian berstatus DATA_GAP karena belum diimpor ke database lokal."
+                )
+            if stream_callback:
+                stream_callback(cov_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", cov_text)
+            return AgentResponse(
+                content=cov_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
+            )
+
+        # FAST PATH 6: Computer Control Safety Inquiry
+        if is_ctrl_q:
+            ctrl_text = (
+                "Saya memiliki akses telemetri diagnostik baca-saja (read-only) untuk memantau status sistem "
+                "(seperti penggunaan CPU, RAM, GPU, dan perangkat audio). Namun, saya tidak memiliki izin untuk "
+                "mengontrol penuh laptop Anda, memodifikasi berkas sistem, menutup aplikasi lain, atau mengeksekusi "
+                "perintah berbahaya tanpa izin eksplisit."
+            )
+            if stream_callback:
+                stream_callback(ctrl_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", ctrl_text)
+            return AgentResponse(
+                content=ctrl_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
+            )
+
+        # FAST PATH 7: Local vs Cloud Inquiry
+        if is_local_q:
+            loc_text = (
+                "Saya berjalan 100% secara lokal dan offline di laptop Windows Anda, menggunakan model bahasa Qwen 4B "
+                "dengan akselerasi GPU NVIDIA GeForce RTX 3050 melalui CUDA loopback. "
+                "Seluruh pemrosesan suara dan data percakapan tetap berada di memori perangkat Anda tanpa dikirim ke cloud."
+            )
+            if stream_callback:
+                stream_callback(loc_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", loc_text)
+            return AgentResponse(
+                content=loc_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
+            )
+
+        # FAST PATH 8: GPU 100% Utilization Inquiry
+        if is_gpu_q:
+            gpu_text = (
+                "Saat memproses inferensi model bahasa lokal atau transkripsi Whisper, GPU NVIDIA RTX 3050 dialokasikan "
+                "secara intensif untuk menyelesaikan komputasi matriks secepat mungkin. Lonjakan utilisasi hingga 100% adalah hal normal "
+                "dan efisien untuk meminimalkan waktu tunggu jawaban, setelah itu GPU akan langsung kembali ke utilisasi rendah (idle)."
+            )
+            if stream_callback:
+                stream_callback(gpu_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", gpu_text)
+            return AgentResponse(
+                content=gpu_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
             )
 
         if is_thanks:
-            thanks_text = "Sama-sama! Senang bisa membantu riset Anda. Beritahu saya jika ada emiten atau data lain yang ingin Anda eksplorasi."
+            thanks_text = "Sama-sama! Senang bisa membantu Anda. Beritahu saya jika ada hal lain yang ingin didiskusikan."
             if stream_callback:
                 stream_callback(thanks_text)
             ctx.record_turn("user", user_query)
@@ -165,7 +319,7 @@ class AgentHarness:
                 content=thanks_text,
                 working_context=ctx,
                 latency_ms=(time.perf_counter() - t_start) * 1000,
-                provider_name=self.provider.get_provider_name(),
+                provider_name="LOCAL_DIRECT",
             )
 
         if is_pause:
@@ -178,7 +332,7 @@ class AgentHarness:
                 content=pause_text,
                 working_context=ctx,
                 latency_ms=(time.perf_counter() - t_start) * 1000,
-                provider_name=self.provider.get_provider_name(),
+                provider_name="LOCAL_DIRECT",
             )
 
         if is_simple_qa and "apa itu per" in lower_q:
@@ -187,8 +341,7 @@ class AgentHarness:
                 "terhadap laba bersih per lembar sahamnya (Earnings Per Share / EPS):\n\n"
                 r"$$\text{PER} = \frac{\text{Harga Pasar Saham}}{\text{EPS}}$$" + "\n\n"
                 "- **Interpretasi:** PER 10x berarti investor bersedia membayar Rp 10 untuk setiap Rp 1 laba bersih tahunan.\n"
-                "- **Peringatan Penting:** PER tidak bermakna atau bernilai negatif untuk emiten yang membukukan kerugian operasional. "
-                "Di OpenBagus, kami selalu memasang proteksi guard agar emiten rugi tidak dinilai secara keliru menggunakan PER tunggal."
+                "- **Peringatan Penting:** PER tidak bermakna atau bernilai negatif untuk emiten yang membukukan kerugian operasional."
             )
             if stream_callback:
                 stream_callback(per_expl)
@@ -198,17 +351,21 @@ class AgentHarness:
                 content=per_expl,
                 working_context=ctx,
                 latency_ms=(time.perf_counter() - t_start) * 1000,
-                provider_name=self.provider.get_provider_name(),
+                provider_name="LOCAL_DIRECT",
             )
 
-        # STEP 4: Build System Message and Conversation History
-        sys_prompt = SYSTEM_PROMPT_TEMPLATE.format(
-            active_ticker=ctx.active_ticker or "Belum ditentukan",
-            active_strategy=ctx.strategy,
-            active_horizon=ctx.time_horizon,
-            active_constraints=json.dumps(ctx.explicit_constraints, ensure_ascii=False),
-            active_candidates=json.dumps([c.get("ticker", c.get("symbol")) for c in ctx.active_candidates[:5]], ensure_ascii=False),
-        )
+        # STEP 4: Build System Message and Conversation History with Adaptive Domain
+        if is_financial:
+            sys_prompt = FINANCIAL_SYSTEM_PROMPT.format(
+                active_ticker=ctx.active_ticker or "Belum ditentukan",
+                active_strategy=ctx.strategy,
+                active_horizon=ctx.time_horizon,
+                active_constraints=json.dumps(ctx.explicit_constraints, ensure_ascii=False),
+                active_candidates=json.dumps([c.get("ticker", c.get("symbol")) for c in ctx.active_candidates[:5]], ensure_ascii=False),
+            )
+        else:
+            sys_prompt = GENERAL_SYSTEM_PROMPT
+
 
         messages: list[ChatMessage] = [ChatMessage(role="system", content=sys_prompt)]
 
@@ -261,7 +418,15 @@ class AgentHarness:
                 ))
 
                 for tc in resp.tool_calls:
+                    # Guard: do not trigger control_bagusmax reset if query was about stock/timeframe
+                    if tc.function_name == "control_bagusmax":
+                        act = str(tc.arguments.get("action", "")).lower()
+                        if act in ("reset", "move", "rotate") and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q) and not any(k in lower_q for k in ("bagusmax", "3d", "karakter", "jendela", "layar", "companion")):
+                            logger.info("Intercepted false control_bagusmax reset during stock query; ignoring companion tool")
+                            continue
+
                     valid_args, err = SecurityGuard.validate_tool_arguments(tc.function_name, tc.arguments)
+
                     if not valid_args:
                         tool_res_str = json.dumps({"error": err})
                     else:

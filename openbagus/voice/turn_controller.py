@@ -45,6 +45,45 @@ class VoiceState(str, enum.Enum):
     ERROR = "ERROR"
 
 
+INCOMPLETE_TRAILING_WORDS = {
+    "dan", "atau", "untuk", "karena", "tapi", "tetapi", "terus", "kalau",
+    "jika", "yaitu", "tentang", "seperti", "dengan", "soal", "saham",
+    "analisis", "bagaimana", "kenapa", "apakah", "intinya", "lalu",
+    "sebentar", "menurut", "anda", "kamu", "terkait", "secara", "pada",
+    "mengenai", "serta",
+}
+
+INCOMPLETE_PREFIXES = (
+    "kalau menurut", "untuk saham", "terus kalau", "saya mau", "jadi intinya",
+    "tapi sebentar", "tolong analisis", "analisis saham", "coba tolong",
+    "kebijakan pemerintah", "menurut anda", "menurut kamu", "saya mau bandingkan",
+)
+
+
+def is_likely_incomplete_utterance(transcript: str) -> bool:
+    """Heuristic check to determine if an utterance is syntactically or semantically incomplete."""
+    text = transcript.strip().lower()
+    if not text:
+        return True
+
+    for prefix in INCOMPLETE_PREFIXES:
+        if text.startswith(prefix) and len(text.split()) <= 4:
+            return True
+
+    words = text.split()
+    if not words:
+        return True
+
+    if len(words) <= 2 and words[0] in ("analisis", "tolong", "coba", "kalau", "untuk", "tadi"):
+        return True
+
+    last_word = words[-1].rstrip(".,?!")
+    if last_word in INCOMPLETE_TRAILING_WORDS:
+        return True
+
+    return False
+
+
 class VoiceTurnController:
     """Orchestrates two-way spoken conversation turns, mode selection, and agent integration."""
 
@@ -84,6 +123,8 @@ class VoiceTurnController:
         self._lock = threading.Lock()
         self._loop_active = False
         self._loop_thread: threading.Thread | None = None
+        self._turn_worker: threading.Thread | None = None
+        self._barge_in_consecutive_frames: int = 0
         self._hands_free = True
         self._current_turn_id: str = ""
         self._companion = None
@@ -193,31 +234,63 @@ class VoiceTurnController:
     def stop_voice_loop(self) -> None:
         """Stops voice session cleanly."""
         self._loop_active = False
+        self.interruption.trigger_interruption(reason="SESSION_STOP")
         self.capture_stream.stop()
         self.playback_manager.stop_playback(interrupted=False)
         self.set_state(VoiceState.IDLE)
+        if self._turn_worker and self._turn_worker.is_alive():
+            self._turn_worker.join(timeout=0.5)
         if self._loop_thread and self._loop_thread.is_alive():
             self._loop_thread.join(timeout=1.0)
 
     def _run_loop(self) -> None:
-        """Background frame polling loop processing microphone frames and VAD events."""
+        """Background frame polling loop processing microphone frames, VAD events, and full-duplex barge-in."""
         while self._loop_active:
             time.sleep(0.015)  # Polling interval matching ~16ms half-frame
 
-            # Handle Barge-In when assistant is currently speaking
-            if self.state == VoiceState.SPEAKING:
+            # -------------------------------------------------------------
+            # FULL-DUPLEX BARGE-IN: Detect user speech while assistant is
+            # SPEAKING, GENERATING_SPEECH, or THINKING.
+            # -------------------------------------------------------------
+            if self.state in (VoiceState.SPEAKING, VoiceState.GENERATING_SPEECH, VoiceState.THINKING):
                 frame = self.capture_stream.get_latest_frame()
                 if frame is not None:
-                    is_active, _, prob = self.vad.process_frame(frame)
-                    # Barge-in confirmed if user speaks with sufficient confidence while assistant speaks
-                    if is_active and prob > 0.65:
-                        self.interruption.trigger_interruption(reason="USER_SPOKE_DURING_ASSISTANT_PLAYBACK")
-                        self.capture_stream.start_utterance()
-                        self.set_state(VoiceState.SPEECH_DETECTED)
+                    frame_rms = float(np.sqrt(np.mean(np.square(frame))))
+                    _, _, prob = self.vad.process_frame(frame)
+
+                    # During playback, enforce acoustic RMS floor and higher probability
+                    # to prevent laptop speaker bleed / echo from triggering false barge-in
+                    if self.state == VoiceState.SPEAKING:
+                        is_speech = (prob >= 0.70) and (frame_rms >= 0.007)
+                    else:
+                        is_speech = (prob >= 0.60) and (frame_rms >= 0.004)
+
+                    if is_speech:
+                        self._barge_in_consecutive_frames += 1
+                        if self._barge_in_consecutive_frames >= 2:  # Sustained over ~60ms
+                            logger.info(
+                                "Barge-in confirmed during %s (rms=%.4f, prob=%.2f); interrupting turn %s",
+                                self.state.value,
+                                frame_rms,
+                                prob,
+                                self._current_turn_id,
+                            )
+                            self.interruption.trigger_interruption(reason="USER_BARGE_IN")
+                            self.playback_manager.stop_playback(interrupted=True)
+                            self.vad.reset()
+                            self._barge_in_consecutive_frames = 0
+                            self._current_turn_id = f"turn_{uuid.uuid4().hex[:8]}"
+                            self.set_state(VoiceState.SPEECH_DETECTED)
+                            self.capture_stream.start_utterance()
+                    else:
+                        self._barge_in_consecutive_frames = max(0, self._barge_in_consecutive_frames - 1)
                 continue
 
-            # Standard listening states
+            # -------------------------------------------------------------
+            # LISTENING & ENDPOINTING STATES
+            # -------------------------------------------------------------
             if self.state in (VoiceState.LISTENING, VoiceState.SPEECH_DETECTED, VoiceState.ENDPOINTING):
+                self._barge_in_consecutive_frames = 0
                 frame = self.capture_stream.get_latest_frame()
                 if frame is None:
                     continue
@@ -230,13 +303,40 @@ class VoiceTurnController:
                     self.capture_stream.start_utterance()
 
                 elif self.state in (VoiceState.SPEECH_DETECTED, VoiceState.ENDPOINTING):
+                    # Check adaptive endpointing: if acoustic pause reaches 650ms, inspect partial speech
+                    if not self.vad.is_extended and self.vad.is_acoustic_pause(650):
+                        peek_audio = self.capture_stream.peek_current_utterance_audio()
+                        if 16000 * 0.4 <= len(peek_audio) <= 16000 * 4.5:
+                            try:
+                                partial_res, _ = self.asr_engine.transcribe(peek_audio, sample_rate=16000)
+                                if partial_res.normalized_text and is_likely_incomplete_utterance(partial_res.normalized_text):
+                                    logger.info(
+                                        "Adaptive endpointing: Utterance '%s' appears incomplete; extending silence timeout to %d ms",
+                                        partial_res.normalized_text,
+                                        self.vad.extended_silence_timeout_ms,
+                                    )
+                                    self.vad.set_extended_silence(True)
+                            except Exception as e:
+                                logger.debug("Adaptive endpointing partial transcription error: %s", e)
+
                     if is_endpoint:
                         self.set_state(VoiceState.ENDPOINTING)
-                        self._process_completed_utterance()
+                        audio = self.capture_stream.end_utterance()
+                        self.vad.reset()
+
+                        if len(audio) < 16000 * 0.4:  # Ignore clicks / noise shorter than 400ms
+                            self.set_state(VoiceState.LISTENING)
+                        else:
+                            self._start_turn_worker(audio)
+
                     elif not is_active:
                         self.set_state(VoiceState.ENDPOINTING)
                     else:
                         self.set_state(VoiceState.SPEECH_DETECTED)
+                        if self.vad.is_extended:
+                            # User resumed speaking; revert back to base timeout
+                            self.vad.set_extended_silence(False)
+
                         if self._companion is not None:
                             try:
                                 frame_rms = float(np.sqrt(np.mean(np.square(frame))))
@@ -244,18 +344,26 @@ class VoiceTurnController:
                             except Exception:
                                 pass
 
-    def _process_completed_utterance(self) -> None:
+    def _start_turn_worker(self, audio: np.ndarray) -> None:
+        """Dispatches utterance processing to a separate thread so _run_loop remains responsive."""
+        if self._turn_worker is not None and self._turn_worker.is_alive():
+            self.interruption.trigger_interruption(reason="SUPERSEDED_BY_NEW_TURN")
+            self._turn_worker.join(timeout=0.2)
+
+        self._turn_worker = threading.Thread(
+            target=self._process_completed_utterance,
+            args=(audio,),
+            daemon=True,
+            name=f"TurnWorker_{self._current_turn_id}",
+        )
+        self._turn_worker.start()
+
+    def _process_completed_utterance(self, audio: np.ndarray) -> None:
         """Triggered once silence endpointing confirms the user finished their utterance."""
-        audio = self.capture_stream.end_utterance()
-        self.vad.reset()
-
-        if len(audio) < 16000 * 0.4:  # Ignore clicks / noise shorter than 400ms
-            self.set_state(VoiceState.LISTENING)
-            return
-
-        turn_id = f"turn_{uuid.uuid4().hex[:8]}"
+        turn_id = self._current_turn_id or f"turn_{uuid.uuid4().hex[:8]}"
         self._current_turn_id = turn_id
         self.interruption.start_turn(turn_id)
+        cancellation = self.interruption.get_cancellation_event()
         metrics = VoiceTurnMetrics(turn_id=turn_id, user_speech_duration_s=len(audio) / 16000.0)
 
         # STEP 1: Speech-to-Text (ASR)
@@ -264,9 +372,14 @@ class VoiceTurnController:
         normalized_res, asr_telemetry = self.asr_engine.transcribe(audio, sample_rate=16000)
         metrics.asr_latency_ms = asr_telemetry.get("latency_ms", (time.perf_counter() - t_asr_start) * 1000.0)
 
+        if cancellation.is_set():
+            logger.info("Turn %s cancelled during/after ASR", turn_id)
+            return
+
         transcript = normalized_res.normalized_text
         if not transcript:
-            self.set_state(VoiceState.LISTENING)
+            if not cancellation.is_set() and self.state == VoiceState.TRANSCRIBING:
+                self.set_state(VoiceState.LISTENING)
             return
 
         if self.on_user_transcript:
@@ -275,7 +388,8 @@ class VoiceTurnController:
         # STEP 2: Check Mode Selection Commands or Pending Queries
         mode_cmd_reply = self.mode_controller.handle_mode_commands(transcript)
         if mode_cmd_reply:
-            self._speak_response(mode_cmd_reply, mode_cmd_reply, metrics)
+            if not cancellation.is_set():
+                self._speak_response(mode_cmd_reply, mode_cmd_reply, metrics, turn_id)
             return
 
         # Check if user is answering a pending mode selection question
@@ -293,7 +407,8 @@ class VoiceTurnController:
                 strategy=normalized_res.detected_strategy,
             )
             self.set_state(VoiceState.MODE_SELECTION)
-            self._speak_response(prompt_q, prompt_q, metrics)
+            if not cancellation.is_set():
+                self._speak_response(prompt_q, prompt_q, metrics, turn_id)
             return
         else:
             # Frictionless natural conversation: automatically select mode if user specifies or query needs deep analysis
@@ -302,6 +417,9 @@ class VoiceTurnController:
                 self.mode_controller.set_mode("DEEP_REASONING")
             elif any(k in low for k in ("mode cepat", "ringkas", "singkat", "cepat")):
                 self.mode_controller.set_mode("FAST")
+
+        if cancellation.is_set():
+            return
 
         # STEP 3: Execute Agent Harness
         self.set_state(VoiceState.THINKING)
@@ -317,6 +435,10 @@ class VoiceTurnController:
         metrics.agent_total_latency_ms = (time.perf_counter() - t_agent_start) * 1000.0
         metrics.tools_executed_count = len(agent_resp.tool_calls_executed)
 
+        if cancellation.is_set():
+            logger.info("Turn %s cancelled during/after agent run", turn_id)
+            return
+
         # STEP 4: Compose Spoken Speech and Play
         written_text = agent_resp.content
         spoken_text = SpeechTextNormalizer.to_spoken_text(written_text)
@@ -324,9 +446,15 @@ class VoiceTurnController:
         if self.on_agent_response:
             self.on_agent_response(written_text, spoken_text)
 
-        self._speak_response(written_text, spoken_text, metrics)
+        self._speak_response(written_text, spoken_text, metrics, turn_id)
 
-    def _speak_response(self, display_text: str, spoken_text: str, metrics: VoiceTurnMetrics) -> None:
+    def _speak_response(
+        self,
+        display_text: str,
+        spoken_text: str,
+        metrics: VoiceTurnMetrics,
+        turn_id: str | None = None,
+    ) -> None:
         """Synthesizes and progressively streams spoken audio to playback manager with generation tracking."""
         gen_id = self.playback_manager.new_turn()
         self.set_state(VoiceState.GENERATING_SPEECH)
@@ -357,9 +485,10 @@ class VoiceTurnController:
                 break
             time.sleep(0.03)
 
-        # Suppress microphone capture briefly (250ms) to prevent acoustic echo / room reverb from triggering VAD
-        self.capture_stream.suppress_input(250)
-        self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
+        # Only transition back to LISTENING if the turn completed naturally and was NOT interrupted
+        if not cancellation.is_set() and self.state == VoiceState.SPEAKING:
+            self.capture_stream.suppress_input(250)
+            self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
 
     def process_direct_utterance(self, audio: np.ndarray) -> tuple[str, str, VoiceTurnMetrics]:
         """Synchronous entry point for testing: takes audio array, returns (written, spoken, metrics)."""

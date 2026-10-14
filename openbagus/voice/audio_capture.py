@@ -230,7 +230,15 @@ class AudioCaptureStream:
             if self._is_utterance_active:
                 self._active_utterance_frames.append(frame)
 
+    def peek_current_utterance_audio(self) -> np.ndarray:
+        """Returns the current utterance audio accumulated so far without ending the utterance."""
+        with self._lock:
+            if not self._active_utterance_frames:
+                return np.zeros(0, dtype=np.float32)
+            return np.concatenate(self._active_utterance_frames)
+
     def end_utterance(self) -> np.ndarray:
+
         """Triggered when VAD detects speech end. Returns contiguous float32 16kHz audio."""
         with self._lock:
             self._is_utterance_active = False

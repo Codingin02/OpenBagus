@@ -39,6 +39,10 @@ class WorkingContext:
         if len(self.turns) > 30:
             self.turns = self.turns[-30:]
 
+    def get_recent_history(self, limit: int = 10) -> list[dict[str, str]]:
+        """Returns the most recent conversational turns up to limit."""
+        return self.turns[-limit:]
+
     def handle_corrections(self, user_query: str) -> dict[str, Any]:
         """Detects and applies explicit user corrections (entity, strategy, horizon)."""
         lower = user_query.lower()

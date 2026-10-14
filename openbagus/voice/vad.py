@@ -24,7 +24,8 @@ class VoiceActivityDetector:
         self,
         threshold: float = 0.50,
         neg_threshold: float = 0.35,
-        silence_timeout_ms: int = 900,
+        silence_timeout_ms: int = 800,
+        extended_silence_timeout_ms: int = 1800,
         min_speech_duration_ms: int = 250,
         max_utterance_duration_ms: int = 30000,
         speech_threshold: float | None = None,
@@ -37,7 +38,13 @@ class VoiceActivityDetector:
 
         self.threshold = threshold
         self.neg_threshold = neg_threshold
-        self.silence_timeout_chunks = max(1, int(silence_timeout_ms / FRAME_DURATION_MS))
+        self.base_silence_timeout_ms = silence_timeout_ms
+        self.extended_silence_timeout_ms = extended_silence_timeout_ms
+
+        self.silence_timeout_chunks = max(1, int(self.base_silence_timeout_ms / FRAME_DURATION_MS))
+        self.extended_silence_timeout_chunks = max(1, int(self.extended_silence_timeout_ms / FRAME_DURATION_MS))
+        self._current_silence_timeout_chunks = self.silence_timeout_chunks
+
         self.min_speech_chunks = max(1, int(min_speech_duration_ms / FRAME_DURATION_MS))
         self.max_utterance_chunks = int(max_utterance_duration_ms / FRAME_DURATION_MS)
 
@@ -49,6 +56,7 @@ class VoiceActivityDetector:
         self._energy_floor = 1e-4
 
         self._init_model()
+
 
     def _init_model(self) -> None:
         if get_vad_model is not None:
@@ -64,6 +72,26 @@ class VoiceActivityDetector:
         self._speech_chunks = 0
         self._silence_chunks = 0
         self._total_chunks = 0
+        self._current_silence_timeout_chunks = self.silence_timeout_chunks
+
+    def set_extended_silence(self, extended: bool = True) -> None:
+        """Dynamically toggles extended silence window for incomplete turns."""
+        self._current_silence_timeout_chunks = (
+            self.extended_silence_timeout_chunks if extended else self.silence_timeout_chunks
+        )
+
+    @property
+    def is_extended(self) -> bool:
+        """Returns True if detector is currently using the extended silence timeout."""
+        return self._current_silence_timeout_chunks == self.extended_silence_timeout_chunks
+
+    @property
+    def silence_duration_ms(self) -> float:
+        return self._silence_chunks * FRAME_DURATION_MS
+
+    def is_acoustic_pause(self, min_ms: int = 650) -> bool:
+        """Returns True if user has paused speaking for at least min_ms."""
+        return self._is_speech_active and (self.silence_duration_ms >= min_ms)
 
     @property
     def is_speech_active(self) -> bool:
@@ -114,8 +142,8 @@ class VoiceActivityDetector:
             # Currently in active speech
             if prob < self.neg_threshold:
                 self._silence_chunks += 1
-                # Check for silence timeout endpointing
-                if self._silence_chunks >= self.silence_timeout_chunks:
+                # Check for silence timeout endpointing using adaptive chunks
+                if self._silence_chunks >= self._current_silence_timeout_chunks:
                     is_endpoint = True
             else:
                 self._silence_chunks = max(0, self._silence_chunks - 1)
@@ -125,3 +153,4 @@ class VoiceActivityDetector:
                 is_endpoint = True
 
         return self._is_speech_active, is_endpoint, prob
+

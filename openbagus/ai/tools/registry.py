@@ -73,10 +73,27 @@ def get_global_tool_registry() -> ToolRegistry:
         reg = ToolRegistry()
         register_all_financial_tools(reg)
         try:
+            from openbagus.ai.tools.system_tools import (
+                GetRuntimeCapabilitiesTool,
+                GetSystemDiagnosticsTool,
+                GetVoiceRuntimeStatusTool,
+                SetVoicePresetTool,
+                GetDataCoverageStatusTool,
+            )
+            reg.register(GetRuntimeCapabilitiesTool())
+            reg.register(GetSystemDiagnosticsTool())
+            reg.register(GetVoiceRuntimeStatusTool())
+            reg.register(SetVoicePresetTool())
+            reg.register(GetDataCoverageStatusTool())
+        except Exception as _e:
+            logger.debug("System tools registration failed: %s", _e)
+
+        try:
             from openbagus.companion.companion_tool import ControlBagusmaxTool
             reg.register(ControlBagusmaxTool())
         except Exception as _e:
             logger.debug("ControlBagusmaxTool registration skipped: %s", _e)
         _GLOBAL_REGISTRY = reg
     return _GLOBAL_REGISTRY
+
 

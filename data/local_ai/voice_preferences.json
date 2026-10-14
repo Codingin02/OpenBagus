@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "voice_enabled": true,
+  "hands_free": true,
+  "microphone_device_id": null,
+  "speaker_device_id": null,
+  "voice_preset": "NATURAL",
+  "speed": 1.0,
+  "volume": 1.0,
+  "audio_storage": "disabled",
+  "response_mode": "audio_first",
+  "barge_in_enabled": true,
+  "echo_cancellation_guard_ms": 250,
+  "default_mode": "FAST",
+  "auto_start_on_cli": true
+}

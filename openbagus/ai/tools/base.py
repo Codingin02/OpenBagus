@@ -44,6 +44,10 @@ class BaseFinancialTool(ABC):
             parameters=self.parameters_schema,
         )
 
+    def execute(self, arguments: dict[str, Any]) -> ToolResult:
+        """Execute tool with telemetry."""
+        return self.execute_with_telemetry(arguments)
+
     def execute_with_telemetry(self, arguments: dict[str, Any]) -> ToolResult:
         t_start = time.perf_counter()
         try:
