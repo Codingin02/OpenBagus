@@ -2,7 +2,7 @@
 
 **Last Updated:** 2026-10-14T20:20 WIB  
 **Current Branch:** `fix/financial-integrity-recovery`  
-**Current HEAD:** Pending commit (fix: repair bare /show-openbagus dispatch, GPU status, mic detection, and mode consistency)  
+**Current HEAD:** `1a3bccc` (fix(cli+companion): repair bare /show-openbagus dispatch, GPU status, mic detection, and mode consistency)  
 
 ---
 
