@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "enabled": true,
+  "monitor_index": 0,
+  "window_position_x": -1,
+  "window_position_y": -1,
+  "window_width": 480,
+  "window_height": 560,
+  "character_scale": 1.0,
+  "yaw_degrees": 0.0,
+  "pitch_degrees": 0.0,
+  "animation_enabled": true,
+  "interactive_mode": true,
+  "always_on_top": true,
+  "placement_policy": "CLAMP_TO_VISIBLE_WORKAREA",
+  "active_fps": 60,
+  "idle_fps": 30
+}

@@ -25,6 +25,7 @@
 | **M13: Real Desktop 3D Acceptance** | `openbagus/companion/renderer.py`, `openbagus/cli.py` | Verified actual running Windows desktop companion overlay with DWM transparent framebuffer, lower-right positioning, `/show-openbagus` interactive routing, live speaking lip-sync, and live framebuffer screen captures. | `docs/local_ai/screenshots/desktop_live_popup_*.png` | **VERIFIED_COMPLETE** | None |
 | **M14: Critical CLI Bugfix** | `openbagus/cli.py`, `openbagus/companion/controller.py`, `openbagus/voice/audio_devices.py` | Fixed bare `/show-openbagus` command dispatch, removed misleading CPU/Offline label with separate backend/inference fields, eliminated BALANCED mode from user UI in favor of FAST default, fixed microphone detection (`has_input_device`, `get_microphone_status`), ASCII border encoding safety, subprocess launch logging to `companion.log`. | `test_show_openbagus.py` (21/21 OK), interactive CLI test OK | **VERIFIED_COMPLETE** | None |
 | **M15: Bagusmax Dual-Form 3D Companion** | `openbagus/companion/renderer.py`, `openbagus/companion/controller.py`, `openbagus/cli.py`, `openbagus/voice/mode_controller.py`, `reports/screenshots/` | Replaced legacy Mario character with dual-form Bagusmax (Big Hero 6 inspired): Form A (White vinyl inflatable robot) synchronized with FAST mode (`qwen3.5:2b`); Form B (Red armored hero suit with purple abdominal plates and stowed wings) synchronized with DEEP_REASONING mode (`qwen3.5:4b`). Completely purged Mario geometry. Implemented mouthless speech sync (head nod + chest expansion + bobbing). Added `/bagusmax` alias and live mode switching. 13 inspection screenshots rendered. | `test_show_openbagus.py` (26/26 OK), 13 PNG screenshots in `reports/screenshots/` | **VERIFIED_COMPLETE** | None |
+| **M16: Bagusmax Interactive 3D Upgrade** | `openbagus/companion/renderer.py`, `openbagus/companion/controller.py`, `openbagus/companion/preferences.py`, `openbagus/companion/companion_tool.py`, `openbagus/cli.py`, `reports/screenshots/` | True 360° horizontal yaw ($0^\circ-360^\circ$) & pitch ($-65^\circ-+65^\circ$) body rotation around stable center pivot $(0, 0.76, 0)$; complete backside geometry (smooth vinyl back for White, central jetpack, twin thrusters, folded wings for Armored) with rear illumination; smooth left-click window dragging with invariant desktop offset tracking; independent uniform character scaling ($0.5\times-2.0\times$) via scroll; independent popup window resizing via Alt+scroll or CLI; 9 desktop presets; multi-monitor support; click-through toggle via GLFW mouse passthrough; atomic JSON preferences persistence (`data/local_ai/bagusmax_preferences.json`); agent natural language companion tool (`control_bagusmax`). | `test_show_openbagus.py` (48/48 OK), 14 visual screenshots in `reports/screenshots/` | **VERIFIED_COMPLETE** | None |
 
 ---
 
@@ -32,15 +33,16 @@
 
 - `tests.test_conversational_agent_harness`: **25 / 25 PASSED**
 - `tests.test_local_ai_integration`: **17 / 17 PASSED**
-- `tests.test_show_openbagus`: **26 / 26 PASSED**
+- `tests.test_show_openbagus`: **48 / 48 PASSED**
 - `tests.test_voice_conversation`: **26 / 26 PASSED**
 - `tests.test_financial_integrity_p0`: **14 / 14 PASSED**
-- **Total Suite Verified:** **108 / 108 PASSED (100% Pass Rate)**
+- **Total Suite Verified:** **130 / 130 PASSED (100% Pass Rate)**
 
 ---
 
 ## 3. Git Status
 
 - **Branch:** `fix/financial-integrity-recovery`
-- **Status:** Bagusmax Dual-Form 3D Companion fully implemented, verified, tested, and documented.
+- **Status:** Bagusmax Interactive 3D Companion Upgrade fully implemented, verified, tested, and documented.
+
 

@@ -72,5 +72,11 @@ def get_global_tool_registry() -> ToolRegistry:
         from openbagus.ai.tools.finance_tools import register_all_financial_tools
         reg = ToolRegistry()
         register_all_financial_tools(reg)
+        try:
+            from openbagus.companion.companion_tool import ControlBagusmaxTool
+            reg.register(ControlBagusmaxTool())
+        except Exception as _e:
+            logger.debug("ControlBagusmaxTool registration skipped: %s", _e)
         _GLOBAL_REGISTRY = reg
     return _GLOBAL_REGISTRY
+

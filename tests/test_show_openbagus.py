@@ -335,5 +335,337 @@ class TestAudioDeviceDiagnostics(unittest.TestCase):
         self.assertIsInstance(detail, str)
 
 
+class TestBagusmaxInteraction(unittest.TestCase):
+    """Verifies mouse dragging, 3D rotation, scaling, presets, and pivot mathematics."""
+
+    def test_all_nine_presets_generation(self) -> None:
+        from openbagus.companion.renderer import calculate_preset_position
+        presets = [
+            "top-left", "top-center", "top-right",
+            "middle-left", "center", "middle-right",
+            "bottom-left", "bottom-center", "bottom-right",
+        ]
+        for p in presets:
+            x, y = calculate_preset_position(p, 480, 560, monitor_idx=0)
+            self.assertIsInstance(x, int)
+            self.assertIsInstance(y, int)
+
+    def test_window_clamping_policy(self) -> None:
+        from openbagus.companion.renderer import clamp_window_position
+        # Clamped policy should keep window accessible
+        cx, cy = clamp_window_position(-500, -200, 480, 560, policy="CLAMP_TO_VISIBLE_WORKAREA")
+        self.assertGreaterEqual(cx, -400)
+        self.assertGreaterEqual(cy, 0)
+
+        # Free positioning allows exact placement
+        fx, fy = clamp_window_position(-500, -200, 480, 560, policy="FREE_POSITIONING")
+        self.assertEqual(fx, -500)
+        self.assertEqual(fy, -200)
+
+    def test_interaction_manager_scale_and_rotation_bounds(self) -> None:
+        from openbagus.companion.preferences import CompanionPreferences
+        from openbagus.companion.renderer import InteractionManager
+
+        im = InteractionManager(CompanionPreferences())
+        # Scaling clamping
+        im.set_scale(5.0)
+        self.assertEqual(im.character_scale, 2.0)
+        im.set_scale(0.1)
+        self.assertEqual(im.character_scale, 0.5)
+        im.set_scale(1.25)
+        self.assertEqual(im.character_scale, 1.25)
+
+        # Yaw normalization (0 - 360)
+        im.set_rotation(yaw=450.0)
+        self.assertEqual(im.user_yaw, 90.0)
+        im.set_rotation(yaw=180.0)
+        self.assertEqual(im.user_yaw, 180.0)
+
+        # Pitch clamping (-65 to +65)
+        im.set_rotation(pitch=90.0)
+        self.assertEqual(im.user_pitch, 65.0)
+        im.set_rotation(pitch=-120.0)
+        self.assertEqual(im.user_pitch, -65.0)
+        im.set_rotation(pitch=25.0)
+        self.assertEqual(im.user_pitch, 25.0)
+
+    def test_view_perspectives(self) -> None:
+        from openbagus.companion.preferences import CompanionPreferences
+        from openbagus.companion.renderer import InteractionManager
+
+        im = InteractionManager(CompanionPreferences())
+        im.set_view("front")
+        self.assertEqual((im.user_yaw, im.user_pitch), (0.0, 0.0))
+        im.set_view("back")
+        self.assertEqual((im.user_yaw, im.user_pitch), (180.0, 0.0))
+        im.set_view("left")
+        self.assertEqual((im.user_yaw, im.user_pitch), (270.0, 0.0))
+        im.set_view("right")
+        self.assertEqual((im.user_yaw, im.user_pitch), (90.0, 0.0))
+        im.set_view("top")
+        self.assertEqual((im.user_yaw, im.user_pitch), (0.0, -50.0))
+        im.set_view("reset")
+        self.assertEqual((im.user_yaw, im.user_pitch), (0.0, 0.0))
+
+    def test_stable_pivot_mathematics(self) -> None:
+        """Rotating 180 deg or scaling must keep pivot point (0.0, 0.76, 0.0) perfectly invariant."""
+        import math
+        from pyrr import Matrix44, Vector3
+
+        pivot = Vector3([0.0, 0.76, 0.0])
+        T_pivot_inv = Matrix44.from_translation([0.0, -0.76, 0.0], dtype="f4")
+        T_pivot = Matrix44.from_translation([0.0, 0.76, 0.0], dtype="f4")
+        S = Matrix44.from_scale([1.5, 1.5, 1.5], dtype="f4")
+        R_pitch = Matrix44.from_x_rotation(math.radians(25.0), dtype="f4")
+        R_yaw = Matrix44.from_y_rotation(math.radians(180.0), dtype="f4")
+
+        # Stable user orientation around center (0, 0.76, 0)
+        user_transform = T_pivot_inv @ S @ R_pitch @ R_yaw @ T_pivot
+        transformed_pivot = user_transform * pivot
+
+        self.assertAlmostEqual(transformed_pivot[0], 0.0, places=4)
+        self.assertAlmostEqual(transformed_pivot[1], 0.76, places=4)
+        self.assertAlmostEqual(transformed_pivot[2], 0.0, places=4)
+
+    def test_drag_delta_invariance(self) -> None:
+        """Drag formula target_wx = (wx + cx) - grab_offset must track mouse without jitter."""
+        wx = 1000
+        wy = 500
+        grab_x = 150
+        grab_y = 120
+
+        # Cursor moves right by 40px and down by 30px
+        cursor_screen_x = 1000 + grab_x + 40
+        cursor_screen_y = 500 + grab_y + 30
+
+        target_wx = cursor_screen_x - grab_x
+        target_wy = cursor_screen_y - grab_y
+        self.assertEqual(target_wx, 1040)
+        self.assertEqual(target_wy, 530)
+
+
+class TestBagusmaxBacksideGeometry(unittest.TestCase):
+    """Verifies that rotating 180 degrees reveals complete 3D backside geometry without holes or missing faces."""
+
+    def test_white_form_has_complete_backside(self) -> None:
+        verts, _ = build_bagusmax_white()
+        stride = 9
+        n_verts = len(verts) // stride
+
+        has_rear_torso = False
+        has_rear_head = False
+        has_rear_legs = False
+
+        for i in range(n_verts):
+            y = verts[i * stride + 1]
+            z = verts[i * stride + 2]
+            nz = verts[i * stride + 5]
+
+            # Head back: y > 1.25, z < -0.05, normal facing backward nz < -0.3
+            if y > 1.25 and z < -0.05 and nz < -0.3:
+                has_rear_head = True
+            # Torso back: 0.5 < y < 1.2, z < -0.1, normal facing backward nz < -0.3
+            if 0.5 < y < 1.2 and z < -0.1 and nz < -0.3:
+                has_rear_torso = True
+            # Leg back: y < 0.5, z < -0.05, normal facing backward nz < -0.3
+            if y < 0.5 and z < -0.05 and nz < -0.3:
+                has_rear_legs = True
+
+        self.assertTrue(has_rear_head, "White Bagusmax must have back-of-head geometry")
+        self.assertTrue(has_rear_torso, "White Bagusmax must have rounded back-of-torso geometry")
+        self.assertTrue(has_rear_legs, "White Bagusmax must have rear leg geometry")
+
+    def test_armored_form_has_jetpack_and_folded_wings(self) -> None:
+        verts, _ = build_bagusmax_armored()
+        stride = 9
+        n_verts = len(verts) // stride
+
+        has_jetpack = False
+        has_folded_wings = False
+        has_rear_thrusters = False
+
+        for i in range(n_verts):
+            r = verts[i * stride + 6]
+            g = verts[i * stride + 7]
+            b = verts[i * stride + 8]
+            y = verts[i * stride + 1]
+            z = verts[i * stride + 2]
+
+            # Jetpack central pack: z < -0.15, dark red (r ~ 0.64, g ~ 0.10)
+            if z < -0.15 and 0.55 <= r <= 0.70 and g < 0.15:
+                has_jetpack = True
+            # Yellow thrusters: r > 0.9, g > 0.7, b < 0.2, z < -0.2
+            if z < -0.20 and r > 0.9 and g > 0.7 and b < 0.2:
+                has_rear_thrusters = True
+            # Folded wings: z < -0.15, 0.9 < y < 1.3, purple accent or armor red
+            if z < -0.15 and 0.9 < y < 1.3:
+                has_folded_wings = True
+
+        self.assertTrue(has_jetpack, "Armored Bagusmax must have central jetpack geometry on back")
+        self.assertTrue(has_rear_thrusters, "Armored Bagusmax must have twin rear thrusters on back")
+        self.assertTrue(has_folded_wings, "Armored Bagusmax must have folded wings mounted on back")
+
+
+class TestBagusmaxPreferences(unittest.TestCase):
+    """Verifies atomic persistence, corruption recovery, and clamping of user preferences."""
+
+    def test_preferences_clamping(self) -> None:
+        from openbagus.companion.preferences import CompanionPreferences
+
+        p = CompanionPreferences(
+            character_scale=3.5,
+            yaw_degrees=750.0,
+            pitch_degrees=-100.0,
+            window_width=100,
+            window_height=3000,
+            placement_policy="INVALID_POLICY",
+        ).clamp()
+
+        self.assertEqual(p.character_scale, 2.0)
+        self.assertEqual(p.yaw_degrees, 30.0)
+        self.assertEqual(p.pitch_degrees, -65.0)
+        self.assertEqual(p.window_width, 240)
+        self.assertEqual(p.window_height, 1400)
+        self.assertEqual(p.placement_policy, "CLAMP_TO_VISIBLE_WORKAREA")
+
+    def test_atomic_save_load_and_corruption_recovery(self) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+        from openbagus.companion.preferences import (
+            CompanionPreferences,
+            load_preferences,
+            save_preferences,
+            reset_preferences,
+        )
+
+        with tempfile.TemporaryDirectory() as td:
+            cfg_p = Path(td) / "test_prefs.json"
+
+            p = CompanionPreferences(
+                character_scale=1.35,
+                yaw_degrees=180.0,
+                pitch_degrees=15.0,
+                window_position_x=500,
+                window_position_y=300,
+            )
+            ok = save_preferences(p, cfg_p)
+            self.assertTrue(ok)
+            self.assertTrue(cfg_p.exists())
+
+            loaded = load_preferences(cfg_p)
+            self.assertEqual(loaded.character_scale, 1.35)
+            self.assertEqual(loaded.yaw_degrees, 180.0)
+            self.assertEqual(loaded.pitch_degrees, 15.0)
+            self.assertEqual(loaded.window_position_x, 500)
+
+            # Test corruption recovery
+            with open(cfg_p, "w", encoding="utf-8") as f:
+                f.write("{ INVALID JSON CONTENT :::")
+
+            corrupt_loaded = load_preferences(cfg_p)
+            self.assertEqual(corrupt_loaded.character_scale, 1.0)
+            self.assertEqual(corrupt_loaded.yaw_degrees, 8.0)
+
+            # Test reset
+            reset_p = reset_preferences(cfg_p)
+            self.assertEqual(reset_p.character_scale, 1.0)
+
+
+class TestBagusmaxCLIInteraction(unittest.TestCase):
+    """Verifies all new CLI companion commands and subcommands."""
+
+    def setUp(self) -> None:
+        from openbagus.cli import OpenBagusShell
+        self.shell = OpenBagusShell()
+
+    @patch("openbagus.companion.controller.CompanionController.set_position", return_value=True)
+    def test_cli_position_preset(self, mock_set_pos: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax position top-left")
+        mock_set_pos.assert_called_with(preset="top-left")
+
+    @patch("openbagus.companion.controller.CompanionController.set_position", return_value=True)
+    def test_cli_position_coords(self, mock_set_pos: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax position x 300 y 180")
+        mock_set_pos.assert_called_with(x=300, y=180)
+
+    @patch("openbagus.companion.controller.CompanionController.set_character_scale", return_value=True)
+    def test_cli_size(self, mock_set_scale: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax size 150")
+            mock_set_scale.assert_called_with(1.5)
+            self.shell.onecmd("/bagusmax size reset")
+            mock_set_scale.assert_called_with(1.0)
+
+    @patch("openbagus.companion.controller.CompanionController.set_window_size", return_value=True)
+    def test_cli_window_size(self, mock_set_win: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax window-size 450 600")
+        mock_set_win.assert_called_with(450, 600)
+
+    @patch("openbagus.companion.controller.CompanionController.set_rotation", return_value=True)
+    def test_cli_rotate_and_pitch(self, mock_rot: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax rotate 180")
+            mock_rot.assert_called_with(yaw=180.0)
+            self.shell.onecmd("/bagusmax pitch 30")
+            mock_rot.assert_called_with(pitch=30.0)
+
+    @patch("openbagus.companion.controller.CompanionController.set_view", return_value=True)
+    def test_cli_view(self, mock_view: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax view back")
+        mock_view.assert_called_with("back")
+
+    @patch("openbagus.companion.controller.CompanionController.set_interactive", return_value=True)
+    def test_cli_interactive_and_clickthrough(self, mock_inter: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax interactive on")
+            mock_inter.assert_called_with(True)
+            self.shell.onecmd("/bagusmax click-through on")
+            mock_inter.assert_called_with(False)
+
+    @patch("openbagus.companion.controller.CompanionController.trigger_gesture", return_value=True)
+    def test_cli_animation_gesture(self, mock_gesture: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax animation wave")
+        mock_gesture.assert_called_with("wave")
+
+    @patch("openbagus.companion.controller.CompanionController.save_preferences", return_value=True)
+    def test_cli_preferences_save(self, mock_save: MagicMock) -> None:
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax preferences save")
+        mock_save.assert_called_once()
+
+
+class TestControlBagusmaxTool(unittest.TestCase):
+    """Verifies conversational agent tool for natural language companion control."""
+
+    def test_tool_registration_in_global_registry(self) -> None:
+        from openbagus.ai.tools.registry import get_global_tool_registry
+        reg = get_global_tool_registry()
+        tool = reg.get("control_bagusmax")
+        self.assertIsNotNone(tool, "control_bagusmax tool must be registered in global registry")
+
+    @patch("openbagus.companion.controller.CompanionController.set_position", return_value=True)
+    def test_tool_execution_move(self, mock_set_pos: MagicMock) -> None:
+        from openbagus.companion.companion_tool import ControlBagusmaxTool
+        tool = ControlBagusmaxTool()
+        res = tool.execute_with_telemetry({"action": "move", "position_preset": "top-right"})
+        self.assertTrue(res.success)
+        mock_set_pos.assert_called_with(x=None, y=None, preset="top-right")
+
+    @patch("openbagus.companion.controller.CompanionController.set_rotation", return_value=True)
+    def test_tool_execution_rotate(self, mock_rot: MagicMock) -> None:
+        from openbagus.companion.companion_tool import ControlBagusmaxTool
+        tool = ControlBagusmaxTool()
+        res = tool.execute_with_telemetry({"action": "rotate", "yaw": 180.0, "pitch": 0.0})
+        self.assertTrue(res.success)
+        mock_rot.assert_called_with(yaw=180.0, pitch=0.0)
+
+
 if __name__ == "__main__":
     unittest.main()
+

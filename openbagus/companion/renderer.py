@@ -46,6 +46,13 @@ except ImportError as _e:
     HAS_GL = False
     _MISSING = str(_e)
 
+from openbagus.companion.preferences import (
+    CompanionPreferences,
+    load_preferences,
+    save_preferences,
+    reset_preferences,
+)
+
 
 # ---------------------------------------------------------------------------
 # Shader programs
@@ -107,9 +114,14 @@ void main() {
     float fill_dot = max(dot(norm, fill_dir), 0.0) * 0.12;
     vec3 fill = fill_dot * v_color;
 
+    // Soft rear backlight to illuminate back wings, jetpack, and rear seams when rotating
+    vec3 back_light_dir = normalize(vec3(-1.8, 3.2, -3.0));
+    float back_dot = max(dot(norm, back_light_dir), 0.0) * 0.20;
+    vec3 back_fill = back_dot * v_color;
+
     vec3 ambient = (ambient_strength > 0.0 ? ambient_strength * 0.08 : 0.0) * v_color;
 
-    vec3 result = diffuse + fill + ambient + (rim * rim_color * v_color);
+    vec3 result = diffuse + fill + back_fill + ambient + (rim * rim_color * v_color);
     out_color = vec4(result, 1.0);
 }
 """
@@ -658,6 +670,9 @@ class CharacterAnimator:
         self.t: float = 0.0  # animation clock
         self.amplitude: float = 0.0  # audio amplitude for lip sync
         self.hidden: bool = False
+        self.animation_enabled: bool = True
+        self.gesture: str = "none"
+        self.gesture_timer: float = 0.0
 
         # Random idle gesture timer
         self._next_idle_gesture: float = 3.0
@@ -690,9 +705,7 @@ class CharacterAnimator:
         return self.t
 
     def update(self, dt: float) -> None:
-        self.t += dt
-
-        # Smooth morph/transformation progress between WHITE and ARMORED
+        # Smooth morph/transformation progress between WHITE and ARMORED always completes
         if self.character_form != self.target_form:
             self.morph_progress += dt * 2.5
             if self.morph_progress >= 1.0:
@@ -701,6 +714,16 @@ class CharacterAnimator:
         else:
             if self.morph_progress > 0.0:
                 self.morph_progress = max(0.0, self.morph_progress - dt * 2.5)
+
+        if not self.animation_enabled:
+            return
+
+        self.t += dt
+
+        if self.gesture_timer > 0.0:
+            self.gesture_timer -= dt
+            if self.gesture_timer <= 0.0:
+                self.gesture = "none"
 
         if self.t > self._next_idle_gesture and self.state == AnimState.IDLE:
             import random
@@ -714,6 +737,23 @@ class CharacterAnimator:
         t = self.t
         s = self.state
         a = self.amplitude
+
+        if not self.animation_enabled:
+            return {
+                "breath_y": 0.0,
+                "breath_scale": 1.0,
+                "bob_y": 0.0,
+                "lean_x": 0.0,
+                "head_tilt": 0.0,
+                "head_nod": 0.0,
+                "brow_raise": 0.0,
+                "blink": 0.0,
+                "mouth_open": 0.0,
+                "rot_y_extra": 0.0,
+                "morph_progress": self.morph_progress,
+                "wave_bob": 0.0,
+                "animation_enabled": 0.0,
+            }
 
         # Breathing: subtle up-down in IDLE/LISTENING/SLEEPING
         breath_y = 0.0
@@ -733,6 +773,11 @@ class CharacterAnimator:
         elif s == AnimState.SPEAKING:
             bob_y = math.sin(t * 14.0) * a * 0.012
 
+        # Gestural wave bob
+        wave_bob = 0.0
+        if self.gesture == "wave":
+            wave_bob = math.sin(t * 10.0) * 0.025
+
         # Lean forward in LISTENING
         lean_x = 0.0
         if s == AnimState.LISTENING:
@@ -744,6 +789,8 @@ class CharacterAnimator:
             head_tilt = math.sin(t * 2 * math.pi * 0.3) * 0.07
         elif s == AnimState.LISTENING:
             head_tilt = 0.05  # curious Baymax head cock
+        elif self.gesture == "nod":
+            head_tilt = math.sin(t * 8.0) * 0.04
 
         # Speech synchronization for mouthless Baymax:
         # Subtle head nod pitch during speaking
@@ -789,24 +836,397 @@ class CharacterAnimator:
             "mouth_open": mouth_open,
             "rot_y_extra": rot_y_extra,
             "morph_progress": self.morph_progress,
+            "wave_bob": wave_bob,
+            "animation_enabled": 1.0,
         }
 
 
 # ---------------------------------------------------------------------------
-# IPC Server (runs in background thread)
+# Monitor and Window Layout Helpers
+# ---------------------------------------------------------------------------
+
+def _get_active_monitors() -> list[Any]:
+    try:
+        if not glfw.init():
+            return []
+        return glfw.get_monitors() or []
+    except Exception:
+        return []
+
+
+def get_monitor_workarea_safe(monitor: Any) -> tuple[int, int, int, int]:
+    """Return (wx, wy, ww, wh) for monitor excluding taskbar/dock."""
+    if hasattr(glfw, "get_monitor_workarea"):
+        try:
+            return glfw.get_monitor_workarea(monitor)
+        except Exception:
+            pass
+    try:
+        pos = glfw.get_monitor_pos(monitor)
+        mode = glfw.get_video_mode(monitor)
+        return pos[0], pos[1], mode.size.width, mode.size.height
+    except Exception:
+        return 0, 0, 1920, 1032
+
+
+def calculate_preset_position(
+    preset: str, win_w: int, win_h: int, monitor_idx: int = 0
+) -> tuple[int, int]:
+    """Compute screen coordinates for the 9 standard desktop presets."""
+    monitors = _get_active_monitors()
+    if not monitors:
+        wx, wy, ww, wh = 0, 0, 1920, 1032
+    else:
+        if monitor_idx < 0 or monitor_idx >= len(monitors):
+            monitor_idx = 0
+        mon = monitors[monitor_idx]
+        wx, wy, ww, wh = get_monitor_workarea_safe(mon)
+
+    pad = 20
+    p = preset.strip().lower().replace("_", "-")
+    if p in ("top-left", "topleft"):
+        return wx + pad, wy + pad
+    elif p in ("top-center", "topcenter", "top"):
+        return wx + (ww - win_w) // 2, wy + pad
+    elif p in ("top-right", "topright"):
+        return wx + ww - win_w - pad, wy + pad
+    elif p in ("middle-left", "middleleft", "left"):
+        return wx + pad, wy + (wh - win_h) // 2
+    elif p in ("center", "middle", "middle-center"):
+        return wx + (ww - win_w) // 2, wy + (wh - win_h) // 2
+    elif p in ("middle-right", "middleright", "right"):
+        return wx + ww - win_w - pad, wy + (wh - win_h) // 2
+    elif p in ("bottom-left", "bottomleft"):
+        return wx + pad, wy + wh - win_h - pad
+    elif p in ("bottom-center", "bottomcenter", "bottom"):
+        return wx + (ww - win_w) // 2, wy + wh - win_h - pad
+    else:  # default "bottom-right", "bottomright"
+        return wx + ww - win_w - pad, wy + wh - win_h - pad - 20
+
+
+def clamp_window_position(
+    x: int, y: int, win_w: int, win_h: int, policy: str = "CLAMP_TO_VISIBLE_WORKAREA"
+) -> tuple[int, int]:
+    """Clamp window position so at least 80px remains accessible on screen."""
+    if policy == "FREE_POSITIONING":
+        return x, y
+    monitors = _get_active_monitors()
+    if not monitors:
+        wx, wy, ww, wh = 0, 0, 1920, 1032
+    else:
+        # Find monitor closest to window center
+        best_mon = monitors[0]
+        best_dist = float("inf")
+        win_cx = x + win_w // 2
+        win_cy = y + win_h // 2
+        for m in monitors:
+            m_wx, m_wy, m_ww, m_wh = get_monitor_workarea_safe(m)
+            cx = m_wx + m_ww // 2
+            cy = m_wy + m_wh // 2
+            d = math.hypot(win_cx - cx, win_cy - cy)
+            if d < best_dist:
+                best_dist = d
+                best_mon = m
+        wx, wy, ww, wh = get_monitor_workarea_safe(best_mon)
+
+    min_x = wx - win_w + 80
+    max_x = wx + ww - 80
+    min_y = wy
+    max_y = wy + wh - 60
+    return max(min_x, min(max_x, x)), max(min_y, min(max_y, y))
+
+
+# ---------------------------------------------------------------------------
+# Interaction Manager (Mouse Dragging, 3D Rotation, Scale, Resize, Presets)
+# ---------------------------------------------------------------------------
+
+class InteractionManager:
+    """Manages mouse interactions, 3D orientation, sizing, presets, and preferences."""
+
+    def __init__(self, prefs: CompanionPreferences | None = None) -> None:
+        self.prefs = prefs or CompanionPreferences()
+        self.win_x: int = self.prefs.window_position_x
+        self.win_y: int = self.prefs.window_position_y
+        self.win_w: int = self.prefs.window_width
+        self.win_h: int = self.prefs.window_height
+        self.user_yaw: float = float(self.prefs.yaw_degrees)
+        self.user_pitch: float = float(self.prefs.pitch_degrees)
+        self.character_scale: float = float(self.prefs.character_scale)
+        self.interactive_mode: bool = self.prefs.interactive_mode
+        self.placement_policy: str = self.prefs.placement_policy
+        self.monitor_index: int = self.prefs.monitor_index
+
+        self.dirty: bool = False
+        self.last_save_time: float = 0.0
+
+        # Mouse dragging state
+        self.left_pressed: bool = False
+        self.is_left_dragging: bool = False
+        self.drag_grab_offset_x: float = 0.0
+        self.drag_grab_offset_y: float = 0.0
+        self.drag_start_screen_x: float = 0.0
+        self.drag_start_screen_y: float = 0.0
+        self.last_left_click_time: float = 0.0
+
+        # Mouse 3D rotation state
+        self.right_pressed: bool = False
+        self.is_right_dragging: bool = False
+        self.rot_start_cx: float = 0.0
+        self.rot_start_cy: float = 0.0
+        self.rot_start_yaw: float = 0.0
+        self.rot_start_pitch: float = 0.0
+
+    def handle_mouse_button(self, window: Any, button: int, action: int, mods: int) -> None:
+        if not self.interactive_mode:
+            return
+
+        cx, cy = glfw.get_cursor_pos(window)
+        wx, wy = glfw.get_window_pos(window)
+
+        if button == glfw.MOUSE_BUTTON_LEFT:
+            if action == glfw.PRESS:
+                self.left_pressed = True
+                self.is_left_dragging = False
+                self.drag_grab_offset_x = cx
+                self.drag_grab_offset_y = cy
+                self.drag_start_screen_x = wx + cx
+                self.drag_start_screen_y = wy + cy
+            elif action == glfw.RELEASE:
+                self.left_pressed = False
+                if self.is_left_dragging:
+                    self.is_left_dragging = False
+                    self.save_now()
+                else:
+                    # Double-click detection to reset orientation to front
+                    now = glfw.get_time()
+                    if now - self.last_left_click_time < 0.35:
+                        self.user_yaw = 0.0
+                        self.user_pitch = 0.0
+                        self.save_now()
+                    self.last_left_click_time = now
+
+        elif button == glfw.MOUSE_BUTTON_RIGHT:
+            if action == glfw.PRESS:
+                self.right_pressed = True
+                self.is_right_dragging = False
+                self.rot_start_cx = cx
+                self.rot_start_cy = cy
+                self.rot_start_yaw = self.user_yaw
+                self.rot_start_pitch = self.user_pitch
+            elif action == glfw.RELEASE:
+                self.right_pressed = False
+                if self.is_right_dragging:
+                    self.is_right_dragging = False
+                    self.save_now()
+
+    def handle_cursor_pos(self, window: Any, xpos: float, ypos: float) -> None:
+        if not self.interactive_mode:
+            return
+
+        if self.left_pressed:
+            wx, wy = glfw.get_window_pos(window)
+            screen_x = wx + xpos
+            screen_y = wy + ypos
+            dist = math.hypot(screen_x - self.drag_start_screen_x, screen_y - self.drag_start_screen_y)
+            if dist > 4.0:
+                self.is_left_dragging = True
+                target_x = int(screen_x - self.drag_grab_offset_x)
+                target_y = int(screen_y - self.drag_grab_offset_y)
+                clamped_x, clamped_y = clamp_window_position(
+                    target_x, target_y, self.win_w, self.win_h, self.placement_policy
+                )
+                glfw.set_window_pos(window, clamped_x, clamped_y)
+                self.win_x = clamped_x
+                self.win_y = clamped_y
+                self.dirty = True
+
+        elif self.right_pressed:
+            dx = xpos - self.rot_start_cx
+            dy = ypos - self.rot_start_cy
+            if abs(dx) > 2.0 or abs(dy) > 2.0:
+                self.is_right_dragging = True
+                # Sensitivity: 0.45 degrees per pixel
+                self.user_yaw = (self.rot_start_yaw + dx * 0.45) % 360.0
+                self.user_pitch = max(-65.0, min(65.0, self.rot_start_pitch + dy * 0.45))
+                self.dirty = True
+
+    def handle_scroll(self, window: Any, xoffset: float, yoffset: float) -> None:
+        if not self.interactive_mode:
+            return
+
+        alt_pressed = (
+            glfw.get_key(window, glfw.KEY_LEFT_ALT) == glfw.PRESS
+            or glfw.get_key(window, glfw.KEY_RIGHT_ALT) == glfw.PRESS
+        )
+
+        if alt_pressed:
+            # Alt + scroll: resize popup window proportionally
+            if yoffset > 0:
+                new_w = min(1200, self.win_w + 24)
+            else:
+                new_w = max(240, self.win_w - 24)
+            new_h = int(new_w * (560 / 480))
+            self.set_window_size(new_w, new_h, window)
+        else:
+            # Normal scroll: scale character body
+            if yoffset > 0:
+                self.character_scale = min(2.0, self.character_scale + 0.05)
+            else:
+                self.character_scale = max(0.5, self.character_scale - 0.05)
+            self.dirty = True
+
+    def handle_cursor_enter(self, window: Any, entered: int) -> None:
+        if not entered:
+            # If mouse left window during rapid drag without button release, keep state until released
+            pass
+
+    def set_position(self, x: int, y: int, window: Any = None) -> None:
+        cx, cy = clamp_window_position(x, y, self.win_w, self.win_h, self.placement_policy)
+        self.win_x = cx
+        self.win_y = cy
+        if window:
+            glfw.set_window_pos(window, cx, cy)
+        self.save_now()
+
+    def set_preset(self, preset: str, monitor_idx: int = 0, window: Any = None) -> None:
+        px, py = calculate_preset_position(preset, self.win_w, self.win_h, monitor_idx)
+        self.monitor_index = monitor_idx
+        self.set_position(px, py, window)
+
+    def set_window_size(self, w: int, h: int, window: Any = None) -> None:
+        self.win_w = max(240, min(1200, int(w)))
+        self.win_h = max(280, min(1400, int(h)))
+        if window:
+            glfw.set_window_size(window, self.win_w, self.win_h)
+        self.save_now()
+
+    def set_scale(self, scale: float) -> None:
+        self.character_scale = max(0.5, min(2.0, float(scale)))
+        self.save_now()
+
+    def set_rotation(self, yaw: float | None = None, pitch: float | None = None) -> None:
+        if yaw is not None:
+            self.user_yaw = float(yaw) % 360.0
+        if pitch is not None:
+            self.user_pitch = max(-65.0, min(65.0, float(pitch)))
+        self.save_now()
+
+    def reset_rotation(self) -> None:
+        self.user_yaw = 0.0
+        self.user_pitch = 0.0
+        self.save_now()
+
+    def set_view(self, view_name: str) -> None:
+        v = view_name.strip().lower()
+        if v == "front":
+            self.user_yaw = 0.0
+            self.user_pitch = 0.0
+        elif v in ("back", "rear"):
+            self.user_yaw = 180.0
+            self.user_pitch = 0.0
+        elif v in ("left", "three-quarter-left"):
+            self.user_yaw = 270.0
+            self.user_pitch = 0.0
+        elif v in ("right", "three-quarter-right"):
+            self.user_yaw = 90.0
+            self.user_pitch = 0.0
+        elif v == "top":
+            self.user_yaw = 0.0
+            self.user_pitch = -50.0
+        elif v == "bottom":
+            self.user_yaw = 0.0
+            self.user_pitch = 45.0
+        elif v == "reset":
+            self.user_yaw = 0.0
+            self.user_pitch = 0.0
+        self.save_now()
+
+    def set_interactive(self, interactive: bool, window: Any = None) -> None:
+        self.interactive_mode = bool(interactive)
+        if window and hasattr(glfw, "MOUSE_PASSTHROUGH"):
+            passthrough = glfw.FALSE if self.interactive_mode else glfw.TRUE
+            glfw.set_window_attrib(window, glfw.MOUSE_PASSTHROUGH, passthrough)
+        self.save_now()
+
+    def reset_all(self, window: Any = None) -> None:
+        self.user_yaw = 8.0
+        self.user_pitch = 0.0
+        self.character_scale = 1.0
+        self.win_w = 480
+        self.win_h = 560
+        self.interactive_mode = True
+        self.placement_policy = "CLAMP_TO_VISIBLE_WORKAREA"
+        if window:
+            glfw.set_window_size(window, self.win_w, self.win_h)
+            self.set_preset("bottom-right", 0, window)
+            self.set_interactive(True, window)
+        self.save_now()
+
+    def flush_save_if_needed(self, force: bool = False) -> None:
+        now = time.time()
+        if self.dirty and (force or (now - self.last_save_time >= 1.0)):
+            self.save_now()
+
+    def save_now(self) -> None:
+        self.prefs.window_position_x = self.win_x
+        self.prefs.window_position_y = self.win_y
+        self.prefs.window_width = self.win_w
+        self.prefs.window_height = self.win_h
+        self.prefs.character_scale = self.character_scale
+        self.prefs.yaw_degrees = self.user_yaw
+        self.prefs.pitch_degrees = self.user_pitch
+        self.prefs.interactive_mode = self.interactive_mode
+        self.prefs.placement_policy = self.placement_policy
+        self.prefs.monitor_index = self.monitor_index
+        save_preferences(self.prefs)
+        self.dirty = False
+        self.last_save_time = time.time()
+
+    def get_transform_dict(self) -> dict[str, Any]:
+        return {
+            "win_x": self.win_x,
+            "win_y": self.win_y,
+            "win_w": self.win_w,
+            "win_h": self.win_h,
+            "user_yaw": round(self.user_yaw, 1),
+            "user_pitch": round(self.user_pitch, 1),
+            "character_scale": round(self.character_scale, 2),
+            "interactive_mode": self.interactive_mode,
+            "placement_policy": self.placement_policy,
+            "monitor_index": self.monitor_index,
+        }
+
+
+# ---------------------------------------------------------------------------
+# IPC Server (runs in background thread, feeds command queue to main thread)
 # ---------------------------------------------------------------------------
 
 class IPCServer:
     """TCP server that receives companion events from OpenBagus CLI."""
 
-    def __init__(self, port: int, animator: CharacterAnimator, running_flag: list[bool]) -> None:
+    def __init__(
+        self,
+        port: int,
+        animator: CharacterAnimator,
+        running_flag: list[bool],
+        interaction: InteractionManager | None = None,
+    ) -> None:
         self.port = port
         self.animator = animator
         self.running_flag = running_flag
+        self.interaction = interaction
         self._window_should_show: bool = True
         self._window_should_hide: bool = False
         self._window_should_close: bool = False
         self._screenshot_queue: list[str] = []
+        self._command_queue: list[tuple[str, dict[str, Any]]] = []
+        self._queue_lock = threading.Lock()
+
+    def drain_commands(self) -> list[tuple[str, dict[str, Any]]]:
+        with self._queue_lock:
+            cmds = self._command_queue[:]
+            self._command_queue.clear()
+            return cmds
 
     def should_hide(self) -> bool:
         r = self._window_should_hide
@@ -862,13 +1282,18 @@ class IPCServer:
                 buf += data
                 while b"\n" in buf:
                     line, buf = buf.split(b"\n", 1)
-                    self._dispatch(line.decode("utf-8", errors="replace"))
+                    resp = self._dispatch(line.decode("utf-8", errors="replace"))
+                    if resp is not None:
+                        try:
+                            conn.sendall(json.dumps(resp).encode("utf-8") + b"\n")
+                        except Exception:
+                            pass
 
-    def _dispatch(self, raw: str) -> None:
+    def _dispatch(self, raw: str) -> dict[str, Any] | None:
         try:
             msg: dict[str, Any] = json.loads(raw)
         except json.JSONDecodeError:
-            return
+            return None
 
         event = msg.get("type", "")
         payload = msg.get("payload", {})
@@ -909,6 +1334,54 @@ class IPCServer:
             if path:
                 self._screenshot_queue.append(path)
 
+        # Interactive Transform & Control Events
+        elif event == "companion.set_position":
+            with self._queue_lock:
+                self._command_queue.append(("set_position", payload))
+        elif event == "companion.set_window_size":
+            with self._queue_lock:
+                self._command_queue.append(("set_window_size", payload))
+        elif event == "companion.set_character_scale":
+            with self._queue_lock:
+                self._command_queue.append(("set_character_scale", payload))
+        elif event == "companion.set_rotation":
+            with self._queue_lock:
+                self._command_queue.append(("set_rotation", payload))
+        elif event == "companion.reset_rotation":
+            with self._queue_lock:
+                self._command_queue.append(("reset_rotation", payload))
+        elif event == "companion.set_view":
+            with self._queue_lock:
+                self._command_queue.append(("set_view", payload))
+        elif event == "companion.set_interactive":
+            with self._queue_lock:
+                self._command_queue.append(("set_interactive", payload))
+        elif event == "companion.set_animation_enabled":
+            with self._queue_lock:
+                self._command_queue.append(("set_animation_enabled", payload))
+        elif event == "companion.trigger_gesture":
+            with self._queue_lock:
+                self._command_queue.append(("trigger_gesture", payload))
+        elif event == "companion.save_preferences":
+            with self._queue_lock:
+                self._command_queue.append(("save_preferences", payload))
+        elif event == "companion.reset_preferences":
+            with self._queue_lock:
+                self._command_queue.append(("reset_preferences", payload))
+        elif event == "companion.reset_transform":
+            with self._queue_lock:
+                self._command_queue.append(("reset_transform", payload))
+
+        elif event == "companion.get_transform_state":
+            st = self.interaction.get_transform_dict() if self.interaction else {}
+            st.update({
+                "character_form": self.animator.character_form,
+                "reasoning_mode": self.animator.reasoning_mode,
+                "animation_enabled": self.animator.animation_enabled,
+            })
+            return {"status": "ok", "transform": st}
+
+        return None
 
 
 # ---------------------------------------------------------------------------
@@ -920,11 +1393,23 @@ def run_renderer(port: int) -> None:
         print(f"[ShowOpenBagus] Missing dependency: {_MISSING}", file=sys.stderr)
         sys.exit(1)
 
-    WINDOW_W, WINDOW_H = 480, 560
-
     if not glfw.init():
         print("[ShowOpenBagus] GLFW init failed", file=sys.stderr)
         sys.exit(1)
+
+    prefs = load_preferences()
+    interaction = InteractionManager(prefs)
+
+    # Resolve target monitor and position
+    monitors = glfw.get_monitors()
+    mon_idx = interaction.monitor_index if 0 <= interaction.monitor_index < len(monitors) else 0
+    if interaction.win_x < 0 or interaction.win_y < 0:
+        win_x, win_y = calculate_preset_position("bottom-right", interaction.win_w, interaction.win_h, mon_idx)
+    else:
+        win_x, win_y = clamp_window_position(
+            interaction.win_x, interaction.win_y, interaction.win_w, interaction.win_h, interaction.placement_policy
+        )
+    interaction.win_x, interaction.win_y = win_x, win_y
 
     # Request OpenGL 3.3 Core (moderngl requirement)
     glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 3)
@@ -933,25 +1418,19 @@ def run_renderer(port: int) -> None:
     glfw.window_hint(glfw.VISIBLE, glfw.TRUE)
     glfw.window_hint(glfw.DECORATED, glfw.FALSE)
     glfw.window_hint(glfw.FLOATING, glfw.TRUE)       # always-on-top
-    glfw.window_hint(glfw.RESIZABLE, glfw.FALSE)
+    glfw.window_hint(glfw.RESIZABLE, glfw.FALSE)     # resizing handled by Alt+scroll / IPC
     glfw.window_hint(glfw.FOCUSED, glfw.FALSE)
     glfw.window_hint(glfw.FOCUS_ON_SHOW, glfw.FALSE)  # don't steal focus
     if hasattr(glfw, "TRANSPARENT_FRAMEBUFFER"):
         glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, glfw.TRUE)
+    if hasattr(glfw, "MOUSE_PASSTHROUGH") and not interaction.interactive_mode:
+        glfw.window_hint(glfw.MOUSE_PASSTHROUGH, glfw.TRUE)
     glfw.window_hint(glfw.SAMPLES, 4)  # MSAA
 
-    monitor = glfw.get_primary_monitor()
-    mode = glfw.get_video_mode(monitor)
-    screen_w, screen_h = mode.size.width, mode.size.height
-
-    # Position: lower-right of screen
-    win_x = screen_w - WINDOW_W - 30
-    win_y = screen_h - WINDOW_H - 60
-
-    window = glfw.create_window(WINDOW_W, WINDOW_H, "BAGUSMAX 3D Companion", None, None)
+    window = glfw.create_window(interaction.win_w, interaction.win_h, "BAGUSMAX 3D Companion", None, None)
     if not window and hasattr(glfw, "TRANSPARENT_FRAMEBUFFER"):
         glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, glfw.FALSE)
-        window = glfw.create_window(WINDOW_W, WINDOW_H, "BAGUSMAX 3D Companion", None, None)
+        window = glfw.create_window(interaction.win_w, interaction.win_h, "BAGUSMAX 3D Companion", None, None)
     if not window:
         glfw.terminate()
         print("[BAGUSMAX] Window creation failed", file=sys.stderr)
@@ -961,8 +1440,12 @@ def run_renderer(port: int) -> None:
     glfw.make_context_current(window)
     glfw.swap_interval(1)  # vsync
 
-    # Disable focus stealing on click
+    # Register interaction callbacks
     glfw.set_window_focus_callback(window, lambda w, focused: None)
+    glfw.set_mouse_button_callback(window, interaction.handle_mouse_button)
+    glfw.set_cursor_pos_callback(window, interaction.handle_cursor_pos)
+    glfw.set_scroll_callback(window, interaction.handle_scroll)
+    glfw.set_cursor_enter_callback(window, interaction.handle_cursor_enter)
 
     ctx = moderngl.create_context()
     ctx.enable(moderngl.DEPTH_TEST)
@@ -971,7 +1454,7 @@ def run_renderer(port: int) -> None:
 
     animator = CharacterAnimator()
     running_flag: list[bool] = [True]
-    ipc = IPCServer(port=port, animator=animator, running_flag=running_flag)
+    ipc = IPCServer(port=port, animator=animator, running_flag=running_flag, interaction=interaction)
     ipc.start()
 
     # Build geometry for specific form
@@ -1005,9 +1488,10 @@ def run_renderer(port: int) -> None:
     last_rendered_form = animator.character_form
     vao, ibo = rebuild_mesh(last_rendered_form, params)
 
-    # Camera: centered perfectly on BAGUSMAX body (head to feet)
+    # Camera: centered on BAGUSMAX body (head to feet)
     cam_pos = Vector3([0.0, 0.76, 2.75])
-    proj = Matrix44.perspective_projection(38.0, WINDOW_W / WINDOW_H, 0.1, 50.0, dtype="f4")
+    last_fb_w, last_fb_h = glfw.get_framebuffer_size(window)
+    proj = Matrix44.perspective_projection(38.0, last_fb_w / last_fb_h if last_fb_h else 1.0, 0.1, 50.0, dtype="f4")
     view = Matrix44.look_at(cam_pos, Vector3([0.0, 0.76, 0.0]), Vector3([0.0, 1.0, 0.0]), dtype="f4")
 
     # Lighting
@@ -1021,12 +1505,55 @@ def run_renderer(port: int) -> None:
     last_time = glfw.get_time()
     mesh_rebuild_timer = 0.0
 
-    print("[BAGUSMAX] Render loop started", file=sys.stderr)
+    print("[BAGUSMAX] Interactive Render loop started", file=sys.stderr)
 
     while not glfw.window_should_close(window) and not ipc.should_close():
         now = glfw.get_time()
         dt = now - last_time
         last_time = now
+
+        # Execute queued IPC commands on main render thread
+        cmds = ipc.drain_commands()
+        for cmd, pld in cmds:
+            if cmd == "set_position":
+                if "preset" in pld:
+                    interaction.set_preset(pld["preset"], pld.get("monitor", interaction.monitor_index), window)
+                elif "x" in pld and "y" in pld:
+                    interaction.set_position(pld["x"], pld["y"], window)
+            elif cmd == "set_window_size":
+                interaction.set_window_size(pld.get("width", 480), pld.get("height", 560), window)
+            elif cmd == "set_character_scale":
+                interaction.set_scale(pld.get("scale", 1.0))
+            elif cmd == "set_rotation":
+                interaction.set_rotation(pld.get("yaw"), pld.get("pitch"))
+            elif cmd == "reset_rotation":
+                interaction.reset_rotation()
+            elif cmd == "set_view":
+                interaction.set_view(pld.get("view", "front"))
+            elif cmd == "set_interactive":
+                interaction.set_interactive(pld.get("interactive", True), window)
+            elif cmd == "set_animation_enabled":
+                animator.animation_enabled = bool(pld.get("enabled", True))
+            elif cmd == "trigger_gesture":
+                animator.gesture = str(pld.get("gesture", "wave"))
+                animator.gesture_timer = 2.0
+            elif cmd == "save_preferences":
+                interaction.save_now()
+            elif cmd == "reset_preferences":
+                interaction.reset_all(window)
+            elif cmd == "reset_transform":
+                interaction.reset_all(window)
+
+        # Handle viewport & projection update on framebuffer resize
+        fb_w, fb_h = glfw.get_framebuffer_size(window)
+        if fb_w > 0 and fb_h > 0 and (fb_w != last_fb_w or fb_h != last_fb_h):
+            last_fb_w, last_fb_h = fb_w, fb_h
+            ctx.viewport = (0, 0, fb_w, fb_h)
+            proj = Matrix44.perspective_projection(38.0, fb_w / fb_h, 0.1, 50.0, dtype="f4")
+            prog["proj"].write(proj)
+
+        # Throttled preferences save
+        interaction.flush_save_if_needed()
 
         animator.update(dt)
         mesh_rebuild_timer += dt
@@ -1041,15 +1568,29 @@ def run_renderer(port: int) -> None:
             vao.release()
             vao, ibo = rebuild_mesh(current_form, params)
 
-        # Model matrix: breath + bob + lean + slight rotation
-        rot_y_base = 8.0  # slight camera angle
-        rot_y = rot_y_base + params.get("rot_y_extra", 0.0)
-        translate_y = params["breath_y"] + params["bob_y"]
-
-        model = (
-            Matrix44.from_translation([params["lean_x"], translate_y, 0.0], dtype="f4")
-            @ Matrix44.from_eulers([0.0, math.radians(rot_y), 0.0], dtype="f4")
+        # Decouple User Transform (scale, yaw, pitch around body center) from Local Animation Transform
+        T_pivot_inv = Matrix44.from_translation([0.0, -0.76, 0.0], dtype="f4")
+        T_pivot = Matrix44.from_translation([0.0, 0.76, 0.0], dtype="f4")
+        S_user = Matrix44.from_scale(
+            [interaction.character_scale, interaction.character_scale, interaction.character_scale], dtype="f4"
         )
+        R_pitch = Matrix44.from_x_rotation(math.radians(interaction.user_pitch), dtype="f4")
+        R_yaw = Matrix44.from_y_rotation(math.radians(interaction.user_yaw), dtype="f4")
+
+        # Stable user orientation around center (0, 0.76, 0)
+        user_transform = T_pivot_inv @ S_user @ R_pitch @ R_yaw @ T_pivot
+
+        # Local animation pose (breath, bob, lean, subtle ambient rotation)
+        rot_anim = params.get("rot_y_extra", 0.0) if animator.animation_enabled else 0.0
+        anim_y = (params["breath_y"] + params["bob_y"] + params.get("wave_bob", 0.0)) if animator.animation_enabled else 0.0
+        anim_lean = params["lean_x"] if animator.animation_enabled else 0.0
+
+        anim_transform = (
+            Matrix44.from_translation([anim_lean, anim_y, 0.0], dtype="f4")
+            @ Matrix44.from_y_rotation(math.radians(rot_anim), dtype="f4")
+        )
+
+        model = anim_transform @ user_transform
         prog["model"].write(model)
 
         # Render
@@ -1062,7 +1603,7 @@ def run_renderer(port: int) -> None:
                 import PIL.Image
                 save_p = ipc._screenshot_queue.pop(0)
                 data = ctx.screen.read(components=4)
-                shot_img = PIL.Image.frombytes("RGBA", (WINDOW_W, WINDOW_H), data).transpose(PIL.Image.FLIP_TOP_BOTTOM)
+                shot_img = PIL.Image.frombytes("RGBA", (fb_w, fb_h), data).transpose(PIL.Image.FLIP_TOP_BOTTOM)
                 os.makedirs(os.path.dirname(os.path.abspath(save_p)), exist_ok=True)
                 shot_img.save(save_p)
                 print(f"[BAGUSMAX] Captured live popup to {save_p}", file=sys.stderr)
@@ -1079,6 +1620,8 @@ def run_renderer(port: int) -> None:
 
         glfw.poll_events()
 
+    # Flush final preferences before exit
+    interaction.save_now()
     running_flag[0] = False
     vao.release()
     ctx.release()
@@ -1096,3 +1639,4 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     run_renderer(args.port)
+

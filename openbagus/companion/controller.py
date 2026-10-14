@@ -148,10 +148,128 @@ class CompanionController:
         """Request the live companion renderer to capture its current frame buffer."""
         return self._send_event("companion.screenshot", {"path": os.path.abspath(target_path)})
 
+    def set_position(
+        self,
+        x: int | None = None,
+        y: int | None = None,
+        preset: str | None = None,
+        monitor: int | None = None,
+        policy: str | None = None,
+    ) -> bool:
+        """Move companion to preset position (e.g. 'top-left', 'bottom-right') or explicit coords."""
+        payload: dict[str, Any] = {}
+        if preset is not None:
+            payload["preset"] = preset
+        if x is not None:
+            payload["x"] = int(x)
+        if y is not None:
+            payload["y"] = int(y)
+        if monitor is not None:
+            payload["monitor"] = int(monitor)
+        if policy is not None:
+            payload["policy"] = str(policy)
+        return self._send_event("companion.set_position", payload)
+
+    def set_window_size(self, width: int, height: int) -> bool:
+        """Resize companion popup window independently."""
+        return self._send_event("companion.set_window_size", {"width": int(width), "height": int(height)})
+
+    def set_character_scale(self, scale: float) -> bool:
+        """Set uniform 3D character scale (0.5x to 2.0x)."""
+        return self._send_event("companion.set_character_scale", {"scale": float(scale)})
+
+    def set_rotation(self, yaw: float | None = None, pitch: float | None = None) -> bool:
+        """Set 3D orientation (yaw 0-360 deg, pitch -65 to +65 deg)."""
+        payload: dict[str, Any] = {}
+        if yaw is not None:
+            payload["yaw"] = float(yaw)
+        if pitch is not None:
+            payload["pitch"] = float(pitch)
+        return self._send_event("companion.set_rotation", payload)
+
+    def reset_rotation(self) -> bool:
+        """Reset character orientation to front (yaw=0, pitch=0)."""
+        return self._send_event("companion.reset_rotation", {})
+
+    def set_view(self, view: str) -> bool:
+        """Set viewing perspective ('front', 'back', 'left', 'right', 'top', 'reset')."""
+        return self._send_event("companion.set_view", {"view": str(view)})
+
+    def set_interactive(self, interactive: bool) -> bool:
+        """Toggle mouse interaction mode (True=interactive, False=click-through)."""
+        return self._send_event("companion.set_interactive", {"interactive": bool(interactive)})
+
+    def set_animation_enabled(self, enabled: bool) -> bool:
+        """Enable or disable ambient idle animations."""
+        return self._send_event("companion.set_animation_enabled", {"enabled": bool(enabled)})
+
+    def trigger_gesture(self, gesture: str) -> bool:
+        """Trigger a temporary gesture animation (e.g. 'wave', 'turn', 'nod')."""
+        return self._send_event("companion.trigger_gesture", {"gesture": str(gesture)})
+
+    def reset_transform(self) -> bool:
+        """Reset popup position, dimensions, scale, yaw, and pitch to defaults."""
+        return self._send_event("companion.reset_transform", {})
+
+    def save_preferences(self) -> bool:
+        """Force save current transform preferences to disk."""
+        return self._send_event("companion.save_preferences", {})
+
+    def reset_preferences(self) -> bool:
+        """Reset preferences on disk to factory defaults."""
+        return self._send_event("companion.reset_preferences", {})
+
+    def get_transform_state(self) -> dict[str, Any]:
+        """Return current transform state, either from running companion or disk preferences."""
+        from openbagus.companion.preferences import load_preferences
+        prefs = load_preferences()
+        return {
+            "window_position_x": prefs.window_position_x,
+            "window_position_y": prefs.window_position_y,
+            "window_width": prefs.window_width,
+            "window_height": prefs.window_height,
+            "character_scale": prefs.character_scale,
+            "yaw_degrees": prefs.yaw_degrees,
+            "pitch_degrees": prefs.pitch_degrees,
+            "interactive_mode": prefs.interactive_mode,
+            "animation_enabled": prefs.animation_enabled,
+            "placement_policy": prefs.placement_policy,
+            "monitor_index": prefs.monitor_index,
+        }
+
+    def list_monitors(self) -> list[dict[str, Any]]:
+        """List available monitors using GLFW if available."""
+        monitors_info = []
+        try:
+            import glfw
+            if glfw.init():
+                mons = glfw.get_monitors()
+                pri = glfw.get_primary_monitor()
+                for i, m in enumerate(mons):
+                    name = glfw.get_monitor_name(m).decode("utf-8", errors="replace")
+                    wa = glfw.get_monitor_workarea(m) if hasattr(glfw, "get_monitor_workarea") else (0, 0, 1920, 1080)
+                    monitors_info.append({
+                        "index": i,
+                        "name": name,
+                        "is_primary": (m == pri),
+                        "workarea": wa,
+                    })
+        except Exception as e:
+            logger.debug("Failed to list GLFW monitors: %s", e)
+        if not monitors_info:
+            monitors_info.append({
+                "index": 0,
+                "name": "Primary Display",
+                "is_primary": True,
+                "workarea": (0, 0, 1920, 1032),
+            })
+        return monitors_info
+
     def get_status(self) -> dict[str, Any]:
         """Return companion status for /show-openbagus status command."""
         running = self._is_running()
         connected = self._is_connected()
+        ts = self.get_transform_state()
         return {
             "running": running or connected,
             "connected": connected,
@@ -161,7 +279,9 @@ class CompanionController:
             "mode": self._current_mode,
             "ipc_address": f"{IPC_HOST}:{IPC_PORT}",
             "ipc_version": IPC_VERSION,
+            "transform": ts,
         }
+
 
     # ------------------------------------------------------------------
     # Internal helpers

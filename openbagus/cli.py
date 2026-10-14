@@ -3479,13 +3479,29 @@ class OpenBagusShell(cmd.Cmd):
         print("=================================================================\n")
 
     def do_show_openbagus(self, arg: str) -> None:
-        """Kontrol jendela 3D Companion BAGUSMAX: /show-openbagus [show|hide|status|reset|close]."""
+        """Kontrol interaktif 3D Companion BAGUSMAX.
+
+        Perintah utama:
+          /bagusmax [show|hide|close|reset|status]
+          /bagusmax position <top-left|top-right|bottom-right|center|...|x <N> y <N>>
+          /bagusmax size <50|75|100|125|150|200|reset>
+          /bagusmax window-size <width> <height>
+          /bagusmax rotate <0|90|180|270|360>
+          /bagusmax pitch <-65 s/d 65>
+          /bagusmax view <front|back|left|right|top|reset>
+          /bagusmax interactive <on|off>
+          /bagusmax click-through <on|off>
+          /bagusmax animation <on|off|wave|turn|nod>
+          /bagusmax monitor <list|primary|<id>>
+          /bagusmax preferences <save|reset>
+        """
         cleaned = arg.strip()
         for prefix in ("-openbagus", "openbagus"):
             if cleaned.lower().startswith(prefix):
                 cleaned = cleaned[len(prefix):].strip()
                 break
-        subcmd = cleaned.lower() if cleaned else "show"
+        tokens = cleaned.split()
+        subcmd = tokens[0].lower() if tokens else "show"
         try:
             from openbagus.companion.controller import CompanionController
             if self._companion is None:
@@ -3495,7 +3511,7 @@ class OpenBagusShell(cmd.Cmd):
             print("Pastikan moderngl, glfw, pyrr telah terpasang di virtual environment.\n")
             return
 
-        if subcmd in ("show", "start", "open", "on", ""):
+        if subcmd in ("show", "start", "open", "on") or not tokens:
             print("Meluncurkan 3D companion BAGUSMAX...")
             cur_mode = getattr(self, "current_mode", "FAST")
             self._companion.set_mode(cur_mode)
@@ -3506,6 +3522,7 @@ class OpenBagusShell(cmd.Cmd):
                 cur_form = st.get("character_form", "WHITE")
                 print(f"[BAGUSMAX] Companion 3D aktif — {cur_mode} / {cur_form}{pid_str}")
                 print("Karakter : BAGUSMAX Dual-Form (FAST -> WHITE vinyl robot | DEEP_REASONING -> ARMORED hero suit)")
+                print("Interaksi Mouse: Drag Kiri=Geser jendela | Drag Kanan=Rotasi 360° | Scroll=Ukuran Tubuh | Alt+Scroll=Ukuran Jendela | Double-Click=Reset Hadap Depan")
                 print("Gunakan '/bagusmax hide' untuk menyembunyikan, '/bagusmax close' untuk menutup.\n")
             else:
                 print("[Gagal membuka jendela companion. Periksa OpenGL 3.3 Core profile support dan reports/runtime/companion.log.]\n")
@@ -3519,12 +3536,18 @@ class OpenBagusShell(cmd.Cmd):
             print("[Jendela companion BAGUSMAX ditutup.]\n")
 
         elif subcmd in ("reset", "restart"):
-            print("Mereset companion BAGUSMAX...")
-            self._companion.reset()
-            print("[Companion BAGUSMAX di-reset.]\n")
+            if subcmd == "restart":
+                print("Merestart proses companion BAGUSMAX...")
+                self._companion.reset()
+                print("[Companion BAGUSMAX di-restart.]\n")
+            else:
+                self._companion.reset()
+                self._companion.reset_transform()
+                print("[Orientasi, ukuran, dan posisi BAGUSMAX di-reset ke nilai default.]\n")
 
         elif subcmd in ("status", "info"):
             st = self._companion.get_status()
+            ts = st.get("transform", {})
             print("=== Status BAGUSMAX 3D Companion ===")
             print(f"Berjalan (Running) : {'Ya' if st.get('running') else 'Tidak'}")
             print(f"Terhubung (IPC)    : {'Ya' if st.get('connected') else 'Tidak'}")
@@ -3532,11 +3555,164 @@ class OpenBagusShell(cmd.Cmd):
             print(f"Mode Penalaran     : {st.get('mode', getattr(self, 'current_mode', 'FAST'))}")
             print(f"PID Proses         : {st.get('pid') or '-'}")
             print(f"Animasi Terakhir   : {st.get('last_state', 'IDLE')}")
+            print(f"Posisi Jendela     : ({ts.get('window_position_x', 0)}, {ts.get('window_position_y', 0)})")
+            print(f"Dimensi Jendela    : {ts.get('window_width', 480)} x {ts.get('window_height', 560)} px")
+            scale_val = ts.get('character_scale', 1.0)
+            print(f"Skala Karakter     : {scale_val * 100:.0f}% ({scale_val:.2f}x)")
+            print(f"Rotasi 3D          : Yaw: {ts.get('yaw_degrees', 0.0)}° | Pitch: {ts.get('pitch_degrees', 0.0)}°")
+            print(f"Interaksi Mouse    : {'AKTIF' if ts.get('interactive_mode', True) else 'CLICK-THROUGH'}")
+            print(f"Kebijakan Layar    : {ts.get('placement_policy', 'CLAMP_TO_VISIBLE_WORKAREA')}")
             print(f"Alamat IPC         : {st.get('ipc_address', '127.0.0.1:7432')} (v{st.get('ipc_version', '1.0')})")
             print()
 
+        elif subcmd == "position":
+            if len(tokens) >= 3 and tokens[1].lower() in ("policy", "kebijakan"):
+                policy = "FREE_POSITIONING" if tokens[2].lower() in ("free", "bebas") else "CLAMP_TO_VISIBLE_WORKAREA"
+                self._companion.set_position(policy=policy)
+                print(f"[BAGUSMAX] Kebijakan penempatan layar: {policy}\n")
+            elif len(tokens) >= 5 and tokens[1].lower() == "x" and tokens[3].lower() == "y":
+                try:
+                    px = int(tokens[2])
+                    py = int(tokens[4])
+                    self._companion.set_position(x=px, y=py)
+                    print(f"[BAGUSMAX] Posisi jendela dipindahkan ke: x={px}, y={py}\n")
+                except ValueError:
+                    print("[Nilai koordinat x dan y harus berupa angka integer.]\n")
+            elif len(tokens) >= 2:
+                preset = tokens[1].lower()
+                self._companion.set_position(preset=preset)
+                print(f"[BAGUSMAX] Posisi jendela diatur ke preset: {preset}\n")
+            else:
+                print("Pilihan preset: top-left, top-center, top-right, middle-left, center, middle-right, bottom-left, bottom-center, bottom-right")
+                print("Atau koordinat: /bagusmax position x 300 y 180\n")
+
+        elif subcmd == "size":
+            if len(tokens) >= 2:
+                arg_val = tokens[1].lower()
+                if arg_val == "reset":
+                    self._companion.set_character_scale(1.0)
+                    print("[BAGUSMAX] Skala tubuh karakter di-reset ke 100% (1.0x).\n")
+                else:
+                    try:
+                        raw_num = float(arg_val.rstrip("%"))
+                        scale = raw_num / 100.0 if raw_num > 2.0 else raw_num
+                        scale = max(0.5, min(2.0, scale))
+                        self._companion.set_character_scale(scale)
+                        print(f"[BAGUSMAX] Skala tubuh karakter diatur ke: {scale*100:.0f}% ({scale:.2f}x)\n")
+                    except ValueError:
+                        print("[Nilai ukuran tidak valid. Gunakan: /bagusmax size <50|75|100|125|150|200|reset>]\n")
+            else:
+                print("Usage: /bagusmax size <50|75|100|125|150|200|reset>\n")
+
+        elif subcmd in ("window-size", "windowsize", "winsize"):
+            if len(tokens) >= 3:
+                try:
+                    w = int(tokens[1])
+                    h = int(tokens[2])
+                    self._companion.set_window_size(w, h)
+                    print(f"[BAGUSMAX] Dimensi jendela popup diatur ke: {w}x{h} px\n")
+                except ValueError:
+                    print("[Nilai lebar dan tinggi harus berupa angka integer.]\n")
+            else:
+                print("Usage: /bagusmax window-size <lebar> <tinggi> (misal: 450 600)\n")
+
+        elif subcmd in ("rotate", "yaw"):
+            if len(tokens) >= 2:
+                try:
+                    deg = float(tokens[1])
+                    self._companion.set_rotation(yaw=deg)
+                    print(f"[BAGUSMAX] Rotasi horizontal (yaw) diatur ke: {deg % 360.0:.1f}°\n")
+                except ValueError:
+                    print("[Nilai derajat rotasi harus berupa angka.]\n")
+            else:
+                print("Usage: /bagusmax rotate <0|90|180|270|360>\n")
+
+        elif subcmd == "pitch":
+            if len(tokens) >= 2:
+                try:
+                    deg = float(tokens[1])
+                    self._companion.set_rotation(pitch=deg)
+                    print(f"[BAGUSMAX] Kemiringan vertikal (pitch) diatur ke: {deg:.1f}° (-65° s/d +65°)\n")
+                except ValueError:
+                    print("[Nilai derajat pitch harus berupa angka.]\n")
+            else:
+                print("Usage: /bagusmax pitch <derajat> (misal: 30, -30)\n")
+
+        elif subcmd == "view":
+            if len(tokens) >= 2:
+                v = tokens[1].lower()
+                self._companion.set_view(v)
+                print(f"[BAGUSMAX] Sudut pandang kamera diatur ke: '{v}'\n")
+            else:
+                print("Pilihan sudut pandang: front, back, left, right, top, reset\n")
+
+        elif subcmd == "interactive":
+            if len(tokens) >= 2:
+                on_off = tokens[1].lower() in ("on", "true", "1", "aktif", "ya")
+                self._companion.set_interactive(on_off)
+                print(f"[BAGUSMAX] Mode interaksi mouse diatur ke: {'AKTIF' if on_off else 'CLICK-THROUGH'}\n")
+            else:
+                print("Usage: /bagusmax interactive on|off\n")
+
+        elif subcmd in ("click-through", "clickthrough"):
+            if len(tokens) >= 2:
+                ct = tokens[1].lower() in ("on", "true", "1", "aktif", "ya")
+                self._companion.set_interactive(not ct)
+                print(f"[BAGUSMAX] Mode Click-Through diatur ke: {'AKTIF' if ct else 'NONAKTIF (Interaktif)'}\n")
+            else:
+                print("Usage: /bagusmax click-through on|off\n")
+
+        elif subcmd == "animation":
+            if len(tokens) >= 2:
+                sub = tokens[1].lower()
+                if sub in ("on", "aktif", "true"):
+                    self._companion.set_animation_enabled(True)
+                    print("[BAGUSMAX] Animasi ambient diaktifkan.\n")
+                elif sub in ("off", "nonaktif", "false"):
+                    self._companion.set_animation_enabled(False)
+                    print("[BAGUSMAX] Animasi ambient dinonaktifkan (pose statis).\n")
+                elif sub in ("wave", "turn", "nod"):
+                    self._companion.trigger_gesture(sub)
+                    print(f"[BAGUSMAX] Memainkan gestur animasi: '{sub}'.\n")
+                else:
+                    print("Pilihan animasi: on, off, wave, turn, nod\n")
+            else:
+                print("Usage: /bagusmax animation on|off|wave|turn|nod\n")
+
+        elif subcmd == "monitor":
+            if len(tokens) >= 2:
+                sub = tokens[1].lower()
+                if sub in ("list", "info"):
+                    mons = self._companion.list_monitors()
+                    print("=== Monitor Desktop Terdeteksi ===")
+                    for m in mons:
+                        pri = " [PRIMARY]" if m.get("is_primary") else ""
+                        print(f"  Monitor {m['index']}: {m['name']}{pri} (Workarea: {m['workarea']})")
+                    print()
+                elif sub in ("primary", "0"):
+                    self._companion.set_position(preset="bottom-right", monitor=0)
+                    print("[BAGUSMAX] Dipindahkan ke monitor utama (primary).\n")
+                elif sub.isdigit():
+                    idx = int(sub)
+                    self._companion.set_position(preset="bottom-right", monitor=idx)
+                    print(f"[BAGUSMAX] Dipindahkan ke monitor ID {idx}.\n")
+                else:
+                    print("Usage: /bagusmax monitor list|primary|<id>\n")
+            else:
+                print("Usage: /bagusmax monitor list|primary|<id>\n")
+
+        elif subcmd == "preferences":
+            if len(tokens) >= 2 and tokens[1].lower() in ("reset", "default"):
+                self._companion.reset_preferences()
+                print("[BAGUSMAX] Preferensi penempatan dan rotasi di-reset ke nilai bawaan.\n")
+            else:
+                self._companion.save_preferences()
+                print("[BAGUSMAX] Preferensi penempatan, ukuran, dan rotasi disimpan ke disk.\n")
+
         else:
-            print("Perintah tidak dikenal. Pilihan: show, hide, status, reset, close\n")
+            print("Perintah BAGUSMAX tidak dikenal.")
+            print("Pilihan: show, hide, status, reset, close, position, size, window-size, rotate, pitch, view, interactive, click-through, animation, monitor, preferences\n")
+
 
     def do_bagusmax(self, arg: str) -> None:
         """Alias untuk /show-openbagus (Kontrol jendela 3D Companion BAGUSMAX)."""
