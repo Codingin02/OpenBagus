@@ -69,3 +69,35 @@ class PrivacyGuard:
                 b.clear()
                 cleared += 1
         return cleared
+
+    @classmethod
+    def verify_zero_persistent_audio(cls, directories: list[str | Path] | None = None) -> dict[str, Any]:
+        """Audits target directories to guarantee zero persisted audio files on disk."""
+        from pathlib import Path
+        import os
+
+        dirs = directories or [
+            Path("data"),
+            Path("logs"),
+            Path(os.environ.get("LOCALAPPDATA", "C:/Users/bagus/AppData/Local")) / "OpenBagus",
+        ]
+        audio_extensions = {".wav", ".mp3", ".pcm", ".flac", ".ogg", ".m4a", ".aac"}
+        persisted_audio_files: list[str] = []
+
+        for d in dirs:
+            p = Path(d)
+            if p.exists() and p.is_dir():
+                for root, _, files in os.walk(p):
+                    # Exclude model directories which contain .onnx, .bin
+                    if "models" in root:
+                        continue
+                    for f in files:
+                        ext = os.path.splitext(f)[1].lower()
+                        if ext in audio_extensions:
+                            persisted_audio_files.append(os.path.join(root, f))
+
+        return {
+            "zero_audio_persisted": len(persisted_audio_files) == 0,
+            "violations_found": len(persisted_audio_files),
+            "persisted_files": persisted_audio_files,
+        }

@@ -1180,6 +1180,24 @@ class OpenBagusShell(cmd.Cmd):
             except Exception:
                 pass
 
+        # Auto-start voice session if configured in persistent preferences and microphone is ready
+        voice_live = False
+        voice_preset_label = "BAGUSMAX_CALM_ID"
+        try:
+            from openbagus.voice.preferences import load_voice_preferences
+            voice_prefs = load_voice_preferences()
+            voice_preset_label = voice_prefs.voice_preset
+            if voice_prefs.voice_enabled and voice_prefs.auto_start_on_cli and "READY" in mic_status:
+                from openbagus.voice.voice_session import VoiceSession
+                self.voice_session = VoiceSession(
+                    agent_harness=self.agent_harness,
+                    working_context=self.working_context,
+                    preferences=voice_prefs,
+                )
+                voice_live = self.voice_session.start(hands_free=voice_prefs.hands_free)
+        except Exception:
+            pass
+
         w = 46
         sep = "-" * w
         def row(label: str, val: str) -> str:
@@ -1200,11 +1218,13 @@ class OpenBagusShell(cmd.Cmd):
             row("AI Backend   :", backend_desc),
             row("GPU Inference:", gpu_infer_status),
             row("Mode         :", self.current_mode),
-            row("Microphone   :", mic_status),
+            row("Microphone   :", f"LIVE ({voice_preset_label})" if voice_live else mic_status),
             row("Companion    :", comp_status),
             f"+{sep}+",
         ]
         print("\n".join(lines))
+        if voice_live:
+            print("[Voice Assistant Aktif: Percakapan Hands-Free Siap — Silakan bicara langsung]")
         print("Type any ticker (BTC, ETH, BBCA), research query, or '/help' for commands.\n")
         if self.session.last_asset:
             print(f"[Restored persistent session context: {self.session.last_asset} ({self.session.timeframe or '1d'})]")
@@ -4011,30 +4031,80 @@ class OpenBagusShell(cmd.Cmd):
                 print(f"Mode akan digunakan saat sesi suara dimulai: {subarg.upper()}")
             return
 
+        if subcmd in ("preset", "voice-preset"):
+            if not subarg:
+                curr = self.voice_session.preferences.voice_preset if self.voice_session else "BAGUSMAX_CALM_ID"
+                print(f"Voice preset aktif: {curr}")
+                print("Pilihan preset: calm (BAGUSMAX_CALM_ID), standard, fast")
+                print("Gunakan: /voice preset calm\n")
+                return
+            preset_map = {
+                "calm": "BAGUSMAX_CALM_ID",
+                "baymax": "BAGUSMAX_CALM_ID",
+                "bagusmax": "BAGUSMAX_CALM_ID",
+                "bagusmax_calm_id": "BAGUSMAX_CALM_ID",
+                "standard": "STANDARD",
+                "fast": "FAST",
+            }
+            chosen = preset_map.get(subarg.lower(), subarg.upper())
+            if self.voice_session:
+                self.voice_session.set_preset(chosen)
+            else:
+                from openbagus.voice.preferences import load_voice_preferences, save_voice_preferences
+                p = load_voice_preferences()
+                p.voice_preset = chosen
+                save_voice_preferences(p)
+                print(f"[Voice preset disimpan: {chosen}]")
+            return
+
+        if subcmd in ("auto", "autostart"):
+            enable = subarg in ("on", "true", "1", "yes", "enable", "aktif")
+            from openbagus.voice.preferences import load_voice_preferences, save_voice_preferences
+            p = self.voice_session.preferences if self.voice_session else load_voice_preferences()
+            p.auto_start_on_cli = enable
+            save_voice_preferences(p)
+            print(f"[Voice auto-start on CLI startup: {'AKTIF' if enable else 'NONAKTIF'}]")
+            return
+
         if subcmd in ("stop", "off"):
             if self.voice_session:
+                self.voice_session.preferences.voice_enabled = False
+                self.voice_session.save_preferences()
                 self.voice_session.stop()
                 self.voice_session = None
-                print("[Sesi suara dihentikan.]\n")
+                print("[Sesi suara dihentikan dan dinonaktifkan dari auto-start.]\n")
             else:
-                print("Tidak ada sesi suara yang sedang berjalan.")
+                from openbagus.voice.preferences import load_voice_preferences, save_voice_preferences
+                p = load_voice_preferences()
+                p.voice_enabled = False
+                save_voice_preferences(p)
+                print("[Preferensi suara diubah ke NONAKTIF.]\n")
             return
 
         if subcmd in ("start", "on", "ptt", "continuous"):
             hands_free = subcmd != "ptt"
             if not getattr(self, "voice_session", None):
+                from openbagus.voice.preferences import load_voice_preferences
+                prefs = load_voice_preferences()
+                prefs.voice_enabled = True
+                prefs.hands_free = hands_free
                 self.voice_session = VoiceSession(
                     agent_harness=self.agent_harness,
                     working_context=self.working_context,
+                    preferences=prefs,
                 )
+            else:
+                self.voice_session.preferences.voice_enabled = True
+                self.voice_session.preferences.hands_free = hands_free
+            self.voice_session.save_preferences()
             started = self.voice_session.start(hands_free=hands_free)
             if not started:
                 print("[Gagal memulai audio stream. Pastikan mikrofon terhubung dan izin audio aktif.]")
             else:
-                print("[Sesi suara dimulai. Bicara ke mikrofon...]\n")
+                print("[Sesi suara dimulai. Bicara langsung ke mikrofon...]\n")
             return
 
-        print("Perintah /voice tidak dikenal. Pilihan: start, on, stop, off, ptt, devices, status, mode, mute, unmute\n")
+        print("Perintah /voice tidak dikenal. Pilihan: start, on, stop, off, preset, auto, devices, status, mode, mute, unmute\n")
 
     def do_send(self, arg: str) -> None:
         channel = arg.strip().lower()

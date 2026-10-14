@@ -57,6 +57,7 @@ class VoiceTurnController:
         capture_stream: AudioCaptureStream | None = None,
         playback_manager: AudioPlaybackManager | None = None,
         mode_controller: VoiceModeController | None = None,
+        ask_mode_confirmation: bool = False,
         on_state_change: Callable[[VoiceState, VoiceState], None] | None = None,
         on_user_transcript: Callable[[str, bool], None] | None = None,
         on_agent_response: Callable[[str, str], None] | None = None,
@@ -72,6 +73,7 @@ class VoiceTurnController:
         self.vad = VoiceActivityDetector()
         self.diagnostics = VoiceDiagnostics()
         self.interruption = InterruptionCoordinator(on_interruption_callback=self._handle_interruption)
+        self.ask_mode_confirmation = ask_mode_confirmation
 
         self.on_state_change = on_state_change
         self.on_user_transcript = on_user_transcript
@@ -283,8 +285,8 @@ class VoiceTurnController:
                 transcript = pending.original_query
                 logger.info("Resuming original query '%s' with resolved mode: %s", transcript[:30], resolved_mode)
 
-        elif self.mode_controller.should_ask_for_mode(transcript):
-            # Ask verbally before expensive analysis
+        elif self.ask_mode_confirmation and self.mode_controller.should_ask_for_mode(transcript):
+            # Ask verbally before expensive analysis only when mode confirmation is explicitly enabled
             prompt_q = self.mode_controller.set_pending_query(
                 query=transcript,
                 ticker=normalized_res.detected_tickers[0] if normalized_res.detected_tickers else None,
@@ -293,6 +295,13 @@ class VoiceTurnController:
             self.set_state(VoiceState.MODE_SELECTION)
             self._speak_response(prompt_q, prompt_q, metrics)
             return
+        else:
+            # Frictionless natural conversation: automatically select mode if user specifies or query needs deep analysis
+            low = transcript.lower()
+            if any(k in low for k in ("deep reasoning", "mode mendalam", "analisis mendalam", "skenario lengkap", "monte carlo")):
+                self.mode_controller.set_mode("DEEP_REASONING")
+            elif any(k in low for k in ("mode cepat", "ringkas", "singkat", "cepat")):
+                self.mode_controller.set_mode("FAST")
 
         # STEP 3: Execute Agent Harness
         self.set_state(VoiceState.THINKING)
@@ -318,7 +327,8 @@ class VoiceTurnController:
         self._speak_response(written_text, spoken_text, metrics)
 
     def _speak_response(self, display_text: str, spoken_text: str, metrics: VoiceTurnMetrics) -> None:
-        """Synthesizes and progressively streams spoken audio to playback manager."""
+        """Synthesizes and progressively streams spoken audio to playback manager with generation tracking."""
+        gen_id = self.playback_manager.new_turn()
         self.set_state(VoiceState.GENERATING_SPEECH)
         cancellation = self.interruption.get_cancellation_event()
 
@@ -326,7 +336,7 @@ class VoiceTurnController:
         first_chunk = True
 
         for audio_chunk, tele in self.tts_engine.synthesize_stream(spoken_text, stop_event=cancellation):
-            if cancellation.is_set():
+            if cancellation.is_set() or self.playback_manager.current_generation_id != gen_id:
                 metrics.interrupted = True
                 break
 
@@ -334,18 +344,21 @@ class VoiceTurnController:
                 metrics.tts_ttfa_ms = tele.get("time_to_first_audio_ms", (time.perf_counter() - t_tts_start) * 1000.0)
                 metrics.e2e_voice_latency_ms = metrics.asr_latency_ms + metrics.agent_total_latency_ms + metrics.tts_ttfa_ms
                 first_chunk = False
+                self.set_state(VoiceState.SPEAKING)
 
-            self.playback_manager.enqueue(audio_chunk, samplerate=self.tts_engine.sample_rate)
+            self.playback_manager.enqueue(audio_chunk, samplerate=self.tts_engine.sample_rate, generation_id=gen_id)
 
         metrics.tts_total_latency_ms = (time.perf_counter() - t_tts_start) * 1000.0
         self.diagnostics.record_turn(metrics)
 
         # Wait until audio queue drains or interruption occurs
         while self.playback_manager.is_playing:
-            if cancellation.is_set():
+            if cancellation.is_set() or self.playback_manager.current_generation_id != gen_id:
                 break
-            time.sleep(0.04)
+            time.sleep(0.03)
 
+        # Suppress microphone capture briefly (250ms) to prevent acoustic echo / room reverb from triggering VAD
+        self.capture_stream.suppress_input(250)
         self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
 
     def process_direct_utterance(self, audio: np.ndarray) -> tuple[str, str, VoiceTurnMetrics]:

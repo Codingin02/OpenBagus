@@ -70,8 +70,7 @@ data/equities/
 
 # Caches & Runtime State
 .cache/
-runtime/
-runtime/cache/
+/runtime/
 
 # Secrets, API Keys & Private Configurations - NEVER COMMIT
 .env

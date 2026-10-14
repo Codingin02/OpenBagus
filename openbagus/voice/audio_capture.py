@@ -6,6 +6,7 @@ import collections
 import logging
 import math
 import threading
+import time
 from typing import Callable
 import numpy as np
 
@@ -53,6 +54,7 @@ class AudioCaptureStream:
         self._device_sample_rate = 16000
         self._device_channels = 1
         self._current_level_db = -100.0
+        self._suppress_until: float = 0.0
 
     @property
     def is_capturing(self) -> bool:
@@ -64,6 +66,15 @@ class AudioCaptureStream:
 
     def set_muted(self, muted: bool) -> None:
         self._is_muted = muted
+
+    def suppress_input(self, duration_ms: int = 250) -> None:
+        """Temporarily suppresses microphone capture to guard against acoustic echo and room reverberation."""
+        import time as _time
+        with self._lock:
+            self._suppress_until = _time.monotonic() + (duration_ms / 1000.0)
+            self._pre_roll_buffer.clear()
+            self._active_utterance_frames.clear()
+            self._is_utterance_active = False
 
     @staticmethod
     def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
@@ -163,7 +174,7 @@ class AudioCaptureStream:
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: Any) -> None:
         """PortAudio real-time callback processing incoming microphone audio."""
-        if not self._is_capturing or self._is_muted:
+        if not self._is_capturing or self._is_muted or time.monotonic() < self._suppress_until:
             return
 
         # Convert to mono if multi-channel

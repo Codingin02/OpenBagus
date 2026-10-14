@@ -26,6 +26,7 @@ from openbagus.voice.diagnostics import VoiceDiagnostics, VoiceTurnMetrics
 from openbagus.voice.gpu_scheduler import GPUScheduler, GPUStatus
 from openbagus.voice.interruption import InterruptionCoordinator
 from openbagus.voice.mode_controller import VoiceModeController
+from openbagus.voice.preferences import VoicePreferences, load_voice_preferences, save_voice_preferences
 from openbagus.voice.privacy import PrivacyGuard, PrivacyStatus
 from openbagus.voice.speech_normalizer import SpeechTextNormalizer
 from openbagus.voice.tts_engine import LocalTTSEngine
@@ -47,6 +48,9 @@ __all__ = [
     "GPUStatus",
     "InterruptionCoordinator",
     "VoiceModeController",
+    "VoicePreferences",
+    "load_voice_preferences",
+    "save_voice_preferences",
     "PrivacyGuard",
     "PrivacyStatus",
     "SpeechTextNormalizer",

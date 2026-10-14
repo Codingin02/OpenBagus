@@ -1,4 +1,13 @@
-"""Speech text normalizer converting written analysis into natural spoken Indonesian prose."""
+"""Speech text normalizer converting written analysis into natural spoken Indonesian prose.
+
+Handles:
+- Indonesian integer and decimal verbalization
+- Rupiah currency denominations (ribu, juta, miliar, triliun)
+- Percentage pronunciation with sign and decimals
+- Financial multipliers and ratios (PER, PBV, ROE, DCF, WACC, etc.)
+- 951+ IDX stock ticker phonetic articulation (e.g., BBCA -> B B C A)
+- Markdown, LaTeX, and table stripping for TTS fluency
+"""
 
 from __future__ import annotations
 
@@ -6,7 +15,7 @@ import re
 
 
 def int_to_indonesian_words(n: int) -> str:
-    """Converts non-negative integer into natural Indonesian words."""
+    """Converts non-negative or negative integer into natural Indonesian words."""
     if n == 0:
         return "nol"
     if n < 0:
@@ -32,6 +41,17 @@ def int_to_indonesian_words(n: int) -> str:
     if n < 1000000000000:
         return int_to_indonesian_words(n // 1000000000) + " miliar" + ("" if n % 1000000000 == 0 else " " + int_to_indonesian_words(n % 1000000000))
     return int_to_indonesian_words(n // 1000000000000) + " triliun" + ("" if n % 1000000000000 == 0 else " " + int_to_indonesian_words(n % 1000000000000))
+
+
+# Common non-ticker 4-letter words to preserve as whole words
+NON_TICKER_EXCLUSIONS = {
+    "DATA", "FAST", "DEEP", "TRUE", "FAIL", "NULL", "STOP", "POST", "FILE", "READ",
+    "USER", "TIME", "TEST", "OPEN", "BASE", "CUDA", "ONNX", "AUTO", "HIGH", "LOWS",
+    "PEAK", "COST", "RATE", "CASH", "FLOW", "DEBT", "RISK", "CALL", "TERM", "BOND",
+    "FREE", "FULL", "HALF", "LONG", "UNIT", "TEXT", "LINE", "VIEW", "SHOW", "INFO",
+    "HELP", "CODE", "MODE", "TASK", "WORK", "STEP", "PASS", "NONE", "WARN", "DROP",
+    "HOLD", "SELL", "BUY",  "LIVE", "JSON", "HTTP", "REST", "PORT", "HOST", "PATH",
+}
 
 
 class SpeechTextNormalizer:
@@ -72,7 +92,7 @@ class SpeechTextNormalizer:
         # Juta abbreviation: Rp 500 Juta
         text = re.sub(r"\bRp\s*(\d+(?:[.,]\d+)?)\s*(?:Juta)\b", r"\1 juta rupiah", text, flags=re.I)
 
-        # Standard punctuated numbers: Rp 1.250.000 or Rp1,250,000
+        # Standard punctuated numbers: Rp 1.250.000 or Rp1,250,000 or Rp9.500
         def _repl_num(m: re.Match) -> str:
             raw = m.group(1).replace(".", "").replace(",", "")
             try:
@@ -81,7 +101,10 @@ class SpeechTextNormalizer:
             except ValueError:
                 return m.group(0)
 
+        # Match Rp followed by punctuated numbers with thousands separators
         text = re.sub(r"\bRp\s*(\d{1,3}(?:[.,]\d{3})+)\b", _repl_num, text)
+        # Also match unpunctuated Rp amounts: Rp 50000 -> lima puluh ribu rupiah
+        text = re.sub(r"\bRp\s*(\d{3,})\b", _repl_num, text)
         return text
 
     @classmethod
@@ -100,6 +123,23 @@ class SpeechTextNormalizer:
         return re.sub(r"(-)?(\d+)(?:[.,](\d+))?%", _repl_pct, text)
 
     @classmethod
+    def normalize_multipliers_and_decimals(cls, text: str) -> str:
+        """Converts multiplier notations like 15.5x, 2x, and standalone decimal numbers."""
+        # Multipliers: 15.5x or 15x -> lima belas koma lima kali / 15 kali
+        def _repl_mult(m: re.Match) -> str:
+            sign = "minus " if m.group(1) else ""
+            int_p = m.group(2)
+            dec_p = m.group(3)
+            if dec_p:
+                dec_words = " koma " + " ".join(int_to_indonesian_words(int(d)) for d in dec_p)
+            else:
+                dec_words = ""
+            return f"{sign}{int_to_indonesian_words(int(int_p))}{dec_words} kali"
+
+        text = re.sub(r"(-)?(\d+)(?:[.,](\d+))?[xX]\b", _repl_mult, text)
+        return text
+
+    @classmethod
     def normalize_quarters_and_years(cls, text: str) -> str:
         """Converts financial period notation: 2024-FY, 2025-Q3, etc."""
         text = re.sub(r"\b(\d{4})-FY\b", r"tahun penuh \1", text, flags=re.I)
@@ -111,21 +151,39 @@ class SpeechTextNormalizer:
 
     @classmethod
     def normalize_tickers_and_ratios(cls, text: str) -> str:
-        """Spaces out tickers and acronyms for natural phonetic articulation in TTS."""
-        acronyms = ["PER", "PBV", "ROE", "ROIC", "DER", "FCF", "DCF", "EBITDA", "WACC", "ARA", "ARB", "ADTV", "FCA"]
+        """Phonetically spaces out tickers and acronyms for natural articulation in TTS."""
+        # Special Indonesian and institutional financial acronyms
+        specials = {
+            r"\bLQ45\b": "L Q empat puluh lima",
+            r"\bIHSG\b": "I H S G",
+            r"\bIDX\b": "I D X",
+            r"\bBEI\b": "B E I",
+            r"\bOJK\b": "O J K",
+            r"\bBI\b": "B I",
+            r"\bFED\b": "F E D",
+            r"\bFOMC\b": "F O M C",
+        }
+        for pat, repl in specials.items():
+            text = re.sub(pat, repl, text, flags=re.I)
+
+        # Standard financial ratios and indicators
+        acronyms = [
+            "PER", "PBV", "ROE", "ROA", "ROIC", "DER", "EPS", "FCF", "DCF",
+            "EBITDA", "WACC", "ARA", "ARB", "ADTV", "FCA", "CAGR", "RSI",
+            "MACD", "ATR", "EMA", "SMA", "CAGR", "VaR"
+        ]
         for acr in acronyms:
-            # Add spaces between letters for acronyms: PER -> P E R
-            spaced = " ".join(acr)
-            text = re.sub(rf"\b{acr}\b", spaced, text)
+            spaced = " ".join(acr.upper())
+            text = re.sub(rf"\b{acr}\b", spaced, text, flags=re.IGNORECASE if len(acr) <= 4 else 0)
 
-        # Common 4-letter tickers spelled clearly: BBCA -> B B C A
-        common_tickers = ["BBCA", "BBRI", "BMRI", "BBNI", "TLKM", "ASII", "ANTM", "ISAT", "HGII", "YOII"]
-        for t in common_tickers:
-            spaced = " ".join(t)
-            text = re.sub(rf"\b{t}\b", spaced, text)
+        # 4-Letter IDX tickers: spell out letter by letter (e.g. BBCA -> B B C A, GOTO -> G O T O)
+        def _repl_ticker(m: re.Match) -> str:
+            w = m.group(1)
+            if w in NON_TICKER_EXCLUSIONS:
+                return w
+            return " ".join(w)
 
-        # Multiples notation: 15x -> 15 kali
-        text = re.sub(r"\b(\d+(?:[.,]\d+)?)[xX]\b", r"\1 kali", text)
+        text = re.sub(r"\b([A-Z]{4})\b", _repl_ticker, text)
         return text
 
     @classmethod
@@ -135,6 +193,7 @@ class SpeechTextNormalizer:
         clean = cls.normalize_quarters_and_years(clean)
         clean = cls.normalize_currencies(clean)
         clean = cls.normalize_percentages(clean)
+        clean = cls.normalize_multipliers_and_decimals(clean)
         clean = cls.normalize_tickers_and_ratios(clean)
         # Collapse whitespace and newlines into natural pauses
         clean = re.sub(r"\n+", ". ", clean)

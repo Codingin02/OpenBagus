@@ -1,4 +1,4 @@
-"""Low-latency audio playback manager with instant barge-in abort and volume control."""
+"""Low-latency audio playback manager with instant barge-in abort and generation tracking."""
 
 from __future__ import annotations
 
@@ -20,7 +20,7 @@ except ImportError:
 
 
 class AudioPlaybackManager:
-    """Manages audio playback queue with instant interruption/barge-in cancellation."""
+    """Manages audio playback queue with instant interruption/barge-in cancellation and generation tracking."""
 
     def __init__(
         self,
@@ -40,7 +40,9 @@ class AudioPlaybackManager:
         self.on_interrupted = on_interrupted
         self.on_playback_level = on_playback_level
 
-        self._queue: queue.Queue[tuple[np.ndarray, int]] = queue.Queue()
+        # Queue items: tuple[np.ndarray, int, int] (audio, samplerate, generation_id)
+        self._queue: queue.Queue[tuple[np.ndarray, int, int]] = queue.Queue()
+        self._current_generation_id: int = 1
         self._is_playing = False
         self._is_muted = False
         self._stop_event = threading.Event()
@@ -60,6 +62,17 @@ class AudioPlaybackManager:
     def queue_size(self) -> int:
         return self._queue.qsize()
 
+    @property
+    def current_generation_id(self) -> int:
+        return self._current_generation_id
+
+    def new_turn(self) -> int:
+        """Starts a new generation turn, invalidating any previous turn's pending audio."""
+        with self._lock:
+            self._current_generation_id += 1
+            self._stop_event.clear()
+            return self._current_generation_id
+
     def set_volume(self, volume: float) -> None:
         self.volume = max(0.0, min(1.0, volume))
 
@@ -68,8 +81,20 @@ class AudioPlaybackManager:
         if muted:
             self.stop_playback(interrupted=False)
 
-    def enqueue(self, audio: np.ndarray, samplerate: int | None = None) -> None:
-        """Enqueues audio data for sequential playback."""
+    def enqueue(
+        self,
+        audio: np.ndarray,
+        samplerate: int | None = None,
+        generation_id: int | None = None,
+    ) -> None:
+        """Enqueues audio data for sequential playback with generation validation."""
+        target_gen = generation_id if generation_id is not None else self._current_generation_id
+        with self._lock:
+            # If generation already expired due to barge-in, drop immediately
+            if target_gen != self._current_generation_id:
+                logger.debug("Discarding stale audio chunk (chunk gen %d != current gen %d)", target_gen, self._current_generation_id)
+                return
+
         sr = samplerate or self.default_samplerate
         # Ensure float32 format normalized to [-1.0, 1.0]
         if audio.dtype == np.int16:
@@ -77,7 +102,7 @@ class AudioPlaybackManager:
         else:
             audio_f = audio.astype(np.float32) * self.volume
 
-        self._queue.put((audio_f, sr))
+        self._queue.put((audio_f, sr, target_gen))
         self._ensure_worker_running()
 
     def _ensure_worker_running(self) -> None:
@@ -91,7 +116,7 @@ class AudioPlaybackManager:
         """Sequential playback loop processing audio chunks."""
         while not self._stop_event.is_set():
             try:
-                audio, sr = self._queue.get(timeout=0.1)
+                audio, sr, chunk_gen = self._queue.get(timeout=0.1)
             except queue.Empty:
                 if self._is_playing:
                     self._is_playing = False
@@ -102,7 +127,8 @@ class AudioPlaybackManager:
                             pass
                 continue
 
-            if self._stop_event.is_set() or self._is_muted:
+            # Drop chunk if invalidated by barge-in or stop
+            if self._stop_event.is_set() or self._is_muted or chunk_gen != self._current_generation_id:
                 self._queue.task_done()
                 continue
 
@@ -122,7 +148,7 @@ class AudioPlaybackManager:
                     dev_out = d.id if d else None
 
                 sd.play(audio, samplerate=sr, device=dev_out)
-                
+
                 # Check stop event during chunk duration and emit synchronized playback levels
                 chunk_dur = len(audio) / sr
                 chunk_start = time.time()
@@ -131,7 +157,7 @@ class AudioPlaybackManager:
                 last_rms = 0.0
 
                 while time.time() < deadline:
-                    if self._stop_event.is_set():
+                    if self._stop_event.is_set() or chunk_gen != self._current_generation_id:
                         sd.stop()
                         break
                     now = time.time()
@@ -173,8 +199,9 @@ class AudioPlaybackManager:
                 pass
 
     def stop_playback(self, interrupted: bool = True) -> None:
-        """Instantly aborts audio playback and drains queue (Barge-In support)."""
+        """Instantly aborts audio playback, bumps generation, and drains queue (Barge-In support)."""
         with self._lock:
+            self._current_generation_id += 1
             self._stop_event.set()
             # Drain queue
             while not self._queue.empty():

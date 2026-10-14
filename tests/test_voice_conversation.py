@@ -35,6 +35,7 @@ from openbagus.voice.diagnostics import VoiceDiagnostics, VoiceTurnMetrics
 from openbagus.voice.gpu_scheduler import GPUScheduler, GPUStatus
 from openbagus.voice.interruption import InterruptionCoordinator
 from openbagus.voice.mode_controller import VoiceModeController
+from openbagus.voice.preferences import VoicePreferences, load_voice_preferences, save_voice_preferences
 from openbagus.voice.privacy import PrivacyGuard
 from openbagus.voice.speech_normalizer import SpeechTextNormalizer
 from openbagus.voice.tts_engine import LocalTTSEngine
@@ -455,5 +456,168 @@ class TestLiveASRInference(unittest.TestCase):
         self.assertEqual(tele["device"], "cuda")
 
 
+class TestVoicePreferencesPersistence(unittest.TestCase):
+    """Test voice persistent configuration load, save, and safe fallbacks."""
+
+    def test_default_preferences(self) -> None:
+        p = VoicePreferences()
+        self.assertTrue(p.voice_enabled)
+        self.assertTrue(p.hands_free)
+        self.assertEqual(p.voice_preset, "BAGUSMAX_CALM_ID")
+        self.assertEqual(p.audio_storage, "disabled")
+        self.assertEqual(p.response_mode, "audio_first")
+        self.assertTrue(p.barge_in_enabled)
+
+    def test_save_and_load_roundtrip(self) -> None:
+        import tempfile
+        with tempfile.TemporaryDirectory() as td:
+            cfg_path = Path(td) / "test_voice_prefs.json"
+            p = VoicePreferences(
+                voice_enabled=True,
+                hands_free=False,
+                voice_preset="STANDARD",
+                speed=1.1,
+                volume=0.85,
+            )
+            ok = save_voice_preferences(p, config_path=cfg_path)
+            self.assertTrue(ok)
+            self.assertTrue(cfg_path.exists())
+
+            loaded = load_voice_preferences(config_path=cfg_path)
+            self.assertTrue(loaded.voice_enabled)
+            self.assertFalse(loaded.hands_free)
+            self.assertEqual(loaded.voice_preset, "STANDARD")
+            self.assertAlmostEqual(loaded.speed, 1.1, places=2)
+            self.assertAlmostEqual(loaded.volume, 0.85, places=2)
+            self.assertEqual(loaded.audio_storage, "disabled")
+
+    def test_sanitization_and_zero_disk_enforcement(self) -> None:
+        p = VoicePreferences(
+            speed=5.0,  # Over max
+            volume=-1.0,  # Under min
+            audio_storage="enabled",  # Forbidden: must be disabled
+            voice_preset="UNKNOWN_PRESET",
+        )
+        p.sanitize()
+        self.assertLessEqual(p.speed, 2.0)
+        self.assertGreaterEqual(p.volume, 0.0)
+        self.assertEqual(p.audio_storage, "disabled")
+        self.assertEqual(p.voice_preset, "BAGUSMAX_CALM_ID")
+
+    def test_device_resolution(self) -> None:
+        p = VoicePreferences()
+        in_id, out_id = p.resolve_devices()
+        self.assertTrue(in_id is None or isinstance(in_id, int))
+        self.assertTrue(out_id is None or isinstance(out_id, int))
+
+
+class TestBagusmaxCalmVoicePreset(unittest.TestCase):
+    """Test Bagusmax calm voice preset parameters and synthesis config."""
+
+    def test_bagusmax_preset_defaults(self) -> None:
+        tts = LocalTTSEngine()
+        self.assertEqual(tts.preset, "BAGUSMAX_CALM_ID")
+        self.assertAlmostEqual(tts.length_scale, 1.08, places=2)
+        self.assertAlmostEqual(tts.noise_scale, 0.55, places=2)
+        self.assertAlmostEqual(tts.noise_w_scale, 0.70, places=2)
+
+    def test_preset_switching(self) -> None:
+        tts = LocalTTSEngine()
+        self.assertTrue(tts.set_preset("FAST"))
+        self.assertEqual(tts.preset, "FAST")
+        self.assertAlmostEqual(tts.length_scale, 0.90, places=2)
+
+        self.assertTrue(tts.set_preset("BAGUSMAX_CALM_ID"))
+        self.assertEqual(tts.preset, "BAGUSMAX_CALM_ID")
+        self.assertAlmostEqual(tts.length_scale, 1.08, places=2)
+
+
+class TestAcousticEchoSuppression(unittest.TestCase):
+    """Test microphone suppression window for acoustic echo and room reverb prevention."""
+
+    def test_suppress_input_window(self) -> None:
+        stream = AudioCaptureStream()
+        self.assertFalse(stream.is_capturing)
+        stream.suppress_input(duration_ms=100)
+        self.assertGreater(stream._suppress_until, 0.0)
+
+        # In callback, while suppressed, audio must be ignored
+        dummy_chunk = np.ones(512, dtype=np.float32)
+        stream._is_capturing = True
+        stream._audio_callback(dummy_chunk, 512, None, None)
+        self.assertEqual(len(stream._pre_roll_buffer), 0, "Frames must be dropped during suppression guard")
+        self.assertEqual(stream.get_current_level_db(), -100.0)
+
+
+class TestGenerationTrackingAndBargeIn(unittest.TestCase):
+    """Test generation IDs and stale audio chunk rejection upon barge-in."""
+
+    def test_generation_id_bump_and_stale_rejection(self) -> None:
+        mgr = AudioPlaybackManager()
+        gen_1 = mgr.current_generation_id
+        gen_2 = mgr.new_turn()
+        self.assertEqual(gen_2, gen_1 + 1)
+
+        # Enqueue chunk from stale generation (gen_1)
+        stale_audio = np.zeros(2000, dtype=np.float32)
+        mgr.enqueue(stale_audio, samplerate=22050, generation_id=gen_1)
+        self.assertEqual(mgr.queue_size, 0, "Chunk from previous turn must be discarded immediately")
+
+        # Enqueue chunk from current generation (gen_2)
+        current_audio = np.zeros(2000, dtype=np.float32)
+        mgr.enqueue(current_audio, samplerate=22050, generation_id=gen_2)
+        self.assertTrue(mgr.queue_size == 1 or mgr.is_playing)
+
+        # Stop / Barge-in aborts and bumps generation again
+        mgr.stop_playback(interrupted=True)
+        self.assertEqual(mgr.queue_size, 0)
+        self.assertFalse(mgr.is_playing)
+        self.assertGreater(mgr.current_generation_id, gen_2)
+
+
+class TestZeroPersistentAudioAudit(unittest.TestCase):
+    """Test audit verifying zero persistent audio files on disk across data and app directories."""
+
+    def test_zero_persistent_audio_guarantee(self) -> None:
+        audit = PrivacyGuard.verify_zero_persistent_audio()
+        self.assertTrue(audit["zero_audio_persisted"])
+        self.assertEqual(audit["violations_found"], 0)
+        self.assertEqual(len(audit["persisted_files"]), 0)
+
+
+class TestEnhancedSpeechNormalizerDecimalsAndTickers(unittest.TestCase):
+    """Test extended Indonesian speech verbalization for decimals, multipliers, LQ45, and IDX tickers."""
+
+    def test_multipliers_and_decimals(self) -> None:
+        spoken = SpeechTextNormalizer.to_spoken_text("Rasio PBV saat ini 2.5x dengan PER 15.5x.")
+        self.assertIn("P B V", spoken)
+        self.assertIn("dua koma lima kali", spoken)
+        self.assertIn("P E R", spoken)
+        self.assertIn("lima belas koma lima kali", spoken)
+
+    def test_special_acronyms(self) -> None:
+        spoken = SpeechTextNormalizer.to_spoken_text("IHSG ditutup menguat didorong indeks LQ45 dan pengumuman suku bunga BI.")
+        self.assertIn("I H S G", spoken)
+        self.assertIn("L Q empat puluh lima", spoken)
+        self.assertIn("B I", spoken)
+
+    def test_general_idx_tickers(self) -> None:
+        samples = [
+            ("saham GOTO dan AMMN", "G O T O", "A M M N"),
+            ("rekomendasi BRIS serta ACES", "B R I S", "A C E S"),
+        ]
+        for text, t1, t2 in samples:
+            res = SpeechTextNormalizer.to_spoken_text(text)
+            self.assertIn(t1, res)
+            self.assertIn(t2, res)
+
+    def test_non_ticker_exclusion_words(self) -> None:
+        # Common non-ticker words must not be spaced out into single letters
+        spoken = SpeechTextNormalizer.to_spoken_text("Mode FAST dan proses DATA dilakukan secara realtime.")
+        self.assertIn("FAST", spoken)
+        self.assertIn("DATA", spoken)
+
+
 if __name__ == "__main__":
     unittest.main()
+
