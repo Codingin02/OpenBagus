@@ -567,6 +567,8 @@ class SecEdgarClient:
                 investing_cash_flow=p_vals.get("investing_cash_flow"),
                 financing_cash_flow=p_vals.get("financing_cash_flow"),
                 dividends_paid=p_vals.get("dividends_paid"),
+                source_url=f"https://data.sec.gov/api/xbrl/companyfacts/CIK{str(company_facts.get('cik', '')).zfill(10)}.json",
+                source_document="SEC EDGAR Company Facts API",
                 citations=citations_data.get(p_key, {}),
             )
             # Run invariant accounting reconciliation checks

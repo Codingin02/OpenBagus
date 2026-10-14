@@ -105,7 +105,7 @@ class YahooFinanceEquitiesProvider(DataProvider):
             source_url="https://finance.yahoo.com",
             is_live=False,
             quality_status=QualityStatus.OBSERVED.value,
-            freshness_status=FreshnessStatus.LATEST_CLOSE.value,
+            freshness_status=FreshnessStatus.LATEST_EOD.value,
             latency_ms=latency,
         )
 
@@ -148,7 +148,7 @@ class YahooFinanceEquitiesProvider(DataProvider):
             as_of=raw.get("retrieved_at"),
             is_live=False,
             quality_status=QualityStatus.OBSERVED.value,
-            freshness_status=FreshnessStatus.LATEST_CLOSE.value,
+            freshness_status=FreshnessStatus.LATEST_EOD.value,
             latency_ms=latency,
         )
 

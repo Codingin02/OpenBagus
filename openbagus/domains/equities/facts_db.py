@@ -192,6 +192,9 @@ class FinancialFactsDatabase:
         lineage_json = json.dumps(computation_lineage, ensure_ascii=False) if computation_lineage else None
         now_iso = datetime.now(timezone.utc).isoformat()
 
+        if source_url and ("idx.co.id/filings" in source_url.lower() or "synthetic" in source_url.lower()):
+            raise ValueError(f"Invented or synthetic source URL rejected: {source_url}")
+
         with self._connection() as conn:
             conn.execute(
                 """
@@ -239,13 +242,16 @@ class FinancialFactsDatabase:
             )
         return fact_id
 
-    def get_fact(self, symbol: str, metric_name: str, period: str) -> dict[str, Any] | None:
+    def get_fact(
+        self, symbol: str, metric_name: str, period: str, include_quarantined: bool = False
+    ) -> dict[str, Any] | None:
         """Retrieves a specific fact for an issuer and period."""
+        status_clause = "" if include_quarantined else " AND validation_status = 'VALID'"
         with self._connection() as conn:
             cur = conn.execute(
-                """
+                f"""
                 SELECT * FROM financial_facts
-                WHERE symbol = ? AND metric_name = ? AND period = ?
+                WHERE symbol = ? AND metric_name = ? AND period = ?{status_clause}
                 ORDER BY version DESC LIMIT 1;
                 """,
                 (symbol.upper(), metric_name, period),
@@ -261,13 +267,16 @@ class FinancialFactsDatabase:
                 return res
         return None
 
-    def get_facts_for_period(self, symbol: str, period: str) -> dict[str, float]:
+    def get_facts_for_period(
+        self, symbol: str, period: str, include_quarantined: bool = False
+    ) -> dict[str, float]:
         """Returns all metric values for an issuer and period as a {metric_name: value} dictionary."""
+        status_clause = "" if include_quarantined else " AND validation_status = 'VALID'"
         with self._connection() as conn:
             cur = conn.execute(
-                """
+                f"""
                 SELECT metric_name, value FROM financial_facts
-                WHERE symbol = ? AND period = ?
+                WHERE symbol = ? AND period = ?{status_clause}
                 ORDER BY version ASC;
                 """,
                 (symbol.upper(), period),
@@ -280,6 +289,7 @@ class FinancialFactsDatabase:
         metric_name: str,
         limit: int = 10,
         period_type: str | None = None,
+        include_quarantined: bool = False,
     ) -> list[dict[str, Any]]:
         """Returns time series history for a metric ordered chronologically."""
         query = """
@@ -288,6 +298,8 @@ class FinancialFactsDatabase:
             WHERE symbol = ? AND metric_name = ?
         """
         params: list[Any] = [symbol.upper(), metric_name]
+        if not include_quarantined:
+            query += " AND validation_status = 'VALID'"
         if period_type:
             query += " AND period_type = ?"
             params.append(period_type)
@@ -298,13 +310,15 @@ class FinancialFactsDatabase:
             cur = conn.execute(query, params)
             return [dict(row) for row in cur.fetchall()]
 
-    def list_available_periods(self, symbol: str) -> list[str]:
+    def list_available_periods(self, symbol: str, include_quarantined: bool = False) -> list[str]:
         """Lists all distinct reporting periods available in the database for an issuer."""
+        status_clause = "" if include_quarantined else " WHERE validation_status = 'VALID' AND symbol = ?"
+        where_clause = status_clause if not include_quarantined else " WHERE symbol = ?"
         with self._connection() as conn:
             cur = conn.execute(
-                """
+                f"""
                 SELECT DISTINCT period FROM financial_facts
-                WHERE symbol = ?
+                {where_clause}
                 ORDER BY period ASC;
                 """,
                 (symbol.upper(),),

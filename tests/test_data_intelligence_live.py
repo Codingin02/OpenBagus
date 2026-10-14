@@ -78,20 +78,18 @@ class TestDataIntelligenceLive(unittest.TestCase):
         self.assertIsNotNone(res.get("close"))
         self.assertNotIn(res.get("observation_date"), (None, "-"))
 
-        # Verify ratios calculation
+        # Verify ratios calculation reports DATA_GAP because synthetic statements are quarantined
         ratios_tool = CalculateFinancialRatiosTool()
         r_res, _ = ratios_tool.run(ticker="RATU")
         self.assertEqual(r_res.get("symbol"), "RATU")
-        self.assertIsNotNone(r_res.get("der"))
-        self.assertIsNotNone(r_res.get("roe_pct"))
-        self.assertEqual(r_res.get("accounting_health"), "Solvent")
+        self.assertEqual(r_res.get("status"), "DATA_GAP")
+        self.assertIn("belum tersedia", r_res.get("message", "").lower())
 
-        # Verify valuation tool
+        # Verify valuation tool reports INSUFFICIENT_DATA
         val_tool = CalculateValuationTool()
         v_res, _ = val_tool.run(ticker="RATU")
         self.assertEqual(v_res.get("symbol"), "RATU")
-        self.assertIsNotNone(v_res.get("multiples", {}).get("PER"))
-        self.assertIsNotNone(v_res.get("multiples", {}).get("PBV"))
+        self.assertEqual(v_res.get("status"), "INSUFFICIENT_DATA")
 
     # -------------------------------------------------------------------------
     # Test B: DATA Live EOD & Financials (Disambiguation)
@@ -124,26 +122,29 @@ class TestDataIntelligenceLive(unittest.TestCase):
         self.assertIsNotNone(accel)
 
     # -------------------------------------------------------------------------
-    # Test D: BBCA Multi-Period Bank Ratios
+    # Test D: BBCA Quarantined Status & Authentic Multi-Period Statements (AAPL)
     # -------------------------------------------------------------------------
     def test_d_bbca_multi_period_bank_ratios(self) -> None:
         storage = FinancialStatementStorage(self.repo_root)
-        periods = storage.list_periods("BBCA")
-        self.assertIn("2023-FY", periods)
-        self.assertIn("2024-FY", periods)
-
+        # Synthetic BBCA statements must NOT be visible in active storage
+        bbca_periods = storage.list_periods("BBCA")
+        self.assertEqual(bbca_periods, [], "Synthetic BBCA statements must be quarantined and excluded")
         stmt_2024 = storage.get_statement("BBCA", "2024-FY")
-        self.assertIsNotNone(stmt_2024)
-        ratios = stmt_2024.get("reported_ratios_pct", {})
-        self.assertGreaterEqual(ratios.get("NIM", 0.0), 5.0)
-        self.assertGreaterEqual(ratios.get("CAR", 0.0), 20.0)
-        self.assertLessEqual(ratios.get("NPL_gross", 10.0), 3.0)
+        self.assertIsNone(stmt_2024, "Quarantined BBCA statement must return None")
 
-        # Test tool run
+        # Tool run for BBCA must honestly report DATA_GAP
         tool = CalculateFinancialRatiosTool()
         res, _ = tool.run(ticker="BBCA")
         self.assertEqual(res.get("symbol"), "BBCA")
-        self.assertIsNotNone(res.get("reported_banking_ratios"))
+        self.assertEqual(res.get("status"), "DATA_GAP")
+
+        # Verify authentic multi-period statements using authentic SEC EDGAR filings (AAPL)
+        aapl_periods = storage.list_periods("AAPL")
+        self.assertGreaterEqual(len(aapl_periods), 10, "Authentic AAPL filings must have >= 10 periods")
+        stmt_aapl = storage.get_statement("AAPL", "2024-FY")
+        self.assertIsNotNone(stmt_aapl)
+        self.assertIn("sec.gov", stmt_aapl.get("source", "").lower())
+        self.assertGreater(stmt_aapl.get("values", {}).get("revenue", 0.0), 100_000_000_000.0)
 
     # -------------------------------------------------------------------------
     # Test E: US Equity SEC EDGAR Facts (Apple Inc. / AAPL)

@@ -496,17 +496,33 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
         gp = vals.get("gross_profit", 0.0)
         op = vals.get("operating_income") or vals.get("operating_profit", 0.0)
         ni = vals.get("net_income") or vals.get("net_income_attributable") or vals.get("net_profit", 0.0)
-        debt = vals.get("total_debt") or (vals.get("short_term_debt", 0.0) + vals.get("long_term_debt", 0.0))
+
+        # Do not treat missing debt as 0.0 without explicit filing evidence
+        if "total_debt" in vals and vals["total_debt"] is not None:
+            debt = float(vals["total_debt"])
+            debt_verified = True
+        elif ("short_term_debt" in vals and vals["short_term_debt"] is not None) or ("long_term_debt" in vals and vals["long_term_debt"] is not None):
+            st_d = vals.get("short_term_debt") or 0.0
+            lt_d = vals.get("long_term_debt") or 0.0
+            debt = float(st_d + lt_d)
+            debt_verified = True
+        elif "interest_bearing_debt" in vals and vals["interest_bearing_debt"] is not None:
+            debt = float(vals["interest_bearing_debt"])
+            debt_verified = True
+        else:
+            debt = None
+            debt_verified = False
+
         equity = vals.get("total_equity") or vals.get("equity_attributable", 0.0)
         ca = vals.get("current_assets", 0.0)
         cl = vals.get("current_liabilities", 0.0)
 
-        der = round(debt / equity, 2) if equity > 0 else None
+        der = round(debt / equity, 2) if (debt is not None and equity and equity > 0) else None
         gm = round((gp / rev) * 100, 2) if rev > 0 else None
         om = round((op / rev) * 100, 2) if rev > 0 else None
         nm = round((ni / rev) * 100, 2) if rev > 0 else None
-        roe = round((ni / equity) * 100, 2) if equity > 0 else None
-        cr = round(ca / cl, 2) if cl > 0 else None
+        roe = round((ni / equity) * 100, 2) if (equity and equity > 0) else None
+        cr = round(ca / cl, 2) if (cl and cl > 0) else None
 
         reported_ratios = stmt.get("reported_ratios_pct", {})
 
@@ -514,13 +530,14 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
             "symbol": ticker.upper(),
             "period": stmt.get("period"),
             "der": der,
+            "debt_verified": debt_verified,
             "gross_margin_pct": gm,
             "operating_margin_pct": om,
             "net_margin_pct": nm,
             "roe_pct": roe,
             "current_ratio": cr,
             "reported_banking_ratios": reported_ratios if reported_ratios else None,
-            "accounting_health": "Solvent" if der is not None and der < 1.5 else "Moderate/Leveraged",
+            "accounting_health": ("Solvent" if der < 1.5 else "Moderate/Leveraged") if der is not None else "Debt Unverified",
         }, {"source": "Filing Financial Calculations", "period": stmt.get("period")}
 
 

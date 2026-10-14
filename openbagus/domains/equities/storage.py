@@ -81,6 +81,11 @@ class FinancialStatementStorage:
         if not period or period == "UNKNOWN_PERIOD":
             raise ValueError("Statement tidak memiliki periode fiskal yang valid.")
 
+        # Reject synthetic or invented filing sources
+        src = str(data.get("source") or "").lower()
+        if "idx.co.id/filings" in src or "synthetic" in src:
+            raise ValueError(f"Invented or synthetic statement source rejected: {data.get('source')}")
+
         clean_period = re.sub(r"[^A-Za-z0-9_-]", "", period)
         sym_dir = self._get_symbol_dir(sym)
         target_path = sym_dir / f"{clean_period}.json"
@@ -113,9 +118,14 @@ class FinancialStatementStorage:
             file_path = sym_dir / f"{clean_period}.json"
             if file_path.exists():
                 try:
-                    return json.loads(file_path.read_text(encoding="utf-8"))
+                    stmt = json.loads(file_path.read_text(encoding="utf-8"))
+                    src = str(stmt.get("source") or "").lower()
+                    if "idx.co.id/filings" in src or stmt.get("validation_status") == "QUARANTINED_SYNTHETIC":
+                        logger.warning("Statement %s ditolak karena teridentifikasi sintetik/dikarantina.", file_path)
+                        return None
+                    return stmt
                 except Exception as e:
-                    logger.warning("Gagal membaca statement %s: %e", file_path, e)
+                    logger.warning("Gagal membaca statement %s: %s", file_path, e)
             return None
 
         # Return latest period
@@ -135,7 +145,14 @@ class FinancialStatementStorage:
         periods = []
         for p in sym_dir.glob("*.json"):
             if p.stem.lower() != "index":
-                periods.append(p.stem)
+                try:
+                    stmt = json.loads(p.read_text(encoding="utf-8"))
+                    src = str(stmt.get("source") or "").lower()
+                    if "idx.co.id/filings" in src or stmt.get("validation_status") == "QUARANTINED_SYNTHETIC":
+                        continue
+                    periods.append(p.stem)
+                except Exception:
+                    continue
 
         periods.sort(key=_period_sort_key)
         return periods

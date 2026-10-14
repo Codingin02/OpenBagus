@@ -119,6 +119,8 @@ data/raw/**
 data/processed/**
 data/crypto_asset_catalog.json
 data/*.json
+data/backup_pre_quarantine_*/
+data/quarantine/
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 *.db

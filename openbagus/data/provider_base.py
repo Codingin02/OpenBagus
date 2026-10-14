@@ -49,13 +49,18 @@ class QualityStatus(str, enum.Enum):
 
 class FreshnessStatus(str, enum.Enum):
     """Data freshness lifecycle state."""
-    LIVE = "LIVE"
-    DELAYED = "DELAYED"
-    LATEST_CLOSE = "LATEST_CLOSE"
+    REALTIME_VERIFIED = "REALTIME_VERIFIED"
+    DELAYED_VERIFIED = "DELAYED_VERIFIED"
+    LATEST_EOD = "LATEST_EOD"
     HISTORICAL = "HISTORICAL"
     STALE = "STALE"
     UNAVAILABLE = "UNAVAILABLE"
     UNKNOWN = "UNKNOWN"
+
+    # Backwards-compatible aliases
+    LIVE = "REALTIME_VERIFIED"
+    DELAYED = "DELAYED_VERIFIED"
+    LATEST_CLOSE = "LATEST_EOD"
 
 
 @dataclass
