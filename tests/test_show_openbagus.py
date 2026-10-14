@@ -1,4 +1,4 @@
-"""Acceptance tests for SHOW OPENBAGUS 3D companion character, animator, and controller."""
+"""Acceptance tests for BAGUSMAX Dual-Form 3D companion character, animator, and controller."""
 
 from __future__ import annotations
 
@@ -8,79 +8,148 @@ from unittest.mock import MagicMock, patch
 from openbagus.companion.controller import CompanionController, IPC_PORT, IPC_VERSION
 from openbagus.companion.renderer import (
     AnimState,
+    BagusmaxForm,
     CharacterAnimator,
+    build_bagusmax_armored,
+    build_bagusmax_white,
     build_character,
 )
 
 
-class TestShowOpenBagusGeometry(unittest.TestCase):
-    """Verifies the procedural 3D cartoon plumber companion geometry and styling."""
+class TestBagusmaxGeometry(unittest.TestCase):
+    """Verifies BAGUSMAX procedural 3D dual-form geometry, proportions, and color palettes."""
 
-    def test_character_mesh_generation(self) -> None:
-        verts, idxs = build_character(mouth_open=0.0, blink=0.0)
+    def test_white_form_mesh_generation(self) -> None:
+        """BAGUSMAX White must generate a dense, valid 3D mesh."""
+        verts, idxs = build_bagusmax_white(blink=0.0, breath=1.0)
         self.assertGreater(len(verts), 10_000)
         self.assertGreater(len(idxs), 10_000)
 
-        # 9 floats per vertex: px, py, pz, nx, ny, nz, r, g, b
-        n_verts = len(verts) // 9
+        stride = 9
+        n_verts = len(verts) // stride
         n_tris = len(idxs) // 3
-        self.assertGreaterEqual(n_verts, 5_000)
-        self.assertGreaterEqual(n_tris, 10_000)
+        self.assertGreaterEqual(n_verts, 3_000)
+        self.assertGreaterEqual(n_tris, 6_000)
 
-        # Max index must be within vertex bounds
         max_idx = max(idxs)
         self.assertLess(max_idx, n_verts)
 
-    def test_character_color_palette(self) -> None:
-        """Character must feature black cap/shirt, blue overalls, brown boots, white gloves."""
-        verts, _ = build_character()
+    def test_white_form_color_palette_and_no_mario(self) -> None:
+        """BAGUSMAX White must feature warm white vinyl and black eyes, with zero Mario geometry."""
+        verts, _ = build_bagusmax_white()
         stride = 9
         n_verts = len(verts) // stride
 
-        has_black = False
-        has_blue = False
-        has_brown = False
         has_white = False
+        has_black_eyes = False
+        has_silver_port = False
+        has_mario_blue = False
+        has_mario_brown = False
 
         for i in range(n_verts):
             r = verts[i * stride + 6]
             g = verts[i * stride + 7]
             b = verts[i * stride + 8]
 
-            # Black: r,g,b <= 0.1
-            if r <= 0.1 and g <= 0.1 and b <= 0.1:
-                has_black = True
-            # Blue: b > 0.6 and r < 0.3
-            elif b > 0.6 and r < 0.3 and g < 0.4:
-                has_blue = True
-            # Brown: r > 0.3, g < 0.3, b < 0.15
-            elif r > 0.3 and g < 0.3 and b < 0.15:
-                has_brown = True
-            # White: r,g,b >= 0.9
-            elif r >= 0.9 and g >= 0.9 and b >= 0.9:
+            # Warm vinyl white: r, g, b >= 0.90
+            if r >= 0.90 and g >= 0.90 and b >= 0.90:
                 has_white = True
+            # Black eyes / connecting line: r, g, b <= 0.05
+            elif r <= 0.05 and g <= 0.05 and b <= 0.05:
+                has_black_eyes = True
+            # Silver port ring: 0.80 <= r <= 0.90 and 0.80 <= g <= 0.90 and 0.80 <= b <= 0.90
+            elif 0.80 <= r <= 0.90 and 0.80 <= g <= 0.90 and 0.80 <= b <= 0.90:
+                has_silver_port = True
 
-        self.assertTrue(has_black, "Character must have black clothing/cap")
-        self.assertTrue(has_blue, "Character must have blue overalls")
-        self.assertTrue(has_brown, "Character must have brown boots")
-        self.assertTrue(has_white, "Character must have white gloves / emblem plate")
+            # Mario blue overalls: b > 0.6 and r < 0.3
+            if b > 0.6 and r < 0.3 and g < 0.4:
+                has_mario_blue = True
+            # Mario brown boots: r > 0.3, g < 0.3, b < 0.15
+            if r > 0.3 and g < 0.3 and b < 0.15:
+                has_mario_brown = True
 
-    def test_mouth_open_lip_sync_variation(self) -> None:
-        """Mouth geometry must change when mouth_open parameter varies."""
-        verts_closed, _ = build_character(mouth_open=0.0)
-        verts_open, _ = build_character(mouth_open=1.0)
-        # Coordinates must differ due to lip-sync mouth aperture
-        self.assertNotEqual(verts_closed, verts_open)
+        self.assertTrue(has_white, "BAGUSMAX White must have warm white vinyl body")
+        self.assertTrue(has_black_eyes, "BAGUSMAX White must have signature black eyes")
+        self.assertTrue(has_silver_port, "BAGUSMAX White must have silver access port on left chest")
+        self.assertFalse(has_mario_blue, "BAGUSMAX must NOT contain Mario blue overalls")
+        self.assertFalse(has_mario_brown, "BAGUSMAX must NOT contain Mario brown boots")
+
+    def test_armored_form_mesh_generation(self) -> None:
+        """BAGUSMAX Armored must generate a complete hero armor 3D mesh."""
+        verts, idxs = build_bagusmax_armored(blink=0.0, breath=1.0)
+        self.assertGreater(len(verts), 10_000)
+        self.assertGreater(len(idxs), 10_000)
+
+        stride = 9
+        n_verts = len(verts) // stride
+        n_tris = len(idxs) // 3
+        self.assertGreaterEqual(n_verts, 3_000)
+        self.assertGreaterEqual(n_tris, 6_000)
+
+        max_idx = max(idxs)
+        self.assertLess(max_idx, n_verts)
+
+    def test_armored_form_color_palette(self) -> None:
+        """BAGUSMAX Armored must feature glossy red armor, purple abdominal insert, graphite joints, white visor."""
+        verts, _ = build_bagusmax_armored()
+        stride = 9
+        n_verts = len(verts) // stride
+
+        has_armor_red = False
+        has_purple_abs = False
+        has_graphite_joints = False
+        has_white_visor = False
+        has_black_eyes = False
+
+        for i in range(n_verts):
+            r = verts[i * stride + 6]
+            g = verts[i * stride + 7]
+            b = verts[i * stride + 8]
+
+            # Armor red: r > 0.75, g < 0.25, b < 0.15
+            if r > 0.75 and g < 0.25 and b < 0.15:
+                has_armor_red = True
+            # Purple abdominal insert: 0.25 <= r <= 0.45, 0.10 <= g <= 0.25, 0.40 <= b <= 0.55
+            elif 0.25 <= r <= 0.45 and 0.10 <= g <= 0.25 and 0.40 <= b <= 0.55:
+                has_purple_abs = True
+            # Graphite joints: 0.10 <= r <= 0.18, 0.10 <= g <= 0.18, 0.10 <= b <= 0.18
+            elif 0.10 <= r <= 0.18 and 0.10 <= g <= 0.18 and 0.10 <= b <= 0.18:
+                has_graphite_joints = True
+            # White visor: r >= 0.90, g >= 0.90, b >= 0.90
+            elif r >= 0.90 and g >= 0.90 and b >= 0.90:
+                has_white_visor = True
+            # Black eyes: r <= 0.05, g <= 0.05, b <= 0.05
+            elif r <= 0.05 and g <= 0.05 and b <= 0.05:
+                has_black_eyes = True
+
+        self.assertTrue(has_armor_red, "BAGUSMAX Armored must have red armor plating")
+        self.assertTrue(has_purple_abs, "BAGUSMAX Armored must have segmented purple abdominal insert")
+        self.assertTrue(has_graphite_joints, "BAGUSMAX Armored must have dark graphite mechanical joints")
+        self.assertTrue(has_white_visor, "BAGUSMAX Armored must have white face visor")
+        self.assertTrue(has_black_eyes, "BAGUSMAX Armored must display two black eyes on visor")
+
+    def test_build_character_dispatch(self) -> None:
+        """build_character must correctly dispatch to WHITE or ARMORED form."""
+        verts_white, _ = build_character(form="WHITE")
+        verts_armored, _ = build_character(form="ARMORED")
+        self.assertNotEqual(len(verts_white), 0)
+        self.assertNotEqual(len(verts_armored), 0)
+        # Colors must differ between white and armored forms
+        self.assertNotEqual(verts_white[:50], verts_armored[:50])
 
     def test_blink_variation(self) -> None:
-        """Eyelid geometry must change when blink parameter varies."""
-        verts_open, _ = build_character(blink=0.0)
-        verts_blink, _ = build_character(blink=1.0)
-        self.assertNotEqual(verts_open, verts_blink)
+        """Eye geometry changes with blink parameter on both forms."""
+        w_open, _ = build_bagusmax_white(blink=0.0)
+        w_blink, _ = build_bagusmax_white(blink=1.0)
+        self.assertNotEqual(w_open, w_blink)
+
+        a_open, _ = build_bagusmax_armored(blink=0.0)
+        a_blink, _ = build_bagusmax_armored(blink=1.0)
+        self.assertNotEqual(a_open, a_blink)
 
 
 class TestCharacterAnimator(unittest.TestCase):
-    """Verifies animation states and parameter transitions."""
+    """Verifies animation states, reasoning mode synchronization, and morph progression."""
 
     def setUp(self) -> None:
         self.animator = CharacterAnimator()
@@ -107,14 +176,37 @@ class TestCharacterAnimator(unittest.TestCase):
             self.animator.set_state(st)
             self.assertEqual(self.animator.state, st)
 
-    def test_animator_tick(self) -> None:
-        self.animator.set_state(AnimState.THINKING)
-        self.animator.update(dt=0.1)
-        self.assertGreater(self.animator.elapsed, 0.0)
+    def test_mode_and_form_synchronization(self) -> None:
+        """Setting mode to FAST must select WHITE form; DEEP_REASONING must select ARMORED form."""
+        self.animator.set_mode("FAST")
+        self.assertEqual(self.animator.target_form, BagusmaxForm.WHITE)
+
+        self.animator.set_mode("DEEP_REASONING")
+        self.assertEqual(self.animator.target_form, BagusmaxForm.ARMORED)
+
+        # Update loop morph progression
+        self.animator.update(dt=0.5)
+        self.assertEqual(self.animator.character_form, BagusmaxForm.ARMORED)
+
+        # Switch back to FAST
+        self.animator.set_mode("FAST")
+        self.assertEqual(self.animator.target_form, BagusmaxForm.WHITE)
+        self.animator.update(dt=0.5)
+        self.assertEqual(self.animator.character_form, BagusmaxForm.WHITE)
+
+    def test_speech_synchronization_without_mouth(self) -> None:
+        """Mouthless Baymax speech synchronization drives head nod and chest breath scale from amplitude."""
+        self.animator.set_state(AnimState.SPEAKING)
+        self.animator.amplitude = 0.8
+        self.animator.update(dt=0.05)
+        params = self.animator.get_params()
+        self.assertEqual(params["mouth_open"], 0.0)  # No mouth aperture
+        self.assertGreater(params["breath_scale"], 1.0)  # Inflatable chest expansion
+        self.assertIn("head_nod", params)
 
 
 class TestCompanionController(unittest.TestCase):
-    """Verifies controller singleton, status reporting, and IPC command generation."""
+    """Verifies controller singleton, dual-form status reporting, and IPC command generation."""
 
     def setUp(self) -> None:
         self.controller = CompanionController.get_instance()
@@ -129,12 +221,22 @@ class TestCompanionController(unittest.TestCase):
         self.assertIn("connected", st)
         self.assertIn("pid", st)
         self.assertIn("last_state", st)
+        self.assertIn("character_form", st)
+        self.assertIn("mode", st)
         self.assertIn("ipc_address", st)
         self.assertEqual(st["ipc_version"], IPC_VERSION)
         self.assertEqual(st["ipc_address"], f"127.0.0.1:{IPC_PORT}")
 
+    def test_set_mode_synchronizes_form(self) -> None:
+        self.controller.set_mode("FAST")
+        self.assertEqual(self.controller.get_form(), "WHITE")
+        self.assertEqual(self.controller.get_mode(), "FAST")
+
+        self.controller.set_mode("DEEP_REASONING")
+        self.assertEqual(self.controller.get_form(), "ARMORED")
+        self.assertEqual(self.controller.get_mode(), "DEEP_REASONING")
+
     def test_state_change_does_not_crash_when_offline(self) -> None:
-        # If renderer subprocess is not running, set_state must return False gracefully
         res = self.controller.set_state("LISTENING")
         self.assertIsInstance(res, bool)
 
@@ -144,7 +246,7 @@ class TestCompanionController(unittest.TestCase):
 
 
 class TestCliCompanionCommands(unittest.TestCase):
-    """Verifies that interactive CLI commands (/show-openbagus, /mode, /voice) route cleanly."""
+    """Verifies that interactive CLI commands (/show-openbagus, /bagusmax, /mode) route cleanly."""
 
     def setUp(self) -> None:
         from openbagus.cli import OpenBagusShell
@@ -152,9 +254,16 @@ class TestCliCompanionCommands(unittest.TestCase):
 
     @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
     def test_bare_show_openbagus_command(self, mock_show: MagicMock) -> None:
-        """The bare command /show-openbagus MUST immediately trigger show() without 'Perintah tidak dikenal'."""
-        with patch("sys.stdout") as mock_stdout:
+        """The bare command /show-openbagus MUST immediately trigger show()."""
+        with patch("sys.stdout"):
             self.shell.onecmd("/show-openbagus")
+        mock_show.assert_called_once()
+
+    @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
+    def test_bagusmax_alias_command(self, mock_show: MagicMock) -> None:
+        """The command /bagusmax MUST immediately invoke show()."""
+        with patch("sys.stdout"):
+            self.shell.onecmd("/bagusmax")
         mock_show.assert_called_once()
 
     @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
@@ -169,7 +278,7 @@ class TestCliCompanionCommands(unittest.TestCase):
             self.shell.onecmd("/show-openbagus hide")
         mock_hide.assert_called_once()
 
-    @patch("openbagus.companion.controller.CompanionController.get_status", return_value={"running": True, "connected": True, "pid": 1234, "last_state": "IDLE"})
+    @patch("openbagus.companion.controller.CompanionController.get_status", return_value={"running": True, "connected": True, "pid": 1234, "last_state": "IDLE", "character_form": "WHITE", "mode": "FAST"})
     def test_status_command(self, mock_status: MagicMock) -> None:
         with patch("sys.stdout"):
             self.shell.onecmd("/show-openbagus status")
@@ -189,14 +298,15 @@ class TestCliCompanionCommands(unittest.TestCase):
 
     @patch("openbagus.companion.controller.CompanionController.show", return_value=True)
     def test_alias_and_unprefixed_routing(self, mock_show: MagicMock) -> None:
-        """Both 'show-openbagus' and '/show' must invoke show()."""
+        """Both 'show-openbagus', 'bagusmax', and '/show' must invoke show()."""
         with patch("sys.stdout"):
             self.shell.onecmd("show-openbagus")
+            self.shell.onecmd("bagusmax")
             self.shell.onecmd("/show")
-        self.assertEqual(mock_show.call_count, 2)
+        self.assertEqual(mock_show.call_count, 3)
 
     def test_mode_switch_fast_and_deep(self) -> None:
-        """Switching mode to fast and deep must update shell current_mode."""
+        """Switching mode to fast and deep must update shell current_mode and sync companion."""
         with patch("sys.stdout"):
             self.shell.onecmd("/mode fast")
             self.assertEqual(self.shell.current_mode, "FAST")
@@ -215,7 +325,6 @@ class TestAudioDeviceDiagnostics(unittest.TestCase):
 
     def test_has_input_device(self) -> None:
         from openbagus.voice.audio_devices import AudioDeviceManager
-        # Must be a boolean and not raise AttributeError
         res = AudioDeviceManager.has_input_device()
         self.assertIsInstance(res, bool)
 

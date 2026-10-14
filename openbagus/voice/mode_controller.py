@@ -46,6 +46,12 @@ class VoiceModeController:
         else:
             self.current_mode = "FAST"
         logger.info("Voice reasoning mode switched to: %s", self.current_mode)
+        try:
+            from openbagus.companion.controller import CompanionController
+            CompanionController.get_instance().set_mode(self.current_mode)
+        except Exception:
+            pass
+
 
     def is_expensive_query(self, query: str) -> bool:
         """Determines if a query materially benefits from high-effort DEEP_REASONING."""

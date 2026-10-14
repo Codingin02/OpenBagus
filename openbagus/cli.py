@@ -3253,6 +3253,9 @@ class OpenBagusShell(cmd.Cmd):
             print("[MODE] Dialihkan ke mode FAST:")
             print("  - Model: qwen3.5:2b-q4_K_M (100% GPU, ~92 tok/s, think=False)")
             print("  - Context Window: 2,048 tokens | Latensi respon minimal.")
+            if self._companion is not None:
+                self._companion.set_mode("FAST")
+            print("[BAGUSMAX] Companion 3D aktif — FAST / WHITE")
             if self.voice_session:
                 self.voice_session.set_mode("FAST")
             print()
@@ -3263,6 +3266,9 @@ class OpenBagusShell(cmd.Cmd):
             print("[MODE] Dialihkan ke mode DEEP_REASONING:")
             print("  - Model: qwen3.5:4b (100% GPU, ~48 tok/s, think=True)")
             print("  - Context Window: 4,096 tokens | Extended chain-of-thought reasoning.")
+            if self._companion is not None:
+                self._companion.set_mode("DEEP_REASONING")
+            print("[BAGUSMAX] Mode DEEP REASONING — ARMORED")
             if self.voice_session:
                 self.voice_session.set_mode("DEEP")
             print()
@@ -3270,6 +3276,7 @@ class OpenBagusShell(cmd.Cmd):
             self.runtime_profile = get_profile(target.upper())
             self.current_mode = self.runtime_profile.name
             print(f"[MODE] Dialihkan ke profil: {self.runtime_profile.name} (Max Tokens: {self.runtime_profile.max_tokens}, Iters: {self.runtime_profile.max_tool_iterations})\n")
+
 
     def do_model(self, arg: str) -> None:
         """Informasi, daftar, status VRAM, dan benchmark model lokal."""
@@ -3465,14 +3472,14 @@ class OpenBagusShell(cmd.Cmd):
         if self._companion is not None:
             try:
                 s = self._companion.get_status()
-                comp_status = f"Aktif (PID {s.get('pid')})" if s.get("running") else "Nonaktif"
+                comp_status = f"BAGUSMAX Aktif ({s.get('character_form', 'WHITE')}, PID {s.get('pid')})" if s.get("running") else "Nonaktif"
             except Exception:
                 pass
         print(f"Companion 3D   : {comp_status}")
         print("=================================================================\n")
 
     def do_show_openbagus(self, arg: str) -> None:
-        """Kontrol jendela 3D Companion SHOW OPENBAGUS: /show-openbagus [show|hide|status|reset|close]."""
+        """Kontrol jendela 3D Companion BAGUSMAX: /show-openbagus [show|hide|status|reset|close]."""
         cleaned = arg.strip()
         for prefix in ("-openbagus", "openbagus"):
             if cleaned.lower().startswith(prefix):
@@ -3484,40 +3491,45 @@ class OpenBagusShell(cmd.Cmd):
             if self._companion is None:
                 self._companion = CompanionController.get_instance()
         except ImportError as e:
-            print(f"[SHOW OPENBAGUS tidak tersedia: {e}]")
+            print(f"[BAGUSMAX Companion tidak tersedia: {e}]")
             print("Pastikan moderngl, glfw, pyrr telah terpasang di virtual environment.\n")
             return
 
         if subcmd in ("show", "start", "open", "on", ""):
-            print("Meluncurkan 3D companion SHOW OPENBAGUS...")
+            print("Meluncurkan 3D companion BAGUSMAX...")
+            cur_mode = getattr(self, "current_mode", "FAST")
+            self._companion.set_mode(cur_mode)
             ok = self._companion.show()
             if ok:
                 st = self._companion.get_status()
                 pid_str = f" (PID {st.get('pid')})" if st.get('pid') else ""
-                print(f"[SHOW OPENBAGUS aktif di sudut kanan bawah desktop{pid_str}.]")
-                print("Karakter: Black cap dengan emblem 'B' putih, pakaian hitam, blue overalls, brown boots, white gloves.")
-                print("Gunakan '/show-openbagus hide' untuk menyembunyikan, '/show-openbagus close' untuk menutup.\n")
+                cur_form = st.get("character_form", "WHITE")
+                print(f"[BAGUSMAX] Companion 3D aktif — {cur_mode} / {cur_form}{pid_str}")
+                print("Karakter : BAGUSMAX Dual-Form (FAST -> WHITE vinyl robot | DEEP_REASONING -> ARMORED hero suit)")
+                print("Gunakan '/bagusmax hide' untuk menyembunyikan, '/bagusmax close' untuk menutup.\n")
             else:
                 print("[Gagal membuka jendela companion. Periksa OpenGL 3.3 Core profile support dan reports/runtime/companion.log.]\n")
 
         elif subcmd in ("hide", "sembunyikan", "off"):
             self._companion.hide()
-            print("[Jendela companion disembunyikan.]\n")
+            print("[Jendela companion BAGUSMAX disembunyikan.]\n")
 
         elif subcmd in ("close", "stop", "exit", "quit", "tutup"):
             self._companion.close()
-            print("[Jendela companion ditutup.]\n")
+            print("[Jendela companion BAGUSMAX ditutup.]\n")
 
         elif subcmd in ("reset", "restart"):
-            print("Mereset companion...")
+            print("Mereset companion BAGUSMAX...")
             self._companion.reset()
-            print("[Companion di-reset.]\n")
+            print("[Companion BAGUSMAX di-reset.]\n")
 
         elif subcmd in ("status", "info"):
             st = self._companion.get_status()
-            print("=== Status SHOW OPENBAGUS 3D Companion ===")
+            print("=== Status BAGUSMAX 3D Companion ===")
             print(f"Berjalan (Running) : {'Ya' if st.get('running') else 'Tidak'}")
             print(f"Terhubung (IPC)    : {'Ya' if st.get('connected') else 'Tidak'}")
+            print(f"Bentuk Karakter    : {st.get('character_form', 'WHITE')}")
+            print(f"Mode Penalaran     : {st.get('mode', getattr(self, 'current_mode', 'FAST'))}")
             print(f"PID Proses         : {st.get('pid') or '-'}")
             print(f"Animasi Terakhir   : {st.get('last_state', 'IDLE')}")
             print(f"Alamat IPC         : {st.get('ipc_address', '127.0.0.1:7432')} (v{st.get('ipc_version', '1.0')})")
@@ -3526,9 +3538,14 @@ class OpenBagusShell(cmd.Cmd):
         else:
             print("Perintah tidak dikenal. Pilihan: show, hide, status, reset, close\n")
 
+    def do_bagusmax(self, arg: str) -> None:
+        """Alias untuk /show-openbagus (Kontrol jendela 3D Companion BAGUSMAX)."""
+        self.do_show_openbagus(arg)
+
     def do_show(self, arg: str) -> None:
         """Alias untuk /show-openbagus."""
         self.do_show_openbagus(arg)
+
 
     def do_cancel(self, _arg: str) -> None:
         """Membatalkan pemrosesan yang sedang berjalan (suara atau inferensi)."""

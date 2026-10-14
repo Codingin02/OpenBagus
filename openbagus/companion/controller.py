@@ -40,6 +40,8 @@ class CompanionController:
         self._lock = threading.Lock()
         self._last_state: str = "IDLE"
         self._amplitude: float = 0.0
+        self._current_mode: str = "FAST"
+        self._character_form: str = "WHITE"
 
     @classmethod
     def get_instance(cls) -> CompanionController:
@@ -54,10 +56,17 @@ class CompanionController:
     def show(self) -> bool:
         """Launch the companion window if not running, or show if hidden."""
         if self._is_running():
-            return self._send_event("companion.show", {})
+            ok = self._send_event("companion.show", {})
+            self._send_event("companion.set_mode", {"mode": self._current_mode, "form": self._character_form})
+            return ok
         if self._connect():
-            return self._send_event("companion.show", {})
-        return self._launch()
+            ok = self._send_event("companion.show", {})
+            self._send_event("companion.set_mode", {"mode": self._current_mode, "form": self._character_form})
+            return ok
+        ok = self._launch()
+        if ok:
+            self._send_event("companion.set_mode", {"mode": self._current_mode, "form": self._character_form})
+        return ok
 
     def hide(self) -> bool:
         """Hide the companion window without closing the process."""
@@ -83,6 +92,30 @@ class CompanionController:
         self.close()
         time.sleep(0.5)
         return self._launch()
+
+    def set_mode(self, mode: str) -> bool:
+        """Set reasoning mode and synchronize BAGUSMAX form (FAST -> WHITE, DEEP_REASONING -> ARMORED)."""
+        clean = mode.strip().upper()
+        self._current_mode = clean
+        self._character_form = "ARMORED" if clean in ("DEEP", "DEEP_REASONING", "REASONING") else "WHITE"
+        return self._send_event("companion.set_mode", {"mode": clean, "form": self._character_form})
+
+    def set_form(self, form: str) -> bool:
+        """Set BAGUSMAX 3D character form directly ('WHITE' or 'ARMORED')."""
+        clean = form.strip().upper()
+        if clean in ("ARMORED", "RED", "DEEP", "DEEP_REASONING"):
+            self._character_form = "ARMORED"
+        else:
+            self._character_form = "WHITE"
+        return self._send_event("companion.set_form", {"form": self._character_form})
+
+    def get_form(self) -> str:
+        """Return the current BAGUSMAX character form ('WHITE' or 'ARMORED')."""
+        return self._character_form
+
+    def get_mode(self) -> str:
+        """Return the current reasoning mode."""
+        return self._current_mode
 
     def set_state(self, state: str) -> bool:
         """Set character animation state.
@@ -124,6 +157,8 @@ class CompanionController:
             "connected": connected,
             "pid": self._process.pid if self._process else None,
             "last_state": self._last_state,
+            "character_form": self._character_form,
+            "mode": self._current_mode,
             "ipc_address": f"{IPC_HOST}:{IPC_PORT}",
             "ipc_version": IPC_VERSION,
         }

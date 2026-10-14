@@ -24,6 +24,7 @@
 | **M12: CLI Commands & Acceptance** | `openbagus/cli.py` | `/mode fast/deep`, `/model status/list/benchmark`, `/gpu`, `/hardware`, `/show-openbagus`, `/cancel` | `test_local_ai_integration.py` | **VERIFIED_COMPLETE** | None |
 | **M13: Real Desktop 3D Acceptance** | `openbagus/companion/renderer.py`, `openbagus/cli.py` | Verified actual running Windows desktop companion overlay with DWM transparent framebuffer, lower-right positioning, `/show-openbagus` interactive routing, live speaking lip-sync, and live framebuffer screen captures. | `docs/local_ai/screenshots/desktop_live_popup_*.png` | **VERIFIED_COMPLETE** | None |
 | **M14: Critical CLI Bugfix** | `openbagus/cli.py`, `openbagus/companion/controller.py`, `openbagus/voice/audio_devices.py` | Fixed bare `/show-openbagus` command dispatch, removed misleading CPU/Offline label with separate backend/inference fields, eliminated BALANCED mode from user UI in favor of FAST default, fixed microphone detection (`has_input_device`, `get_microphone_status`), ASCII border encoding safety, subprocess launch logging to `companion.log`. | `test_show_openbagus.py` (21/21 OK), interactive CLI test OK | **VERIFIED_COMPLETE** | None |
+| **M15: Bagusmax Dual-Form 3D Companion** | `openbagus/companion/renderer.py`, `openbagus/companion/controller.py`, `openbagus/cli.py`, `openbagus/voice/mode_controller.py`, `reports/screenshots/` | Replaced legacy Mario character with dual-form Bagusmax (Big Hero 6 inspired): Form A (White vinyl inflatable robot) synchronized with FAST mode (`qwen3.5:2b`); Form B (Red armored hero suit with purple abdominal plates and stowed wings) synchronized with DEEP_REASONING mode (`qwen3.5:4b`). Completely purged Mario geometry. Implemented mouthless speech sync (head nod + chest expansion + bobbing). Added `/bagusmax` alias and live mode switching. 13 inspection screenshots rendered. | `test_show_openbagus.py` (26/26 OK), 13 PNG screenshots in `reports/screenshots/` | **VERIFIED_COMPLETE** | None |
 
 ---
 
@@ -31,13 +32,15 @@
 
 - `tests.test_conversational_agent_harness`: **25 / 25 PASSED**
 - `tests.test_local_ai_integration`: **17 / 17 PASSED**
-- `tests.test_show_openbagus`: **21 / 21 PASSED**
+- `tests.test_show_openbagus`: **26 / 26 PASSED**
 - `tests.test_voice_conversation`: **26 / 26 PASSED**
-- **Total Local AI / Companion Suite:** **89 / 89 PASSED (100% Pass Rate)**
+- `tests.test_financial_integrity_p0`: **14 / 14 PASSED**
+- **Total Suite Verified:** **108 / 108 PASSED (100% Pass Rate)**
 
 ---
 
 ## 3. Git Status
 
 - **Branch:** `fix/financial-integrity-recovery`
-- **Status:** All P0 and P1 runtime integration issues resolved and verified.
+- **Status:** Bagusmax Dual-Form 3D Companion fully implemented, verified, tested, and documented.
+
