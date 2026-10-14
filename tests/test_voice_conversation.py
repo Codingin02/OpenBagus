@@ -531,6 +531,26 @@ class TestBagusmaxCalmVoicePreset(unittest.TestCase):
         self.assertEqual(tts.preset, "BAGUSMAX_CALM_ID")
         self.assertAlmostEqual(tts.length_scale, 1.08, places=2)
 
+    def test_voice_processor_styling(self) -> None:
+        from openbagus.voice.voice_processor import VoiceProfileProcessor
+        proc = VoiceProfileProcessor(preset="BAGUSMAX_CALM")
+        self.assertAlmostEqual(proc.params.length_scale, 1.08, places=2)
+        self.assertTrue(proc.params.smoothing_enabled)
+
+        # Test audio processing & soft peak limiter
+        dummy = np.ones(22050, dtype=np.float32) * 1.5
+        processed = proc.process(dummy)
+        self.assertLessEqual(np.max(np.abs(processed)), 0.98, "Peak limiter must prevent digital clipping")
+        self.assertEqual(len(processed), len(dummy))
+
+    def test_voice_processor_pitch_shift(self) -> None:
+        from openbagus.voice.voice_processor import VoiceProfileProcessor
+        proc = VoiceProfileProcessor(preset="BAGUSMAX_SOFT")
+        self.assertAlmostEqual(proc.params.pitch_shift_semitones, -1.0, places=2)
+        dummy = np.ones(22050, dtype=np.float32) * 0.5
+        processed = proc.process(dummy)
+        self.assertGreater(len(processed), len(dummy), "-1 semitone shift must lengthen audio proportionally")
+
 
 class TestAcousticEchoSuppression(unittest.TestCase):
     """Test microphone suppression window for acoustic echo and room reverb prevention."""

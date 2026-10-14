@@ -4043,6 +4043,9 @@ class OpenBagusShell(cmd.Cmd):
                 "baymax": "BAGUSMAX_CALM_ID",
                 "bagusmax": "BAGUSMAX_CALM_ID",
                 "bagusmax_calm_id": "BAGUSMAX_CALM_ID",
+                "soft": "BAGUSMAX_SOFT",
+                "bagusmax_soft": "BAGUSMAX_SOFT",
+                "natural": "NATURAL",
                 "standard": "STANDARD",
                 "fast": "FAST",
             }

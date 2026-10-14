@@ -152,3 +152,16 @@ rust/**/target/
 # Blender backup files
 *.blend1
 
+# Audio files — Zero-disk retention policy (never commit recordings or synthesis dumps)
+*.wav
+*.mp3
+*.pcm
+*.flac
+*.ogg
+*.m4a
+*.aac
+*.opus
+*.raw
+*.pcm.tmp
+*.tts.tmp
+*.asr.tmp

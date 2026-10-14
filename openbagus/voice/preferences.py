@@ -43,7 +43,8 @@ class VoicePreferences:
         """Sanitizes preferences to valid ranges and safe configurations."""
         self.speed = max(0.5, min(2.0, float(self.speed)))
         self.volume = max(0.0, min(1.0, float(self.volume)))
-        if self.voice_preset not in ("BAGUSMAX_CALM_ID", "STANDARD", "FAST"):
+        valid_presets = ("BAGUSMAX_CALM_ID", "BAGUSMAX_CALM", "BAGUSMAX_SOFT", "NATURAL", "STANDARD", "FAST")
+        if self.voice_preset not in valid_presets:
             self.voice_preset = "BAGUSMAX_CALM_ID"
         if self.audio_storage != "disabled":
             # Hard enforcement: never allow audio storage on disk

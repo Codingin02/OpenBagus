@@ -32,6 +32,21 @@ VOICE_PRESETS: dict[str, dict[str, float]] = {
         "noise_scale": 0.55,   # Softer, gentle articulation with low noise
         "noise_w_scale": 0.70, # Steady phoneme duration
     },
+    "BAGUSMAX_CALM": {
+        "length_scale": 1.08,
+        "noise_scale": 0.55,
+        "noise_w_scale": 0.70,
+    },
+    "BAGUSMAX_SOFT": {
+        "length_scale": 1.12,  # Warmer lower register with gentle delivery
+        "noise_scale": 0.50,
+        "noise_w_scale": 0.70,
+    },
+    "NATURAL": {
+        "length_scale": 1.00,
+        "noise_scale": 0.667,
+        "noise_w_scale": 0.80,
+    },
     "STANDARD": {
         "length_scale": 1.00,
         "noise_scale": 0.667,
@@ -68,6 +83,10 @@ class LocalTTSEngine:
         self._sample_rate = 22050
         self._lock = threading.Lock()
 
+        # Real-time voice profile processor (gentle warmth, high smoothing, soft limiting)
+        from openbagus.voice.voice_processor import VoiceProfileProcessor
+        self.processor = VoiceProfileProcessor(preset=self.preset)
+
         self._model_path, self._config_path = self._resolve_model_paths(model_path, config_path)
         self._init_voice()
 
@@ -79,6 +98,8 @@ class LocalTTSEngine:
             self.length_scale = p["length_scale"]
             self.noise_scale = p["noise_scale"]
             self.noise_w_scale = p["noise_w_scale"]
+            if hasattr(self, "processor") and self.processor is not None:
+                self.processor.set_preset(preset_name)
             logger.info("Voice preset set to: %s", preset_name)
             return True
         logger.warning("Unknown voice preset: %s", preset_name)
@@ -163,6 +184,8 @@ class LocalTTSEngine:
                 audio = np.concatenate([c.audio_float_array for c in chunks])
                 if syn_cfg is None and self.volume != 1.0:
                     audio = audio * self.volume
+                if hasattr(self, "processor") and self.processor is not None:
+                    audio = self.processor.process(audio, sample_rate=self._sample_rate)
                 return audio
             except Exception as e:
                 logger.error("Sentence synthesis error for '%s': %s", sentence[:30], e)

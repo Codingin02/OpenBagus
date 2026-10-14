@@ -32,6 +32,7 @@ from openbagus.voice.speech_normalizer import SpeechTextNormalizer
 from openbagus.voice.tts_engine import LocalTTSEngine
 from openbagus.voice.turn_controller import VoiceState, VoiceTurnController
 from openbagus.voice.vad import VoiceActivityDetector
+from openbagus.voice.voice_processor import VoiceProfileProcessor
 from openbagus.voice.voice_session import VoiceSession
 
 __all__ = [
@@ -55,6 +56,7 @@ __all__ = [
     "PrivacyStatus",
     "SpeechTextNormalizer",
     "LocalTTSEngine",
+    "VoiceProfileProcessor",
     "VoiceState",
     "VoiceTurnController",
     "VoiceActivityDetector",

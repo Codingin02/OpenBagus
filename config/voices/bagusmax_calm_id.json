@@ -1,0 +1,52 @@
+{
+  "profile_id": "BAGUSMAX_CALM_ID",
+  "language": "id-ID",
+  "voice_provider": "LOCAL_TTS",
+  "voice_model_id": "rhasspy/piper-voices/id/id_ID/news_tts/medium",
+  "model_file": "id_ID-news_tts-medium.onnx",
+  "model_sha256": "ed8f02aa593f7af6b19acbdb8142e0da0dd72f46194eb33d38e0eb10a52597e8",
+  "speaking_style": "CALM_GENTLE_SYNTHETIC",
+  "length_scale": 1.08,
+  "noise_scale": 0.55,
+  "noise_w_scale": 0.70,
+  "pitch_shift_semitones": 0.0,
+  "warmth_gain_db": 0.8,
+  "smoothing_enabled": true,
+  "peak_limiting": true,
+  "volume": 1.0,
+  "sample_rate": 22050,
+  "output_device": "SYSTEM_DEFAULT",
+  "audio_persistence": false,
+  "transcript_persistence": true,
+  "streaming_playback": true,
+  "interruptible": true,
+  "presets": {
+    "NATURAL": {
+      "description": "Baseline newsreader tempo, original pitch, zero postprocessing",
+      "length_scale": 1.00,
+      "noise_scale": 0.667,
+      "noise_w_scale": 0.80,
+      "pitch_shift_semitones": 0.0,
+      "warmth_gain_db": 0.0,
+      "smoothing_enabled": false
+    },
+    "BAGUSMAX_CALM": {
+      "description": "Measured calm delivery, reduced noise variability, subtle high-frequency smoothing",
+      "length_scale": 1.08,
+      "noise_scale": 0.55,
+      "noise_w_scale": 0.70,
+      "pitch_shift_semitones": 0.0,
+      "warmth_gain_db": 0.8,
+      "smoothing_enabled": true
+    },
+    "BAGUSMAX_SOFT": {
+      "description": "Gentle robot companion, warm lower-register, conservative -1 semitone, rounded soft articulation",
+      "length_scale": 1.12,
+      "noise_scale": 0.50,
+      "noise_w_scale": 0.70,
+      "pitch_shift_semitones": -1.0,
+      "warmth_gain_db": 1.2,
+      "smoothing_enabled": true
+    }
+  }
+}
