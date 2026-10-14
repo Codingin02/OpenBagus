@@ -1143,7 +1143,19 @@ class OpenBagusShell(cmd.Cmd):
         try:
             with contextlib.redirect_stdout(output):
                 line_str = line.strip()
-                result = super().onecmd(line_str[1:].strip() if line_str.startswith("/") else line)
+                if line_str.startswith("/"):
+                    body = line_str[1:].strip()
+                    parts = body.split(None, 1)
+                    first_word = parts[0] if parts else ""
+                    remainder = parts[1] if len(parts) > 1 else ""
+                    underscore_word = first_word.replace("-", "_")
+                    if hasattr(self, f"do_{underscore_word}") and not hasattr(self, f"do_{first_word}"):
+                        line_to_run = f"{underscore_word} {remainder}".strip()
+                    else:
+                        line_to_run = body
+                else:
+                    line_to_run = line
+                result = super().onecmd(line_to_run)
         except KeyboardInterrupt:
             output.write("Analisis dibatalkan.\n")
             result = False
@@ -3406,7 +3418,10 @@ class OpenBagusShell(cmd.Cmd):
 
     def do_show_openbagus(self, arg: str) -> None:
         """Kontrol jendela 3D Companion SHOW OPENBAGUS: /show-openbagus [show|hide|status|reset|close]."""
-        subcmd = arg.strip().lower() if arg.strip() else "show"
+        cleaned = arg.strip()
+        if cleaned.lower().startswith("-openbagus"):
+            cleaned = cleaned[len("-openbagus"):].strip()
+        subcmd = cleaned.lower() if cleaned else "show"
         try:
             from openbagus.companion.controller import CompanionController
             if self._companion is None:

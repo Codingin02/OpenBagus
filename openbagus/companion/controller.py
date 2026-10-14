@@ -109,6 +109,10 @@ class CompanionController:
         """Notify companion of barge-in interruption."""
         return self._send_event("companion.interrupted", {"turn_id": turn_id})
 
+    def capture_screenshot(self, target_path: str) -> bool:
+        """Request the live companion renderer to capture its current frame buffer."""
+        return self._send_event("companion.screenshot", {"path": os.path.abspath(target_path)})
+
     def get_status(self) -> dict[str, Any]:
         """Return companion status for /show-openbagus status command."""
         running = self._is_running()

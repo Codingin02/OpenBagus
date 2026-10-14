@@ -675,6 +675,7 @@ class IPCServer:
         self._window_should_show: bool = True
         self._window_should_hide: bool = False
         self._window_should_close: bool = False
+        self._screenshot_queue: list[str] = []
 
     def should_hide(self) -> bool:
         r = self._window_should_hide
@@ -766,6 +767,10 @@ class IPCServer:
         elif event == "companion.reset":
             self.animator.state = AnimState.IDLE
             self.animator.t = 0.0
+        elif event == "companion.screenshot":
+            path = payload.get("path", "")
+            if path:
+                self._screenshot_queue.append(path)
 
 
 # ---------------------------------------------------------------------------
@@ -791,6 +796,8 @@ def run_renderer(port: int) -> None:
     glfw.window_hint(glfw.FLOATING, glfw.TRUE)       # always-on-top
     glfw.window_hint(glfw.RESIZABLE, glfw.FALSE)
     glfw.window_hint(glfw.FOCUS_ON_SHOW, glfw.FALSE)  # don't steal focus
+    if hasattr(glfw, "TRANSPARENT_FRAMEBUFFER"):
+        glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, glfw.TRUE)
     glfw.window_hint(glfw.SAMPLES, 4)  # MSAA
 
     monitor = glfw.get_primary_monitor()
@@ -802,6 +809,9 @@ def run_renderer(port: int) -> None:
     win_y = screen_h - WINDOW_H - 60
 
     window = glfw.create_window(WINDOW_W, WINDOW_H, "SHOW OPENBAGUS", None, None)
+    if not window and hasattr(glfw, "TRANSPARENT_FRAMEBUFFER"):
+        glfw.window_hint(glfw.TRANSPARENT_FRAMEBUFFER, glfw.FALSE)
+        window = glfw.create_window(WINDOW_W, WINDOW_H, "SHOW OPENBAGUS", None, None)
     if not window:
         glfw.terminate()
         print("[ShowOpenBagus] Window creation failed", file=sys.stderr)
@@ -896,8 +906,21 @@ def run_renderer(port: int) -> None:
         prog["model"].write(model)
 
         # Render
-        ctx.clear(0.10, 0.11, 0.13, 1.0)  # dark gray background
+        ctx.clear(0.0, 0.0, 0.0, 0.0)  # transparent desktop background
         vao.render()
+
+        # Capture live popup screenshot if requested via IPC
+        if ipc._screenshot_queue:
+            try:
+                import PIL.Image
+                save_p = ipc._screenshot_queue.pop(0)
+                data = ctx.screen.read(components=4)
+                shot_img = PIL.Image.frombytes("RGBA", (WINDOW_W, WINDOW_H), data).transpose(PIL.Image.FLIP_TOP_BOTTOM)
+                os.makedirs(os.path.dirname(os.path.abspath(save_p)), exist_ok=True)
+                shot_img.save(save_p)
+                print(f"[ShowOpenBagus] Captured live popup to {save_p}", file=sys.stderr)
+            except Exception as _err:
+                print(f"[ShowOpenBagus] Screenshot error: {_err}", file=sys.stderr)
 
         glfw.swap_buffers(window)
 
