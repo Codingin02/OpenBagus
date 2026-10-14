@@ -80,26 +80,29 @@ uniform float ambient_strength;
 out vec4 out_color;
 
 void main() {
-    // Ambient
-    vec3 ambient = ambient_strength * v_color;
-
-    // Diffuse (cartoon: clamped for toon shading)
     vec3 norm = normalize(v_normal);
     vec3 light_dir = normalize(light_pos - v_fragpos);
-    float diff_raw = max(dot(norm, light_dir), 0.0);
-    // Quantize diffuse for cartoon look
-    float diff = step(0.3, diff_raw) * 0.5 + step(0.7, diff_raw) * 0.5;
-    vec3 diffuse = diff * v_color;
-
-    // Specular (soft, cartoon)
     vec3 view_dir = normalize(view_pos - v_fragpos);
-    vec3 reflect_dir = reflect(-light_dir, norm);
-    float spec = pow(max(dot(view_dir, reflect_dir), 0.0), 16.0);
-    vec3 specular = spec * 0.3 * vec3(1.0, 1.0, 1.0);
 
-    vec3 result = ambient + diffuse + specular;
-    // Gamma correction
-    result = pow(result, vec3(1.0 / 2.2));
+    // Warm key light
+    float n_dot_l = dot(norm, light_dir);
+    // Crisp cartoon cel shading: lit (1.0), shaded (0.68)
+    float cel = smoothstep(-0.02, 0.06, n_dot_l) * 0.32 + 0.68;
+    vec3 diffuse = cel * v_color;
+
+    // Rim lighting (Fresnel) — soft edge definition for dark fabrics
+    float fresnel = 1.0 - max(dot(view_dir, norm), 0.0);
+    float rim = smoothstep(0.72, 0.96, fresnel) * 0.30;
+    vec3 rim_color = vec3(0.55, 0.65, 0.85);
+
+    // Subtle fill light from lower opposite side
+    vec3 fill_dir = normalize(vec3(-1.5, -1.0, 1.5));
+    float fill_dot = max(dot(norm, fill_dir), 0.0) * 0.12;
+    vec3 fill = fill_dot * v_color;
+
+    vec3 ambient = (ambient_strength > 0.0 ? ambient_strength * 0.08 : 0.0) * v_color;
+
+    vec3 result = diffuse + fill + ambient + (rim * rim_color * v_color);
     out_color = vec4(result, 1.0);
 }
 """
@@ -193,9 +196,8 @@ def _make_box(
     sx: float, sy: float, sz: float,
     color: tuple[float, float, float],
 ) -> tuple[list[float], list[int]]:
-    """Generate rounded-ish box (actually a box) vertices and indices."""
+    """Generate box vertices and indices."""
     hx, hy, hz = sx / 2, sy / 2, sz / 2
-    # 8 corners
     corners = [
         (cx - hx, cy - hy, cz - hz),
         (cx + hx, cy - hy, cz - hz),
@@ -226,6 +228,65 @@ def _make_box(
     return verts, idxs
 
 
+def _make_torus(
+    cx: float, cy: float, cz: float,
+    R: float, r: float,
+    color: tuple[float, float, float],
+    segs_R: int = 16, segs_r: int = 10,
+    angle_start: float = 0.0, angle_end: float = 2 * math.pi,
+    axis: str = "y",
+) -> tuple[list[float], list[int]]:
+    """Generate torus or curved torus-arc vertices and indices."""
+    verts: list[float] = []
+    idxs: list[int] = []
+    is_closed = abs(angle_end - angle_start - 2 * math.pi) < 1e-4
+
+    n_rings = segs_R if is_closed else segs_R + 1
+    for i in range(n_rings):
+        u = angle_start + (angle_end - angle_start) * i / segs_R
+        cos_u = math.cos(u)
+        sin_u = math.sin(u)
+        for j in range(segs_r + 1):
+            v = 2 * math.pi * j / segs_r
+            cos_v = math.cos(v)
+            sin_v = math.sin(v)
+
+            if axis == "y":
+                px = cx + (R + r * cos_v) * cos_u
+                py = cy + r * sin_v
+                pz = cz + (R + r * cos_v) * sin_u
+                nx = cos_v * cos_u
+                ny = sin_v
+                nz = cos_v * sin_u
+            elif axis == "z":
+                px = cx + (R + r * cos_v) * cos_u
+                py = cy + (R + r * cos_v) * sin_u
+                pz = cz + r * sin_v
+                nx = cos_v * cos_u
+                ny = cos_v * sin_u
+                nz = sin_v
+            else:
+                px = cx + r * sin_v
+                py = cy + (R + r * cos_v) * cos_u
+                pz = cz + (R + r * cos_v) * sin_u
+                nx = sin_v
+                ny = cos_v * cos_u
+                nz = cos_v * sin_u
+
+            verts.extend([px, py, pz, nx, ny, nz, *color])
+
+    for i in range(segs_R):
+        i_next = (i + 1) % n_rings if is_closed else i + 1
+        for j in range(segs_r):
+            a = i * (segs_r + 1) + j
+            b = a + 1
+            c = i_next * (segs_r + 1) + j
+            d = c + 1
+            idxs.extend([a, c, b, b, c, d])
+
+    return verts, idxs
+
+
 def _merge(*meshes: tuple[list[float], list[int]]) -> tuple[list[float], list[int]]:
     all_verts: list[float] = []
     all_idxs: list[int] = []
@@ -240,144 +301,234 @@ def _merge(*meshes: tuple[list[float], list[int]]) -> tuple[list[float], list[in
 
 
 # ---------------------------------------------------------------------------
-# Character geometry builder
+# Character geometry builder: Classic Super Mario (Black Cap & Shirt, B Emblem)
 # ---------------------------------------------------------------------------
 
 def build_character(mouth_open: float = 0.0, blink: float = 0.0) -> tuple[list[float], list[int]]:
-    """Build the full SHOW OPENBAGUS character geometry.
+    """Build the high-fidelity SHOW OPENBAGUS 3D companion character.
 
-    Args:
-        mouth_open: 0.0=closed, 1.0=fully open (for lip sync)
-        blink: 0.0=open, 1.0=fully closed (for blink animation)
-
-    Colors (RGB 0-1):
-        - Black: (0.05, 0.05, 0.05) — cap, shirt
-        - Blue: (0.15, 0.30, 0.75) — overalls
-        - Skin: (0.95, 0.75, 0.55) — face, hands
-        - White: (0.95, 0.95, 0.95) — gloves, eyes, teeth
-        - Brown: (0.40, 0.22, 0.08) — boots, moustache
-        - Gold/Yellow: (0.95, 0.80, 0.10) — cap B emblem (white for contrast)
-        - Red sclera: (0.85, 0.20, 0.20) — not used (eyes are white/blue)
+    Features:
+        - Classic Super Mario facial anatomy: big bulbous nose, signature 6-scallop curved moustache,
+          expressive oval blue eyes with glints, rounded cheeks with blush, arched dark brows.
+        - Cap: Black cartoon baker's cap with forward curved visor and circular white front badge.
+        - Emblem: Crisp, high-contrast capital 'B' on the white badge (never M or ambiguous shapes).
+        - Clothing: Black shirt, classic denim-blue overalls with shoulder straps and TWO BRIGHT YELLOW BUTTONS.
+        - Accessories: White cartoon gloves with flared wrist cuffs, oversized brown boots with dark soles.
+        - Dynamic features: Audio-driven mouth open (lip sync) and eyelid blink deformation.
     """
-    BLACK  = (0.05, 0.05, 0.05)
-    BLUE   = (0.15, 0.30, 0.75)
-    SKIN   = (0.95, 0.75, 0.55)
-    WHITE  = (0.95, 0.95, 0.95)
-    BROWN  = (0.40, 0.22, 0.08)
-    EYE_B  = (0.10, 0.35, 0.80)  # iris blue
-    PUPIL  = (0.05, 0.05, 0.05)
-    EMBLEM = (0.95, 0.95, 0.95)  # white B emblem on black cap
+    BLACK      = (0.07, 0.07, 0.08)
+    BLUE       = (0.10, 0.28, 0.75)
+    SKIN       = (0.98, 0.75, 0.58)
+    BLUSH      = (0.96, 0.68, 0.55)
+    WHITE      = (0.96, 0.96, 0.96)
+    YELLOW     = (0.98, 0.82, 0.10)
+    BROWN      = (0.42, 0.22, 0.08)
+    DARK_BROWN = (0.16, 0.10, 0.06)
+    IRIS_BLUE  = (0.10, 0.45, 0.88)
+    PUPIL      = (0.04, 0.04, 0.04)
+    MOUTH_DARK = (0.18, 0.04, 0.04)
+    TONGUE_RED = (0.85, 0.25, 0.25)
+    GLINT      = (1.00, 1.00, 1.00)
 
-    meshes = []
+    meshes: list[tuple[list[float], list[int]]] = []
 
-    # --- Head (large rounded sphere, slightly flattened) ---
-    meshes.append(_make_sphere(0, 1.40, 0, 0.38, 0.36, 0.35, SKIN, lat=16, lon=24))
+    # =========================================================================
+    # 1. HEAD & CHUBBY CHEEKS (Seated at y = 1.25)
+    # =========================================================================
+    # Main head sphere
+    meshes.append(_make_sphere(0.0, 1.25, 0.0, 0.35, 0.34, 0.33, SKIN, lat=16, lon=24))
 
-    # --- Nose (big round cartoon nose centered) ---
-    meshes.append(_make_sphere(0, 1.38, 0.32, 0.10, 0.10, 0.09, SKIN, lat=10, lon=16))
+    # Chubby cheeks
+    meshes.append(_make_sphere(-0.18, 1.20, 0.16, 0.15, 0.13, 0.15, BLUSH, lat=12, lon=18))
+    meshes.append(_make_sphere(0.18, 1.20, 0.16, 0.15, 0.13, 0.15, BLUSH, lat=12, lon=18))
 
-    # --- Left eye white ---
-    meshes.append(_make_sphere(-0.13, 1.50, 0.29, 0.085, 0.085, 0.06, WHITE, lat=8, lon=14))
-    # --- Left iris ---
-    meshes.append(_make_sphere(-0.13, 1.50, 0.345, 0.055, 0.055, 0.03, EYE_B, lat=6, lon=12))
-    # --- Left pupil ---
-    meshes.append(_make_sphere(-0.13, 1.50, 0.37, 0.030, 0.030, 0.020, PUPIL, lat=5, lon=10))
-    # --- Left eyelid (blink) ---
+    # Round chin
+    meshes.append(_make_sphere(0.0, 1.06, 0.18, 0.12, 0.09, 0.12, SKIN, lat=10, lon=16))
+
+    # Big bulbous round cartoon nose
+    meshes.append(_make_sphere(0.0, 1.24, 0.31, 0.125, 0.115, 0.110, SKIN, lat=14, lon=20))
+
+    # Ears (placed realistically on sides of head)
+    meshes.append(_make_sphere(-0.35, 1.24, -0.02, 0.050, 0.070, 0.055, SKIN, lat=10, lon=14))
+    meshes.append(_make_sphere(0.35, 1.24, -0.02, 0.050, 0.070, 0.055, SKIN, lat=10, lon=14))
+    meshes.append(_make_sphere(-0.345, 1.24, -0.01, 0.030, 0.045, 0.030, (0.86, 0.62, 0.46), lat=8, lon=12))
+    meshes.append(_make_sphere(0.345, 1.24, -0.01, 0.030, 0.045, 0.030, (0.86, 0.62, 0.46), lat=8, lon=12))
+
+    # Sideburns & back hair
+    meshes.append(_make_sphere(-0.31, 1.27, 0.05, 0.045, 0.070, 0.050, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(0.31, 1.27, 0.05, 0.045, 0.070, 0.050, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(0.0, 1.14, -0.25, 0.18, 0.12, 0.12, DARK_BROWN, lat=8, lon=14))
+    meshes.append(_make_sphere(-0.16, 1.13, -0.22, 0.13, 0.10, 0.12, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(0.16, 1.13, -0.22, 0.13, 0.10, 0.12, DARK_BROWN, lat=8, lon=12))
+
+    # =========================================================================
+    # 2. SIGNATURE 6-SCALLOP MARIO MOUSTACHE
+    # =========================================================================
+    meshes.append(_make_sphere(0.0, 1.17, 0.32, 0.080, 0.048, 0.055, DARK_BROWN, lat=10, lon=16))
+    # Left scallops
+    meshes.append(_make_sphere(-0.075, 1.14, 0.310, 0.060, 0.050, 0.055, DARK_BROWN, lat=10, lon=14))
+    meshes.append(_make_sphere(-0.145, 1.16, 0.280, 0.065, 0.055, 0.055, DARK_BROWN, lat=10, lon=14))
+    meshes.append(_make_sphere(-0.210, 1.19, 0.235, 0.058, 0.050, 0.045, DARK_BROWN, lat=10, lon=14))
+    # Right scallops
+    meshes.append(_make_sphere(0.075, 1.14, 0.310, 0.060, 0.050, 0.055, DARK_BROWN, lat=10, lon=14))
+    meshes.append(_make_sphere(0.145, 1.16, 0.280, 0.065, 0.055, 0.055, DARK_BROWN, lat=10, lon=14))
+    meshes.append(_make_sphere(0.210, 1.19, 0.235, 0.058, 0.050, 0.045, DARK_BROWN, lat=10, lon=14))
+    # Back fill to face
+    meshes.append(_make_sphere(-0.10, 1.16, 0.25, 0.09, 0.05, 0.06, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(0.10, 1.16, 0.25, 0.09, 0.05, 0.06, DARK_BROWN, lat=8, lon=12))
+
+    # =========================================================================
+    # 3. EYES, CURVED EYEBROWS & MOUTH
+    # =========================================================================
+    # Eye whites
+    meshes.append(_make_sphere(-0.11, 1.34, 0.26, 0.062, 0.082, 0.050, WHITE, lat=10, lon=16))
+    meshes.append(_make_sphere(0.11, 1.34, 0.26, 0.062, 0.082, 0.050, WHITE, lat=10, lon=16))
+    # Blue irises
+    meshes.append(_make_sphere(-0.105, 1.34, 0.300, 0.042, 0.060, 0.022, IRIS_BLUE, lat=8, lon=14))
+    meshes.append(_make_sphere(0.105, 1.34, 0.300, 0.042, 0.060, 0.022, IRIS_BLUE, lat=8, lon=14))
+    # Pupils
+    meshes.append(_make_sphere(-0.105, 1.34, 0.316, 0.025, 0.038, 0.015, PUPIL, lat=6, lon=12))
+    meshes.append(_make_sphere(0.105, 1.34, 0.316, 0.025, 0.038, 0.015, PUPIL, lat=6, lon=12))
+    # Eye highlights
+    meshes.append(_make_sphere(-0.092, 1.362, 0.326, 0.012, 0.016, 0.010, GLINT, lat=5, lon=8))
+    meshes.append(_make_sphere(0.118, 1.362, 0.326, 0.012, 0.016, 0.010, GLINT, lat=5, lon=8))
+    # Eyelids (blink)
     if blink > 0.05:
-        lid_ry = 0.085 * blink * 0.5 + 0.01
-        meshes.append(_make_sphere(-0.13, 1.50 + 0.04 * (1 - blink), 0.33, 0.085, lid_ry, 0.06, SKIN))
+        lid_h = 0.075 * blink + 0.01
+        meshes.append(_make_sphere(-0.11, 1.38 - 0.07 * blink, 0.275, 0.066, lid_h, 0.052, SKIN, lat=8, lon=14))
+        meshes.append(_make_sphere(0.11, 1.38 - 0.07 * blink, 0.275, 0.066, lid_h, 0.052, SKIN, lat=8, lon=14))
 
-    # --- Right eye white ---
-    meshes.append(_make_sphere(0.13, 1.50, 0.29, 0.085, 0.085, 0.06, WHITE, lat=8, lon=14))
-    # --- Right iris ---
-    meshes.append(_make_sphere(0.13, 1.50, 0.345, 0.055, 0.055, 0.03, EYE_B, lat=6, lon=12))
-    # --- Right pupil ---
-    meshes.append(_make_sphere(0.13, 1.50, 0.37, 0.030, 0.030, 0.020, PUPIL, lat=5, lon=10))
-    # --- Right eyelid (blink) ---
-    if blink > 0.05:
-        meshes.append(_make_sphere(0.13, 1.50 + 0.04 * (1 - blink), 0.33, 0.085, 0.085 * blink * 0.5 + 0.01, 0.06, SKIN))
+    # CURVED CARTOON EYEBROWS (Thick, rounded arches curving OVER the eyes)
+    # Left eyebrow arch (inner, mid, outer)
+    meshes.append(_make_sphere(-0.065, 1.425, 0.310, 0.040, 0.028, 0.028, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(-0.115, 1.455, 0.315, 0.048, 0.032, 0.028, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(-0.165, 1.430, 0.295, 0.040, 0.028, 0.028, DARK_BROWN, lat=8, lon=12))
+    # Right eyebrow arch
+    meshes.append(_make_sphere(0.065, 1.425, 0.310, 0.040, 0.028, 0.028, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(0.115, 1.455, 0.315, 0.048, 0.032, 0.028, DARK_BROWN, lat=8, lon=12))
+    meshes.append(_make_sphere(0.165, 1.430, 0.295, 0.040, 0.028, 0.028, DARK_BROWN, lat=8, lon=12))
 
-    # --- Left eyebrow (thick brown arch) ---
-    meshes.append(_make_sphere(-0.13, 1.60, 0.28, 0.095, 0.020, 0.025, BROWN))
-    # --- Right eyebrow ---
-    meshes.append(_make_sphere(0.13, 1.60, 0.28, 0.095, 0.020, 0.025, BROWN))
+    # Mouth (under moustache)
+    m_h = 0.012 + 0.055 * mouth_open
+    meshes.append(_make_sphere(0.0, 1.09, 0.27, 0.070, m_h, 0.045, MOUTH_DARK, lat=8, lon=14))
+    meshes.append(_make_sphere(0.0, 1.11, 0.29, 0.050, 0.010, 0.022, WHITE, lat=6, lon=10))
+    if mouth_open > 0.15:
+        meshes.append(_make_sphere(0.0, 1.08, 0.285, 0.040, 0.018, 0.025, TONGUE_RED, lat=6, lon=10))
 
-    # --- Moustache (thick, two-lobed) ---
-    meshes.append(_make_sphere(-0.10, 1.28, 0.30, 0.10, 0.045, 0.06, BROWN))
-    meshes.append(_make_sphere(0.10, 1.28, 0.30, 0.10, 0.045, 0.06, BROWN))
+    # =========================================================================
+    # 4. BLACK CAP & CAPITAL "B" EMBLEM (HIGH-CONTRAST BADGE)
+    # =========================================================================
+    # Cap visor / brim: thick crescent projecting forward directly over forehead
+    meshes.append(_make_sphere(0.0, 1.43, 0.32, 0.28, 0.032, 0.22, BLACK, lat=12, lon=20))
+    meshes.append(_make_torus(0.0, 1.425, 0.26, 0.24, 0.020, BLACK, segs_R=16, segs_r=8,
+                              angle_start=-0.2 * math.pi, angle_end=1.2 * math.pi, axis="y"))
 
-    # --- Mouth (simple — opened oval when mouth_open > 0) ---
-    mouth_ry = 0.015 + mouth_open * 0.055
-    meshes.append(_make_sphere(0, 1.215, 0.32, 0.07, mouth_ry, 0.05, (0.15, 0.05, 0.05)))
-    if mouth_open > 0.2:
-        # Teeth glimpse
-        meshes.append(_make_sphere(0, 1.22, 0.34, 0.05, mouth_ry * 0.4, 0.035, WHITE))
+    # Cap crown base band
+    meshes.append(_make_sphere(0.0, 1.48, 0.01, 0.38, 0.12, 0.38, BLACK, lat=12, lon=20))
+    # Puffed newsboy dome
+    meshes.append(_make_sphere(0.0, 1.58, -0.04, 0.44, 0.19, 0.43, BLACK, lat=14, lon=22))
+    # Front puffed lobe
+    meshes.append(_make_sphere(0.0, 1.54, 0.14, 0.27, 0.15, 0.16, BLACK, lat=12, lon=18))
+    # Side puffed lobes
+    meshes.append(_make_sphere(-0.24, 1.56, -0.01, 0.21, 0.15, 0.21, BLACK, lat=10, lon=16))
+    meshes.append(_make_sphere(0.24, 1.56, -0.01, 0.21, 0.15, 0.21, BLACK, lat=10, lon=16))
 
-    # --- Round cheeks (slight pink blush) ---
-    BLUSH = (0.97, 0.72, 0.62)
-    meshes.append(_make_sphere(-0.26, 1.36, 0.22, 0.08, 0.05, 0.04, BLUSH))
-    meshes.append(_make_sphere(0.26, 1.36, 0.22, 0.08, 0.05, 0.04, BLUSH))
+    # Circular white badge plate (oriented forward on the cap front)
+    ey = 1.570
+    ez = 0.395
+    meshes.append(_make_sphere(0.0, ey, ez, 0.095, 0.095, 0.018, WHITE, lat=16, lon=24))
+    meshes.append(_make_torus(0.0, ey, ez + 0.002, 0.092, 0.008, (0.84, 0.84, 0.86), segs_R=24, segs_r=8, axis="z"))
 
-    # --- Ears ---
-    meshes.append(_make_sphere(-0.37, 1.40, 0.0, 0.055, 0.065, 0.04, SKIN))
-    meshes.append(_make_sphere(0.37, 1.40, 0.0, 0.055, 0.065, 0.04, SKIN))
+    # 3D CAPITAL LETTER "B" (Precision Typographic Geometry)
+    bz = ez + 0.016
+    # Left vertical spine
+    meshes.append(_make_box(-0.032, ey, bz, 0.020, 0.118, 0.012, BLACK))
+    # Top horizontal bar
+    meshes.append(_make_box(-0.008, ey + 0.050, bz, 0.036, 0.018, 0.012, BLACK))
+    # Middle horizontal bar
+    meshes.append(_make_box(-0.006, ey, bz, 0.040, 0.018, 0.012, BLACK))
+    # Bottom horizontal bar
+    meshes.append(_make_box(-0.006, ey - 0.050, bz, 0.040, 0.018, 0.012, BLACK))
+    # Top right curved loop
+    meshes.append(_make_torus(0.006, ey + 0.025, bz, 0.026, 0.008, BLACK,
+                             segs_R=14, segs_r=6, angle_start=-math.pi/2, angle_end=math.pi/2, axis="z"))
+    # Bottom right curved loop
+    meshes.append(_make_torus(0.008, ey - 0.025, bz, 0.028, 0.008, BLACK,
+                             segs_R=14, segs_r=6, angle_start=-math.pi/2, angle_end=math.pi/2, axis="z"))
 
-    # ===== CAP (black with white B emblem) =====
-    # Cap body — flattened sphere on top of head
-    meshes.append(_make_sphere(0, 1.70, 0, 0.42, 0.10, 0.42, BLACK))
-    # Cap brim — flat cylinder in front
-    meshes.append(_make_cylinder(-0.25, 1.61, 1.62, 0.30, 0.25, 0.10, BLACK, segs=20))
-    # Cap crown dome
-    meshes.append(_make_sphere(0, 1.73, 0, 0.38, 0.14, 0.38, BLACK))
+    # =========================================================================
+    # 5. TORSO, BLACK SHIRT & BLUE OVERALLS (WITH TWO YELLOW BUTTONS)
+    # =========================================================================
+    # Black shirt chest & collar
+    meshes.append(_make_sphere(0.0, 0.98, 0.0, 0.28, 0.18, 0.24, BLACK, lat=12, lon=18))
 
-    # Cap emblem: white 'B' represented as two bumped circles on a white plate
-    # Emblem plate (white rectangle on cap front)
-    meshes.append(_make_box(0, 1.72, 0.38, 0.14, 0.12, 0.01, EMBLEM))
-    # B letter: left vertical bar
-    meshes.append(_make_box(-0.04, 1.72, 0.395, 0.035, 0.11, 0.02, BLACK))
-    # B letter: top bump
-    meshes.append(_make_sphere(0.02, 1.78, 0.395, 0.055, 0.035, 0.02, EMBLEM))
-    # B letter: bottom bump
-    meshes.append(_make_sphere(0.025, 1.72, 0.395, 0.060, 0.035, 0.02, EMBLEM))
+    # Overalls main body (chubby belly)
+    meshes.append(_make_sphere(0.0, 0.80, 0.0, 0.34, 0.28, 0.28, BLUE, lat=14, lon=20))
 
-    # ===== NECK =====
-    meshes.append(_make_cylinder(0, 1.20, 1.28, 0, 0.10, 0.10, SKIN))
+    # Front chest bib (curved smoothly over belly)
+    meshes.append(_make_sphere(0.0, 0.88, 0.15, 0.24, 0.16, 0.14, BLUE, lat=12, lon=16))
+    # Back bib
+    meshes.append(_make_sphere(0.0, 0.88, -0.15, 0.24, 0.16, 0.14, BLUE, lat=12, lon=16))
 
-    # ===== TORSO (black shirt) =====
-    meshes.append(_make_sphere(0, 0.90, 0, 0.30, 0.32, 0.25, BLACK))
+    # Overalls shoulder straps
+    meshes.append(_make_box(-0.13, 0.98, 0.01, 0.065, 0.18, 0.38, BLUE))
+    meshes.append(_make_box(0.13, 0.98, 0.01, 0.065, 0.18, 0.38, BLUE))
 
-    # ===== OVERALLS (blue) — front bib =====
-    meshes.append(_make_box(0, 0.98, 0.20, 0.35, 0.38, 0.05, BLUE))
-    # Straps
-    meshes.append(_make_box(-0.12, 1.12, 0.12, 0.06, 0.25, 0.04, BLUE))
-    meshes.append(_make_box(0.12, 1.12, 0.12, 0.06, 0.25, 0.04, BLUE))
+    # --- THE TWO BRIGHT YELLOW BUTTONS ---
+    meshes.append(_make_sphere(-0.13, 0.87, 0.265, 0.034, 0.034, 0.015, YELLOW, lat=8, lon=14))
+    meshes.append(_make_sphere(0.13, 0.87, 0.265, 0.034, 0.034, 0.015, YELLOW, lat=8, lon=14))
 
-    # ===== ARMS =====
-    # Left upper arm (black)
-    meshes.append(_make_cylinder(-0.33, 0.72, 1.02, -0.15, 0.09, 0.09, BLACK, segs=14))
-    # Left forearm (black)
-    meshes.append(_make_cylinder(-0.38, 0.48, 0.72, -0.12, 0.08, 0.08, BLACK, segs=14))
-    # Left glove (white sphere)
-    meshes.append(_make_sphere(-0.42, 0.40, -0.10, 0.12, 0.12, 0.11, WHITE, lat=10, lon=16))
+    # Puffy black shirt sleeves at shoulders
+    meshes.append(_make_sphere(-0.28, 0.88, 0.0, 0.12, 0.12, 0.12, BLACK, lat=10, lon=14))
+    meshes.append(_make_sphere(0.28, 0.88, 0.0, 0.12, 0.12, 0.12, BLACK, lat=10, lon=14))
 
-    # Right upper arm (black)
-    meshes.append(_make_cylinder(0.33, 0.72, 1.02, 0.15, 0.09, 0.09, BLACK, segs=14))
-    # Right forearm (black)
-    meshes.append(_make_cylinder(0.38, 0.48, 0.72, 0.12, 0.08, 0.08, BLACK, segs=14))
-    # Right glove (white)
-    meshes.append(_make_sphere(0.42, 0.40, -0.10, 0.12, 0.12, 0.11, WHITE, lat=10, lon=16))
+    # Connected cartoon arms (upper arm -> elbow -> forearm)
+    # Left arm:
+    meshes.append(_make_cylinder(-0.29, 0.70, 0.86, 0.02, 0.082, 0.082, BLACK, segs=12))
+    meshes.append(_make_sphere(-0.31, 0.69, 0.03, 0.082, 0.082, 0.082, BLACK, lat=8, lon=12))
+    meshes.append(_make_cylinder(-0.32, 0.52, 0.69, 0.04, 0.076, 0.076, BLACK, segs=12))
 
-    # ===== LOWER BODY =====
-    # Hips / trousers (blue overalls lower)
-    meshes.append(_make_sphere(0, 0.58, 0, 0.28, 0.18, 0.24, BLUE))
-    # Left leg (blue overalls)
-    meshes.append(_make_cylinder(-0.14, 0.18, 0.58, 0, 0.10, 0.10, BLUE, segs=14))
-    # Right leg (blue overalls)
-    meshes.append(_make_cylinder(0.14, 0.18, 0.58, 0, 0.10, 0.10, BLUE, segs=14))
-    # Left boot (brown, large)
-    meshes.append(_make_sphere(-0.16, 0.10, 0.06, 0.14, 0.10, 0.18, BROWN, lat=10, lon=16))
-    # Right boot (brown, large)
-    meshes.append(_make_sphere(0.16, 0.10, 0.06, 0.14, 0.10, 0.18, BROWN, lat=10, lon=16))
+    # Right arm:
+    meshes.append(_make_cylinder(0.29, 0.70, 0.86, 0.02, 0.082, 0.082, BLACK, segs=12))
+    meshes.append(_make_sphere(0.31, 0.69, 0.03, 0.082, 0.082, 0.082, BLACK, lat=8, lon=12))
+    meshes.append(_make_cylinder(0.32, 0.52, 0.69, 0.04, 0.076, 0.076, BLACK, segs=12))
+
+    # =========================================================================
+    # 6. WHITE CARTOON GLOVES
+    # =========================================================================
+    # Left glove
+    meshes.append(_make_torus(-0.33, 0.51, 0.05, 0.075, 0.025, WHITE, segs_R=14, segs_r=8, axis="y"))
+    meshes.append(_make_sphere(-0.34, 0.42, 0.06, 0.095, 0.085, 0.085, WHITE, lat=10, lon=16))
+    meshes.append(_make_sphere(-0.27, 0.43, 0.11, 0.040, 0.040, 0.050, WHITE, lat=8, lon=12))
+    meshes.append(_make_sphere(-0.34, 0.33, 0.06, 0.080, 0.065, 0.075, WHITE, lat=8, lon=12))
+
+    # Right glove
+    meshes.append(_make_torus(0.33, 0.51, 0.05, 0.075, 0.025, WHITE, segs_R=14, segs_r=8, axis="y"))
+    meshes.append(_make_sphere(0.34, 0.42, 0.06, 0.095, 0.085, 0.085, WHITE, lat=10, lon=16))
+    meshes.append(_make_sphere(0.27, 0.43, 0.11, 0.040, 0.040, 0.050, WHITE, lat=8, lon=12))
+    meshes.append(_make_sphere(0.34, 0.33, 0.06, 0.080, 0.065, 0.075, WHITE, lat=8, lon=12))
+
+    # =========================================================================
+    # 7. LOWER OVERALLS & BROWN BOOTS
+    # =========================================================================
+    # Pelvis
+    meshes.append(_make_sphere(0.0, 0.58, 0.0, 0.28, 0.16, 0.25, BLUE, lat=12, lon=18))
+
+    # Legs (short and stocky)
+    meshes.append(_make_cylinder(-0.13, 0.19, 0.56, 0.0, 0.110, 0.110, BLUE, segs=14))
+    meshes.append(_make_torus(-0.13, 0.19, 0.0, 0.105, 0.025, BLUE, segs_R=14, segs_r=8, axis="y"))
+    meshes.append(_make_cylinder(0.13, 0.19, 0.56, 0.0, 0.110, 0.110, BLUE, segs=14))
+    meshes.append(_make_torus(0.13, 0.19, 0.0, 0.105, 0.025, BLUE, segs_R=14, segs_r=8, axis="y"))
+
+    # Left boot
+    meshes.append(_make_sphere(-0.13, 0.11, -0.03, 0.115, 0.090, 0.115, BROWN, lat=10, lon=16))
+    meshes.append(_make_sphere(-0.13, 0.12, 0.12, 0.130, 0.100, 0.130, BROWN, lat=12, lon=18))
+    meshes.append(_make_box(-0.13, 0.030, 0.05, 0.24, 0.045, 0.34, DARK_BROWN))
+
+    # Right boot
+    meshes.append(_make_sphere(0.13, 0.11, -0.03, 0.115, 0.090, 0.115, BROWN, lat=10, lon=16))
+    meshes.append(_make_sphere(0.13, 0.12, 0.12, 0.130, 0.100, 0.130, BROWN, lat=12, lon=18))
+    meshes.append(_make_box(0.13, 0.030, 0.05, 0.24, 0.045, 0.34, DARK_BROWN))
 
     return _merge(*meshes)
 
@@ -665,7 +816,6 @@ def run_renderer(port: int) -> None:
 
     ctx = moderngl.create_context()
     ctx.enable(moderngl.DEPTH_TEST)
-    ctx.enable(moderngl.CULL_FACE)
 
     prog = ctx.program(vertex_shader=VERT_SHADER, fragment_shader=FRAG_SHADER)
 
@@ -698,14 +848,15 @@ def run_renderer(port: int) -> None:
     n_indices = len(build_character()[1])
 
     # Camera
-    cam_pos = Vector3([0.0, 1.1, 2.8])
+    cam_pos = Vector3([0.0, 0.98, 2.65])
     proj = Matrix44.perspective_projection(38.0, WINDOW_W / WINDOW_H, 0.1, 50.0, dtype="f4")
-    view = Matrix44.look_at(cam_pos, Vector3([0.0, 1.0, 0.0]), Vector3([0.0, 1.0, 0.0]), dtype="f4")
+    view = Matrix44.look_at(cam_pos, Vector3([0.0, 0.96, 0.0]), Vector3([0.0, 1.0, 0.0]), dtype="f4")
 
     # Lighting
-    prog["light_pos"].write(np.array([2.0, 4.0, 3.0], dtype="f4"))
+    prog["light_pos"].write(np.array([2.5, 4.0, 3.5], dtype="f4"))
     prog["view_pos"].write(np.array(cam_pos, dtype="f4"))
-    prog["ambient_strength"].value = 0.45
+    if "ambient_strength" in prog:
+        prog["ambient_strength"].value = 0.45
     prog["proj"].write(proj)
     prog["view"].write(view)
 
