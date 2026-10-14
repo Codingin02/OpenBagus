@@ -100,6 +100,27 @@ def _utc_now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
+def format_markdown_for_terminal(text: str) -> str:
+    """Format markdown text for clean terminal display without raw asterisks or markdown syntax."""
+    if not text:
+        return ""
+    use_color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
+
+    def _header_sub(m: re.Match[str]) -> str:
+        title = m.group(2).strip()
+        return f"\033[1;36m{title}\033[0m" if use_color else f"--- {title} ---"
+
+    out = re.sub(r"^(#{1,6})\s+(.*)$", _header_sub, text, flags=re.MULTILINE)
+    if use_color:
+        out = re.sub(r"\*\*([^*]+)\*\*", r"\033[1m\1\033[0m", out)
+        out = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\033[3m\1\033[0m", out)
+    else:
+        out = re.sub(r"\*\*([^*]+)\*\*", r"\1", out)
+        out = re.sub(r"(?<!\*)\*([^*]+)\*(?!\*)", r"\1", out)
+    out = re.sub(r"^[-*]\s+", "  • ", out, flags=re.MULTILINE)
+    return out
+
+
 def _read_json(path: Path) -> dict[str, Any]:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
@@ -4136,17 +4157,31 @@ class OpenBagusShell(cmd.Cmd):
                 return
 
         # Natural Conversational AI Agent Harness primary execution path
+        if self._companion is not None:
+            try:
+                self._companion.agent_thinking(mode=self.current_mode)
+            except Exception:
+                pass
+
         agent_resp = self.agent_harness.run(
             user_query=cleaned,
             context=self.working_context,
             profile=self.runtime_profile,
             mode=self.current_mode,
         )
+
+        if self._companion is not None:
+            try:
+                self._companion.system_idle()
+            except Exception:
+                pass
+
+        formatted_output = format_markdown_for_terminal(agent_resp.content)
         out_enc = getattr(sys.stdout, "encoding", None) or "utf-8"
         try:
-            print(agent_resp.content)
+            print(formatted_output)
         except (UnicodeEncodeError, OSError):
-            safe_content = agent_resp.content.encode(out_enc, errors="replace").decode(out_enc, errors="replace")
+            safe_content = formatted_output.encode(out_enc, errors="replace").decode(out_enc, errors="replace")
             print(safe_content)
         if self.trace_enabled:
             print(f"\n[Trace: Provider={agent_resp.provider_name} | Latency={agent_resp.latency_ms:.1f}ms | Tools={len(agent_resp.tool_calls_executed)}]")

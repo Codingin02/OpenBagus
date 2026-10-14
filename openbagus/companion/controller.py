@@ -42,6 +42,8 @@ class CompanionController:
         self._amplitude: float = 0.0
         self._current_mode: str = "FAST"
         self._character_form: str = "WHITE"
+        self._sequence_counter: int = 0
+        self._active_turn_id: str = ""
 
     @classmethod
     def get_instance(cls) -> CompanionController:
@@ -127,22 +129,103 @@ class CompanionController:
         self._last_state = state
         return self._send_event("companion.set_state", {"state": state})
 
+    def dispatch_conversation_event(
+        self,
+        event_type: str,
+        turn_id: str = "",
+        payload: dict[str, Any] | None = None,
+        source: str = "controller",
+    ) -> bool:
+        """Dispatch a typed conversation event with sequence number and monotonic timestamp."""
+        with self._lock:
+            self._sequence_counter += 1
+            seq = self._sequence_counter
+            if turn_id:
+                self._active_turn_id = turn_id
+            active_turn = turn_id or self._active_turn_id
+
+        event_data = {
+            "schema_version": "2.0",
+            "type": event_type,
+            "session_id": "openbagus_session",
+            "turn_id": active_turn,
+            "sequence_number": seq,
+            "monotonic_timestamp": time.monotonic(),
+            "source": source,
+            "payload": payload or {},
+        }
+        return self._send_event("companion.conversation_event", event_data)
+
+    def user_speech_started(self, turn_id: str = "", level: float = 0.0) -> bool:
+        """User started speaking into the microphone (VAD speech onset)."""
+        return self.dispatch_conversation_event("USER_SPEECH_STARTED", turn_id=turn_id, payload={"level": level})
+
+    def user_speech_level(self, level: float, turn_id: str = "") -> bool:
+        """Real-time microphone input level while user is speaking."""
+        return self.dispatch_conversation_event("USER_SPEECH_LEVEL", turn_id=turn_id, payload={"level": level})
+
+    def user_speech_ended(self, turn_id: str = "") -> bool:
+        """User finished speaking (silence endpointing reached)."""
+        return self.dispatch_conversation_event("USER_SPEECH_ENDED", turn_id=turn_id)
+
+    def asr_started(self, turn_id: str = "") -> bool:
+        """Local speech recognition started transcribing."""
+        return self.dispatch_conversation_event("ASR_STARTED", turn_id=turn_id)
+
+    def asr_finalized(self, turn_id: str = "", transcript: str = "") -> bool:
+        """Local speech recognition produced final transcript."""
+        return self.dispatch_conversation_event("ASR_FINALIZED", turn_id=turn_id, payload={"transcript": transcript})
+
+    def agent_thinking(self, turn_id: str = "", mode: str = "FAST") -> bool:
+        """Agent is reasoning or processing tools."""
+        return self.dispatch_conversation_event("AGENT_THINKING", turn_id=turn_id, payload={"mode": mode})
+
+    def tool_execution_started(self, tool_name: str, turn_id: str = "") -> bool:
+        """Agent started executing a quantitative/financial tool."""
+        return self.dispatch_conversation_event("TOOL_EXECUTION_STARTED", turn_id=turn_id, payload={"tool_name": tool_name})
+
+    def tool_execution_finished(self, tool_name: str, turn_id: str = "") -> bool:
+        """Agent finished executing a quantitative/financial tool."""
+        return self.dispatch_conversation_event("TOOL_EXECUTION_FINISHED", turn_id=turn_id, payload={"tool_name": tool_name})
+
+    def tts_playback_started(self, turn_id: str = "") -> bool:
+        """Local TTS audio actually started audible playback."""
+        return self.dispatch_conversation_event("TTS_PLAYBACK_STARTED", turn_id=turn_id)
+
+    def tts_playback_level(self, amplitude: float, turn_id: str = "") -> bool:
+        """Smoothed audio amplitude during actual audible TTS playback."""
+        self._amplitude = amplitude
+        return self.dispatch_conversation_event("TTS_PLAYBACK_LEVEL", turn_id=turn_id, payload={"amplitude": amplitude})
+
+    def tts_playback_finished(self, turn_id: str = "") -> bool:
+        """Audible TTS playback completed."""
+        self._amplitude = 0.0
+        return self.dispatch_conversation_event("TTS_PLAYBACK_FINISHED", turn_id=turn_id)
+
+    def user_interrupted(self, turn_id: str = "") -> bool:
+        """User interrupted active assistant playback."""
+        self._amplitude = 0.0
+        return self.dispatch_conversation_event("USER_INTERRUPTED", turn_id=turn_id)
+
+    def system_idle(self) -> bool:
+        """Return companion to relaxed ambient idle state."""
+        return self.dispatch_conversation_event("SYSTEM_IDLE")
+
     def speak_start(self, turn_id: str) -> bool:
-        """Notify companion that TTS playback has started."""
-        return self._send_event("companion.speak_start", {"turn_id": turn_id})
+        """Notify companion that TTS playback has started (backward compatibility)."""
+        return self.tts_playback_started(turn_id)
 
     def speak_amplitude(self, amplitude: float) -> bool:
-        """Send real-time audio amplitude for lip sync animation (0.0 to 1.0)."""
-        self._amplitude = amplitude
-        return self._send_event("companion.speak_amplitude", {"amplitude": amplitude})
+        """Send real-time audio amplitude for animation (0.0 to 1.0)."""
+        return self.tts_playback_level(amplitude)
 
     def speak_end(self, turn_id: str) -> bool:
-        """Notify companion that TTS playback ended."""
-        return self._send_event("companion.speak_end", {"turn_id": turn_id})
+        """Notify companion that TTS playback ended (backward compatibility)."""
+        return self.tts_playback_finished(turn_id)
 
     def interrupted(self, turn_id: str) -> bool:
-        """Notify companion of barge-in interruption."""
-        return self._send_event("companion.interrupted", {"turn_id": turn_id})
+        """Notify companion of barge-in interruption (backward compatibility)."""
+        return self.user_interrupted(turn_id)
 
     def capture_screenshot(self, target_path: str) -> bool:
         """Request the live companion renderer to capture its current frame buffer."""

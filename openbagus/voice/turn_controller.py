@@ -83,12 +83,54 @@ class VoiceTurnController:
         self._loop_active = False
         self._loop_thread: threading.Thread | None = None
         self._hands_free = True
+        self._current_turn_id: str = ""
         self._companion = None
         if CompanionController is not None:
             try:
                 self._companion = CompanionController.get_instance()
             except Exception:
                 self._companion = None
+
+        # Wire synchronized audio playback callbacks to companion
+        self._setup_playback_companion_callbacks()
+
+    def _setup_playback_companion_callbacks(self) -> None:
+        """Wire real-time audio playback events to the companion controller."""
+        if not hasattr(self.playback_manager, "on_playback_level"):
+            return
+
+        def _on_start() -> None:
+            if self._companion is not None:
+                try:
+                    self._companion.tts_playback_started(self._current_turn_id)
+                except Exception:
+                    pass
+
+        def _on_finish() -> None:
+            if self._companion is not None:
+                try:
+                    self._companion.tts_playback_finished(self._current_turn_id)
+                except Exception:
+                    pass
+
+        def _on_level(amp: float) -> None:
+            if self._companion is not None:
+                try:
+                    self._companion.tts_playback_level(amp, turn_id=self._current_turn_id)
+                except Exception:
+                    pass
+
+        def _on_interrupted() -> None:
+            if self._companion is not None:
+                try:
+                    self._companion.user_interrupted(self._current_turn_id)
+                except Exception:
+                    pass
+
+        self.playback_manager.on_start = _on_start
+        self.playback_manager.on_finish = _on_finish
+        self.playback_manager.on_playback_level = _on_level
+        self.playback_manager.on_interrupted = _on_interrupted
 
     def set_state(self, new_state: VoiceState) -> None:
         with self._lock:
@@ -104,26 +146,22 @@ class VoiceTurnController:
 
                 if self._companion is not None:
                     try:
-                        comp_map = {
-                            VoiceState.IDLE: "IDLE",
-                            VoiceState.LISTENING: "LISTENING",
-                            VoiceState.SPEECH_DETECTED: "HEARD_USER",
-                            VoiceState.ENDPOINTING: "HEARD_USER",
-                            VoiceState.TRANSCRIBING: "HEARD_USER",
-                            VoiceState.MODE_SELECTION: "THINKING",
-                            VoiceState.THINKING: (
-                                "DEEP_THINKING"
-                                if getattr(self.mode_controller, "current_mode", "") in ("DEEP", "DEEP_REASONING")
-                                else "THINKING"
-                            ),
-                            VoiceState.GENERATING_SPEECH: "THINKING",
-                            VoiceState.SPEAKING: "SPEAKING",
-                            VoiceState.INTERRUPTED: "SURPRISED",
-                            VoiceState.ERROR: "ERROR",
-                            VoiceState.CANCELLED: "IDLE",
-                        }
-                        target_comp_state = comp_map.get(new_state, "IDLE")
-                        self._companion.set_state(target_comp_state)
+                        # Typed lifecycle events
+                        if new_state == VoiceState.SPEECH_DETECTED:
+                            self._companion.user_speech_started(self._current_turn_id)
+                        elif new_state == VoiceState.ENDPOINTING:
+                            self._companion.user_speech_ended(self._current_turn_id)
+                        elif new_state == VoiceState.TRANSCRIBING:
+                            self._companion.asr_started(self._current_turn_id)
+                        elif new_state in (VoiceState.THINKING, VoiceState.MODE_SELECTION, VoiceState.GENERATING_SPEECH):
+                            mode_name = getattr(self.mode_controller, "current_mode", "FAST")
+                            self._companion.agent_thinking(self._current_turn_id, mode=mode_name)
+                        elif new_state == VoiceState.INTERRUPTED:
+                            self._companion.user_interrupted(self._current_turn_id)
+                        elif new_state in (VoiceState.IDLE, VoiceState.CANCELLED):
+                            self._companion.system_idle()
+                        elif new_state == VoiceState.LISTENING:
+                            self._companion.set_state("LISTENING")
                     except Exception:
                         pass
 
@@ -132,7 +170,7 @@ class VoiceTurnController:
         self.playback_manager.stop_playback(interrupted=True)
         if self._companion is not None:
             try:
-                self._companion.interrupted(turn_id)
+                self._companion.user_interrupted(turn_id)
             except Exception:
                 pass
         self.set_state(VoiceState.INTERRUPTED)
@@ -185,6 +223,7 @@ class VoiceTurnController:
                 is_active, is_endpoint, prob = self.vad.process_frame(frame)
 
                 if is_active and self.state == VoiceState.LISTENING:
+                    self._current_turn_id = f"turn_{uuid.uuid4().hex[:8]}"
                     self.set_state(VoiceState.SPEECH_DETECTED)
                     self.capture_stream.start_utterance()
 
@@ -196,6 +235,12 @@ class VoiceTurnController:
                         self.set_state(VoiceState.ENDPOINTING)
                     else:
                         self.set_state(VoiceState.SPEECH_DETECTED)
+                        if self._companion is not None:
+                            try:
+                                frame_rms = float(np.sqrt(np.mean(np.square(frame))))
+                                self._companion.user_speech_level(min(1.0, max(0.0, frame_rms * 4.0)), self._current_turn_id)
+                            except Exception:
+                                pass
 
     def _process_completed_utterance(self) -> None:
         """Triggered once silence endpointing confirms the user finished their utterance."""
@@ -207,6 +252,7 @@ class VoiceTurnController:
             return
 
         turn_id = f"turn_{uuid.uuid4().hex[:8]}"
+        self._current_turn_id = turn_id
         self.interruption.start_turn(turn_id)
         metrics = VoiceTurnMetrics(turn_id=turn_id, user_speech_duration_s=len(audio) / 16000.0)
 
@@ -276,12 +322,6 @@ class VoiceTurnController:
         self.set_state(VoiceState.GENERATING_SPEECH)
         cancellation = self.interruption.get_cancellation_event()
 
-        if self._companion is not None:
-            try:
-                self._companion.speak_start(metrics.turn_id)
-            except Exception:
-                pass
-
         t_tts_start = time.perf_counter()
         first_chunk = True
 
@@ -293,16 +333,7 @@ class VoiceTurnController:
             if first_chunk:
                 metrics.tts_ttfa_ms = tele.get("time_to_first_audio_ms", (time.perf_counter() - t_tts_start) * 1000.0)
                 metrics.e2e_voice_latency_ms = metrics.asr_latency_ms + metrics.agent_total_latency_ms + metrics.tts_ttfa_ms
-                self.set_state(VoiceState.SPEAKING)
                 first_chunk = False
-
-            if self._companion is not None and len(audio_chunk) > 0:
-                try:
-                    rms = float(np.sqrt(np.mean(np.square(audio_chunk))))
-                    amp = min(1.0, max(0.0, rms * 4.0))
-                    self._companion.speak_amplitude(amp)
-                except Exception:
-                    pass
 
             self.playback_manager.enqueue(audio_chunk, samplerate=self.tts_engine.sample_rate)
 
@@ -313,14 +344,7 @@ class VoiceTurnController:
         while self.playback_manager.is_playing:
             if cancellation.is_set():
                 break
-            time.sleep(0.05)
-
-        if self._companion is not None:
-            try:
-                self._companion.speak_amplitude(0.0)
-                self._companion.speak_end(metrics.turn_id)
-            except Exception:
-                pass
+            time.sleep(0.04)
 
         self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
 

@@ -134,25 +134,48 @@ class AgentHarness:
         is_greeting = bool(re.match(r"^(?:halo|hi|hai|selamat\s+(?:pagi|siang|sore|malam)|assalamualaikum)\b", lower_q)) and not any(
             k in lower_q for k in ("analisis", "bedah", "saham", "bandingkan", "laporan", "harga", "berapa", "cari", "screener", "rekomendasi")
         )
+        is_thanks = bool(re.search(r"^(?:terima\s+kasih|makasih|matur\s+nuwun|thanks|thank\s+you|syukran)\b", lower_q))
+        is_pause = bool(re.search(r"^(?:tunggu\s+sebentar|stop\s+dulu|sebentar|pause|tunggu|tahan\s+dulu)\b", lower_q))
         is_simple_qa = ("apa itu per" in lower_q or "apa itu pbv" in lower_q or "apa itu dcf" in lower_q or "siapa kamu" in lower_q)
 
         executed_tools: list[dict[str, Any]] = []
         data_gaps: list[str] = []
 
-        # FAST PATH: Direct conversational response for greetings / basic glossary
+        # FAST PATH: Direct conversational response for greetings / thanks / basic glossary
         if is_greeting:
-            greet_text = (
-                "Selamat pagi! Saya adalah OpenBagus, asisten riset finansial kuantitatif dan intelijen pasar modal Anda.\n"
-                "Saya siap membantu Anda meneliti 951 emiten saham IDX, membedah laporan keuangan resmi, melacak keterbukaan informasi material, "
-                "menilai risiko likuiditas mikrostruktur, hingga memindai setup swing trading atau valuasi investasi jangka panjang.\n\n"
-                "Ada saham atau sektor yang ingin Anda diskusikan hari ini?"
-            )
+            greet_text = "Halo! Saya OpenBagus, asisten riset pasar modal 951 emiten IDX. Ada saham atau topik yang ingin Anda teliti hari ini?"
             if stream_callback:
                 stream_callback(greet_text)
             ctx.record_turn("user", user_query)
             ctx.record_turn("assistant", greet_text)
             return AgentResponse(
                 content=greet_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name=self.provider.get_provider_name(),
+            )
+
+        if is_thanks:
+            thanks_text = "Sama-sama! Senang bisa membantu riset Anda. Beritahu saya jika ada emiten atau data lain yang ingin Anda eksplorasi."
+            if stream_callback:
+                stream_callback(thanks_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", thanks_text)
+            return AgentResponse(
+                content=thanks_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name=self.provider.get_provider_name(),
+            )
+
+        if is_pause:
+            pause_text = "Baik, saya jeda sejenak. Beritahu saya kapan saja Anda siap untuk melanjutkan."
+            if stream_callback:
+                stream_callback(pause_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", pause_text)
+            return AgentResponse(
+                content=pause_text,
                 working_context=ctx,
                 latency_ms=(time.perf_counter() - t_start) * 1000,
                 provider_name=self.provider.get_provider_name(),
@@ -242,7 +265,21 @@ class AgentHarness:
                     if not valid_args:
                         tool_res_str = json.dumps({"error": err})
                     else:
-                        tool_res = self.tools.execute(tc.function_name, tc.arguments)
+                        try:
+                            from openbagus.companion.controller import CompanionController
+                            comp = CompanionController.get_instance()
+                            comp.tool_execution_started(tc.function_name)
+                        except Exception:
+                            comp = None
+                        try:
+                            tool_res = self.tools.execute(tc.function_name, tc.arguments)
+                        finally:
+                            if comp is not None:
+                                try:
+                                    comp.tool_execution_finished(tc.function_name)
+                                except Exception:
+                                    pass
+
                         executed_tools.append({
                             "name": tc.function_name,
                             "arguments": tc.arguments,

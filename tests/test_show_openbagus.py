@@ -666,6 +666,187 @@ class TestControlBagusmaxTool(unittest.TestCase):
         mock_rot.assert_called_with(yaw=180.0, pitch=0.0)
 
 
+class TestBagusmaxConversationalAnimation(unittest.TestCase):
+    """Verifies conversational event bridge, audio level streaming, articulation kinematics, and barge-in."""
+
+    def setUp(self) -> None:
+        from openbagus.companion.events import (
+            CompanionEvent,
+            ConversationAnimationBridge,
+            ConversationEventType,
+            ConversationState,
+            AnimState,
+            ReasoningMode,
+        )
+        self.bridge = ConversationAnimationBridge()
+        self.animator = CharacterAnimator()
+
+    def test_conversational_lifecycle_transitions(self) -> None:
+        from openbagus.companion.events import CompanionEvent, ConversationEventType, AnimState
+
+        turn_id = "turn_test_101"
+
+        # 1. User starts speaking -> Active listening
+        ev_speak = CompanionEvent(
+            event_type=ConversationEventType.USER_SPEECH_STARTED.value,
+            turn_id=turn_id,
+            sequence_number=1,
+            payload={"level": 0.45},
+        )
+        cs, anim, changed = self.bridge.process_event(ev_speak)
+        self.assertEqual(anim, AnimState.ACTIVE_LISTENING)
+
+        # 2. User speech ends -> Acknowledging nod
+        ev_end = CompanionEvent(
+            event_type=ConversationEventType.USER_SPEECH_ENDED.value,
+            turn_id=turn_id,
+            sequence_number=2,
+        )
+        cs, anim, changed = self.bridge.process_event(ev_end)
+        self.assertEqual(anim, AnimState.ACKNOWLEDGING)
+
+        # 3. Agent thinking in FAST mode -> THINKING
+        ev_think = CompanionEvent(
+            event_type=ConversationEventType.AGENT_THINKING.value,
+            turn_id=turn_id,
+            sequence_number=3,
+        )
+        cs, anim, changed = self.bridge.process_event(ev_think)
+        self.assertEqual(anim, AnimState.THINKING)
+
+        # 4. Tool execution -> TOOL_GESTURE
+        ev_tool = CompanionEvent(
+            event_type=ConversationEventType.TOOL_EXECUTION_STARTED.value,
+            turn_id=turn_id,
+            sequence_number=4,
+            payload={"tool_name": "calc_var"},
+        )
+        cs, anim, changed = self.bridge.process_event(ev_tool)
+        self.assertEqual(anim, AnimState.TOOL_GESTURE)
+
+        # 5. Playback starts and audio levels stream -> SPEECH_GESTURE
+        ev_tts = CompanionEvent(
+            event_type=ConversationEventType.TTS_PLAYBACK_STARTED.value,
+            turn_id=turn_id,
+            sequence_number=5,
+        )
+        cs, anim, changed = self.bridge.process_event(ev_tts)
+        self.assertEqual(anim, AnimState.SPEECH_GESTURE)
+
+        ev_level = CompanionEvent(
+            event_type=ConversationEventType.TTS_PLAYBACK_LEVEL.value,
+            turn_id=turn_id,
+            sequence_number=6,
+            payload={"amplitude": 0.65},
+        )
+        cs, anim, changed = self.bridge.process_event(ev_level)
+        self.assertEqual(anim, AnimState.SPEECH_GESTURE)
+        self.assertAlmostEqual(self.bridge.audio_amplitude, 0.65)
+
+        # 6. Playback completes -> IDLE_BREATHING
+        ev_finish = CompanionEvent(
+            event_type=ConversationEventType.TTS_PLAYBACK_FINISHED.value,
+            turn_id=turn_id,
+            sequence_number=7,
+        )
+        cs, anim, changed = self.bridge.process_event(ev_finish)
+        self.assertEqual(anim, AnimState.IDLE_BREATHING)
+        self.assertEqual(self.bridge.audio_amplitude, 0.0)
+
+    def test_deep_reasoning_mode_animation_state(self) -> None:
+        from openbagus.companion.events import CompanionEvent, ConversationEventType, AnimState
+
+        turn_id = "turn_deep_1"
+        ev_mode = CompanionEvent(
+            event_type=ConversationEventType.MODE_CONFIRMED.value,
+            turn_id=turn_id,
+            sequence_number=1,
+            payload={"mode": "DEEP_REASONING"},
+        )
+        self.bridge.process_event(ev_mode)
+
+        ev_think = CompanionEvent(
+            event_type=ConversationEventType.AGENT_THINKING.value,
+            turn_id=turn_id,
+            sequence_number=2,
+        )
+        cs, anim, changed = self.bridge.process_event(ev_think)
+        self.assertEqual(anim, AnimState.DEEP_THINKING)
+
+    def test_barge_in_interruption_and_stale_event_rejection(self) -> None:
+        from openbagus.companion.events import CompanionEvent, ConversationEventType, AnimState
+
+        turn_1 = "turn_old_1"
+        self.bridge.process_event(CompanionEvent(
+            event_type=ConversationEventType.TTS_PLAYBACK_STARTED.value,
+            turn_id=turn_1,
+            sequence_number=1,
+        ))
+        self.bridge.process_event(CompanionEvent(
+            event_type=ConversationEventType.TTS_PLAYBACK_LEVEL.value,
+            turn_id=turn_1,
+            sequence_number=2,
+            payload={"amplitude": 0.70},
+        ))
+
+        # Barge-in interruption occurs
+        cs, anim, changed = self.bridge.process_event(CompanionEvent(
+            event_type=ConversationEventType.USER_INTERRUPTED.value,
+            turn_id=turn_1,
+            sequence_number=3,
+        ))
+        self.assertEqual(anim, AnimState.INTERRUPTION_RECOVERY)
+        self.assertEqual(self.bridge.audio_amplitude, 0.0)
+
+        # Stale delayed audio chunk from turn_1 must be rejected
+        cs_stale, anim_stale, changed_stale = self.bridge.process_event(CompanionEvent(
+            event_type=ConversationEventType.TTS_PLAYBACK_LEVEL.value,
+            turn_id=turn_1,
+            sequence_number=4,
+            payload={"amplitude": 0.85},
+        ))
+        self.assertFalse(changed_stale)
+        self.assertEqual(anim_stale, AnimState.INTERRUPTION_RECOVERY)
+        self.assertEqual(self.bridge.audio_amplitude, 0.0)
+
+    def test_articulated_kinematics_and_parameters(self) -> None:
+        self.animator.set_state("ACTIVE_LISTENING")
+        self.animator.update(dt=0.2)
+        params = self.animator.get_params()
+
+        # Attentive posture check
+        self.assertIn("head_nod", params)
+        self.assertIn("head_tilt", params)
+        self.assertIn("head_turn", params)
+        self.assertIn("torso_lean_z", params)
+        self.assertIn("l_arm_roll", params)
+        self.assertIn("r_arm_roll", params)
+
+        # In listening state, torso leans forward slightly
+        self.assertGreater(params["torso_lean_z"], 0.0)
+        self.assertGreater(params["head_tilt"], 0.0)
+
+    def test_speech_articulation_reacts_to_audio_amplitude(self) -> None:
+        self.animator.set_state("SPEECH_GESTURE")
+        self.animator.amplitude = 0.90
+        self.animator.update(dt=0.1)
+        params = self.animator.get_params()
+
+        # Chest expands, arms engage, no mouth aperture
+        self.assertGreater(params["breath_scale"], 1.0)
+        self.assertEqual(params["mouth_open"], 0.0)
+        self.assertGreater(params["r_arm_pitch"], 0.1)
+
+    def test_terminal_markdown_clean_formatting(self) -> None:
+        from openbagus.cli import format_markdown_for_terminal
+
+        raw = "**Bagusmax** is running with **local** AI!\n- Item 1\n- Item 2"
+        formatted = format_markdown_for_terminal(raw)
+        self.assertNotIn("**Bagusmax**", formatted)
+        self.assertIn("Bagusmax", formatted)
+        self.assertIn("• Item 1", formatted)
+
+
 if __name__ == "__main__":
     unittest.main()
 

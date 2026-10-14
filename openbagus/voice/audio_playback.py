@@ -30,6 +30,7 @@ class AudioPlaybackManager:
         on_start: Callable[[], None] | None = None,
         on_finish: Callable[[], None] | None = None,
         on_interrupted: Callable[[], None] | None = None,
+        on_playback_level: Callable[[float], None] | None = None,
     ) -> None:
         self.device_id = device_id
         self.default_samplerate = default_samplerate
@@ -37,6 +38,7 @@ class AudioPlaybackManager:
         self.on_start = on_start
         self.on_finish = on_finish
         self.on_interrupted = on_interrupted
+        self.on_playback_level = on_playback_level
 
         self._queue: queue.Queue[tuple[np.ndarray, int]] = queue.Queue()
         self._is_playing = False
@@ -121,14 +123,42 @@ class AudioPlaybackManager:
 
                 sd.play(audio, samplerate=sr, device=dev_out)
                 
-                # Check stop event during chunk duration
+                # Check stop event during chunk duration and emit synchronized playback levels
                 chunk_dur = len(audio) / sr
-                deadline = time.time() + chunk_dur
+                chunk_start = time.time()
+                deadline = chunk_start + chunk_dur
+                last_level_emit = 0.0
+                last_rms = 0.0
+
                 while time.time() < deadline:
                     if self._stop_event.is_set():
                         sd.stop()
                         break
+                    now = time.time()
+                    if self.on_playback_level and (now - last_level_emit >= 0.033):
+                        last_level_emit = now
+                        elapsed = now - chunk_start
+                        curr_s = int(elapsed * sr)
+                        w_len = int(0.04 * sr)
+                        start_i = max(0, min(len(audio) - 1, curr_s))
+                        end_i = max(0, min(len(audio), start_i + w_len))
+                        if end_i > start_i:
+                            sub = audio[start_i:end_i]
+                            curr_rms = float(np.sqrt(np.mean(np.square(sub))))
+                            smoothed = 0.60 * last_rms + 0.40 * curr_rms
+                            last_rms = smoothed
+                            amp = min(1.0, max(0.0, smoothed * 3.5))
+                            try:
+                                self.on_playback_level(amp)
+                            except Exception:
+                                pass
                     time.sleep(0.01)
+
+                if self.on_playback_level:
+                    try:
+                        self.on_playback_level(0.0)
+                    except Exception:
+                        pass
 
             except Exception as e:
                 logger.warning("Error during audio chunk playback: %s", e)
@@ -136,6 +166,11 @@ class AudioPlaybackManager:
                 self._queue.task_done()
 
         self._is_playing = False
+        if self.on_playback_level:
+            try:
+                self.on_playback_level(0.0)
+            except Exception:
+                pass
 
     def stop_playback(self, interrupted: bool = True) -> None:
         """Instantly aborts audio playback and drains queue (Barge-In support)."""
@@ -158,6 +193,12 @@ class AudioPlaybackManager:
 
             was_playing = self._is_playing
             self._is_playing = False
+
+            if self.on_playback_level:
+                try:
+                    self.on_playback_level(0.0)
+                except Exception:
+                    pass
 
             if was_playing and interrupted and self.on_interrupted:
                 try:

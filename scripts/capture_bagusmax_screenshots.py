@@ -53,6 +53,16 @@ def render_scene(
     cam_pos: Vector3,
     target_pos: Vector3,
     head_tilt: float = 0.0,
+    head_nod: float = 0.0,
+    head_turn: float = 0.0,
+    l_arm_pitch: float = 0.0,
+    l_arm_roll: float = 0.0,
+    l_arm_yaw: float = 0.0,
+    r_arm_pitch: float = 0.0,
+    r_arm_roll: float = 0.0,
+    r_arm_yaw: float = 0.0,
+    torso_lean_z: float = 0.0,
+    torso_twist_y: float = 0.0,
     breath: float = 1.0,
     blink: float = 0.0,
     user_yaw: float = 0.0,
@@ -66,10 +76,22 @@ def render_scene(
     ctx.clear(*bg_color)
 
     # Build geometry
-    if form == BagusmaxForm.ARMORED:
-        verts, idxs = build_bagusmax_armored(blink=blink, head_tilt=head_tilt, breath=breath)
-    else:
-        verts, idxs = build_bagusmax_white(blink=blink, head_tilt=head_tilt, breath=breath)
+    builder = build_bagusmax_armored if form == BagusmaxForm.ARMORED else build_bagusmax_white
+    verts, idxs = builder(
+        blink=blink,
+        head_tilt=head_tilt,
+        breath=breath,
+        head_nod=head_nod,
+        head_turn=head_turn,
+        l_arm_pitch=l_arm_pitch,
+        l_arm_roll=l_arm_roll,
+        l_arm_yaw=l_arm_yaw,
+        r_arm_pitch=r_arm_pitch,
+        r_arm_roll=r_arm_roll,
+        r_arm_yaw=r_arm_yaw,
+        torso_lean_z=torso_lean_z,
+        torso_twist_y=torso_twist_y,
+    )
 
     vbo = ctx.buffer(np.array(verts, dtype="f4"))
     ibo = ctx.buffer(np.array(idxs, dtype="i4"))
@@ -351,6 +373,51 @@ def main() -> None:
     raw_chest = render_scene(ctx, prog, fbo, BagusmaxForm.ARMORED, cam_chest, target_chest)
     composite_studio(raw_chest, "BAGUSMAX ARMORED — CHEST & ABS CLOSEUP").save(p14)
     print(f"14. Saved {p14}")
+
+    # 15. Conversational Active Listening (Forward lean, attentive head tilt, settled arms)
+    p15 = os.path.join(OUTPUT_DIR, "bagusmax_conversational_listening.png")
+    raw_listen = render_scene(
+        ctx, prog, fbo, BagusmaxForm.WHITE, cam_front, target_full,
+        torso_lean_z=0.045, head_tilt=0.065, head_nod=0.02, l_arm_roll=-0.04, r_arm_roll=0.04
+    )
+    composite_studio(raw_listen, "BAGUSMAX WHITE — CONVERSATIONAL LISTENING (Attentive Tilt & Lean)").save(p15)
+    print(f"15. Saved {p15}")
+
+    # 16. Conversational Acknowledging Nod (Silence endpointing single nod)
+    p16 = os.path.join(OUTPUT_DIR, "bagusmax_conversational_acknowledging.png")
+    raw_ack = render_scene(
+        ctx, prog, fbo, BagusmaxForm.WHITE, cam_front, target_full,
+        head_nod=0.11, torso_lean_z=0.02
+    )
+    composite_studio(raw_ack, "BAGUSMAX WHITE — ACKNOWLEDGING NOD (Utterance End Acknowledgment)").save(p16)
+    print(f"16. Saved {p16}")
+
+    # 17. Conversational Deep Thinking (Armored form, gauntlet position, focused twist)
+    p17 = os.path.join(OUTPUT_DIR, "bagusmax_conversational_thinking.png")
+    raw_think = render_scene(
+        ctx, prog, fbo, BagusmaxForm.ARMORED, cam_front, target_full,
+        head_tilt=0.04, head_turn=0.06, torso_twist_y=0.05, r_arm_pitch=0.20, r_arm_roll=0.08
+    )
+    composite_studio(raw_think, "BAGUSMAX ARMORED — DEEP REASONING THINKING (Focused Mechanical Stance)").save(p17)
+    print(f"17. Saved {p17}")
+
+    # 18. Conversational Speaking Gesture (Mouthless nodding, chest expansion, explanatory arm)
+    p18 = os.path.join(OUTPUT_DIR, "bagusmax_conversational_speaking.png")
+    raw_speak = render_scene(
+        ctx, prog, fbo, BagusmaxForm.WHITE, cam_front, target_full,
+        head_nod=0.06, breath=1.04, r_arm_pitch=0.32, r_arm_roll=0.15, l_arm_roll=-0.06
+    )
+    composite_studio(raw_speak, "BAGUSMAX WHITE — SYNCHRONIZED SPEECH (Audio RMS Gestures)").save(p18)
+    print(f"18. Saved {p18}")
+
+    # 19. Conversational Rotated 180° Dialogue Posture (Attentive posture preserved during backward orientation)
+    p19 = os.path.join(OUTPUT_DIR, "bagusmax_conversational_rotated_dialogue.png")
+    raw_rot_diag = render_scene(
+        ctx, prog, fbo, BagusmaxForm.ARMORED, cam_front, target_full,
+        user_yaw=180.0, head_turn=0.08, r_arm_pitch=0.15
+    )
+    composite_studio(raw_rot_diag, "BAGUSMAX ARMORED — 180° ROTATED DIALOGUE (Preserved Conversational Posture)").save(p19)
+    print(f"19. Saved {p19}")
 
     glfw.terminate()
     print("All BAGUSMAX visual evidence screenshots successfully generated!")

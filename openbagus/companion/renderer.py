@@ -52,6 +52,15 @@ from openbagus.companion.preferences import (
     save_preferences,
     reset_preferences,
 )
+from openbagus.companion.events import (
+    ConversationEventType,
+    ConversationState,
+    AnimState,
+    ReasoningMode,
+    CompanionEvent,
+    ConversationAnimationBridge,
+    STATE_PRIORITIES,
+)
 
 
 # ---------------------------------------------------------------------------
@@ -380,113 +389,192 @@ class BagusmaxForm:
     ARMORED = "ARMORED"
 
 
+def _transform_mesh(
+    mesh: tuple[list[float], list[int]],
+    pivot: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    rot_x: float = 0.0,
+    rot_y: float = 0.0,
+    rot_z: float = 0.0,
+    translation: tuple[float, float, float] = (0.0, 0.0, 0.0),
+    scale: tuple[float, float, float] = (1.0, 1.0, 1.0),
+) -> tuple[list[float], list[int]]:
+    """Transform vertices and normals around a 3D pivot using rotation, translation, and scale."""
+    verts, idxs = mesh
+    if not verts:
+        return verts, idxs
+
+    v = np.array(verts, dtype=np.float32).reshape(-1, 9)
+
+    cx, sx = math.cos(rot_x), math.sin(rot_x)
+    cy, sy = math.cos(rot_y), math.sin(rot_y)
+    cz, sz = math.cos(rot_z), math.sin(rot_z)
+
+    Rx = np.array([[1.0, 0.0, 0.0], [0.0, cx, -sx], [0.0, sx, cx]], dtype=np.float32)
+    Ry = np.array([[cy, 0.0, sy], [0.0, 1.0, 0.0], [-sy, 0.0, cy]], dtype=np.float32)
+    Rz = np.array([[cz, -sz, 0.0], [sz, cz, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32)
+    R = Ry @ Rx @ Rz
+
+    p = np.array(pivot, dtype=np.float32)
+    t = np.array(translation, dtype=np.float32)
+    s = np.array(scale, dtype=np.float32)
+
+    pos = v[:, 0:3]
+    pos_p = (pos - p) * s
+    v[:, 0:3] = pos_p @ R.T + p + t
+
+    nrm = v[:, 3:6]
+    v[:, 3:6] = nrm @ R.T
+
+    return v.flatten().tolist(), idxs
+
+
+# ---------------------------------------------------------------------------
+# Character geometry builders: BAGUSMAX Dual-Form (White & Armored)
+# ---------------------------------------------------------------------------
+
+class BagusmaxForm:
+    WHITE = "WHITE"
+    ARMORED = "ARMORED"
+
+
 def build_bagusmax_white(
     blink: float = 0.0,
     head_tilt: float = 0.0,
     breath: float = 1.0,
+    head_nod: float = 0.0,
+    head_turn: float = 0.0,
+    l_arm_pitch: float = 0.0,
+    l_arm_roll: float = 0.0,
+    l_arm_yaw: float = 0.0,
+    r_arm_pitch: float = 0.0,
+    r_arm_roll: float = 0.0,
+    r_arm_yaw: float = 0.0,
+    torso_lean_z: float = 0.0,
+    torso_twist_y: float = 0.0,
 ) -> tuple[list[float], list[int]]:
-    """Build BAGUSMAX WHITE Form (FAST Reasoning Mode).
+    """Build BAGUSMAX WHITE Form (FAST Reasoning Mode) with articulated 3D joints.
 
     Inflatable warm white vinyl robot:
-    - Smooth rounded head with two black eyes connected by a thin horizontal black line.
-    - Subtle silver healthcare access port on upper left chest.
-    - Soft shoulders, tapered arms with chubby fingers.
-    - Pear-shaped torso with prominent rounded lower belly.
-    - Short columnar legs and rounded feet.
-    - Warm vinyl white palette: (0.96, 0.96, 0.97).
+    - Independent articulated head (nod, tilt, turn) around neck pivot (0.0, 1.25, 0.0).
+    - Inflatable pear-shaped torso (breath expansion, forward lean, twist).
+    - Independent left arm (roll, pitch, yaw) around left shoulder pivot (-0.36, 1.04, 0.0).
+    - Independent right arm (roll, pitch, yaw) around right shoulder pivot (0.36, 1.04, 0.0).
+    - Columnar legs and rounded feet.
     """
     VINYL_WHITE  = (0.96, 0.96, 0.97)
-    VINYL_SHADOW = (0.88, 0.88, 0.90)
     BLACK_EYES   = (0.04, 0.04, 0.04)
     PORT_SILVER  = (0.84, 0.84, 0.88)
     PORT_INNER   = (0.70, 0.70, 0.75)
 
-    meshes: list[tuple[list[float], list[int]]] = []
-
-    # 1. HEAD (Seated at y = 1.34)
-    head_cx = -head_tilt * 0.08
-    head_cy = 1.34 - abs(head_tilt) * 0.015
-    head_cz = 0.0
-    meshes.append(_make_sphere(head_cx, head_cy, head_cz, 0.22, 0.175, 0.185, VINYL_WHITE, lat=16, lon=24))
+    # 1. HEAD & EYES (Seated at y = 1.34, pivot at neck 1.25)
+    head_parts: list[tuple[list[float], list[int]]] = []
+    head_parts.append(_make_sphere(0.0, 1.34, 0.0, 0.22, 0.175, 0.185, VINYL_WHITE, lat=16, lon=24))
 
     # Two black eyes connected by thin line (Baymax signature face)
     eye_y_scale = max(0.1, 1.0 - blink * 0.9)
-    # Left eye
-    meshes.append(_make_sphere(head_cx - 0.075, head_cy, 0.178, 0.018, 0.018 * eye_y_scale, 0.008, BLACK_EYES, lat=10, lon=14))
-    # Right eye
-    meshes.append(_make_sphere(head_cx + 0.075, head_cy, 0.178, 0.018, 0.018 * eye_y_scale, 0.008, BLACK_EYES, lat=10, lon=14))
-    # Thin connecting line between eyes
-    meshes.append(_make_box(head_cx, head_cy, 0.179, 0.145, 0.0035, 0.006, BLACK_EYES))
+    head_parts.append(_make_sphere(-0.075, 1.34, 0.178, 0.018, 0.018 * eye_y_scale, 0.008, BLACK_EYES, lat=10, lon=14))
+    head_parts.append(_make_sphere(0.075, 1.34, 0.178, 0.018, 0.018 * eye_y_scale, 0.008, BLACK_EYES, lat=10, lon=14))
+    head_parts.append(_make_box(0.0, 1.34, 0.179, 0.145, 0.0035, 0.006, BLACK_EYES))
+    head_parts.append(_make_cylinder(0.0, 1.20, 1.28, 0.0, 0.16, 0.16, VINYL_WHITE, segs=16))
 
-    # Neck transition
-    meshes.append(_make_cylinder(0.0, 1.20, 1.28, 0.0, 0.16, 0.16, VINYL_WHITE, segs=16))
+    head_mesh = _transform_mesh(
+        _merge(*head_parts),
+        pivot=(0.0, 1.25, 0.0),
+        rot_x=head_nod,
+        rot_y=head_turn,
+        rot_z=head_tilt,
+    )
 
     # 2. PEAR-SHAPED TORSO (Inflatable Vinyl Body)
     bs = max(0.85, min(1.25, breath))
-    # Upper chest
-    meshes.append(_make_sphere(0.0, 1.05, -0.01, 0.32 * bs, 0.25, 0.28 * bs, VINYL_WHITE, lat=16, lon=24))
-    # Pear-shaped belly (fuller, lower, projecting forward)
-    meshes.append(_make_sphere(0.0, 0.75, 0.05, 0.42 * bs, 0.30, 0.37 * bs, VINYL_WHITE, lat=18, lon=26))
-    # Pelvis
-    meshes.append(_make_sphere(0.0, 0.52, 0.01, 0.38, 0.22, 0.33, VINYL_WHITE, lat=14, lon=22))
+    torso_parts: list[tuple[list[float], list[int]]] = []
+    torso_parts.append(_make_sphere(0.0, 1.05, -0.01, 0.32 * bs, 0.25, 0.28 * bs, VINYL_WHITE, lat=16, lon=24))
+    torso_parts.append(_make_sphere(0.0, 0.75, 0.05, 0.42 * bs, 0.30, 0.37 * bs, VINYL_WHITE, lat=18, lon=26))
+    torso_parts.append(_make_sphere(0.0, 0.52, 0.01, 0.38, 0.22, 0.33, VINYL_WHITE, lat=14, lon=22))
+    torso_parts.append(_make_torus(-0.13, 1.10, 0.265, 0.034, 0.006, PORT_SILVER, segs_R=16, segs_r=8, axis="z"))
+    torso_parts.append(_make_sphere(-0.13, 1.10, 0.263, 0.028, 0.028, 0.004, PORT_INNER, lat=8, lon=12))
 
-    # Access Port on Upper Left Chest (Healthcare chip slot)
-    meshes.append(_make_torus(-0.13, 1.10, 0.265, 0.034, 0.006, PORT_SILVER, segs_R=16, segs_r=8, axis="z"))
-    meshes.append(_make_sphere(-0.13, 1.10, 0.263, 0.028, 0.028, 0.004, PORT_INNER, lat=8, lon=12))
+    torso_mesh = _transform_mesh(
+        _merge(*torso_parts),
+        pivot=(0.0, 0.52, 0.0),
+        rot_x=torso_lean_z,
+        rot_y=torso_twist_y,
+    )
 
-    # 3. ARMS & HANDS
-    # Left Arm
-    meshes.append(_make_sphere(-0.36, 1.04, 0.0, 0.13, 0.13, 0.13, VINYL_WHITE, lat=12, lon=18))
-    meshes.append(_make_cone(-0.40, 0.78, 0.98, 0.01, 0.085, 0.085, 0.100, 0.100, VINYL_WHITE, segs=14))
-    meshes.append(_make_sphere(-0.42, 0.76, 0.02, 0.09, 0.09, 0.09, VINYL_WHITE, lat=10, lon=14))
-    meshes.append(_make_cone(-0.44, 0.54, 0.74, 0.04, 0.075, 0.075, 0.085, 0.085, VINYL_WHITE, segs=14))
-    meshes.append(_make_sphere(-0.45, 0.48, 0.06, 0.070, 0.060, 0.060, VINYL_WHITE, lat=10, lon=14))
-    # Left chubby fingers
-    meshes.append(_make_sphere(-0.43, 0.41, 0.08, 0.024, 0.034, 0.024, VINYL_WHITE, lat=8, lon=12))
-    meshes.append(_make_sphere(-0.46, 0.40, 0.06, 0.024, 0.036, 0.024, VINYL_WHITE, lat=8, lon=12))
-    meshes.append(_make_sphere(-0.49, 0.41, 0.04, 0.022, 0.032, 0.022, VINYL_WHITE, lat=8, lon=12))
-    meshes.append(_make_sphere(-0.39, 0.47, 0.09, 0.025, 0.025, 0.028, VINYL_WHITE, lat=8, lon=12))
+    # 3. LEFT ARM & HAND (Pivot at left shoulder: -0.36, 1.04, 0.0)
+    l_arm_parts: list[tuple[list[float], list[int]]] = []
+    l_arm_parts.append(_make_sphere(-0.36, 1.04, 0.0, 0.13, 0.13, 0.13, VINYL_WHITE, lat=12, lon=18))
+    l_arm_parts.append(_make_cone(-0.40, 0.78, 0.98, 0.01, 0.085, 0.085, 0.100, 0.100, VINYL_WHITE, segs=14))
+    l_arm_parts.append(_make_sphere(-0.42, 0.76, 0.02, 0.09, 0.09, 0.09, VINYL_WHITE, lat=10, lon=14))
+    l_arm_parts.append(_make_cone(-0.44, 0.54, 0.74, 0.04, 0.075, 0.075, 0.085, 0.085, VINYL_WHITE, segs=14))
+    l_arm_parts.append(_make_sphere(-0.45, 0.48, 0.06, 0.070, 0.060, 0.060, VINYL_WHITE, lat=10, lon=14))
+    l_arm_parts.append(_make_sphere(-0.43, 0.41, 0.08, 0.024, 0.034, 0.024, VINYL_WHITE, lat=8, lon=12))
+    l_arm_parts.append(_make_sphere(-0.46, 0.40, 0.06, 0.024, 0.036, 0.024, VINYL_WHITE, lat=8, lon=12))
+    l_arm_parts.append(_make_sphere(-0.49, 0.41, 0.04, 0.022, 0.032, 0.022, VINYL_WHITE, lat=8, lon=12))
+    l_arm_parts.append(_make_sphere(-0.39, 0.47, 0.09, 0.025, 0.025, 0.028, VINYL_WHITE, lat=8, lon=12))
 
-    # Right Arm
-    meshes.append(_make_sphere(0.36, 1.04, 0.0, 0.13, 0.13, 0.13, VINYL_WHITE, lat=12, lon=18))
-    meshes.append(_make_cone(0.40, 0.78, 0.98, 0.01, 0.085, 0.085, 0.100, 0.100, VINYL_WHITE, segs=14))
-    meshes.append(_make_sphere(0.42, 0.76, 0.02, 0.09, 0.09, 0.09, VINYL_WHITE, lat=10, lon=14))
-    meshes.append(_make_cone(0.44, 0.54, 0.74, 0.04, 0.075, 0.075, 0.085, 0.085, VINYL_WHITE, segs=14))
-    meshes.append(_make_sphere(0.45, 0.48, 0.06, 0.070, 0.060, 0.060, VINYL_WHITE, lat=10, lon=14))
-    # Right chubby fingers
-    meshes.append(_make_sphere(0.43, 0.41, 0.08, 0.024, 0.034, 0.024, VINYL_WHITE, lat=8, lon=12))
-    meshes.append(_make_sphere(0.46, 0.40, 0.06, 0.024, 0.036, 0.024, VINYL_WHITE, lat=8, lon=12))
-    meshes.append(_make_sphere(0.49, 0.41, 0.04, 0.022, 0.032, 0.022, VINYL_WHITE, lat=8, lon=12))
-    meshes.append(_make_sphere(0.39, 0.47, 0.09, 0.025, 0.025, 0.028, VINYL_WHITE, lat=8, lon=12))
+    l_arm_mesh = _transform_mesh(
+        _merge(*l_arm_parts),
+        pivot=(-0.36, 1.04, 0.0),
+        rot_x=l_arm_pitch,
+        rot_y=l_arm_yaw,
+        rot_z=l_arm_roll,
+    )
 
-    # 4. LEGS & FEET (Short, columnar, stable)
-    # Left leg & foot
-    meshes.append(_make_cylinder(-0.18, 0.12, 0.50, 0.0, 0.145, 0.150, VINYL_WHITE, segs=16))
-    meshes.append(_make_sphere(-0.18, 0.09, 0.07, 0.160, 0.095, 0.200, VINYL_WHITE, lat=12, lon=18))
+    # 4. RIGHT ARM & HAND (Pivot at right shoulder: 0.36, 1.04, 0.0)
+    r_arm_parts: list[tuple[list[float], list[int]]] = []
+    r_arm_parts.append(_make_sphere(0.36, 1.04, 0.0, 0.13, 0.13, 0.13, VINYL_WHITE, lat=12, lon=18))
+    r_arm_parts.append(_make_cone(0.40, 0.78, 0.98, 0.01, 0.085, 0.085, 0.100, 0.100, VINYL_WHITE, segs=14))
+    r_arm_parts.append(_make_sphere(0.42, 0.76, 0.02, 0.09, 0.09, 0.09, VINYL_WHITE, lat=10, lon=14))
+    r_arm_parts.append(_make_cone(0.44, 0.54, 0.74, 0.04, 0.075, 0.075, 0.085, 0.085, VINYL_WHITE, segs=14))
+    r_arm_parts.append(_make_sphere(0.45, 0.48, 0.06, 0.070, 0.060, 0.060, VINYL_WHITE, lat=10, lon=14))
+    r_arm_parts.append(_make_sphere(0.43, 0.41, 0.08, 0.024, 0.034, 0.024, VINYL_WHITE, lat=8, lon=12))
+    r_arm_parts.append(_make_sphere(0.46, 0.40, 0.06, 0.024, 0.036, 0.024, VINYL_WHITE, lat=8, lon=12))
+    r_arm_parts.append(_make_sphere(0.49, 0.41, 0.04, 0.022, 0.032, 0.022, VINYL_WHITE, lat=8, lon=12))
+    r_arm_parts.append(_make_sphere(0.39, 0.47, 0.09, 0.025, 0.025, 0.028, VINYL_WHITE, lat=8, lon=12))
 
-    # Right leg & foot
-    meshes.append(_make_cylinder(0.18, 0.12, 0.50, 0.0, 0.145, 0.150, VINYL_WHITE, segs=16))
-    meshes.append(_make_sphere(0.18, 0.09, 0.07, 0.160, 0.095, 0.200, VINYL_WHITE, lat=12, lon=18))
+    r_arm_mesh = _transform_mesh(
+        _merge(*r_arm_parts),
+        pivot=(0.36, 1.04, 0.0),
+        rot_x=r_arm_pitch,
+        rot_y=r_arm_yaw,
+        rot_z=r_arm_roll,
+    )
 
-    return _merge(*meshes)
+    # 5. LEGS & FEET (Short, columnar, stable)
+    legs_parts: list[tuple[list[float], list[int]]] = []
+    legs_parts.append(_make_cylinder(-0.18, 0.12, 0.50, 0.0, 0.145, 0.150, VINYL_WHITE, segs=16))
+    legs_parts.append(_make_sphere(-0.18, 0.09, 0.07, 0.160, 0.095, 0.200, VINYL_WHITE, lat=12, lon=18))
+    legs_parts.append(_make_cylinder(0.18, 0.12, 0.50, 0.0, 0.145, 0.150, VINYL_WHITE, segs=16))
+    legs_parts.append(_make_sphere(0.18, 0.09, 0.07, 0.160, 0.095, 0.200, VINYL_WHITE, lat=12, lon=18))
+    legs_mesh = _merge(*legs_parts)
+
+    return _merge(head_mesh, torso_mesh, l_arm_mesh, r_arm_mesh, legs_mesh)
 
 
 def build_bagusmax_armored(
     blink: float = 0.0,
     head_tilt: float = 0.0,
     breath: float = 1.0,
+    head_nod: float = 0.0,
+    head_turn: float = 0.0,
+    l_arm_pitch: float = 0.0,
+    l_arm_roll: float = 0.0,
+    l_arm_yaw: float = 0.0,
+    r_arm_pitch: float = 0.0,
+    r_arm_roll: float = 0.0,
+    r_arm_yaw: float = 0.0,
+    torso_lean_z: float = 0.0,
+    torso_twist_y: float = 0.0,
 ) -> tuple[list[float], list[int]]:
-    """Build BAGUSMAX ARMORED Form (DEEP_REASONING Mode).
+    """Build BAGUSMAX ARMORED Form (DEEP_REASONING Mode) with articulated 3D joints.
 
     Red armored hero suit:
-    - Red aerodynamic helmet with side ear winglets and central ridge.
-    - White visor aperture showing two black eyes connected by thin line.
-    - Massive curved red breastplate/chest armor.
-    - Segmented 6-plate dark purple abdominal armor insert.
-    - Red shoulder pauldrons with purple top panels.
-    - Flared red gauntlets with purple thruster ports and graphite mechanical fists.
-    - Stowed back wings (folded neatly along back, zero window clipping).
-    - Heavy red knee guards, greaves, armored boots with heel thrusters.
+    - Independent aerodynamic helmet with visor aperture around neck pivot (0.0, 1.25, 0.0).
+    - Curved breastplate, 6-plate abdominal armor, stowed back wings and thruster jetpack.
+    - Independent left shoulder pauldron, gauntlet, fist around shoulder pivot (-0.42, 1.10, 0.0).
+    - Independent right shoulder pauldron, gauntlet, fist around shoulder pivot (0.42, 1.10, 0.0).
+    - Heavy knee guards, greaves, armored boots with heel thrusters.
     """
     ARMOR_RED       = (0.86, 0.16, 0.08)
     ARMOR_DARK_RED  = (0.64, 0.10, 0.05)
@@ -496,125 +584,126 @@ def build_bagusmax_armored(
     BLACK_EYES      = (0.04, 0.04, 0.04)
     THRUSTER_YELLOW = (0.98, 0.82, 0.12)
 
-    meshes: list[tuple[list[float], list[int]]] = []
+    # 1. HELMET & VISOR (Pivot at neck 1.25)
+    head_parts: list[tuple[list[float], list[int]]] = []
+    head_parts.append(_make_sphere(0.0, 1.38, -0.01, 0.245, 0.20, 0.22, ARMOR_RED, lat=16, lon=24))
+    head_parts.append(_make_box(0.0, 1.38 + 0.16, -0.02, 0.05, 0.05, 0.26, ARMOR_RED))
+    head_parts.append(_make_box(-0.25, 1.38, -0.03, 0.035, 0.11, 0.13, ARMOR_RED))
+    head_parts.append(_make_box(0.25, 1.38, -0.03, 0.035, 0.11, 0.13, ARMOR_RED))
+    head_parts.append(_make_sphere(0.0, 1.38 - 0.03, 0.178, 0.145, 0.105, 0.035, VISOR_WHITE, lat=12, lon=18))
 
-    # 1. HELMET & VISOR
-    head_cx = -head_tilt * 0.06
-    head_cy = 1.38 - abs(head_tilt) * 0.012
-    # Main red helmet dome
-    meshes.append(_make_sphere(head_cx, head_cy, -0.01, 0.245, 0.20, 0.22, ARMOR_RED, lat=16, lon=24))
-    # Top central aerodynamic ridge
-    meshes.append(_make_box(head_cx, head_cy + 0.16, -0.02, 0.05, 0.05, 0.26, ARMOR_RED))
-    # Side ear winglet fins
-    meshes.append(_make_box(head_cx - 0.25, head_cy, -0.03, 0.035, 0.11, 0.13, ARMOR_RED))
-    meshes.append(_make_box(head_cx + 0.25, head_cy, -0.03, 0.035, 0.11, 0.13, ARMOR_RED))
-
-    # White Visor Aperture (Face opening showing the Baymax eyes)
-    meshes.append(_make_sphere(head_cx, head_cy - 0.03, 0.178, 0.145, 0.105, 0.035, VISOR_WHITE, lat=12, lon=18))
-    # Two black eyes on visor
     eye_y_scale = max(0.1, 1.0 - blink * 0.9)
-    meshes.append(_make_sphere(head_cx - 0.065, head_cy - 0.03, 0.214, 0.016, 0.016 * eye_y_scale, 0.007, BLACK_EYES, lat=10, lon=14))
-    meshes.append(_make_sphere(head_cx + 0.065, head_cy - 0.03, 0.214, 0.016, 0.016 * eye_y_scale, 0.007, BLACK_EYES, lat=10, lon=14))
-    meshes.append(_make_box(head_cx, head_cy - 0.03, 0.215, 0.125, 0.0035, 0.006, BLACK_EYES))
+    head_parts.append(_make_sphere(-0.065, 1.38 - 0.03, 0.214, 0.016, 0.016 * eye_y_scale, 0.007, BLACK_EYES, lat=10, lon=14))
+    head_parts.append(_make_sphere(0.065, 1.38 - 0.03, 0.214, 0.016, 0.016 * eye_y_scale, 0.007, BLACK_EYES, lat=10, lon=14))
+    head_parts.append(_make_box(0.0, 1.38 - 0.03, 0.215, 0.125, 0.0035, 0.006, BLACK_EYES))
+    head_parts.append(_make_box(0.0, 1.38 - 0.13, 0.15, 0.24, 0.06, 0.11, ARMOR_RED))
+    head_parts.append(_make_cylinder(0.0, 1.18, 1.26, 0.0, 0.16, 0.16, GRAPHITE_JOINT, segs=16))
 
-    # Helmet chin / collar guard
-    meshes.append(_make_box(head_cx, head_cy - 0.13, 0.15, 0.24, 0.06, 0.11, ARMOR_RED))
-    # Graphite neck joint
-    meshes.append(_make_cylinder(0.0, 1.18, 1.26, 0.0, 0.16, 0.16, GRAPHITE_JOINT, segs=16))
+    head_mesh = _transform_mesh(
+        _merge(*head_parts),
+        pivot=(0.0, 1.25, 0.0),
+        rot_x=head_nod,
+        rot_y=head_turn,
+        rot_z=head_tilt,
+    )
 
-    # 2. CHEST ARMOR & ABDOMINAL PLATES
-    # Upper breastplate
-    meshes.append(_make_sphere(0.0, 1.08, 0.04, 0.36, 0.22, 0.30, ARMOR_RED, lat=16, lon=24))
-    # Pectoral armor plates
-    meshes.append(_make_sphere(-0.15, 1.08, 0.22, 0.16, 0.12, 0.10, ARMOR_RED, lat=12, lon=16))
-    meshes.append(_make_sphere(0.15, 1.08, 0.22, 0.16, 0.12, 0.10, ARMOR_RED, lat=12, lon=16))
-    # Chest chip port emblem (purple accent on left chest)
-    meshes.append(_make_sphere(-0.13, 1.11, 0.28, 0.035, 0.035, 0.006, PURPLE_ACCENT, lat=10, lon=14))
+    # 2. CHEST ARMOR, ABDOMINAL PLATES, WINGS & JETPACK
+    torso_parts: list[tuple[list[float], list[int]]] = []
+    torso_parts.append(_make_sphere(0.0, 1.08, 0.04, 0.36, 0.22, 0.30, ARMOR_RED, lat=16, lon=24))
+    torso_parts.append(_make_sphere(-0.15, 1.08, 0.22, 0.16, 0.12, 0.10, ARMOR_RED, lat=12, lon=16))
+    torso_parts.append(_make_sphere(0.15, 1.08, 0.22, 0.16, 0.12, 0.10, ARMOR_RED, lat=12, lon=16))
+    torso_parts.append(_make_sphere(-0.13, 1.11, 0.28, 0.035, 0.035, 0.006, PURPLE_ACCENT, lat=10, lon=14))
 
-    # Segmented 6-plate dark purple abdominal armor insert (2 cols x 3 rows)
-    # Row 1 (upper abs)
-    meshes.append(_make_box(-0.075, 0.93, 0.28, 0.12, 0.075, 0.05, PURPLE_ACCENT))
-    meshes.append(_make_box(0.075, 0.93, 0.28, 0.12, 0.075, 0.05, PURPLE_ACCENT))
-    # Row 2 (mid abs)
-    meshes.append(_make_box(-0.085, 0.83, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
-    meshes.append(_make_box(0.085, 0.83, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
-    # Row 3 (lower abs)
-    meshes.append(_make_box(-0.085, 0.73, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
-    meshes.append(_make_box(0.085, 0.73, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
+    # Segmented abs insert
+    torso_parts.append(_make_box(-0.075, 0.93, 0.28, 0.12, 0.075, 0.05, PURPLE_ACCENT))
+    torso_parts.append(_make_box(0.075, 0.93, 0.28, 0.12, 0.075, 0.05, PURPLE_ACCENT))
+    torso_parts.append(_make_box(-0.085, 0.83, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
+    torso_parts.append(_make_box(0.085, 0.83, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
+    torso_parts.append(_make_box(-0.085, 0.73, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
+    torso_parts.append(_make_box(0.085, 0.73, 0.31, 0.13, 0.075, 0.05, PURPLE_ACCENT))
 
-    # Flanking red abdominal obliques
-    meshes.append(_make_sphere(-0.28, 0.82, 0.10, 0.16, 0.24, 0.24, ARMOR_RED, lat=12, lon=18))
-    meshes.append(_make_sphere(0.28, 0.82, 0.10, 0.16, 0.24, 0.24, ARMOR_RED, lat=12, lon=18))
+    torso_parts.append(_make_sphere(-0.28, 0.82, 0.10, 0.16, 0.24, 0.24, ARMOR_RED, lat=12, lon=18))
+    torso_parts.append(_make_sphere(0.28, 0.82, 0.10, 0.16, 0.24, 0.24, ARMOR_RED, lat=12, lon=18))
+    torso_parts.append(_make_box(0.0, 0.60, 0.02, 0.44, 0.09, 0.36, ARMOR_RED))
+    torso_parts.append(_make_box(0.0, 0.60, 0.20, 0.12, 0.08, 0.04, PURPLE_ACCENT))
+    torso_parts.append(_make_sphere(0.0, 0.52, 0.0, 0.32, 0.16, 0.28, GRAPHITE_JOINT, lat=12, lon=18))
 
-    # Pelvic belt & buckle
-    meshes.append(_make_box(0.0, 0.60, 0.02, 0.44, 0.09, 0.36, ARMOR_RED))
-    meshes.append(_make_box(0.0, 0.60, 0.20, 0.12, 0.08, 0.04, PURPLE_ACCENT))
-    meshes.append(_make_sphere(0.0, 0.52, 0.0, 0.32, 0.16, 0.28, GRAPHITE_JOINT, lat=12, lon=18))
+    # Stowed wings & jetpack
+    torso_parts.append(_make_box(0.0, 1.05, -0.22, 0.26, 0.30, 0.10, ARMOR_DARK_RED))
+    torso_parts.append(_make_cylinder(-0.08, 0.90, 1.06, -0.28, 0.045, 0.045, GRAPHITE_JOINT, segs=12))
+    torso_parts.append(_make_cylinder(-0.08, 0.88, 0.90, -0.28, 0.035, 0.035, THRUSTER_YELLOW, segs=10))
+    torso_parts.append(_make_cylinder(0.08, 0.90, 1.06, -0.28, 0.045, 0.045, GRAPHITE_JOINT, segs=12))
+    torso_parts.append(_make_cylinder(0.08, 0.88, 0.90, -0.28, 0.035, 0.035, THRUSTER_YELLOW, segs=10))
+    torso_parts.append(_make_box(-0.24, 1.10, -0.19, 0.12, 0.36, 0.04, ARMOR_RED))
+    torso_parts.append(_make_box(-0.30, 1.10, -0.19, 0.02, 0.34, 0.04, PURPLE_ACCENT))
+    torso_parts.append(_make_box(0.24, 1.10, -0.19, 0.12, 0.36, 0.04, ARMOR_RED))
+    torso_parts.append(_make_box(0.30, 1.10, -0.19, 0.02, 0.34, 0.04, PURPLE_ACCENT))
 
-    # 3. SHOULDERS & ARMS
-    # Left shoulder pauldron
-    meshes.append(_make_sphere(-0.42, 1.10, 0.0, 0.19, 0.19, 0.19, ARMOR_RED, lat=14, lon=20))
-    meshes.append(_make_cylinder(-0.42, 1.21, 1.25, 0.0, 0.14, 0.14, PURPLE_ACCENT, segs=14))
-    # Left bicep & elbow (graphite)
-    meshes.append(_make_cylinder(-0.40, 0.84, 0.98, 0.02, 0.095, 0.095, GRAPHITE_JOINT, segs=14))
-    meshes.append(_make_sphere(-0.43, 0.80, 0.03, 0.09, 0.09, 0.09, GRAPHITE_JOINT, lat=10, lon=14))
-    # Left armored forearm gauntlet
-    meshes.append(_make_cone(-0.46, 0.52, 0.76, 0.05, 0.115, 0.115, 0.100, 0.100, ARMOR_RED, segs=16))
-    meshes.append(_make_box(-0.46, 0.72, 0.05, 0.25, 0.05, 0.25, PURPLE_ACCENT))
-    # Left mechanical fist
-    meshes.append(_make_box(-0.46, 0.44, 0.07, 0.12, 0.11, 0.12, GRAPHITE_JOINT))
+    torso_mesh = _transform_mesh(
+        _merge(*torso_parts),
+        pivot=(0.0, 0.52, 0.0),
+        rot_x=torso_lean_z,
+        rot_y=torso_twist_y,
+    )
 
-    # Right shoulder pauldron
-    meshes.append(_make_sphere(0.42, 1.10, 0.0, 0.19, 0.19, 0.19, ARMOR_RED, lat=14, lon=20))
-    meshes.append(_make_cylinder(0.42, 1.21, 1.25, 0.0, 0.14, 0.14, PURPLE_ACCENT, segs=14))
-    # Right bicep & elbow (graphite)
-    meshes.append(_make_cylinder(0.40, 0.84, 0.98, 0.02, 0.095, 0.095, GRAPHITE_JOINT, segs=14))
-    meshes.append(_make_sphere(0.42, 0.80, 0.03, 0.09, 0.09, 0.09, GRAPHITE_JOINT, lat=10, lon=14))
-    # Right armored forearm gauntlet
-    meshes.append(_make_cone(0.46, 0.52, 0.76, 0.05, 0.115, 0.115, 0.100, 0.100, ARMOR_RED, segs=16))
-    meshes.append(_make_box(0.46, 0.72, 0.05, 0.25, 0.05, 0.25, PURPLE_ACCENT))
-    # Right mechanical fist
-    meshes.append(_make_box(0.46, 0.44, 0.07, 0.12, 0.11, 0.12, GRAPHITE_JOINT))
+    # 3. LEFT ARMORED ARM & GAUNTLET (Pivot at left shoulder: -0.42, 1.10, 0.0)
+    l_arm_parts: list[tuple[list[float], list[int]]] = []
+    l_arm_parts.append(_make_sphere(-0.42, 1.10, 0.0, 0.19, 0.19, 0.19, ARMOR_RED, lat=14, lon=20))
+    l_arm_parts.append(_make_cylinder(-0.42, 1.21, 1.25, 0.0, 0.14, 0.14, PURPLE_ACCENT, segs=14))
+    l_arm_parts.append(_make_cylinder(-0.40, 0.84, 0.98, 0.02, 0.095, 0.095, GRAPHITE_JOINT, segs=14))
+    l_arm_parts.append(_make_sphere(-0.43, 0.80, 0.03, 0.09, 0.09, 0.09, GRAPHITE_JOINT, lat=10, lon=14))
+    l_arm_parts.append(_make_cone(-0.46, 0.52, 0.76, 0.05, 0.115, 0.115, 0.100, 0.100, ARMOR_RED, segs=16))
+    l_arm_parts.append(_make_box(-0.46, 0.72, 0.05, 0.25, 0.05, 0.25, PURPLE_ACCENT))
+    l_arm_parts.append(_make_box(-0.46, 0.44, 0.07, 0.12, 0.11, 0.12, GRAPHITE_JOINT))
 
-    # 4. STOWED / FOLDED BACK WINGS & JETPACK
-    # Jetpack central pack
-    meshes.append(_make_box(0.0, 1.05, -0.22, 0.26, 0.30, 0.10, ARMOR_DARK_RED))
-    # Twin thruster ports
-    meshes.append(_make_cylinder(-0.08, 0.90, 1.06, -0.28, 0.045, 0.045, GRAPHITE_JOINT, segs=12))
-    meshes.append(_make_cylinder(-0.08, 0.88, 0.90, -0.28, 0.035, 0.035, THRUSTER_YELLOW, segs=10))
-    meshes.append(_make_cylinder(0.08, 0.90, 1.06, -0.28, 0.045, 0.045, GRAPHITE_JOINT, segs=12))
-    meshes.append(_make_cylinder(0.08, 0.88, 0.90, -0.28, 0.035, 0.035, THRUSTER_YELLOW, segs=10))
-    # Folded wings along back
-    meshes.append(_make_box(-0.24, 1.10, -0.19, 0.12, 0.36, 0.04, ARMOR_RED))
-    meshes.append(_make_box(-0.30, 1.10, -0.19, 0.02, 0.34, 0.04, PURPLE_ACCENT))
-    meshes.append(_make_box(0.24, 1.10, -0.19, 0.12, 0.36, 0.04, ARMOR_RED))
-    meshes.append(_make_box(0.30, 1.10, -0.19, 0.02, 0.34, 0.04, PURPLE_ACCENT))
+    l_arm_mesh = _transform_mesh(
+        _merge(*l_arm_parts),
+        pivot=(-0.42, 1.10, 0.0),
+        rot_x=l_arm_pitch,
+        rot_y=l_arm_yaw,
+        rot_z=l_arm_roll,
+    )
+
+    # 4. RIGHT ARMORED ARM & GAUNTLET (Pivot at right shoulder: 0.42, 1.10, 0.0)
+    r_arm_parts: list[tuple[list[float], list[int]]] = []
+    r_arm_parts.append(_make_sphere(0.42, 1.10, 0.0, 0.19, 0.19, 0.19, ARMOR_RED, lat=14, lon=20))
+    r_arm_parts.append(_make_cylinder(0.42, 1.21, 1.25, 0.0, 0.14, 0.14, PURPLE_ACCENT, segs=14))
+    r_arm_parts.append(_make_cylinder(0.40, 0.84, 0.98, 0.02, 0.095, 0.095, GRAPHITE_JOINT, segs=14))
+    r_arm_parts.append(_make_sphere(0.42, 0.80, 0.03, 0.09, 0.09, 0.09, GRAPHITE_JOINT, lat=10, lon=14))
+    r_arm_parts.append(_make_cone(0.46, 0.52, 0.76, 0.05, 0.115, 0.115, 0.100, 0.100, ARMOR_RED, segs=16))
+    r_arm_parts.append(_make_box(0.46, 0.72, 0.05, 0.25, 0.05, 0.25, PURPLE_ACCENT))
+    r_arm_parts.append(_make_box(0.46, 0.44, 0.07, 0.12, 0.11, 0.12, GRAPHITE_JOINT))
+
+    r_arm_mesh = _transform_mesh(
+        _merge(*r_arm_parts),
+        pivot=(0.42, 1.10, 0.0),
+        rot_x=r_arm_pitch,
+        rot_y=r_arm_yaw,
+        rot_z=r_arm_roll,
+    )
 
     # 5. LEGS & ARMORED BOOTS
-    # Left leg
-    meshes.append(_make_cylinder(-0.18, 0.34, 0.54, 0.0, 0.145, 0.150, ARMOR_RED, segs=14))
-    meshes.append(_make_box(-0.18, 0.34, 0.16, 0.14, 0.12, 0.06, ARMOR_RED))
-    meshes.append(_make_box(-0.18, 0.34, 0.18, 0.08, 0.08, 0.04, PURPLE_ACCENT))
-    meshes.append(_make_sphere(-0.18, 0.32, 0.0, 0.12, 0.10, 0.12, GRAPHITE_JOINT, lat=10, lon=14))
-    meshes.append(_make_cylinder(-0.18, 0.12, 0.32, 0.0, 0.155, 0.160, ARMOR_RED, segs=14))
-    # Left boot
-    meshes.append(_make_sphere(-0.18, 0.09, 0.08, 0.165, 0.095, 0.22, ARMOR_RED, lat=12, lon=18))
-    meshes.append(_make_box(-0.18, 0.025, 0.07, 0.34, 0.045, 0.44, GRAPHITE_JOINT))
-    meshes.append(_make_cylinder(-0.18, 0.04, 0.10, -0.06, 0.04, 0.04, THRUSTER_YELLOW, segs=10))
+    legs_parts: list[tuple[list[float], list[int]]] = []
+    legs_parts.append(_make_cylinder(-0.18, 0.34, 0.54, 0.0, 0.145, 0.150, ARMOR_RED, segs=14))
+    legs_parts.append(_make_box(-0.18, 0.34, 0.16, 0.14, 0.12, 0.06, ARMOR_RED))
+    legs_parts.append(_make_box(-0.18, 0.34, 0.18, 0.08, 0.08, 0.04, PURPLE_ACCENT))
+    legs_parts.append(_make_sphere(-0.18, 0.32, 0.0, 0.12, 0.10, 0.12, GRAPHITE_JOINT, lat=10, lon=14))
+    legs_parts.append(_make_cylinder(-0.18, 0.12, 0.32, 0.0, 0.155, 0.160, ARMOR_RED, segs=14))
+    legs_parts.append(_make_sphere(-0.18, 0.09, 0.08, 0.165, 0.095, 0.22, ARMOR_RED, lat=12, lon=18))
+    legs_parts.append(_make_box(-0.18, 0.025, 0.07, 0.34, 0.045, 0.44, GRAPHITE_JOINT))
+    legs_parts.append(_make_cylinder(-0.18, 0.04, 0.10, -0.06, 0.04, 0.04, THRUSTER_YELLOW, segs=10))
 
-    # Right leg
-    meshes.append(_make_cylinder(0.18, 0.34, 0.54, 0.0, 0.145, 0.150, ARMOR_RED, segs=14))
-    meshes.append(_make_box(0.18, 0.34, 0.16, 0.14, 0.12, 0.06, ARMOR_RED))
-    meshes.append(_make_box(0.18, 0.34, 0.18, 0.08, 0.08, 0.04, PURPLE_ACCENT))
-    meshes.append(_make_sphere(0.18, 0.32, 0.0, 0.12, 0.10, 0.12, GRAPHITE_JOINT, lat=10, lon=14))
-    meshes.append(_make_cylinder(0.18, 0.12, 0.32, 0.0, 0.155, 0.160, ARMOR_RED, segs=14))
-    # Right boot
-    meshes.append(_make_sphere(0.18, 0.09, 0.08, 0.165, 0.095, 0.22, ARMOR_RED, lat=12, lon=18))
-    meshes.append(_make_box(0.18, 0.025, 0.07, 0.34, 0.045, 0.44, GRAPHITE_JOINT))
-    meshes.append(_make_cylinder(0.18, 0.04, 0.10, -0.06, 0.04, 0.04, THRUSTER_YELLOW, segs=10))
+    legs_parts.append(_make_cylinder(0.18, 0.34, 0.54, 0.0, 0.145, 0.150, ARMOR_RED, segs=14))
+    legs_parts.append(_make_box(0.18, 0.34, 0.16, 0.14, 0.12, 0.06, ARMOR_RED))
+    legs_parts.append(_make_box(0.18, 0.34, 0.18, 0.08, 0.08, 0.04, PURPLE_ACCENT))
+    legs_parts.append(_make_sphere(0.18, 0.32, 0.0, 0.12, 0.10, 0.12, GRAPHITE_JOINT, lat=10, lon=14))
+    legs_parts.append(_make_cylinder(0.18, 0.12, 0.32, 0.0, 0.155, 0.160, ARMOR_RED, segs=14))
+    legs_parts.append(_make_sphere(0.18, 0.09, 0.08, 0.165, 0.095, 0.22, ARMOR_RED, lat=12, lon=18))
+    legs_parts.append(_make_box(0.18, 0.025, 0.07, 0.34, 0.045, 0.44, GRAPHITE_JOINT))
+    legs_parts.append(_make_cylinder(0.18, 0.04, 0.10, -0.06, 0.04, 0.04, THRUSTER_YELLOW, segs=10))
+    legs_mesh = _merge(*legs_parts)
 
-    return _merge(*meshes)
-
+    return _merge(head_mesh, torso_mesh, l_arm_mesh, r_arm_mesh, legs_mesh)
 
 
 # ---------------------------------------------------------------------------
@@ -627,61 +716,118 @@ def build_character(
     blink: float = 0.0,
     head_tilt: float = 0.0,
     breath: float = 1.0,
+    head_nod: float = 0.0,
+    head_turn: float = 0.0,
+    l_arm_pitch: float = 0.0,
+    l_arm_roll: float = 0.0,
+    l_arm_yaw: float = 0.0,
+    r_arm_pitch: float = 0.0,
+    r_arm_roll: float = 0.0,
+    r_arm_yaw: float = 0.0,
+    torso_lean_z: float = 0.0,
+    torso_twist_y: float = 0.0,
 ) -> tuple[list[float], list[int]]:
-    """Build BAGUSMAX 3D companion character.
+    """Build BAGUSMAX 3D companion character with articulated joint support.
 
     Dispatches to build_bagusmax_armored or build_bagusmax_white based on form.
     """
     if str(form).upper() in (BagusmaxForm.ARMORED, "RED", "DEEP", "DEEP_REASONING"):
-        return build_bagusmax_armored(blink=blink, head_tilt=head_tilt, breath=breath)
-    return build_bagusmax_white(blink=blink, head_tilt=head_tilt, breath=breath)
+        return build_bagusmax_armored(
+            blink=blink,
+            head_tilt=head_tilt,
+            breath=breath,
+            head_nod=head_nod,
+            head_turn=head_turn,
+            l_arm_pitch=l_arm_pitch,
+            l_arm_roll=l_arm_roll,
+            l_arm_yaw=l_arm_yaw,
+            r_arm_pitch=r_arm_pitch,
+            r_arm_roll=r_arm_roll,
+            r_arm_yaw=r_arm_yaw,
+            torso_lean_z=torso_lean_z,
+            torso_twist_y=torso_twist_y,
+        )
+    return build_bagusmax_white(
+        blink=blink,
+        head_tilt=head_tilt,
+        breath=breath,
+        head_nod=head_nod,
+        head_turn=head_turn,
+        l_arm_pitch=l_arm_pitch,
+        l_arm_roll=l_arm_roll,
+        l_arm_yaw=l_arm_yaw,
+        r_arm_pitch=r_arm_pitch,
+        r_arm_roll=r_arm_roll,
+        r_arm_yaw=r_arm_yaw,
+        torso_lean_z=torso_lean_z,
+        torso_twist_y=torso_twist_y,
+    )
 
 
 # ---------------------------------------------------------------------------
 # Animation state machine
 # ---------------------------------------------------------------------------
 
-class AnimState:
-    IDLE = "IDLE"
-    LISTENING = "LISTENING"
-    HEARD_USER = "HEARD_USER"
-    THINKING = "THINKING"
-    DEEP_THINKING = "DEEP_THINKING"
-    SPEAKING = "SPEAKING"
-    HAPPY = "HAPPY"
-    SURPRISED = "SURPRISED"
-    CONFUSED = "CONFUSED"
-    WARNING = "WARNING"
-    TOOL_WORKING = "TOOL_WORKING"
-    SUCCESS = "SUCCESS"
-    ERROR = "ERROR"
-    SLEEPING = "SLEEPING"
-
-
 class CharacterAnimator:
-    """Drives animation parameters from the current state, active form, and elapsed time."""
+    """Drives articulated 3D animation parameters from conversation state, mode, audio RMS, and elapsed time."""
 
     def __init__(self) -> None:
-        self.state: str = AnimState.IDLE
+        self.state: str = AnimState.IDLE_BREATHING.value
         self.character_form: str = BagusmaxForm.WHITE
         self.target_form: str = BagusmaxForm.WHITE
         self.reasoning_mode: str = "FAST"
         self.morph_progress: float = 0.0
         self.t: float = 0.0  # animation clock
-        self.amplitude: float = 0.0  # audio amplitude for lip sync
+        self.amplitude: float = 0.0  # audio amplitude for speech synchronization
         self.hidden: bool = False
         self.animation_enabled: bool = True
         self.gesture: str = "none"
         self.gesture_timer: float = 0.0
 
+        # Conversation bridge for state & priority management
+        self.bridge: ConversationAnimationBridge = ConversationAnimationBridge()
+
+        # Articulated joint states (current interpolated values)
+        self.head_tilt: float = 0.0
+        self.head_nod: float = 0.0
+        self.head_turn: float = 0.0
+        self.l_arm_pitch: float = 0.0
+        self.l_arm_roll: float = 0.0
+        self.l_arm_yaw: float = 0.0
+        self.r_arm_pitch: float = 0.0
+        self.r_arm_roll: float = 0.0
+        self.r_arm_yaw: float = 0.0
+        self.torso_lean_z: float = 0.0
+        self.torso_twist_y: float = 0.0
+        self.breath_scale: float = 1.0
+        self.breath_y: float = 0.0
+        self.bob_y: float = 0.0
+        self.lean_x: float = 0.0
+        self.wave_bob: float = 0.0
+
         # Random idle gesture timer
-        self._next_idle_gesture: float = 3.0
+        self._next_idle_gesture: float = 4.0
         self._idle_gesture: str = "none"
 
     def set_state(self, state: str) -> None:
-        """Set animation state safely."""
-        if hasattr(AnimState, state):
-            self.state = state
+        """Set animation state safely, respecting legacy aliases."""
+        clean = state.strip().upper()
+        if hasattr(AnimState, clean):
+            self.state = getattr(AnimState, clean).value
+        elif clean in ("HEARD_USER",):
+            self.state = AnimState.ACKNOWLEDGING.value
+        elif clean in ("LISTENING",):
+            self.state = AnimState.ACTIVE_LISTENING.value
+        elif clean in ("SPEAKING",):
+            self.state = AnimState.SPEECH_GESTURE.value
+        elif clean in ("TOOL_WORKING",):
+            self.state = AnimState.TOOL_GESTURE.value
+        elif clean in ("SURPRISED", "INTERRUPTED"):
+            self.state = AnimState.INTERRUPTION_RECOVERY.value
+        elif clean in ("IDLE", "SLEEPING"):
+            self.state = AnimState.IDLE_BREATHING.value
+        else:
+            self.state = clean
 
     def set_mode(self, mode: str) -> None:
         """Switch reasoning mode (FAST -> WHITE form, DEEP_REASONING -> ARMORED form)."""
@@ -689,8 +835,10 @@ class CharacterAnimator:
         self.reasoning_mode = clean
         if clean in ("DEEP", "DEEP_REASONING", "REASONING"):
             self.set_form(BagusmaxForm.ARMORED)
+            self.bridge.reasoning_mode = ReasoningMode.DEEP_REASONING
         else:
             self.set_form(BagusmaxForm.WHITE)
+            self.bridge.reasoning_mode = ReasoningMode.FAST
 
     def set_form(self, form: str) -> None:
         """Set target form directly."""
@@ -705,7 +853,7 @@ class CharacterAnimator:
         return self.t
 
     def update(self, dt: float) -> None:
-        # Smooth morph/transformation progress between WHITE and ARMORED always completes
+        # Smooth morph/transformation progress between WHITE and ARMORED
         if self.character_form != self.target_form:
             self.morph_progress += dt * 2.5
             if self.morph_progress >= 1.0:
@@ -725,27 +873,137 @@ class CharacterAnimator:
             if self.gesture_timer <= 0.0:
                 self.gesture = "none"
 
-        if self.t > self._next_idle_gesture and self.state == AnimState.IDLE:
-            import random
-            self._idle_gesture = random.choice(
-                ["brow_raise", "wink", "head_tilt", "bounce", "wave", "none"]
-            )
-            self._next_idle_gesture = self.t + random.uniform(4.0, 8.0)
+        # Determine target joint values based on active state and audio
+        t = self.t
+        s = self.state
+        a = self.amplitude
+
+        t_head_tilt = 0.0
+        t_head_nod = 0.0
+        t_head_turn = 0.0
+        t_l_arm_pitch = 0.0
+        t_l_arm_roll = 0.0
+        t_l_arm_yaw = 0.0
+        t_r_arm_pitch = 0.0
+        t_r_arm_roll = 0.0
+        t_r_arm_yaw = 0.0
+        t_torso_lean_z = 0.0
+        t_torso_twist_y = 0.0
+        t_breath_scale = 1.0
+        t_breath_y = 0.0
+        t_bob_y = 0.0
+        t_lean_x = 0.0
+
+        # 1. State-specific targets
+        if s in (AnimState.ACTIVE_LISTENING.value, AnimState.ATTENTIVE.value, "LISTENING"):
+            t_torso_lean_z = 0.045
+            t_head_tilt = 0.065
+            t_head_nod = 0.02
+            t_l_arm_roll = -0.04
+            t_r_arm_roll = 0.04
+            t_breath_y = math.sin(t * 2 * math.pi * 0.5) * 0.008
+
+        elif s in (AnimState.ACKNOWLEDGING.value, "HEARD_USER", AnimState.HEARD_USER.value):
+            t_head_nod = 0.11 * max(0.0, math.sin(t * 8.0))
+            t_torso_lean_z = 0.02
+
+        elif s in (AnimState.THINKING.value, "THINKING"):
+            t_head_tilt = math.sin(t * 1.5) * 0.075
+            t_head_nod = -0.035
+            t_torso_lean_z = 0.015
+            t_r_arm_roll = 0.06
+
+        elif s in (AnimState.DEEP_THINKING.value, "DEEP_THINKING"):
+            t_head_tilt = 0.04
+            t_head_turn = math.sin(t * 1.2) * 0.06
+            t_torso_twist_y = math.sin(t * 1.0) * 0.05
+            t_r_arm_pitch = 0.20
+            t_r_arm_roll = 0.08
+
+        elif s in (AnimState.TOOL_GESTURE.value, AnimState.TOOL_WORKING.value, "TOOL_WORKING"):
+            t_r_arm_pitch = 0.32 + math.sin(t * 3.5) * 0.08
+            t_r_arm_roll = 0.14
+            t_head_nod = 0.03
+
+        elif s in (AnimState.SPEECH_GESTURE.value, AnimState.SPEAKING.value, "SPEAKING"):
+            # Synchronized mouthless Baymax speech motion
+            t_head_nod = math.sin(t * 15.0) * a * 0.075
+            t_breath_scale = 1.0 + a * 0.05
+            t_r_arm_pitch = 0.26 + math.sin(t * 4.0) * a * 0.22
+            t_r_arm_roll = 0.12 + math.cos(t * 3.5) * a * 0.10
+            t_l_arm_roll = -0.04 - a * 0.04
+            t_bob_y = math.sin(t * 14.0) * a * 0.012
+
+        elif s in (AnimState.INTERRUPTION_RECOVERY.value, AnimState.SURPRISED.value, "SURPRISED"):
+            t_torso_lean_z = 0.05
+            t_head_tilt = 0.07
+            t_head_nod = -0.02
+            t_l_arm_roll = -0.05
+            t_r_arm_roll = 0.05
+
+        elif s in (AnimState.HAPPY_REACTION.value, AnimState.HAPPY.value, "HAPPY"):
+            t_bob_y = abs(math.sin(t * 2 * math.pi * 2.2)) * 0.04
+            t_head_tilt = math.sin(t * 4.0) * 0.05
+
+        elif s in (AnimState.CONFUSED_REACTION.value, AnimState.CONFUSED.value, "CONFUSED"):
+            t_head_tilt = 0.09
+            t_head_nod = -0.02
+
+        else:  # IDLE_BREATHING / default
+            speed = 0.45
+            t_breath_y = math.sin(t * 2 * math.pi * speed) * 0.012
+            t_breath_scale = 1.0 + math.sin(t * 2 * math.pi * speed) * 0.02
+            t_head_tilt = math.sin(t * 0.8) * 0.015
+
+        # 2. Gestural overlays
+        if self.gesture == "wave":
+            t_l_arm_roll = -1.15
+            t_l_arm_pitch = math.sin(t * 9.0) * 0.28
+        elif self.gesture == "nod":
+            t_head_nod = math.sin(t * 8.0) * 0.10
+        elif self.gesture == "turn":
+            t_head_turn = math.sin(t * 4.0) * 0.25
+
+        # 3. Smooth delta-time interpolation (lerp)
+        blend_spd = 25.0 if s in (AnimState.INTERRUPTION_RECOVERY.value, "SURPRISED") else 8.0
+        self.head_tilt += (t_head_tilt - self.head_tilt) * min(1.0, dt * blend_spd)
+        self.head_nod += (t_head_nod - self.head_nod) * min(1.0, dt * blend_spd)
+        self.head_turn += (t_head_turn - self.head_turn) * min(1.0, dt * blend_spd)
+        self.l_arm_pitch += (t_l_arm_pitch - self.l_arm_pitch) * min(1.0, dt * blend_spd)
+        self.l_arm_roll += (t_l_arm_roll - self.l_arm_roll) * min(1.0, dt * blend_spd)
+        self.l_arm_yaw += (t_l_arm_yaw - self.l_arm_yaw) * min(1.0, dt * blend_spd)
+        self.r_arm_pitch += (t_r_arm_pitch - self.r_arm_pitch) * min(1.0, dt * blend_spd)
+        self.r_arm_roll += (t_r_arm_roll - self.r_arm_roll) * min(1.0, dt * blend_spd)
+        self.r_arm_yaw += (t_r_arm_yaw - self.r_arm_yaw) * min(1.0, dt * blend_spd)
+        self.torso_lean_z += (t_torso_lean_z - self.torso_lean_z) * min(1.0, dt * blend_spd)
+        self.torso_twist_y += (t_torso_twist_y - self.torso_twist_y) * min(1.0, dt * blend_spd)
+        self.breath_scale += (t_breath_scale - self.breath_scale) * min(1.0, dt * 6.0)
+        self.breath_y += (t_breath_y - self.breath_y) * min(1.0, dt * 6.0)
+        self.bob_y += (t_bob_y - self.bob_y) * min(1.0, dt * 10.0)
+        self.lean_x += (t_lean_x - self.lean_x) * min(1.0, dt * blend_spd)
 
     def get_params(self) -> dict[str, float]:
         """Return animation parameters for this frame."""
         t = self.t
         s = self.state
-        a = self.amplitude
 
         if not self.animation_enabled:
             return {
+                "head_tilt": 0.0,
+                "head_nod": 0.0,
+                "head_turn": 0.0,
+                "l_arm_pitch": 0.0,
+                "l_arm_roll": 0.0,
+                "l_arm_yaw": 0.0,
+                "r_arm_pitch": 0.0,
+                "r_arm_roll": 0.0,
+                "r_arm_yaw": 0.0,
+                "torso_lean_z": 0.0,
+                "torso_twist_y": 0.0,
                 "breath_y": 0.0,
                 "breath_scale": 1.0,
                 "bob_y": 0.0,
                 "lean_x": 0.0,
-                "head_tilt": 0.0,
-                "head_nod": 0.0,
                 "brow_raise": 0.0,
                 "blink": 0.0,
                 "mouth_open": 0.0,
@@ -755,88 +1013,38 @@ class CharacterAnimator:
                 "animation_enabled": 0.0,
             }
 
-        # Breathing: subtle up-down in IDLE/LISTENING/SLEEPING
-        breath_y = 0.0
-        if s in (AnimState.IDLE, AnimState.LISTENING, AnimState.SLEEPING):
-            speed = 0.35 if s == AnimState.SLEEPING else 0.65
-            breath_y = math.sin(t * 2 * math.pi * speed) * 0.012
-
-        # Inflatable chest breath scale
-        breath_scale = 1.0 + (math.sin(t * 2 * math.pi * 0.65) * 0.02)
-        if s == AnimState.SPEAKING:
-            breath_scale += a * 0.04
-
-        # Body bob: bouncy in HAPPY/SUCCESS
-        bob_y = 0.0
-        if s in (AnimState.HAPPY, AnimState.SUCCESS):
-            bob_y = abs(math.sin(t * 2 * math.pi * 2.2)) * 0.05
-        elif s == AnimState.SPEAKING:
-            bob_y = math.sin(t * 14.0) * a * 0.012
-
-        # Gestural wave bob
-        wave_bob = 0.0
-        if self.gesture == "wave":
-            wave_bob = math.sin(t * 10.0) * 0.025
-
-        # Lean forward in LISTENING
-        lean_x = 0.0
-        if s == AnimState.LISTENING:
-            lean_x = 0.035
-
-        # Head tilt / nod:
-        head_tilt = 0.0
-        if s in (AnimState.THINKING, AnimState.DEEP_THINKING, AnimState.CONFUSED):
-            head_tilt = math.sin(t * 2 * math.pi * 0.3) * 0.07
-        elif s == AnimState.LISTENING:
-            head_tilt = 0.05  # curious Baymax head cock
-        elif self.gesture == "nod":
-            head_tilt = math.sin(t * 8.0) * 0.04
-
-        # Speech synchronization for mouthless Baymax:
-        # Subtle head nod pitch during speaking
-        head_nod = 0.0
-        if s == AnimState.SPEAKING:
-            head_nod = math.sin(t * 18.0) * a * 0.04
-
-        # Eyebrow raise (for UI/state compatibility)
-        brow_raise = 0.0
-
-        # Blink: every ~4.2s normally, faster when confused/error
-        blink_period = 4.2 if s == AnimState.IDLE else 3.0
+        # Blink: every ~4.2s normally, faster when confused
+        blink_period = 4.2 if s == AnimState.IDLE_BREATHING.value else 3.0
         blink_phase = (t % blink_period) / blink_period
         blink = max(0.0, 1.0 - abs(blink_phase - 0.02) / 0.008) if blink_phase < 0.03 else 0.0
-        if s == AnimState.SLEEPING:
-            blink = 1.0
 
-        # Mouth: Baymax has no mouth; mouth_open kept at 0.0 for interface compatibility
-        mouth_open = 0.0
-
-        # Rotation (y-axis wiggle in DEEP_THINKING)
+        # Subtle rotation wiggle in DEEP_THINKING
         rot_y_extra = 0.0
-        if s == AnimState.DEEP_THINKING:
-            rot_y_extra = math.sin(t * 2 * math.pi * 0.5) * 8.0  # degrees
-
-        # TOOL_WORKING: spin
-        if s == AnimState.TOOL_WORKING:
-            rot_y_extra = (t * 90.0) % 360.0
-
-        # SLEEPING: slow sway
-        if s == AnimState.SLEEPING:
-            rot_y_extra = math.sin(t * 2 * math.pi * 0.15) * 5.0
+        if s == AnimState.DEEP_THINKING.value:
+            rot_y_extra = math.sin(t * 2 * math.pi * 0.5) * 6.0
 
         return {
-            "breath_y": breath_y,
-            "breath_scale": breath_scale,
-            "bob_y": bob_y,
-            "lean_x": lean_x,
-            "head_tilt": head_tilt,
-            "head_nod": head_nod,
-            "brow_raise": brow_raise,
+            "head_tilt": self.head_tilt,
+            "head_nod": self.head_nod,
+            "head_turn": self.head_turn,
+            "l_arm_pitch": self.l_arm_pitch,
+            "l_arm_roll": self.l_arm_roll,
+            "l_arm_yaw": self.l_arm_yaw,
+            "r_arm_pitch": self.r_arm_pitch,
+            "r_arm_roll": self.r_arm_roll,
+            "r_arm_yaw": self.r_arm_yaw,
+            "torso_lean_z": self.torso_lean_z,
+            "torso_twist_y": self.torso_twist_y,
+            "breath_y": self.breath_y,
+            "breath_scale": self.breath_scale,
+            "bob_y": self.bob_y,
+            "lean_x": self.lean_x,
+            "brow_raise": 0.0,
             "blink": blink,
-            "mouth_open": mouth_open,
+            "mouth_open": 0.0,
             "rot_y_extra": rot_y_extra,
             "morph_progress": self.morph_progress,
-            "wave_bob": wave_bob,
+            "wave_bob": self.wave_bob,
             "animation_enabled": 1.0,
         }
 
@@ -1298,19 +1506,36 @@ class IPCServer:
         event = msg.get("type", "")
         payload = msg.get("payload", {})
 
-        if event == "companion.set_state":
+        if event == "companion.conversation_event":
+            try:
+                ev = CompanionEvent.from_dict(payload)
+                cs, anim_st, changed = self.animator.bridge.process_event(ev)
+                self.animator.set_state(anim_st.value)
+                self.animator.amplitude = self.animator.bridge.audio_amplitude
+                if ev.event_type == ConversationEventType.MODE_CONFIRMED.value:
+                    m = str(ev.payload.get("mode", "FAST"))
+                    self.animator.set_mode(m)
+                elif ev.event_type == ConversationEventType.USER_INTERRUPTED.value:
+                    self.animator.amplitude = 0.0
+                    self.animator.set_state(AnimState.INTERRUPTION_RECOVERY.value)
+                elif ev.event_type == ConversationEventType.TTS_PLAYBACK_LEVEL.value:
+                    self.animator.amplitude = float(ev.payload.get("amplitude", 0.0))
+            except Exception as _err:
+                print(f"[CompanionIPC] conversation_event error: {_err}", file=sys.stderr)
+            return {"status": "ok"}
+
+        elif event == "companion.set_state":
             state = payload.get("state", "IDLE")
-            if hasattr(AnimState, state):
-                self.animator.state = state
+            self.animator.set_state(state)
         elif event == "companion.speak_start":
-            self.animator.state = AnimState.SPEAKING
+            self.animator.set_state("SPEAKING")
         elif event == "companion.speak_amplitude":
             self.animator.amplitude = float(payload.get("amplitude", 0.0))
         elif event == "companion.speak_end":
-            self.animator.state = AnimState.IDLE
+            self.animator.set_state("IDLE")
             self.animator.amplitude = 0.0
         elif event == "companion.interrupted":
-            self.animator.state = AnimState.LISTENING
+            self.animator.set_state("SURPRISED")
             self.animator.amplitude = 0.0
         elif event == "companion.show":
             self._window_should_show = True
@@ -1321,7 +1546,7 @@ class IPCServer:
         elif event == "companion.shutdown":
             self._window_should_close = True
         elif event == "companion.reset":
-            self.animator.state = AnimState.IDLE
+            self.animator.set_state("IDLE")
             self.animator.t = 0.0
         elif event == "companion.set_mode":
             mode = payload.get("mode", "FAST")
@@ -1459,18 +1684,21 @@ def run_renderer(port: int) -> None:
 
     # Build geometry for specific form
     def rebuild_mesh(form: str, params: dict[str, float]) -> tuple[moderngl.VertexArray, moderngl.Buffer]:
-        verts, idxs = (
-            build_bagusmax_armored(
-                blink=params.get("blink", 0.0),
-                head_tilt=params.get("head_tilt", 0.0),
-                breath=params.get("breath_scale", 1.0),
-            )
-            if form == BagusmaxForm.ARMORED
-            else build_bagusmax_white(
-                blink=params.get("blink", 0.0),
-                head_tilt=params.get("head_tilt", 0.0),
-                breath=params.get("breath_scale", 1.0),
-            )
+        builder = build_bagusmax_armored if form == BagusmaxForm.ARMORED else build_bagusmax_white
+        verts, idxs = builder(
+            blink=params.get("blink", 0.0),
+            head_tilt=params.get("head_tilt", 0.0),
+            breath=params.get("breath_scale", 1.0),
+            head_nod=params.get("head_nod", 0.0),
+            head_turn=params.get("head_turn", 0.0),
+            l_arm_pitch=params.get("l_arm_pitch", 0.0),
+            l_arm_roll=params.get("l_arm_roll", 0.0),
+            l_arm_yaw=params.get("l_arm_yaw", 0.0),
+            r_arm_pitch=params.get("r_arm_pitch", 0.0),
+            r_arm_roll=params.get("r_arm_roll", 0.0),
+            r_arm_yaw=params.get("r_arm_yaw", 0.0),
+            torso_lean_z=params.get("torso_lean_z", 0.0),
+            torso_twist_y=params.get("torso_twist_y", 0.0),
         )
         v_data = np.array(verts, dtype="f4")
         i_data = np.array(idxs, dtype="i4")
