@@ -76,6 +76,12 @@ class DeterministicFallbackProvider(BaseModelProvider):
 
         if tool_calls:
             content = f"[Mode Deterministik: Mengakses tool '{tool_calls[0].function_name}' untuk memproses query '{user_msg}']"
+        elif ticker:
+            content = (
+                f"Berdasarkan analisis OpenBagus untuk {ticker}:\n"
+                f"Data laporan keuangan, rasio valuasi, dan perbandingan emiten {ticker} dapat diakses melalui tools. "
+                f"Emiten aktif saat ini tercatat sebagai {ticker}."
+            )
         else:
             content = (
                 "OpenBagus beroperasi dalam mode fallback deterministik karena model LLM generatif belum terhubung.\n"

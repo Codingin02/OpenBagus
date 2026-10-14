@@ -22,6 +22,11 @@ from openbagus.voice.speech_normalizer import SpeechTextNormalizer
 from openbagus.voice.tts_engine import LocalTTSEngine
 from openbagus.voice.vad import VoiceActivityDetector
 
+try:
+    from openbagus.companion.controller import CompanionController
+except ImportError:
+    CompanionController = None  # type: ignore
+
 logger = logging.getLogger(__name__)
 
 
@@ -78,6 +83,12 @@ class VoiceTurnController:
         self._loop_active = False
         self._loop_thread: threading.Thread | None = None
         self._hands_free = True
+        self._companion = None
+        if CompanionController is not None:
+            try:
+                self._companion = CompanionController.get_instance()
+            except Exception:
+                self._companion = None
 
     def set_state(self, new_state: VoiceState) -> None:
         with self._lock:
@@ -91,9 +102,39 @@ class VoiceTurnController:
                     except Exception as e:
                         logger.warning("Error in on_state_change: %s", e)
 
+                if self._companion is not None:
+                    try:
+                        comp_map = {
+                            VoiceState.IDLE: "IDLE",
+                            VoiceState.LISTENING: "LISTENING",
+                            VoiceState.SPEECH_DETECTED: "HEARD_USER",
+                            VoiceState.ENDPOINTING: "HEARD_USER",
+                            VoiceState.TRANSCRIBING: "HEARD_USER",
+                            VoiceState.MODE_SELECTION: "THINKING",
+                            VoiceState.THINKING: (
+                                "DEEP_THINKING"
+                                if getattr(self.mode_controller, "current_mode", "") in ("DEEP", "DEEP_REASONING")
+                                else "THINKING"
+                            ),
+                            VoiceState.GENERATING_SPEECH: "THINKING",
+                            VoiceState.SPEAKING: "SPEAKING",
+                            VoiceState.INTERRUPTED: "SURPRISED",
+                            VoiceState.ERROR: "ERROR",
+                            VoiceState.CANCELLED: "IDLE",
+                        }
+                        target_comp_state = comp_map.get(new_state, "IDLE")
+                        self._companion.set_state(target_comp_state)
+                    except Exception:
+                        pass
+
     def _handle_interruption(self, turn_id: str) -> None:
         """Called immediately when barge-in is triggered."""
         self.playback_manager.stop_playback(interrupted=True)
+        if self._companion is not None:
+            try:
+                self._companion.interrupted(turn_id)
+            except Exception:
+                pass
         self.set_state(VoiceState.INTERRUPTED)
 
     def start_voice_loop(self, hands_free: bool = True) -> bool:
@@ -235,6 +276,12 @@ class VoiceTurnController:
         self.set_state(VoiceState.GENERATING_SPEECH)
         cancellation = self.interruption.get_cancellation_event()
 
+        if self._companion is not None:
+            try:
+                self._companion.speak_start(metrics.turn_id)
+            except Exception:
+                pass
+
         t_tts_start = time.perf_counter()
         first_chunk = True
 
@@ -249,6 +296,14 @@ class VoiceTurnController:
                 self.set_state(VoiceState.SPEAKING)
                 first_chunk = False
 
+            if self._companion is not None and len(audio_chunk) > 0:
+                try:
+                    rms = float(np.sqrt(np.mean(np.square(audio_chunk))))
+                    amp = min(1.0, max(0.0, rms * 4.0))
+                    self._companion.speak_amplitude(amp)
+                except Exception:
+                    pass
+
             self.playback_manager.enqueue(audio_chunk, samplerate=self.tts_engine.sample_rate)
 
         metrics.tts_total_latency_ms = (time.perf_counter() - t_tts_start) * 1000.0
@@ -259,6 +314,13 @@ class VoiceTurnController:
             if cancellation.is_set():
                 break
             time.sleep(0.05)
+
+        if self._companion is not None:
+            try:
+                self._companion.speak_amplitude(0.0)
+                self._companion.speak_end(metrics.turn_id)
+            except Exception:
+                pass
 
         self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
 

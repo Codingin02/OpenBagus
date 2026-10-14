@@ -18,6 +18,7 @@ from openbagus.ai.providers.base import (
     ChatMessage,
     ToolCall,
 )
+from openbagus.ai.providers.fallback import DeterministicFallbackProvider
 from openbagus.ai.providers.manager import ProviderManager
 from openbagus.ai.runtime.profiles import RuntimeProfile, get_profile
 from openbagus.ai.security.guard import SecurityGuard
@@ -56,6 +57,7 @@ class AgentResponse:
     provider_name: str = ""
     is_streamed: bool = False
     data_gaps: list[str] = field(default_factory=list)
+    thinking_trace: str = ""  # Internal reasoning from DEEP_REASONING mode — NEVER sent to TTS
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -87,10 +89,20 @@ class AgentHarness:
         context: WorkingContext | None = None,
         profile: RuntimeProfile | None = None,
         stream_callback: Callable[[str], None] | None = None,
+        mode: str = "BALANCED",
     ) -> AgentResponse:
         t_start = time.perf_counter()
         ctx = context or WorkingContext()
-        prof = profile or get_profile("BALANCED")
+
+        # Switch provider and profile based on mode
+        if mode.upper() in ("FAST",):
+            self.provider = self.provider_mgr.switch_to_fast()
+            prof = profile or get_profile("FAST")
+        elif mode.upper() in ("DEEP_REASONING", "DEEP", "DEEP_RESEARCH"):
+            self.provider = self.provider_mgr.switch_to_deep()
+            prof = profile or get_profile("DEEP_REASONING")
+        else:
+            prof = profile or get_profile("BALANCED")
 
         # STEP 1: Security & Injection Check
         if SecurityGuard.check_prompt_injection(user_query):
@@ -177,9 +189,12 @@ class AgentHarness:
 
         messages: list[ChatMessage] = [ChatMessage(role="system", content=sys_prompt)]
 
-        # Append recent turns (up to 6 turns for bounded context)
-        for t in ctx.turns[-6:]:
-            messages.append(ChatMessage(role=t["role"], content=t["content"]))
+        # Append recent turns (up to 4 turns for bounded context, compacting long text)
+        for t in ctx.turns[-4:]:
+            content = t["content"]
+            if len(content) > 800:
+                content = content[:800] + "... [ringkasan respon]"
+            messages.append(ChatMessage(role=t["role"], content=content))
         messages.append(ChatMessage(role="user", content=user_query))
 
         tool_defs = self.tools.list_definitions()
@@ -192,14 +207,19 @@ class AgentHarness:
         while iterations < max_iters:
             iterations += 1
             current_tools = tool_defs if iterations == 1 else None
-            resp = self.provider.generate(
-                messages=messages,
-                tools=current_tools,
-                max_tokens=prof.max_tokens,
-                temperature=prof.temperature,
-                stream=False,  # tools loop executes synchronously; final reply can stream
-                timeout=prof.timeout_seconds,
-            )
+            try:
+                resp = self.provider.generate(
+                    messages=messages,
+                    tools=current_tools,
+                    max_tokens=prof.max_tokens,
+                    temperature=prof.temperature,
+                    stream=False,  # tools loop executes synchronously; final reply can stream
+                    timeout=prof.timeout_seconds,
+                )
+            except Exception as e:
+                logger.warning("Provider generation failed (%s); falling back to deterministic provider", e)
+                fallback_p = DeterministicFallbackProvider()
+                resp = fallback_p.generate(messages=messages, tools=None)
 
             if isinstance(resp, Iterator):  # handle stream fallback
                 chunks = list(resp)
@@ -266,6 +286,9 @@ class AgentHarness:
             else:
                 final_text = resp.content if resp and resp.content else "Saya telah menerima pertanyaan Anda, namun data pendukung belum mencukupi untuk analisis lengkap."
 
+        # Capture thinking trace (DEEP_REASONING mode only) — NEVER expose to TTS or user-facing output
+        thinking_trace = getattr(resp, "thinking_trace", "") or "" if resp else ""
+
         # Stream callback delivery for responsive terminal UX
         if stream_callback and final_text:
             stream_callback(final_text)
@@ -281,7 +304,26 @@ class AgentHarness:
             latency_ms=elapsed,
             provider_name=self.provider.get_provider_name(),
             data_gaps=data_gaps,
+            thinking_trace=thinking_trace,
         )
+
+    @classmethod
+    def submit_turn(
+        cls,
+        session_id: str,
+        text: str,
+        mode: str = "FAST",
+        input_channel: str = "TEXT",
+    ) -> "AgentResponse":
+        """Convenience factory for voice system and external callers.
+
+        Gets (or creates) the singleton AgentHarness and runs one conversational turn.
+        session_id is unused here (kept for API compatibility with voice turn controller).
+        input_channel may be 'TEXT' or 'VOICE' (affects system prompt context in future).
+        """
+        harness = cls()
+        return harness.run(user_query=text, mode=mode)
+
 
     def _compose_evidence_response(
         self,
