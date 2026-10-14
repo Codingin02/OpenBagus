@@ -66,6 +66,37 @@ class LlamaServerProvider(BaseModelProvider):
         self._backend = backend
         return port
 
+    def check_health(self) -> dict[str, Any]:
+        """Queries /health on the local llama-server instance."""
+        if not self._port:
+            try:
+                self._ensure_server(timeout=5.0)
+            except Exception as e:
+                return {"status": "offline", "error": str(e)}
+        url = f"http://127.0.0.1:{self._port}/health"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except Exception as e:
+            return {"status": "error", "error": str(e)}
+
+    def check_slots(self) -> list[dict[str, Any]]:
+        """Queries /slots on the local llama-server instance."""
+        if not self._port:
+            try:
+                self._ensure_server(timeout=5.0)
+            except Exception:
+                return []
+        url = f"http://127.0.0.1:{self._port}/slots"
+        try:
+            req = urllib.request.Request(url, headers={"Accept": "application/json"})
+            with urllib.request.urlopen(req, timeout=3.0) as resp:
+                data = json.loads(resp.read().decode("utf-8"))
+                return data if isinstance(data, list) else data.get("slots", [])
+        except Exception:
+            return []
+
     def generate(
         self,
         messages: list[ChatMessage],
@@ -106,9 +137,15 @@ class LlamaServerProvider(BaseModelProvider):
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
-            raise RuntimeError(f"Llama server request error: {e} - {err_body}") from e
+            if e.code == 503:
+                raise RuntimeError(f"Llama server slots busy/unavailable (HTTP 503): {err_body}") from e
+            elif e.code == 400:
+                raise RuntimeError(f"Llama server context/argument error (HTTP 400): {err_body}") from e
+            raise RuntimeError(f"Llama server HTTP error {e.code}: {e.reason} - {err_body}") from e
         except (urllib.error.URLError, TimeoutError) as e:
-            raise RuntimeError(f"Llama server request error: {e}") from e
+            if "timed out" in str(e).lower() or isinstance(e, TimeoutError):
+                raise TimeoutError(f"Llama server timed out after {timeout}s: {e}") from e
+            raise RuntimeError(f"Llama server connection error: {e}") from e
 
         latency = (time.perf_counter() - t_start) * 1000
         choice = data.get("choices", [{}])[0]

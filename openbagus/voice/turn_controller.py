@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import enum
 import logging
+import re
 import threading
 import time
 import uuid
@@ -50,13 +51,16 @@ INCOMPLETE_TRAILING_WORDS = {
     "jika", "yaitu", "tentang", "seperti", "dengan", "soal", "saham",
     "analisis", "bagaimana", "kenapa", "apakah", "intinya", "lalu",
     "sebentar", "menurut", "anda", "kamu", "terkait", "secara", "pada",
-    "mengenai", "serta",
+    "mengenai", "serta", "yang", "itu", "jadi", "maksud", "saya",
+    "kira-kira", "energi", "komoditas",
 }
 
 INCOMPLETE_PREFIXES = (
     "kalau menurut", "untuk saham", "terus kalau", "saya mau", "jadi intinya",
     "tapi sebentar", "tolong analisis", "analisis saham", "coba tolong",
-    "kebijakan pemerintah", "menurut anda", "menurut kamu", "saya mau bandingkan",
+    "kebijakan pemerintah", "kebijakan pemerintah terkait", "menurut anda",
+    "menurut kamu", "saya mau bandingkan", "maksud saya", "apakah kebijakan",
+    "jadi terus", "tolong analisis saham",
 )
 
 
@@ -66,19 +70,30 @@ def is_likely_incomplete_utterance(transcript: str) -> bool:
     if not text:
         return True
 
+    # Trailing punctuation indicating continuation (ellipsis or comma)
+    if text.endswith("...") or text.endswith(",") or text.endswith("—"):
+        return True
+
     for prefix in INCOMPLETE_PREFIXES:
-        if text.startswith(prefix) and len(text.split()) <= 4:
+        if text.startswith(prefix) and len(text.split()) <= 6:
             return True
 
     words = text.split()
     if not words:
         return True
 
-    if len(words) <= 2 and words[0] in ("analisis", "tolong", "coba", "kalau", "untuk", "tadi"):
+    if len(words) <= 2 and words[0] in ("analisis", "tolong", "coba", "kalau", "untuk", "tadi", "jadi", "terus"):
         return True
 
     last_word = words[-1].rstrip(".,?!")
     if last_word in INCOMPLETE_TRAILING_WORDS:
+        if last_word == "lalu" and len(words) >= 2 and words[-2] in ("tahun", "bulan", "minggu", "waktu", "masa"):
+            pass
+        else:
+            return True
+
+    # "Tolong analisis saham RATU" without timeframe/question clause when length is short
+    if len(words) <= 4 and words[0] in ("tolong", "coba") and ("saham" in words or "emiten" in words):
         return True
 
     return False
@@ -258,10 +273,16 @@ class VoiceTurnController:
                     frame_rms = float(np.sqrt(np.mean(np.square(frame))))
                     _, _, prob = self.vad.process_frame(frame)
 
-                    # During playback, enforce acoustic RMS floor and higher probability
+                    # During playback, enforce render-reference acoustic tracking
                     # to prevent laptop speaker bleed / echo from triggering false barge-in
                     if self.state == VoiceState.SPEAKING:
-                        is_speech = (prob >= 0.70) and (frame_rms >= 0.007)
+                        render_rms = getattr(self.playback_manager, "get_current_render_energy", lambda: 0.0)()
+                        if render_rms > 0.003:
+                            # Speaker actively rendering: require near-end user speech clearly above speaker bleed envelope
+                            coupling_thresh = max(0.012, render_rms * 0.70 + 0.008)
+                            is_speech = (prob >= 0.75) and (frame_rms >= coupling_thresh)
+                        else:
+                            is_speech = (prob >= 0.70) and (frame_rms >= 0.007)
                     else:
                         is_speech = (prob >= 0.60) and (frame_rms >= 0.004)
 
@@ -369,7 +390,7 @@ class VoiceTurnController:
         # STEP 1: Speech-to-Text (ASR)
         self.set_state(VoiceState.TRANSCRIBING)
         t_asr_start = time.perf_counter()
-        normalized_res, asr_telemetry = self.asr_engine.transcribe(audio, sample_rate=16000)
+        normalized_res, asr_telemetry = self.asr_engine.transcribe(audio, sample_rate=16000, utterance_id=turn_id)
         metrics.asr_latency_ms = asr_telemetry.get("latency_ms", (time.perf_counter() - t_asr_start) * 1000.0)
 
         if cancellation.is_set():
@@ -385,7 +406,38 @@ class VoiceTurnController:
         if self.on_user_transcript:
             self.on_user_transcript(transcript, True)
 
-        # STEP 2: Check Mode Selection Commands or Pending Queries
+        # STEP 2: Check Contextual Acknowledgments ("Oke", "Baik", "Siap") or Mode Selection
+        cleaned_ack = transcript.lower().strip().rstrip(".!?,")
+        is_simple_ack = cleaned_ack in ("oke", "ok", "oke deh", "baik", "siap", "ya", "iya", "lanjutkan", "silakan")
+
+        if is_simple_ack:
+            # Check if there is an active pending action awaiting confirmation in working_context
+            pending_action = getattr(self.working_context, "pending_action", None)
+            if pending_action and isinstance(pending_action, dict):
+                action_type = pending_action.get("action")
+                ticker = pending_action.get("ticker", "")
+                self.working_context.pending_action = None  # Consume authorization
+                logger.info("Contextual acknowledgment '%s' authorized pending action: %s (%s)", transcript, action_type, ticker)
+                transcript = pending_action.get("resume_query") or f"Lanjutkan analisis saham {ticker}."
+            elif self.mode_controller.has_pending_query():
+                resolved_mode, pending = self.mode_controller.resolve_spoken_mode_answer(transcript)
+                if pending:
+                    transcript = pending.original_query
+                    logger.info("Resuming original query '%s' with resolved mode: %s", transcript[:30], resolved_mode)
+            else:
+                # Standalone acknowledgment without pending confirmation: fast path response
+                logger.info("Fast-path acknowledgment for isolated '%s'", transcript)
+                if not cancellation.is_set():
+                    self._speak_response("Baik.", "Baik.", metrics, turn_id)
+                return
+
+        # STEP 2b: Check Voice Preset Commands
+        voice_cmd_reply = self._handle_voice_preset_commands(transcript)
+        if voice_cmd_reply:
+            if not cancellation.is_set():
+                self._speak_response(voice_cmd_reply, voice_cmd_reply, metrics, turn_id)
+            return
+
         mode_cmd_reply = self.mode_controller.handle_mode_commands(transcript)
         if mode_cmd_reply:
             if not cancellation.is_set():
@@ -498,9 +550,29 @@ class VoiceTurnController:
 
         # ASR
         t_asr_start = time.perf_counter()
-        res, tele = self.asr_engine.transcribe(audio, sample_rate=16000)
+        res, tele = self.asr_engine.transcribe(audio, sample_rate=16000, utterance_id=turn_id)
         metrics.asr_latency_ms = tele.get("latency_ms", (time.perf_counter() - t_asr_start) * 1000.0)
         user_text = res.normalized_text
+
+        # Contextual acknowledgment check
+        cleaned_ack = user_text.lower().strip().rstrip(".!?,")
+        if cleaned_ack in ("oke", "ok", "oke deh", "baik", "siap", "ya", "iya", "lanjutkan", "silakan"):
+            pending_action = getattr(self.working_context, "pending_action", None)
+            if pending_action and isinstance(pending_action, dict):
+                ticker = pending_action.get("ticker", "")
+                self.working_context.pending_action = None
+                user_text = pending_action.get("resume_query") or f"Lanjutkan analisis saham {ticker}."
+            else:
+                metrics.e2e_voice_latency_ms = metrics.asr_latency_ms
+                self.diagnostics.record_turn(metrics)
+                return "Baik.", "Baik.", metrics
+
+        # Voice preset commands in direct utterance
+        voice_cmd_reply = self._handle_voice_preset_commands(user_text)
+        if voice_cmd_reply:
+            metrics.e2e_voice_latency_ms = metrics.asr_latency_ms
+            self.diagnostics.record_turn(metrics)
+            return voice_cmd_reply, voice_cmd_reply, metrics
 
         # Agent
         t_ag = time.perf_counter()
@@ -522,3 +594,35 @@ class VoiceTurnController:
 
         self.diagnostics.record_turn(metrics)
         return resp.content, spoken_text, metrics
+
+    def _handle_voice_preset_commands(self, transcript: str) -> str | None:
+        """Handles spoken and slash commands for voice preset switching and status inspection."""
+        low = transcript.lower().strip()
+        if not low:
+            return None
+
+        # Check status inquiries: "suara yang aktif sekarang apa?", "/voice status"
+        if low in ("/voice status", "voice status") or any(k in low for k in ("suara yang aktif sekarang apa", "status suara sekarang apa", "suara apa yang aktif", "suara aktif sekarang apa")):
+            from openbagus.ai.tools.system_tools import GetVoiceRuntimeStatusTool
+            tool = GetVoiceRuntimeStatusTool()
+            st, _ = tool.run()
+            preset = st.get("active_preset", "BAGUSMAX_CALM")
+            return f"Suara Bagusmax yang aktif saat ini adalah preset {preset}."
+
+        # Check preset change commands:
+        # e.g. "Bagusmax, gunakan suara calm", "Bagusmax, ganti ke suara natural", "Bagusmax, gunakan suara soft", "/voice preset calm"
+        m = re.search(r"(?:/voice\s+preset\s+|suara\s+preset\s+|(?:gunakan|ganti\s+ke|pakai|set)\s+suara\s+)(calm|natural|soft|bagusmax_calm|bagusmax_soft)", low)
+        if m:
+            target = m.group(1).upper()
+            from openbagus.ai.tools.system_tools import SetVoicePresetTool
+            tool = SetVoicePresetTool()
+            try:
+                res, _ = tool.run(preset=target)
+                applied = res.get("applied_preset", target)
+                if hasattr(self.tts_engine, "set_preset"):
+                    self.tts_engine.set_preset(applied)
+                return f"Baik, preset suara Bagusmax berhasil diubah ke {applied}."
+            except Exception as e:
+                return f"Maaf, gagal mengubah preset suara: {e}"
+
+        return None

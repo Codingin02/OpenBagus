@@ -42,6 +42,10 @@ DEFAULT_INITIAL_PROMPT = (
 
 
 
+_SHARED_WHISPER_MODEL: Any = None
+_SHARED_MODEL_KEY: tuple[str, str, str] | None = None
+
+
 class LocalASREngine:
     """High-performance local Indonesian ASR engine powered by faster-whisper on CUDA."""
 
@@ -59,6 +63,11 @@ class LocalASREngine:
         self._device = device
         self._compute_type = compute_type
         self._model_path = self._resolve_model_path(model_size_or_path)
+
+        # Multi-signal acoustic tracking state
+        self._noise_floor_rms: float = 0.0010
+        self._last_utterance_id: str | None = None
+        self._last_result: tuple[NormalizedASRResult, dict[str, Any]] | None = None
 
         self._init_model()
 
@@ -92,6 +101,12 @@ class LocalASREngine:
         if self._device == "cpu":
             self._compute_type = "int8"
 
+        global _SHARED_WHISPER_MODEL, _SHARED_MODEL_KEY
+        key = (self._model_path, self._device, self._compute_type)
+        if _SHARED_WHISPER_MODEL is not None and _SHARED_MODEL_KEY == key:
+            self._model = _SHARED_WHISPER_MODEL
+            return
+
         try:
             logger.info("Loading Whisper model from %s on %s (%s)...", self._model_path, self._device, self._compute_type)
             self._model = faster_whisper.WhisperModel(
@@ -100,16 +115,25 @@ class LocalASREngine:
                 compute_type=self._compute_type,
             )
             logger.info("Whisper model successfully loaded on %s", self._device)
+            _SHARED_WHISPER_MODEL = self._model
+            _SHARED_MODEL_KEY = key
         except Exception as e:
             logger.warning("Failed to load on CUDA, falling back to CPU int8: %s", e)
             try:
                 self._device = "cpu"
                 self._compute_type = "int8"
+                cpu_key = (self._model_path, "cpu", "int8")
+                if _SHARED_WHISPER_MODEL is not None and _SHARED_MODEL_KEY == cpu_key:
+                    self._model = _SHARED_WHISPER_MODEL
+                    return
+
                 self._model = faster_whisper.WhisperModel(
                     self._model_path,
                     device="cpu",
                     compute_type="int8",
                 )
+                _SHARED_WHISPER_MODEL = self._model
+                _SHARED_MODEL_KEY = cpu_key
             except Exception as e_cpu:
                 logger.error("Failed to load Whisper model on CPU: %s", e_cpu)
                 self._model = None
@@ -133,20 +157,58 @@ class LocalASREngine:
     def compute_type(self) -> str:
         return self._compute_type
 
+    @property
+    def noise_floor_rms(self) -> float:
+        return self._noise_floor_rms
+
+    def update_noise_floor(self, frame_or_rms: float | np.ndarray) -> float:
+        """Dynamically updates the estimated ambient noise floor using exponential moving average."""
+        if isinstance(frame_or_rms, (float, int)):
+            measured_rms = float(frame_or_rms)
+        else:
+            if len(frame_or_rms) == 0:
+                return self._noise_floor_rms
+            measured_rms = float(np.sqrt(np.mean(frame_or_rms.astype(np.float32) ** 2)))
+
+        alpha = 0.05
+        self._noise_floor_rms = (1.0 - alpha) * self._noise_floor_rms + alpha * measured_rms
+        self._noise_floor_rms = max(0.0001, min(0.05, self._noise_floor_rms))
+        return self._noise_floor_rms
+
+    def estimate_snr_db(self, audio: np.ndarray) -> float:
+        """Estimates Signal-to-Noise Ratio (SNR) in dB relative to current noise floor."""
+        if len(audio) == 0:
+            return 0.0
+        rms = float(np.sqrt(np.mean(audio.astype(np.float32) ** 2)))
+        snr = 20.0 * np.log10(max(rms, 1e-6) / max(self._noise_floor_rms, 1e-6))
+        return float(snr)
+
     def transcribe(
         self,
         audio: np.ndarray,
         sample_rate: int = 16000,
         language: str | None = None,
+        utterance_id: str | None = None,
     ) -> tuple[NormalizedASRResult, dict[str, Any]]:
         """Transcribes float32 16kHz audio with multi-signal acoustic gating.
 
         Returns:
             (NormalizedASRResult, telemetry: dict)
         """
-        if not self.is_available() or len(audio) == 0:
+        # Deduplication check
+        if utterance_id is not None and utterance_id == self._last_utterance_id and self._last_result is not None:
+            cached_res, cached_tele = self._last_result
+            tele = dict(cached_tele)
+            tele["deduplicated"] = True
+            return cached_res, tele
+
+        if len(audio) == 0:
             empty = NormalizedASRResult("", "", [], None, None, [])
-            return empty, {"latency_ms": 0.0, "audio_duration_s": 0.0, "device": self._device}
+            res = (empty, {"latency_ms": 0.0, "audio_duration_s": 0.0, "device": self._device, "deduplicated": False})
+            if utterance_id:
+                self._last_utterance_id = utterance_id
+                self._last_result = res
+            return res
 
         # Ensure float32 normalized [-1.0, 1.0]
         if audio.dtype != np.float32:
@@ -155,19 +217,47 @@ class LocalASREngine:
         audio_duration = len(audio) / sample_rate
         t_start = time.perf_counter()
 
-        # Acoustic energy floor check (reject silence, subtle breath, or ambient hum)
+        # Multi-signal acoustic energy metrics
         rms = float(np.sqrt(np.mean(audio ** 2)))
-        if rms < 0.0035:
-            logger.debug("Audio RMS %.5f below acoustic floor (0.0035); discarding silence", rms)
+        peak = float(np.max(np.abs(audio))) if len(audio) > 0 else 0.0
+        crest_factor = peak / (rms + 1e-9)
+        snr_db = self.estimate_snr_db(audio)
+
+        # Dynamic floor with hysteresis:
+        # Rejects pure digital silence or flat noise without energy contrast.
+        # But if crest_factor is high (> 3.2) and peak > 0.015, allow quiet speech through.
+        dynamic_floor = max(0.0015, self._noise_floor_rms * 1.25)
+        is_silence = (rms < 0.0010) or (rms < dynamic_floor and snr_db < 2.0 and crest_factor < 3.0)
+
+        if is_silence:
+            logger.debug(
+                "Audio rejected as silence (rms=%.5f, floor=%.5f, snr=%.1fdB, crest=%.2f)",
+                rms, dynamic_floor, snr_db, crest_factor,
+            )
             empty = NormalizedASRResult("", "", [], None, None, [])
-            return empty, {
+            res = (empty, {
                 "latency_ms": 0.0,
                 "audio_duration_s": round(audio_duration, 2),
                 "device": self._device,
                 "rms": round(rms, 5),
+                "snr_db": round(snr_db, 1),
+                "crest_factor": round(crest_factor, 2),
                 "rejected": "LOW_ENERGY_SILENCE",
                 "gate": "acoustic_rms_silence_floor",
-            }
+                "deduplicated": False,
+            })
+            if utterance_id:
+                self._last_utterance_id = utterance_id
+                self._last_result = res
+            return res
+
+        if not self.is_available():
+            empty = NormalizedASRResult("", "", [], None, None, [])
+            res = (empty, {"latency_ms": 0.0, "audio_duration_s": round(audio_duration, 2), "device": self._device, "deduplicated": False})
+            if utterance_id:
+                self._last_utterance_id = utterance_id
+                self._last_result = res
+            return res
 
         valid_segments = []
         try:
@@ -204,7 +294,7 @@ class LocalASREngine:
             discarded_segments = 0
 
         # YouTube / Outro hallucination gate:
-        # Reject common YouTube outro artifacts unless supported by genuine acoustic speech evidence
+        # Check if the phrase matches phantom outro markers
         lower_raw = raw_text.lower().strip()
         phantom_markers = (
             "terima kasih telah menonton",
@@ -215,14 +305,37 @@ class LocalASREngine:
             "sampai jumpa di video",
             "tonton terus video",
         )
+        has_outro_marker = any(marker in lower_raw for marker in phantom_markers)
         outro_suppressed = False
-        if any(marker in lower_raw for marker in phantom_markers):
-            avg_no_speech = float(np.mean([getattr(s, "no_speech_prob", 0.0) for s in valid_segments])) if valid_segments else 1.0
-            # Genuine user speech has higher RMS (>0.012) and low no_speech_prob (<0.25)
-            if rms < 0.012 or avg_no_speech > 0.25:
+        outro_accepted_as_genuine = False
+
+        if has_outro_marker and valid_segments:
+            avg_no_speech = float(np.mean([getattr(s, "no_speech_prob", 0.0) for s in valid_segments]))
+            avg_logprob = float(np.mean([getattr(s, "avg_logprob", 0.0) for s in valid_segments]))
+
+            # Genuine user speech has:
+            # 1. Substantial duration (>= 0.65s)
+            # 2. Good SNR (>= 4.5 dB) or reasonable RMS (>= 0.006)
+            # 3. Confident logprob (>= -1.1) and low no_speech_prob (<= 0.40)
+            # 4. Natural crest factor (>= 1.8)
+            is_genuine_speech = (
+                audio_duration >= 0.65
+                and (snr_db >= 4.5 or rms >= 0.006)
+                and avg_no_speech <= 0.40
+                and avg_logprob >= -1.1
+                and (crest_factor >= 1.5 or rms >= 0.012)
+            )
+
+            if is_genuine_speech:
                 logger.info(
-                    "Rejected phantom ASR hallucination: '%s' (rms=%.4f, avg_no_speech=%.3f)",
-                    raw_text, rms, avg_no_speech,
+                    "Outro phrase '%s' verified by genuine acoustic speech evidence (dur=%.2fs, rms=%.4f, snr=%.1fdB, avg_no_speech=%.3f, logprob=%.2f); ACCEPTED",
+                    raw_text, audio_duration, rms, snr_db, avg_no_speech, avg_logprob,
+                )
+                outro_accepted_as_genuine = True
+            else:
+                logger.info(
+                    "Rejected phantom ASR outro hallucination from low-evidence noise: '%s' (dur=%.2fs, rms=%.4f, snr=%.1fdB, avg_no_speech=%.3f, logprob=%.2f)",
+                    raw_text, audio_duration, rms, snr_db, avg_no_speech, avg_logprob,
                 )
                 raw_text = ""
                 outro_suppressed = True
@@ -240,9 +353,18 @@ class LocalASREngine:
             "device": self._device,
             "compute_type": self._compute_type,
             "rms": round(rms, 5),
+            "snr_db": round(snr_db, 1),
+            "crest_factor": round(crest_factor, 2),
             "hallucination_suppressed": hallucination_suppressed,
+            "outro_accepted_as_genuine": outro_accepted_as_genuine,
             "detected_language": getattr(info, "language", self.language) if "info" in locals() else self.language,
+            "deduplicated": False,
         }
 
-        return normalized_res, telemetry
+        res = (normalized_res, telemetry)
+        if utterance_id:
+            self._last_utterance_id = utterance_id
+            self._last_result = res
+
+        return res
 

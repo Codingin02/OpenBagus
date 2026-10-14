@@ -23,6 +23,8 @@ class WorkingContext:
     active_candidates: list[dict[str, Any]] = field(default_factory=list)
     explicit_constraints: dict[str, Any] = field(default_factory=dict)
     prior_observations: dict[str, Any] = field(default_factory=dict)
+    pending_action: dict[str, Any] | None = None
+    active_domain: str = "GENERAL"  # "GENERAL" | "EQUITY" | "CRYPTO" | "SYSTEM" | "VOICE"
     turns: list[dict[str, str]] = field(default_factory=list)
     user_style: str = "PROFESSIONAL_DIRECT"
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())

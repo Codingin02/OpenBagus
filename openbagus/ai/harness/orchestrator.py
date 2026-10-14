@@ -133,24 +133,58 @@ class AgentHarness:
                 ctx.time_horizon = "1 hari"
 
         # Check financial intent strictly before extracting tickers
-        from openbagus.ai.providers.fallback import COMMON_INDONESIAN_NON_TICKERS, FINANCIAL_CONTEXT_KEYWORDS
-        is_financial = any(kw in lower_q for kw in FINANCIAL_CONTEXT_KEYWORDS) or any(
-            t in lower_q for t in ("bbca", "bbri", "bmri", "tlkm", "asii", "ratu", "goto", "bren", "cuang")
+        from openbagus.ai.providers.fallback import (
+            LEXICAL_NON_TICKERS,
+            COLLISION_TICKERS,
+            FINANCIAL_CONTEXT_KEYWORDS,
         )
+        is_coverage_q = ("kenapa data" in lower_q or "data tidak lengkap" in lower_q or "data anda tidak lengkap" in lower_q or "data gap" in lower_q or "data anda" in lower_q)
         has_explicit_prefix = bool(re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE))
+        is_comparison = bool(re.search(r"\b(?:bandingkan|komparasi|versus|vs)\b", lower_q))
+        is_financial = (not is_coverage_q) and (
+            has_explicit_prefix or is_comparison or any(kw in lower_q for kw in FINANCIAL_CONTEXT_KEYWORDS) or any(
+                t in lower_q for t in ("bbca", "bbri", "bmri", "tlkm", "asii", "ratu", "goto", "bren", "cuan")
+            )
+        )
 
         # Extract explicit ticker if mentioned WITH financial context
-        if is_financial or has_explicit_prefix:
-            raw_words = re.findall(r"\b[A-Za-z]{4}\b", user_query)
-            for w in raw_words:
-                upper = w.upper()
-                if upper not in COMMON_INDONESIAN_NON_TICKERS and not corrections.get("entity_corrected"):
-                    from openbagus.domains.equities.catalog import EquityCatalog
-                    from openbagus.core.env import get_repo_root
-                    cat = EquityCatalog(get_repo_root())
-                    if cat.resolve(upper):
-                        ctx.active_ticker = upper
-                        break
+        if is_financial and not corrections.get("entity_corrected"):
+            from openbagus.domains.equities.catalog import EquityCatalog
+            from openbagus.core.env import get_repo_root
+            cat = EquityCatalog(get_repo_root())
+
+            # 1. Explicit prefix ("saham DATA", "emiten RATU")
+            pref_m = re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
+            if pref_m:
+                cand = pref_m.group(1).upper()
+                if cand not in LEXICAL_NON_TICKERS and cat.resolve(cand):
+                    ctx.active_ticker = cand
+
+            # 2. Comparison ("Bandingkan DATA dengan TLKM")
+            if not ctx.active_ticker:
+                comp_m = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\s+(?:dengan|dan|vs|versus)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
+                if comp_m:
+                    t1, t2 = comp_m.group(1).upper(), comp_m.group(2).upper()
+                    if t1 not in LEXICAL_NON_TICKERS and cat.resolve(t1):
+                        ctx.active_ticker = t1
+                    if t2 not in LEXICAL_NON_TICKERS and cat.resolve(t2):
+                        if t2 not in ctx.comparison_tickers:
+                            ctx.comparison_tickers.append(t2)
+
+            # 3. Standalone words
+            if not ctx.active_ticker:
+                raw_words = re.findall(r"\b[A-Za-z]{4}\b", user_query)
+                for w in raw_words:
+                    upper = w.upper()
+                    if upper in COLLISION_TICKERS:
+                        if any(act in lower_q for act in ("saham", "emiten", "analisis", "kinerja", "harga", "valuasi", "rekomendasi", "bandingkan", "vs", "versus")):
+                            if cat.resolve(upper):
+                                ctx.active_ticker = upper
+                                break
+                    elif upper not in LEXICAL_NON_TICKERS:
+                        if cat.resolve(upper):
+                            ctx.active_ticker = upper
+                            break
 
         # STEP 3: Complexity Classification & Fast Conversational Paths
         is_ack = bool(re.match(r"^(?:oke|ok|iya|ya|baik|sip|paham|siap|noted|mengerti)[\.\!\?]?\s*$", lower_q))
@@ -159,7 +193,6 @@ class AgentHarness:
         is_pause = bool(re.search(r"^(?:tunggu\s+sebentar|stop\s+dulu|sebentar|pause|tunggu|tahan\s+dulu)\b", lower_q)) and not is_financial
         is_casual = any(p in lower_q for p in ("ngobrol santai", "bicara santai", "obrolan santai", "cerita santai"))
         is_tutor_req = ("belajar bahasa inggris" in lower_q or "kursus bahasa inggris" in lower_q or "mode bahasa inggris" in lower_q)
-        is_coverage_q = ("kenapa data" in lower_q or "data tidak lengkap" in lower_q or "data anda tidak lengkap" in lower_q)
         is_ctrl_q = ("mengontrol laptop" in lower_q or "kontrol laptop" in lower_q or "bisa mengontrol" in lower_q)
         is_local_q = ("lokal atau cloud" in lower_q or "berjalan secara lokal" in lower_q or "offline atau online" in lower_q) and not is_financial
         is_gpu_q = (("gpu" in lower_q and "100" in lower_q) or "kenapa gpu saya" in lower_q)
@@ -309,6 +342,46 @@ class AgentHarness:
                 provider_name="LOCAL_DIRECT",
             )
 
+        # FAST PATH 9: Voice Status and Preset Switching
+        if any(k in lower_q for k in ("suara yang aktif sekarang apa", "status suara sekarang apa", "suara apa yang aktif", "suara aktif sekarang apa")) or lower_q in ("/voice status", "voice status"):
+            from openbagus.ai.tools.system_tools import GetVoiceRuntimeStatusTool
+            v_tool = GetVoiceRuntimeStatusTool()
+            st, _ = v_tool.run()
+            preset = st.get("active_preset", "BAGUSMAX_CALM")
+            voice_stat_text = f"Suara Bagusmax yang aktif saat ini adalah preset {preset}."
+            if stream_callback:
+                stream_callback(voice_stat_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", voice_stat_text)
+            return AgentResponse(
+                content=voice_stat_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
+            )
+
+        vm = re.search(r"(?:/voice\s+preset\s+|suara\s+preset\s+|(?:gunakan|ganti\s+ke|pakai|set)\s+suara\s+)(calm|natural|soft|bagusmax_calm|bagusmax_soft)", lower_q)
+        if vm:
+            target = vm.group(1).upper()
+            from openbagus.ai.tools.system_tools import SetVoicePresetTool
+            p_tool = SetVoicePresetTool()
+            try:
+                res, _ = p_tool.run(preset=target)
+                applied = res.get("applied_preset", target)
+                preset_text = f"Baik, preset suara Bagusmax berhasil diubah ke {applied}."
+            except Exception as e:
+                preset_text = f"Maaf, gagal mengubah preset suara: {e}"
+            if stream_callback:
+                stream_callback(preset_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", preset_text)
+            return AgentResponse(
+                content=preset_text,
+                working_context=ctx,
+                latency_ms=(time.perf_counter() - t_start) * 1000,
+                provider_name="LOCAL_DIRECT",
+            )
+
         if is_thanks:
             thanks_text = "Sama-sama! Senang bisa membantu Anda. Beritahu saya jika ada hal lain yang ingin didiskusikan."
             if stream_callback:
@@ -451,6 +524,7 @@ class AgentHarness:
                             "success": tool_res.success,
                             "error": tool_res.error,
                             "latency_ms": tool_res.latency_ms,
+                            "data": tool_res.data,
                         })
                         if tool_res.success and isinstance(tool_res.data, dict) and tool_res.data.get("status") == "DATA_GAP":
                             data_gaps.append(f"{tc.function_name}: {tool_res.data.get('message')}")
@@ -537,9 +611,10 @@ class AgentHarness:
         ticker = ctx.active_ticker or "Emiten Target"
         lines = []
 
-        # Find key tool outputs
+        profile_tool = next((t for t in executed_tools if t["name"] in ("resolve_security", "get_company_profile")), None)
         price_tool = next((t for t in executed_tools if t["name"] == "get_market_price"), None)
-        events_tool = next((t for t in executed_tools if t["name"] == "get_recent_company_events" or t["name"] == "search_official_disclosures"), None)
+        ohlcv_tool = next((t for t in executed_tools if t["name"] == "get_ohlcv"), None)
+        events_tool = next((t for t in executed_tools if t["name"] in ("get_recent_company_events", "search_official_disclosures")), None)
         ratios_tool = next((t for t in executed_tools if t["name"] == "calculate_financial_ratios"), None)
         val_tool = next((t for t in executed_tools if t["name"] == "calculate_valuation"), None)
         screener_tool = next((t for t in executed_tools if t["name"] == "run_screener"), None)
@@ -562,9 +637,29 @@ class AgentHarness:
 
         lines.append(f"Berikut hasil pemeriksaan analitis untuk **{ticker}**:")
 
+        if profile_tool and profile_tool.get("success"):
+            p_data = profile_tool.get("data") or {}
+            c_name = p_data.get("name", "")
+            board = p_data.get("board", "")
+            sector = p_data.get("sector", "")
+            if c_name:
+                lines.append(f"- **Profil Emiten:** {c_name} (Papan: {board}, Sektor: {sector}).")
+
         if price_tool:
-            # check price
-            lines.append("- **Harga Pasar EOD:** Data harga pasar terakhir diperiksa dari arsip resmi.")
+            p_data = price_tool.get("data") or {}
+            if p_data.get("status") == "DATA_GAP" or (p_data.get("price") is None and not p_data.get("close")):
+                lines.append("- **Harga Pasar EOD:** Data harga pasar harian berstatus DATA_GAP (belum diimpor ke database lokal).")
+            else:
+                c_close = p_data.get("close", 0.0)
+                obs = p_data.get("observation_date", "-")
+                lines.append(f"- **Harga Pasar EOD:** Rp {c_close:,.0f} (per tanggal {obs}, data EOD terverifikasi).")
+
+        if ohlcv_tool:
+            o_data = ohlcv_tool.get("data") or {}
+            if o_data.get("status") == "DATA_GAP" or not o_data.get("bars"):
+                lines.append("- **Riwayat Bar OHLCV:** Data bar harga historis belum diimpor (DATA_GAP).")
+            else:
+                lines.append(f"- **Riwayat Bar OHLCV:** Tersedia {o_data.get('count', len(o_data.get('bars', [])))} bar harga harian.")
 
         if events_tool:
             lines.append("- **Keterbukaan Informasi:** Pengumuman material telah diverifikasi terhadap dokumen publik resmi BEI.")
@@ -577,6 +672,9 @@ class AgentHarness:
 
         if liquidity_tool:
             lines.append("- **Mikrostruktur & Likuiditas:** Likuiditas dan aturan fraksi harga bursa telah diverifikasi.")
+
+        if not any([events_tool, ratios_tool, val_tool, liquidity_tool]):
+            lines.append("- **Status Fundamental & Finansial:** Laporan keuangan mendalam saat ini berstatus DATA_GAP (offline) dan dapat diimpor saat feed pasar sinkron.")
 
         lines.append("\nApakah Anda ingin membedah sisi fundamentalnya lebih dalam, atau menguji setup teknikal/swing-nya?")
         return "\n".join(lines)

@@ -50,6 +50,10 @@ class AudioPlaybackManager:
         self._lock = threading.Lock()
         self._current_stream: Any = None
 
+        # Render-reference tracking for echo suppression / full-duplex double-talk
+        self._current_render_rms: float = 0.0
+        self._render_energy_timestamp: float = 0.0
+
     @property
     def is_playing(self) -> bool:
         return self._is_playing
@@ -65,6 +69,12 @@ class AudioPlaybackManager:
     @property
     def current_generation_id(self) -> int:
         return self._current_generation_id
+
+    def get_current_render_energy(self) -> float:
+        """Returns the RMS energy of audio actively rendering to speakers (0.0 if not rendering)."""
+        if not self._is_playing or (time.time() - self._render_energy_timestamp > 0.15):
+            return 0.0
+        return self._current_render_rms
 
     def new_turn(self) -> int:
         """Starts a new generation turn, invalidating any previous turn's pending audio."""
@@ -171,6 +181,8 @@ class AudioPlaybackManager:
                         if end_i > start_i:
                             sub = audio[start_i:end_i]
                             curr_rms = float(np.sqrt(np.mean(np.square(sub))))
+                            self._current_render_rms = curr_rms
+                            self._render_energy_timestamp = now
                             smoothed = 0.60 * last_rms + 0.40 * curr_rms
                             last_rms = smoothed
                             amp = min(1.0, max(0.0, smoothed * 3.5))
@@ -180,6 +192,8 @@ class AudioPlaybackManager:
                                 pass
                     time.sleep(0.01)
 
+                self._current_render_rms = 0.0
+                self._render_energy_timestamp = 0.0
                 if self.on_playback_level:
                     try:
                         self.on_playback_level(0.0)
@@ -189,9 +203,13 @@ class AudioPlaybackManager:
             except Exception as e:
                 logger.warning("Error during audio chunk playback: %s", e)
             finally:
+                self._current_render_rms = 0.0
+                self._render_energy_timestamp = 0.0
                 self._queue.task_done()
 
         self._is_playing = False
+        self._current_render_rms = 0.0
+        self._render_energy_timestamp = 0.0
         if self.on_playback_level:
             try:
                 self.on_playback_level(0.0)
@@ -220,6 +238,8 @@ class AudioPlaybackManager:
 
             was_playing = self._is_playing
             self._is_playing = False
+            self._current_render_rms = 0.0
+            self._render_energy_timestamp = 0.0
 
             if self.on_playback_level:
                 try:

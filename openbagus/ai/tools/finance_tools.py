@@ -46,10 +46,13 @@ class ResolveSecurityTool(BaseFinancialTool):
         "required": ["query"],
     }
 
-    def run(self, query: str) -> tuple[Any, dict[str, Any]]:
+    def run(self, query: str = "", ticker: str = "", symbol: str = "", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        target_query = query or ticker or symbol
+        if not target_query and kwargs:
+            target_query = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
         root = get_repo_root()
         catalog = EquityCatalog(root)
-        asset = catalog.resolve(query)
+        asset = catalog.resolve(target_query)
         if asset:
             return {
                 "symbol": asset.symbol,
@@ -137,12 +140,15 @@ class GetCompanyProfileTool(BaseFinancialTool):
         "required": ["ticker"],
     }
 
-    def run(self, ticker: str) -> tuple[Any, dict[str, Any]]:
+    def run(self, ticker: str = "", symbol: str = "", query: str = "", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        target = ticker or symbol or query
+        if not target and kwargs:
+            target = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
         root = get_repo_root()
         catalog = EquityCatalog(root)
-        asset = catalog.resolve(ticker)
+        asset = catalog.resolve(target)
         if not asset:
-            return {"error": f"Emiten '{ticker}' tidak ditemukan."}, {"source": "EquityCatalog"}
+            return {"error": f"Emiten '{target}' tidak ditemukan."}, {"source": "EquityCatalog"}
 
         return {
             "symbol": asset.symbol,
@@ -171,17 +177,20 @@ class GetMarketPriceTool(BaseFinancialTool):
         "required": ["ticker"],
     }
 
-    def run(self, ticker: str) -> tuple[Any, dict[str, Any]]:
+    def run(self, ticker: str = "", symbol: str = "", query: str = "", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        target = ticker or symbol or query
+        if not target and kwargs:
+            target = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
         root = get_repo_root()
         eq_data = EquityData(root)
-        data = eq_data.load(ticker)
+        data = eq_data.load(target)
         candles = data.get("candles", []) if isinstance(data, dict) else []
         if not candles:
             return {
-                "symbol": ticker.upper(),
+                "symbol": target.upper(),
                 "price": None,
                 "status": "DATA_GAP",
-                "message": f"Data harga EOD lokal belum diimpor untuk {ticker.upper()}.",
+                "message": f"Data harga EOD lokal belum diimpor untuk {target.upper()}.",
             }, {"source": "Local EOD Data", "status": "INSUFFICIENT_DATA"}
 
         last = candles[-1]
@@ -191,7 +200,7 @@ class GetMarketPriceTool(BaseFinancialTool):
         chg_pct = round(((c_now - c_prev) / c_prev) * 100, 2) if c_prev > 0 else 0.0
 
         return {
-            "symbol": ticker.upper(),
+            "symbol": target.upper(),
             "close": c_now,
             "open": float(last.get("open", c_now)),
             "high": float(last.get("high", c_now)),
@@ -215,13 +224,16 @@ class GetOHLCVTool(BaseFinancialTool):
         "required": ["ticker"],
     }
 
-    def run(self, ticker: str, limit: int = 30) -> tuple[Any, dict[str, Any]]:
+    def run(self, ticker: str = "", limit: int = 30, symbol: str = "", query: str = "", **kwargs: Any) -> tuple[Any, dict[str, Any]]:
+        target = ticker or symbol or query
+        if not target and kwargs:
+            target = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
         root = get_repo_root()
         eq_data = EquityData(root)
-        data = eq_data.load(ticker)
+        data = eq_data.load(target)
         candles = data.get("candles", []) if isinstance(data, dict) else []
         if not candles:
-            return {"symbol": ticker.upper(), "bars": [], "status": "DATA_GAP"}, {"source": "Local EOD Storage"}
+            return {"symbol": target.upper(), "bars": [], "status": "DATA_GAP"}, {"source": "Local EOD Storage"}
 
         sliced = candles[-limit:]
         return {
