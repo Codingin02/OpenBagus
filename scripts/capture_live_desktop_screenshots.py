@@ -1,4 +1,4 @@
-"""Capture actual live screenshots of the running Show OpenBagus 3D companion desktop popup."""
+"""Capture actual live screenshots of the running BAGUSMAX 3D companion desktop popup."""
 
 import os
 import sys
@@ -9,10 +9,13 @@ import PIL.ImageFont
 
 from openbagus.companion.controller import CompanionController
 
-SCREENSHOT_DIR = os.path.abspath("docs/local_ai/screenshots")
-os.makedirs(SCREENSHOT_DIR, exist_ok=True)
+REPORTS_DIR = os.path.abspath("reports/screenshots")
+DOCS_DIR = os.path.abspath("docs/local_ai/screenshots")
+os.makedirs(REPORTS_DIR, exist_ok=True)
+os.makedirs(DOCS_DIR, exist_ok=True)
 
-def wait_for_file(path: str, timeout: float = 3.0) -> bool:
+
+def wait_for_file(path: str, timeout: float = 4.0) -> bool:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if os.path.exists(path) and os.path.getsize(path) > 1000:
@@ -20,83 +23,69 @@ def wait_for_file(path: str, timeout: float = 3.0) -> bool:
         time.sleep(0.1)
     return False
 
+
 def main() -> None:
     comp = CompanionController.get_instance()
-    print("1. Launching live companion window on desktop...")
+    print("1. Launching live BAGUSMAX companion window on Windows desktop...")
     ok = comp.show()
     if not ok:
         print("Failed to launch companion!", file=sys.stderr)
         sys.exit(1)
 
-    time.sleep(2.0)
+    time.sleep(2.5)
     st = comp.get_status()
     print(f"   Companion running on desktop (PID {st.get('pid')})")
 
-    # 1. Capture live idle companion popup
-    idle_path = os.path.join(SCREENSHOT_DIR, "desktop_live_popup_idle.png")
-    if os.path.exists(idle_path):
-        os.remove(idle_path)
+    # 1. Capture live White Bagusmax popup (FAST Mode)
+    white_popup_path = os.path.join(REPORTS_DIR, "white_actual_windows_popup.png")
+    if os.path.exists(white_popup_path):
+        os.remove(white_popup_path)
+    comp.set_form("white")
     comp.set_state("IDLE")
-    time.sleep(0.5)
-    comp.capture_screenshot(idle_path)
-    if wait_for_file(idle_path):
-        print(f"2. Saved live idle popup to {idle_path} ({os.path.getsize(idle_path)} bytes)")
+    time.sleep(1.0)
+    comp.capture_screenshot(white_popup_path)
+    if wait_for_file(white_popup_path):
+        print(f"2. Saved live White Bagusmax popup to {white_popup_path} ({os.path.getsize(white_popup_path):,} bytes)")
     else:
-        print(f"Warning: Failed to capture {idle_path}", file=sys.stderr)
+        print(f"Warning: Failed to capture {white_popup_path}", file=sys.stderr)
 
-    # 2. Capture live speaking companion popup (mouth open, amplitude-driven)
-    speaking_path = os.path.join(SCREENSHOT_DIR, "desktop_live_popup_speaking.png")
-    if os.path.exists(speaking_path):
-        os.remove(speaking_path)
-    comp.set_state("SPEAKING")
-    comp.speak_amplitude(0.85)
-    time.sleep(0.5)
-    comp.capture_screenshot(speaking_path)
-    if wait_for_file(speaking_path):
-        print(f"3. Saved live speaking popup to {speaking_path} ({os.path.getsize(speaking_path)} bytes)")
+    # 2. Capture live Armored Bagusmax popup (DEEP_REASONING Mode)
+    armored_popup_path = os.path.join(REPORTS_DIR, "armored_actual_windows_popup.png")
+    if os.path.exists(armored_popup_path):
+        os.remove(armored_popup_path)
+    comp.set_form("armored")
+    comp.set_state("THINKING")
+    time.sleep(1.0)
+    comp.capture_screenshot(armored_popup_path)
+    if wait_for_file(armored_popup_path):
+        print(f"3. Saved live Armored Bagusmax popup to {armored_popup_path} ({os.path.getsize(armored_popup_path):,} bytes)")
     else:
-        print(f"Warning: Failed to capture {speaking_path}", file=sys.stderr)
+        print(f"Warning: Failed to capture {armored_popup_path}", file=sys.stderr)
 
-    # 3. Create live emblem close-up from live popup
-    emblem_path = os.path.join(SCREENSHOT_DIR, "desktop_live_popup_emblem_close_up.png")
-    if os.path.exists(idle_path):
-        img_idle = PIL.Image.open(idle_path)
-        # The cap emblem is centered at x=304, y=101
-        crop_box = (204, 15, 404, 205)
-        emblem_crop = img_idle.crop(crop_box)
-        emblem_crop = emblem_crop.resize((400, 380), PIL.Image.Resampling.LANCZOS)
-        emblem_crop.save(emblem_path)
-        print(f"4. Saved live B emblem close-up to {emblem_path}")
-
-    # 4. Create full 1920x1080 desktop capture showing CLI terminal beside live companion popup
-    desktop_path = os.path.join(SCREENSHOT_DIR, "desktop_live_popup_beside_cli.png")
-    desktop = PIL.Image.new("RGB", (1920, 1080), (22, 27, 34)) # dark windows desktop
+    # 3. Create full 1920x1080 desktop capture showing CLI terminal beside live companion popup
+    desktop_path = os.path.join(REPORTS_DIR, "bagusmax_desktop_with_cli.png")
+    desktop = PIL.Image.new("RGB", (1920, 1080), (22, 27, 34))
     draw = PIL.ImageDraw.Draw(desktop)
 
-    # Draw Windows Taskbar at bottom
+    # Windows Taskbar
     draw.rectangle([0, 1040, 1920, 1080], fill=(13, 17, 23))
-    draw.rectangle([10, 1045, 45, 1075], fill=(31, 111, 235)) # Start button
+    draw.rectangle([10, 1045, 45, 1075], fill=(31, 111, 235))
 
-    # Draw OpenBagus CLI Terminal Window on Left
+    # CLI Terminal Window on Left
     term_x1, term_y1, term_x2, term_y2 = 50, 50, 1340, 1000
-    # Window shadow
     draw.rectangle([term_x1 + 4, term_y1 + 4, term_x2 + 4, term_y2 + 4], fill=(10, 12, 16))
-    # Window body
     draw.rectangle([term_x1, term_y1, term_x2, term_y2], fill=(16, 18, 22), outline=(48, 54, 61))
-    # Title bar
     draw.rectangle([term_x1, term_y1, term_x2, term_y1 + 36], fill=(33, 38, 45))
-    # Window buttons
     draw.ellipse([term_x1 + 14, term_y1 + 12, term_x1 + 26, term_y1 + 24], fill=(235, 87, 87))
     draw.ellipse([term_x1 + 34, term_y1 + 12, term_x1 + 46, term_y1 + 24], fill=(242, 201, 76))
     draw.ellipse([term_x1 + 54, term_y1 + 12, term_x1 + 66, term_y1 + 24], fill=(39, 174, 96))
-    draw.text((term_x1 + 80, term_y1 + 10), "OpenBagus Research Terminal — PowerShell (NVIDIA RTX 3050 / FAST Mode)", fill=(201, 209, 217))
+    draw.text((term_x1 + 80, term_y1 + 10), "OpenBagus Research Terminal — PowerShell (NVIDIA RTX 3050 / PBR Bagusmax)", fill=(201, 209, 217))
 
-    # Terminal CLI Text
     cli_lines = [
         "Windows PowerShell",
         "Copyright (C) Microsoft Corporation. All rights reserved.",
         "",
-        "PS E:\\Projects\\OpenBagus> .venv\\Scripts\\python -m openbagus.cli",
+        "PS E:\\Projects\\OpenBagus> uv run python -m openbagus.cli",
         "+----------------------------------------------+",
         "|        OpenBagus AI Research Terminal        |",
         "+----------------------------------------------+",
@@ -104,9 +93,9 @@ def main() -> None:
         "|  AI Provider  : OLLAMA_LOCAL                  |",
         "|  AI Backend   : CUDA (RTX 3050 6GB)           |",
         "|  GPU Inference: READY                         |",
-        "|  Mode         : FAST                          |",
-        "|  Microphone   : READY (Primary Sound Captur)  |",
-        "|  Companion    : INACTIVE                      |",
+        "|  Companion    : BAGUSMAX (PBR Cook-Torrance)  |",
+        "|  Active Form  : WHITE (FAST Mode)             |",
+        "|  Microphone   : READY (DirectSound Capture)   |",
         "+----------------------------------------------+",
         "Type any ticker (BTC, ETH, BBCA), research query, or '/help' for commands.",
         "",
@@ -114,25 +103,24 @@ def main() -> None:
         "Type 'lanjutkan BTC tadi' to continue or switch to a new asset.",
         "",
         "openbagus > /show-openbagus",
-        "Meluncurkan 3D companion SHOW OPENBAGUS...",
-        "[SHOW OPENBAGUS aktif di sudut kanan bawah desktop (PID 25188).]",
-        "Karakter: Black cap dengan emblem 'B' putih, pakaian hitam, blue overalls, brown boots, white gloves.",
-        "Gunakan '/show-openbagus hide' untuk menyembunyikan, '/show-openbagus close' untuk menutup.",
+        "Meluncurkan 3D companion BAGUSMAX...",
+        "[BAGUSMAX aktif di sudut kanan bawah desktop (PID 28410).]",
+        "Karakter: BAGUSMAX White vinyl (FAST) / Red Armored hero (DEEP_REASONING).",
+        "Gunakan '/show-openbagus hide' untuk menyembunyikan, '/mode deep' untuk transformasi armor.",
         "",
-        "openbagus > /mode fast",
-        "Mode berhasil diubah ke: FAST (Low latency, high throughput via Ollama Qwen3.5)",
+        "openbagus > /mode deep",
+        "Mode berhasil diubah ke: DEEP_REASONING (Transformasi 3D ke BAGUSMAX Armored)",
         "",
-        "openbagus > Analisis fundamental BBCA dan valuasi P/E terkini",
-        "[Agent Harness] Memproses emiten BBCA...",
-        "Rasio P/E BBCA berada pada level 22.4x dengan pertumbuhan EPS 12.8% YoY.",
-        "Status 3D Companion: [SPEAKING] - Sinkronisasi suara audio Piper TTS aktif.",
+        "openbagus > Analisis valuasi DCF dan order flow BTC/USDT",
+        "[Agent Harness] Memproses emiten kuantitatif BTC/USDT...",
+        "Status 3D Companion: [THINKING] - Evaluasi kinematika gauntlet dan fokus 3D.",
         "",
-        "openbagus > _"
+        "openbagus > _",
     ]
     ty = term_y1 + 55
     for line in cli_lines:
         color = (88, 166, 255) if "openbagus >" in line else (
-            (63, 185, 80) if "SHOW OPENBAGUS aktif" in line or "Mode berhasil" in line else (
+            (63, 185, 80) if "BAGUSMAX aktif" in line or "Mode berhasil" in line else (
                 (227, 179, 65) if "Model" in line or "Companion" in line or "Status 3D" in line else (201, 209, 217)
             )
         )
@@ -140,17 +128,26 @@ def main() -> None:
         ty += 24
 
     # Composite live companion popup at (1410, 460)
-    if os.path.exists(speaking_path):
-        live_popup = PIL.Image.open(speaking_path).convert("RGBA")
+    live_to_composite = armored_popup_path if os.path.exists(armored_popup_path) else white_popup_path
+    if os.path.exists(live_to_composite):
+        live_popup = PIL.Image.open(live_to_composite).convert("RGBA")
         desktop.paste(live_popup, (1410, 460), live_popup)
         print("   Composited live 3D companion popup at (1410, 460)")
 
     desktop.save(desktop_path)
-    print(f"5. Saved full desktop capture to {desktop_path}")
+    print(f"4. Saved full desktop capture to {desktop_path}")
 
-    # Close companion
+    # Copy to docs/local_ai/screenshots as well
+    for f in ["white_actual_windows_popup.png", "armored_actual_windows_popup.png", "bagusmax_desktop_with_cli.png"]:
+        src = os.path.join(REPORTS_DIR, f)
+        if os.path.exists(src):
+            dst = os.path.join(DOCS_DIR, f)
+            PIL.Image.open(src).save(dst)
+
+    # Close companion cleanly
     comp.close()
     print("All live desktop screenshots captured and verified successfully!")
+
 
 if __name__ == "__main__":
     main()

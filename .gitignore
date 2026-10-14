@@ -131,9 +131,10 @@ data/*.json
 !db/.gitkeep
 
 # Model weights & runtime artifacts
-models/
+/models/
 *.gguf
 *.safetensors
+!assets/models/**
 
 # Runtime generated reports & builds
 reports/runtime/**
@@ -148,4 +149,7 @@ feedback/
 # Rust build target
 target/
 rust/**/target/
+
+# Blender backup files
+*.blend1
 

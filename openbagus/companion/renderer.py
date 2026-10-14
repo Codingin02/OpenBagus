@@ -72,66 +72,168 @@ VERT_SHADER = """
 in vec3 in_position;
 in vec3 in_normal;
 in vec3 in_color;
+in vec2 in_material;
 
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 proj;
 
+out vec3 v_world_pos;
 out vec3 v_normal;
 out vec3 v_color;
-out vec3 v_fragpos;
+out vec2 v_material;
 
 void main() {
     vec4 world_pos = model * vec4(in_position, 1.0);
     gl_Position = proj * view * world_pos;
-    v_fragpos = vec3(world_pos);
-    v_normal = mat3(transpose(inverse(model))) * in_normal;
+    v_world_pos = vec3(world_pos);
+    v_normal = normalize(mat3(transpose(inverse(model))) * in_normal);
     v_color = in_color;
+    v_material = in_material;
 }
 """
 
 FRAG_SHADER = """
 #version 330 core
+in vec3 v_world_pos;
 in vec3 v_normal;
 in vec3 v_color;
-in vec3 v_fragpos;
+in vec2 v_material;
 
-uniform vec3 light_pos;
 uniform vec3 view_pos;
-uniform float ambient_strength;
+uniform float exposure;
+
+// Studio 3-point lights
+uniform vec3 light_pos_key;
+uniform vec3 light_col_key;
+uniform vec3 light_pos_fill;
+uniform vec3 light_col_fill;
+uniform vec3 light_pos_rim;
+uniform vec3 light_col_rim;
+
+// Environment studio colors
+uniform vec3 env_sky_color;
+uniform vec3 env_ground_color;
 
 out vec4 out_color;
 
+const float PI = 3.14159265359;
+
+float distribution_ggx(vec3 N, vec3 H, float roughness) {
+    float a = roughness * roughness;
+    float a2 = a * a;
+    float NdotH = max(dot(N, H), 0.0);
+    float NdotH2 = NdotH * NdotH;
+    float num = a2;
+    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    denom = PI * denom * denom;
+    return num / max(denom, 0.0001);
+}
+
+float geometry_schlick_ggx(float NdotV, float roughness) {
+    float r = (roughness + 1.0);
+    float k = (r * r) / 8.0;
+    float num = NdotV;
+    float denom = NdotV * (1.0 - k) + k;
+    return num / max(denom, 0.0001);
+}
+
+float geometry_smith(vec3 N, vec3 V, vec3 L, float roughness) {
+    float NdotV = max(dot(N, V), 0.0);
+    float NdotL = max(dot(N, L), 0.0);
+    float ggx2 = geometry_schlick_ggx(NdotV, roughness);
+    float ggx1 = geometry_schlick_ggx(NdotL, roughness);
+    return ggx1 * ggx2;
+}
+
+vec3 fresnel_schlick(float cosTheta, vec3 F0) {
+    return F0 + (1.0 - F0) * pow(clamp(1.0 - cosTheta, 0.0, 1.0), 5.0);
+}
+
+float clearcoat_specular(vec3 N, vec3 V, vec3 L, vec3 H) {
+    float D = distribution_ggx(N, H, 0.08);
+    float F = 0.04 + (1.0 - 0.04) * pow(clamp(1.0 - max(dot(V, H), 0.0), 0.0, 1.0), 5.0);
+    float G = geometry_smith(N, V, L, 0.08);
+    float NdotV = max(dot(N, V), 0.001);
+    float NdotL = max(dot(N, L), 0.001);
+    return (D * F * G) / (4.0 * NdotV * NdotL);
+}
+
+vec3 tone_map_aces(vec3 x) {
+    float a = 2.51;
+    float b = 0.03;
+    float c = 2.43;
+    float d = 0.59;
+    float e = 0.14;
+    return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+}
+
+vec3 studio_environment_reflection(vec3 R, float roughness, vec3 F0) {
+    float up_factor = clamp(R.y * 0.5 + 0.5, 0.0, 1.0);
+    vec3 env_diffuse = mix(env_ground_color, env_sky_color, up_factor);
+    vec3 key_dir = normalize(light_pos_key - v_world_pos);
+    float refl_dot = max(dot(R, key_dir), 0.0);
+    float softbox_spec = pow(refl_dot, mix(128.0, 4.0, roughness)) * (1.0 - roughness * 0.7);
+    return env_diffuse + vec3(1.0, 0.98, 0.95) * softbox_spec * 1.8;
+}
+
 void main() {
-    vec3 norm = normalize(v_normal);
-    vec3 light_dir = normalize(light_pos - v_fragpos);
-    vec3 view_dir = normalize(view_pos - v_fragpos);
+    vec3 N = normalize(v_normal);
+    vec3 V = normalize(view_pos - v_world_pos);
+    vec3 albedo = pow(v_color, vec3(2.2));
+    float metallic = clamp(v_material.x, 0.0, 1.0);
+    float roughness = clamp(v_material.y, 0.04, 1.0);
 
-    // Warm key light
-    float n_dot_l = dot(norm, light_dir);
-    // Crisp cartoon cel shading: lit (1.0), shaded (0.68)
-    float cel = smoothstep(-0.02, 0.06, n_dot_l) * 0.32 + 0.68;
-    vec3 diffuse = cel * v_color;
+    vec3 F0 = mix(vec3(0.04), albedo, metallic);
 
-    // Rim lighting (Fresnel) — soft edge definition for dark fabrics
-    float fresnel = 1.0 - max(dot(view_dir, norm), 0.0);
-    float rim = smoothstep(0.72, 0.96, fresnel) * 0.30;
-    vec3 rim_color = vec3(0.55, 0.65, 0.85);
+    vec3 light_positions[3] = vec3[3](light_pos_key, light_pos_fill, light_pos_rim);
+    vec3 light_colors[3] = vec3[3](light_col_key, light_col_fill, light_col_rim);
 
-    // Subtle fill light from lower opposite side
-    vec3 fill_dir = normalize(vec3(-1.5, -1.0, 1.5));
-    float fill_dot = max(dot(norm, fill_dir), 0.0) * 0.12;
-    vec3 fill = fill_dot * v_color;
+    vec3 Lo = vec3(0.0);
+    for (int i = 0; i < 3; ++i) {
+        vec3 L = normalize(light_positions[i] - v_world_pos);
+        vec3 H = normalize(V + L);
+        float dist = length(light_positions[i] - v_world_pos);
+        float attenuation = 1.0 / (1.0 + 0.04 * dist + 0.008 * dist * dist);
+        vec3 radiance = light_colors[i] * attenuation;
 
-    // Soft rear backlight to illuminate back wings, jetpack, and rear seams when rotating
-    vec3 back_light_dir = normalize(vec3(-1.8, 3.2, -3.0));
-    float back_dot = max(dot(norm, back_light_dir), 0.0) * 0.20;
-    vec3 back_fill = back_dot * v_color;
+        float NDF = distribution_ggx(N, H, roughness);
+        float G = geometry_smith(N, V, L, roughness);
+        vec3 F = fresnel_schlick(max(dot(H, V), 0.0), F0);
 
-    vec3 ambient = (ambient_strength > 0.0 ? ambient_strength * 0.08 : 0.0) * v_color;
+        vec3 numerator = NDF * G * F;
+        float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.0001;
+        vec3 specular = numerator / denominator;
 
-    vec3 result = diffuse + fill + back_fill + ambient + (rim * rim_color * v_color);
-    out_color = vec4(result, 1.0);
+        vec3 kS = F;
+        vec3 kD = (vec3(1.0) - kS) * (1.0 - metallic);
+
+        float NdotL = max(dot(N, L), 0.0);
+        vec3 direct = (kD * albedo / PI + specular) * radiance * NdotL;
+
+        if (roughness < 0.25 && albedo.r > 0.4) {
+            float coat = clearcoat_specular(N, V, L, H) * NdotL;
+            direct += vec3(coat * 0.4);
+        }
+
+        Lo += direct;
+    }
+
+    vec3 R = reflect(-V, N);
+    vec3 F_env = fresnel_schlick(max(dot(N, V), 0.0), F0);
+    vec3 kD_env = (1.0 - F_env) * (1.0 - metallic);
+
+    vec3 env_reflection = studio_environment_reflection(R, roughness, F0);
+    vec3 ambient_diffuse = mix(env_ground_color, env_sky_color, clamp(N.y * 0.5 + 0.5, 0.0, 1.0)) * albedo;
+    vec3 ambient_specular = env_reflection * F_env * (1.0 - roughness * 0.5);
+
+    vec3 ambient = (kD_env * ambient_diffuse + ambient_specular) * 0.85;
+
+    vec3 color = (ambient + Lo) * exposure;
+    color = tone_map_aces(color);
+    color = pow(color, vec3(1.0 / 2.2));
+
+    out_color = vec4(color, 1.0);
 }
 """
 
@@ -1684,33 +1786,46 @@ def run_renderer(port: int) -> None:
 
     # Build geometry for specific form
     def rebuild_mesh(form: str, params: dict[str, float]) -> tuple[moderngl.VertexArray, moderngl.Buffer]:
-        builder = build_bagusmax_armored if form == BagusmaxForm.ARMORED else build_bagusmax_white
-        verts, idxs = builder(
-            blink=params.get("blink", 0.0),
-            head_tilt=params.get("head_tilt", 0.0),
-            breath=params.get("breath_scale", 1.0),
-            head_nod=params.get("head_nod", 0.0),
-            head_turn=params.get("head_turn", 0.0),
-            l_arm_pitch=params.get("l_arm_pitch", 0.0),
-            l_arm_roll=params.get("l_arm_roll", 0.0),
-            l_arm_yaw=params.get("l_arm_yaw", 0.0),
-            r_arm_pitch=params.get("r_arm_pitch", 0.0),
-            r_arm_roll=params.get("r_arm_roll", 0.0),
-            r_arm_yaw=params.get("r_arm_yaw", 0.0),
-            torso_lean_z=params.get("torso_lean_z", 0.0),
-            torso_twist_y=params.get("torso_twist_y", 0.0),
-        )
-        v_data = np.array(verts, dtype="f4")
-        i_data = np.array(idxs, dtype="i4")
-        vbo = ctx.buffer(v_data)
-        ibo = ctx.buffer(i_data)
-        stride = 9 * 4  # 9 floats * 4 bytes
-        vao = ctx.vertex_array(
-            prog,
-            [(vbo, "3f 3f 3f", "in_position", "in_normal", "in_color")],
-            index_buffer=ibo,
-        )
-        return vao, ibo
+        try:
+            from openbagus.companion.model_loader import build_articulated_mesh
+            v_data, i_data = build_articulated_mesh(form, params)
+            vbo = ctx.buffer(v_data.astype("f4").tobytes())
+            ibo = ctx.buffer(i_data.astype("i4").tobytes())
+            vao = ctx.vertex_array(
+                prog,
+                [(vbo, "3f 3f 3f 2f", "in_position", "in_normal", "in_color", "in_material")],
+                index_buffer=ibo,
+            )
+            return vao, ibo
+        except Exception:
+            builder = build_bagusmax_armored if form == BagusmaxForm.ARMORED else build_bagusmax_white
+            verts, idxs = builder(
+                blink=params.get("blink", 0.0),
+                head_tilt=params.get("head_tilt", 0.0),
+                breath=params.get("breath_scale", 1.0),
+                head_nod=params.get("head_nod", 0.0),
+                head_turn=params.get("head_turn", 0.0),
+                l_arm_pitch=params.get("l_arm_pitch", 0.0),
+                l_arm_roll=params.get("l_arm_roll", 0.0),
+                l_arm_yaw=params.get("l_arm_yaw", 0.0),
+                r_arm_pitch=params.get("r_arm_pitch", 0.0),
+                r_arm_roll=params.get("r_arm_roll", 0.0),
+                r_arm_yaw=params.get("r_arm_yaw", 0.0),
+                torso_lean_z=params.get("torso_lean_z", 0.0),
+                torso_twist_y=params.get("torso_twist_y", 0.0),
+            )
+            raw_v = np.array(verts, dtype="f4").reshape(-1, 9)
+            is_arm = (form == BagusmaxForm.ARMORED)
+            mat = np.tile(np.array([0.35 if is_arm else 0.0, 0.18 if is_arm else 0.35], dtype="f4"), (len(raw_v), 1))
+            v_comb = np.hstack([raw_v, mat]).astype("f4")
+            vbo = ctx.buffer(v_comb.tobytes())
+            ibo = ctx.buffer(np.array(idxs, dtype="i4").tobytes())
+            vao = ctx.vertex_array(
+                prog,
+                [(vbo, "3f 3f 3f 2f", "in_position", "in_normal", "in_color", "in_material")],
+                index_buffer=ibo,
+            )
+            return vao, ibo
 
     params = animator.get_params()
     last_rendered_form = animator.character_form
@@ -1722,13 +1837,30 @@ def run_renderer(port: int) -> None:
     proj = Matrix44.perspective_projection(38.0, last_fb_w / last_fb_h if last_fb_h else 1.0, 0.1, 50.0, dtype="f4")
     view = Matrix44.look_at(cam_pos, Vector3([0.0, 0.76, 0.0]), Vector3([0.0, 1.0, 0.0]), dtype="f4")
 
-    # Lighting
-    prog["light_pos"].write(np.array([2.5, 4.0, 3.5], dtype="f4"))
-    prog["view_pos"].write(np.array(cam_pos, dtype="f4"))
-    if "ambient_strength" in prog:
-        prog["ambient_strength"].value = 0.45
+    # Studio 3-point lighting & PBR Environment
     prog["proj"].write(proj)
     prog["view"].write(view)
+    prog["view_pos"].write(np.array(cam_pos, dtype="f4"))
+
+    if "exposure" in prog:
+        prog["exposure"].value = 1.15
+    if "light_pos_key" in prog:
+        prog["light_pos_key"].write(np.array([2.8, 3.8, 3.2], dtype="f4"))
+        prog["light_col_key"].write(np.array([1.0, 0.98, 0.95], dtype="f4") * 3.5)
+    if "light_pos_fill" in prog:
+        prog["light_pos_fill"].write(np.array([-2.5, 1.5, 2.2], dtype="f4"))
+        prog["light_col_fill"].write(np.array([0.85, 0.92, 1.0], dtype="f4") * 1.5)
+    if "light_pos_rim" in prog:
+        prog["light_pos_rim"].write(np.array([0.0, 4.0, -3.5], dtype="f4"))
+        prog["light_col_rim"].write(np.array([1.0, 0.95, 0.9], dtype="f4") * 2.8)
+    if "env_sky_color" in prog:
+        prog["env_sky_color"].write(np.array([0.35, 0.40, 0.48], dtype="f4"))
+    if "env_ground_color" in prog:
+        prog["env_ground_color"].write(np.array([0.12, 0.14, 0.18], dtype="f4"))
+    if "ambient_strength" in prog:
+        prog["ambient_strength"].value = 0.45
+    if "light_pos" in prog:
+        prog["light_pos"].write(np.array([2.5, 4.0, 3.5], dtype="f4"))
 
     last_time = glfw.get_time()
     mesh_rebuild_timer = 0.0
