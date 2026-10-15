@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import urllib.error
 import urllib.request
@@ -41,14 +42,16 @@ class OllamaProvider(BaseModelProvider):
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:11434",
+        base_url: str | None = None,
         model: str = OLLAMA_FAST_MODEL,
         think: bool = False,
         keep_alive: str = "30m",
         num_gpu: int = 99,
         context_window: int = 4096,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (base_url or os.environ.get("OLLAMA_HOST") or "http://127.0.0.1:11434").rstrip("/")
+        if "://" not in self.base_url:
+            self.base_url = "http://" + self.base_url
         self.model = model
         self.think = think
         self.keep_alive = keep_alive

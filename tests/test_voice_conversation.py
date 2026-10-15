@@ -86,6 +86,28 @@ class TestAudioDevices(unittest.TestCase):
 class TestAudioProcessingAndResampling(unittest.TestCase):
     """Test audio capture resampling, RMS metering, and playback queue."""
 
+    def test_capture_stop_releases_callback_lock(self) -> None:
+        capture = AudioCaptureStream()
+        stream = MagicMock()
+        capture._stream = stream
+        capture._is_capturing = True
+        lock_available = []
+
+        def check_callback_lock() -> None:
+            acquired = capture._lock.acquire(blocking=False)
+            lock_available.append(acquired)
+            if acquired:
+                capture._lock.release()
+
+        stream.stop.side_effect = check_callback_lock
+        stream.close.side_effect = check_callback_lock
+        capture.stop()
+        stream.stop.assert_called_once()
+        stream.close.assert_called_once()
+        self.assertEqual(lock_available, [True, True])
+        self.assertFalse(capture.is_capturing)
+        self.assertIsNone(capture._stream)
+
     def test_resample_linear(self) -> None:
         # Create 1 second of 44100 Hz mono sine wave
         t = np.linspace(0, 1, 44100, dtype=np.float32)

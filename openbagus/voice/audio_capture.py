@@ -170,13 +170,22 @@ class AudioCaptureStream:
             if not self._is_capturing:
                 return
             self._is_capturing = False
-            if self._stream:
+            stream = self._stream
+            self._stream = None
+
+        # PortAudio waits for callbacks, which also acquire self._lock.
+        if stream:
+            try:
+                stream.stop()
+            except Exception as e:
+                logger.debug("Error stopping audio input stream: %s", e)
+            finally:
                 try:
-                    self._stream.stop()
-                    self._stream.close()
+                    stream.close()
                 except Exception as e:
-                    logger.debug("Error stopping audio input stream: %s", e)
-                self._stream = None
+                    logger.debug("Error closing audio input stream: %s", e)
+
+        with self._lock:
             self._pre_roll_buffer.clear()
             self._active_utterance_frames.clear()
             self._is_utterance_active = False

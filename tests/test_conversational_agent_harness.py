@@ -62,6 +62,14 @@ class TestHardwareAndProfiles(unittest.TestCase):
         self.assertEqual(p_deep.max_tokens, 3072)
         self.assertFalse(p_priv.allow_external_api)
 
+    def test_ollama_respects_isolated_host(self) -> None:
+        from openbagus.ai.providers.ollama import OllamaProvider
+        with patch.dict("os.environ", {"OLLAMA_HOST": "127.0.0.1:11435"}):
+            self.assertEqual(OllamaProvider().base_url, "http://127.0.0.1:11435")
+            self.assertEqual(OllamaProvider(base_url="http://127.0.0.1:11436/").base_url, "http://127.0.0.1:11436")
+        with patch.dict("os.environ", {}, clear=True):
+            self.assertEqual(OllamaProvider().base_url, "http://127.0.0.1:11434")
+
 
 class TestDynamicToolRegistry(unittest.TestCase):
     """Verifies typed financial tool registry and schema validation."""
