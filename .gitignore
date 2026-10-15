@@ -131,10 +131,23 @@ data/quarantine/
 *.duckdb.tmp
 !db/.gitkeep
 
-# Model weights & runtime artifacts
-/models/
+# Model weights & runtime artifacts — Repository-local operational models
+models/**/blobs/
+models/ollama/
 *.gguf
+*.onnx
+*.bin
+*.pt
+*.pth
 *.safetensors
+*.ct2
+*.q4_*
+!models/**/README.md
+!models/**/manifest.json
+!models/**/*.json
+!models/**/LICENSE*
+!models/**/MODEL_CARD*
+!models/**/.gitkeep
 !assets/models/**
 
 # Runtime generated reports & builds

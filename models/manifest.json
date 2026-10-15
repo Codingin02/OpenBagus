@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "version": "1.0.0",
+  "canonical_repository": "E:\\Projects\\OpenBagus",
+  "generated_at": "2026-10-15T20:30:00+07:00",
+  "target_hardware": {
+    "os": "Windows 11",
+    "cpu": "Intel Core i5-13450HX",
+    "gpu": "NVIDIA GeForce RTX 3050 Laptop GPU (6GB VRAM)",
+    "ram_gb": 12
+  },
+  "models": {
+    "llm_fast": {
+      "name": "Qwen3-4B-Q4_K_M",
+      "format": "GGUF",
+      "architecture": "qwen3",
+      "parameters": "4B",
+      "quantization": "Q4_K_M",
+      "file_path": "models/llm/fast/Qwen3-4B-Q4_K_M.gguf",
+      "size_bytes": 2497280256,
+      "sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+      "license": "Apache-2.0",
+      "upstream": "https://huggingface.co/Qwen/Qwen3-4B-GGUF",
+      "purpose": "Fast conversational intent and primary financial/crypto reasoning"
+    },
+    "llm_english_tutor": {
+      "name": "Qwen3-4B-Q4_K_M (English Tutor Mode)",
+      "format": "GGUF",
+      "architecture": "qwen3",
+      "parameters": "4B",
+      "quantization": "Q4_K_M",
+      "file_path": "models/llm/fast/Qwen3-4B-Q4_K_M.gguf",
+      "size_bytes": 2497280256,
+      "sha256": "7485fe6f11af29433bc51cab58009521f205840f5b4ae3a32fa7f92e8534fdf5",
+      "license": "Apache-2.0",
+      "upstream": "https://huggingface.co/Qwen/Qwen3-4B-GGUF",
+      "purpose": "English Tutor conversational partner, grammar diagnostics, and ESL feedback (Zero duplicate weight allocation)"
+    },
+    "tts_indonesian": {
+      "name": "id_ID-news_tts-medium",
+      "format": "ONNX",
+      "architecture": "Piper VITS",
+      "sample_rate": 22050,
+      "file_path": "models/tts/indonesian/id_ID-news_tts-medium.onnx",
+      "config_path": "models/tts/indonesian/id_ID-news_tts-medium.onnx.json",
+      "size_bytes": 62950044,
+      "sha256": "ed8f02aa593f7af6b19acbdb8142e0da0dd72f46194eb33d38e0eb10a52597e8",
+      "config_sha256": "1ef677072668a5e172e0759b1d3871f129009d1167f093325a17607f7add5ad7",
+      "license": "MIT",
+      "upstream": "https://huggingface.co/rhasspy/piper-voices/tree/main/id/id_ID/news_tts/medium",
+      "purpose": "Primary Indonesian voice output conditioned with Bagusmax-calm DSP profile"
+    },
+    "tts_english": {
+      "name": "en_US-norman-medium",
+      "format": "ONNX",
+      "architecture": "Piper VITS",
+      "sample_rate": 22050,
+      "file_path": "models/tts/english/norman-medium/en_US-norman-medium.onnx",
+      "config_path": "models/tts/english/norman-medium/en_US-norman-medium.onnx.json",
+      "size_bytes": 63531379,
+      "sha256": "b9739443232a80a59c7d18810dd856899bf16a7964725f5ab81ea49b1351cb71",
+      "config_sha256": "6c2db7f558a4a8deb9fe822583c1c5105f6c4e834dd0f9de8ad17a888ee9fe1d",
+      "license": "MIT",
+      "upstream": "https://huggingface.co/rhasspy/piper-voices/tree/main/en/en_US/norman/medium",
+      "measured_f0_hz": 106.5,
+      "purpose": "English Tutor partner voice (masculine baritone register)"
+    },
+    "asr_faster_whisper": {
+      "name": "faster-whisper-large-v3",
+      "format": "CTranslate2",
+      "architecture": "Whisper",
+      "parameters": "1550M",
+      "file_path": "models/asr/faster_whisper/model.bin",
+      "config_path": "models/asr/faster_whisper/config.json",
+      "directory": "models/asr/faster_whisper",
+      "size_bytes": 3087284237,
+      "sha256": "69f74147e3334731bc3a76048724833325d2ec74642fb52620eda87352e3d4f1",
+      "config_sha256": "a9306624f5ec14270a014b647e5c316b6e03a662c369758d1b90697a7b0655b9",
+      "license": "Apache-2.0 / MIT",
+      "upstream": "https://huggingface.co/Systran/faster-whisper-large-v3",
+      "purpose": "Local speech-to-text recognition on CUDA with offline local_files_only guarantee"
+    },
+    "vad_silero": {
+      "name": "silero_vad_v6",
+      "format": "ONNX",
+      "architecture": "Silero VAD",
+      "sample_rate": 16000,
+      "file_path": "models/vad/silero/silero_vad_v6.onnx",
+      "size_bytes": 1245151,
+      "sha256": "4cbf549b8326f60f80f2536d9eefeb450a9abe83365a098031c89719f1be17d2",
+      "license": "MIT",
+      "purpose": "Local Voice Activity Detection, silence endpointing, and echo suppression"
+    }
+  },
+  "experimental_candidates": {
+    "wikidepia_wibowo": {
+      "name": "wibowo (VITS Indonesian)",
+      "status": "LICENSE_REVIEW_REQUIRED",
+      "provenance": "2,000 synthetic sentences generated via Microsoft Azure Cognitive Services (id-ID-ArdiNeural) + 4h audiobooks",
+      "license_restriction": "Azure Cognitive Services Terms section 3.2 prohibits training competing TTS models; upstream notes 'DO NOT USE FOR COMMERCIAL PURPOSES'",
+      "measured_f0_hz": 157.5,
+      "action": "Quarantined from production build to protect IP compliance"
+    }
+  }
+}
