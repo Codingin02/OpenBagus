@@ -438,13 +438,13 @@ class GetFinancialStatementTool(BaseFinancialTool):
         "type": "object",
         "properties": {
             "ticker": {"type": "string", "description": "Kode saham"},
-            "statement_type": {"type": "string", "description": "Tipe laporan: INCOME_STATEMENT, BALANCE_SHEET, CASH_FLOW"},
+            "statement_type": {"type": "string", "description": "Tipe laporan: INCOME_STATEMENT, BALANCE_SHEET, CASH_FLOW, ALL (default: ALL)"},
             "period": {"type": "string", "description": "Periode spesifik (misal '2024-FY', '2025-Q3', atau 'LATEST')"},
         },
-        "required": ["ticker", "statement_type"],
+        "required": ["ticker"],
     }
 
-    def run(self, ticker: str, statement_type: str, period: str = "LATEST") -> tuple[Any, dict[str, Any]]:
+    def run(self, ticker: str, statement_type: str = "ALL", period: str = "LATEST") -> tuple[Any, dict[str, Any]]:
         root = get_repo_root()
         storage = FinancialStatementStorage(root)
         target_period = None if period.upper() == "LATEST" else period.upper()
@@ -649,10 +649,10 @@ class GetFinancialProvenanceTool(BaseFinancialTool):
             "metric": {"type": "string", "description": "Nama metrik (misal 'revenue', 'net_income')"},
             "period": {"type": "string", "description": "Periode laporan"},
         },
-        "required": ["ticker", "metric"],
+        "required": ["ticker"],
     }
 
-    def run(self, ticker: str, metric: str, period: str = "LATEST") -> tuple[Any, dict[str, Any]]:
+    def run(self, ticker: str, metric: str = "revenue", period: str = "LATEST") -> tuple[Any, dict[str, Any]]:
         root = get_repo_root()
         db = FinancialFactsDatabase(root=root)
         clean_period = None if (not period or period.upper() == "LATEST") else period.upper()

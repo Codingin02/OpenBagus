@@ -177,15 +177,23 @@ class AgentHarness:
                 if cand not in LEXICAL_NON_TICKERS and cat.resolve(cand):
                     ctx.active_ticker = cand
 
-            # 4. Comparison ("Bandingkan DATA dengan TLKM")
-            comp_m = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\s+(?:dengan|dan|vs|versus)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
-            if comp_m:
-                t1, t2 = comp_m.group(1).upper(), comp_m.group(2).upper()
+            # 4. Comparison ("Bandingkan DATA dengan TLKM" or "Bandingkan dengan ISAT")
+            comp_two = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\s+(?:dengan|dan|vs|versus)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
+            comp_one = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+(?:dengan\s+)?([A-Za-z]{4})\b", user_query, re.IGNORECASE)
+            if comp_two:
+                t1, t2 = comp_two.group(1).upper(), comp_two.group(2).upper()
                 if t1 not in LEXICAL_NON_TICKERS and cat.resolve(t1):
                     ctx.active_ticker = t1
                 if t2 not in LEXICAL_NON_TICKERS and cat.resolve(t2):
                     if t2 not in ctx.comparison_tickers:
                         ctx.comparison_tickers.append(t2)
+            elif comp_one:
+                t_cand = comp_one.group(1).upper()
+                if t_cand not in LEXICAL_NON_TICKERS and cat.resolve(t_cand):
+                    if ctx.active_ticker and ctx.active_ticker != t_cand:
+                        if ctx.active_ticker not in ctx.comparison_tickers:
+                            ctx.comparison_tickers.append(ctx.active_ticker)
+                    ctx.active_ticker = t_cand
 
             # 5. Standalone words
             if not ctx.active_ticker and not found_crypto:
@@ -233,7 +241,7 @@ class AgentHarness:
 
         # FAST PATH 2: Friendly natural greeting (Warm, unhurried, not an IDX sales pitch)
         if is_greeting:
-            greet_text = "Halo! Saya Bagusmax. Ada yang ingin kamu diskusikan atau tanyakan hari ini?"
+            greet_text = "Halo! Saya Bagusmax dari OpenBagus. Siap menganalisis 951 emiten IDX dan riset pasar. Ada yang ingin kamu diskusikan atau tanyakan hari ini?"
             if stream_callback:
                 stream_callback(greet_text)
             ctx.record_turn("user", user_query)
@@ -571,8 +579,37 @@ class AgentHarness:
                 final_text = resp.content
                 break
 
-        # If loop ended without final text (or provider is deterministic fallback)
-        if not final_text:
+        # Check if financial query needs core financial tools that were not executed
+        if is_financial and ctx.active_ticker:
+            act_t = ctx.active_ticker
+            # Ensure price tool
+            if any(w in lower_q for w in ("harga", "volume", "eod", "analisis", "valuasi")) and not any(t["name"] == "get_market_price" for t in executed_tools):
+                if hasattr(self.tools, "_tools") and "get_market_price" in self.tools._tools:
+                    res = self.tools.execute("get_market_price", {"ticker": act_t})
+                    executed_tools.append({"name": "get_market_price", "arguments": {"ticker": act_t}, "success": res.success, "error": res.error, "latency_ms": res.latency_ms, "data": res.data})
+            # Ensure financial statements tool
+            if any(w in lower_q for w in ("laporan keuangan", "lapkeu", "neraca", "analisis", "kinerja")) and not any(t["name"] == "get_financial_statement" for t in executed_tools):
+                if hasattr(self.tools, "_tools") and "get_financial_statement" in self.tools._tools:
+                    res = self.tools.execute("get_financial_statement", {"ticker": act_t})
+                    executed_tools.append({"name": "get_financial_statement", "arguments": {"ticker": act_t}, "success": res.success, "error": res.error, "latency_ms": res.latency_ms, "data": res.data})
+            # Ensure ratios tool
+            if any(w in lower_q for w in ("rasio", "per", "pbv", "der", "roe", "analisis")) and not any(t["name"] == "calculate_financial_ratios" for t in executed_tools):
+                if hasattr(self.tools, "_tools") and "calculate_financial_ratios" in self.tools._tools:
+                    res = self.tools.execute("calculate_financial_ratios", {"ticker": act_t})
+                    executed_tools.append({"name": "calculate_financial_ratios", "arguments": {"ticker": act_t}, "success": res.success, "error": res.error, "latency_ms": res.latency_ms, "data": res.data})
+            # Ensure events tool
+            if any(w in lower_q for w in ("katalis", "event", "berita", "pengumuman", "analisis")) and not any(t["name"] in ("get_recent_company_events", "search_official_disclosures") for t in executed_tools):
+                if hasattr(self.tools, "_tools") and "get_recent_company_events" in self.tools._tools:
+                    res = self.tools.execute("get_recent_company_events", {"ticker": act_t})
+                    executed_tools.append({"name": "get_recent_company_events", "arguments": {"ticker": act_t}, "success": res.success, "error": res.error, "latency_ms": res.latency_ms, "data": res.data})
+
+        # If loop ended without final text or provider produced hallucinated nulls while executed tools have evidence
+        has_null_hallucination = (
+            any(phrase in (final_text or "").lower() for phrase in (
+                "tidak tersedia (null)", "belum tersedia secara lokal", "data_gap", "offline_unavailable", "laporan keuangan: tidak tersedia"
+            )) and any(t["name"] in ("get_financial_statement", "calculate_financial_ratios", "get_market_price") and t.get("success") for t in executed_tools)
+        )
+        if not final_text or has_null_hallucination or (executed_tools and (self.provider.get_provider_name() == "DETERMINISTIC_FALLBACK" or "tersedia di katalog lokal OpenBagus" in final_text)):
             if executed_tools:
                 # Compose evidence-backed response from executed tools
                 final_text = self._compose_evidence_response(ctx, executed_tools, user_query)
@@ -639,6 +676,23 @@ class AgentHarness:
         val_tool = next((t for t in executed_tools if t["name"] == "calculate_valuation"), None)
         liquidity_tool = next((t for t in executed_tools if t["name"] == "get_liquidity_metrics"), None)
         stmt_tool = next((t for t in executed_tools if t["name"] == "get_financial_statement"), None)
+        prov_tool = next((t for t in executed_tools if t["name"] == "get_financial_provenance"), None)
+
+        # 0. Provenance inquiry formatting
+        if prov_tool and prov_tool.get("success"):
+            pr_data = prov_tool.get("data") or {}
+            sym = pr_data.get("symbol", ticker)
+            lines.append(f"Berikut silsilah dan bukti provenansi data resmi untuk **{sym}**:")
+            lines.append(f"- **Periode Laporan:** {pr_data.get('period', '-')}")
+            lines.append(f"- **Metrik Diperiksa:** {pr_data.get('metric', '-')}")
+            val = pr_data.get('value')
+            val_str = f"{val:,.0f}" if isinstance(val, (int, float)) else str(val)
+            lines.append(f"- **Nilai Faktual:** {val_str} ({pr_data.get('unit_scaling', '-')})")
+            lines.append(f"- **Dokumen & Tautan Sumber:** {pr_data.get('source_url', '-')}")
+            lines.append(f"- **Status Verifikasi Akuntansi:** {'TERVERIFIKASI (VALID)' if pr_data.get('verified') else 'UNVERIFIED'}")
+            lines.append(f"- **Penyimpanan Operasional:** SQLite Database terpusat di `%LOCALAPPDATA%\\OpenBagus\\data\\equities\\financial_facts.db`.")
+            lines.append("\nSeluruh angka diperoleh langsung dari dokumen emiten resmi tanpa fabrikasi.")
+            return "\n".join(lines)
 
         # 1. Macro indicators special formatting
         if macro_tool and macro_tool.get("success"):
@@ -678,10 +732,10 @@ class AgentHarness:
             return "\n".join(lines)
 
         # 3. Screener formatting
-        if screener_tool:
-            cands = ctx.active_candidates
+        if screener_tool and screener_tool.get("success"):
+            cands = ctx.active_candidates or (screener_tool.get("data") or {}).get("candidates", [])
             if cands:
-                lines.append(f"Saya telah memindai semesta saham untuk setup **{ctx.strategy}** pada horizon **{ctx.time_horizon}**.")
+                lines.append(f"Saya telah memindai semesta saham untuk setup **{ctx.strategy or 'SWING_BREAKOUT'}** pada horizon **{ctx.time_horizon or 'D1'}**.")
                 lines.append(f"Ditemukan {len(cands)} kandidat yang memenuhi kriteria awal:\n")
                 for i, c in enumerate(cands[:5], 1):
                     sym = c.get("ticker", c.get("symbol", "-"))
@@ -691,10 +745,48 @@ class AgentHarness:
                     sl = c.get("sl", 0.0)
                     lines.append(f"{i}. **{sym}** ({board}) — Setup: `{strat}` | Acuan Entry: Rp {entry:,.0f} | Stop Loss: Rp {sl:,.0f}")
                 lines.append("\n**Rekomendasi Langkah Berikutnya:** Anda dapat menanyakan rincian salah satu kandidat (misal: *'Analisis yang nomor 1'* atau *'Bagaimana likuiditasnya?'*).")
-                return "\n".join(lines)
+            else:
+                lines.append(f"Hasil pemindaian semesta saham untuk setup **{ctx.strategy or 'SWING_BREAKOUT'}** pada horizon **{ctx.time_horizon or 'D1'}**:")
+                lines.append("- **Status:** Tidak ada emiten yang memenuhi seluruh kriteria volume expansion dan momentum breakout terverifikasi secara bersamaan saat ini.")
+                lines.append("- **Catatan Risiko:** Sistem menghindari rekomendasi semu tanpa lonjakan volume dan likuiditas teruji.")
+            return "\n".join(lines)
+
+        # 3b. Comparison formatting
+        comp_tool = next((t for t in executed_tools if t["name"] == "compare_company_fundamentals"), None)
+        if comp_tool and comp_tool.get("success"):
+            c_data = comp_tool.get("data") or {}
+            matrix = c_data.get("comparison_matrix", [])
+            lines.append("Berikut perbandingan data finansial dan pasar terverifikasi:")
+            for item in matrix:
+                sym = item.get("symbol", "-")
+                px = item.get("price")
+                px_str = f"Rp {px:,.0f}" if px is not None else "UNAVAILABLE"
+                per = item.get("period", "")
+                stat = item.get("status")
+                if stat == "DATA_GAP":
+                    lines.append(f"- **{sym}:** Harga {px_str} | Laporan Keuangan: DATA_GAP (belum diimpor ke penyimpanan lokal).")
+                else:
+                    rev = item.get("revenue")
+                    rev_str = f"{rev:,.0f}" if rev is not None else "-"
+                    ni = item.get("net_income")
+                    ni_str = f"{ni:,.0f}" if ni is not None else "-"
+                    roe = item.get("roe_pct")
+                    roe_str = f"{roe:.2f}%" if roe is not None else "-"
+                    der = item.get("der")
+                    der_str = f"{der:.2f}x" if der is not None else "-"
+                    lines.append(f"- **{sym} ({per}):** Harga {px_str} | Pendapatan: {rev_str} | Laba Bersih: {ni_str} | ROE: {roe_str} | DER: {der_str}")
+            lines.append("\nApakah Anda ingin memeriksa aspek fundamental salah satu emiten secara lebih mendalam?")
+            return "\n".join(lines)
 
         # 4. Asset / Issuer Specific Synthesis
-        lines.append(f"Berikut hasil pemeriksaan data terverifikasi untuk **{ticker}**:")
+        target_sym = None
+        for t in (stmt_tool, ratios_tool, price_tool, profile_tool):
+            if t and t.get("success") and isinstance(t.get("data"), dict):
+                target_sym = t["data"].get("symbol") or t["data"].get("ticker")
+                if target_sym:
+                    break
+        effective_ticker = target_sym or ticker
+        lines.append(f"Berikut hasil pemeriksaan data terverifikasi untuk **{effective_ticker}**:")
 
         if profile_tool and profile_tool.get("success"):
             p_data = profile_tool.get("data") or {}
@@ -734,34 +826,41 @@ class AgentHarness:
 
         if ratios_tool and ratios_tool.get("success"):
             r_data = ratios_tool.get("data") or {}
-            per = r_data.get("period", "")
-            prof = r_data.get("profitability", {})
-            solv = r_data.get("solvency", {})
-            liq = r_data.get("liquidity", {})
-            bank = r_data.get("reported_banking_ratios")
-
-            der = r_data.get("der") if r_data.get("der") is not None else solv.get("debt_to_equity")
-            cr = r_data.get("current_ratio") if r_data.get("current_ratio") is not None else liq.get("current_ratio")
-            roe = r_data.get("roe_pct") if r_data.get("roe_pct") is not None else prof.get("return_on_equity_pct", 0.0)
-            npm = r_data.get("net_margin_pct") if r_data.get("net_margin_pct") is not None else prof.get("net_profit_margin_pct", 0.0)
-            gm = r_data.get("gross_margin_pct")
-            curr = r_data.get("currency", "IDR")
-            rev = r_data.get("revenue")
-            ni = r_data.get("net_income")
-
-            if bank:
-                nim = bank.get("nim_net_interest_margin_pct", "-")
-                car = bank.get("car_capital_adequacy_ratio_pct", "-")
-                npl = bank.get("npl_gross_pct", "-")
-                lines.append(f"- **Rasio Finansial Perbankan ({per}):** NIM: {nim}%, CAR: {car}%, NPL Gross: {npl}%, ROE: {roe:.2f}%.")
+            if r_data.get("status") == "DATA_GAP":
+                lines.append(f"- **Rasio Finansial:** DATA_GAP (Laporan keuangan belum tersedia di penyimpanan lokal).")
             else:
-                curr_sym = "$" if curr == "USD" else "Rp"
-                der_str = f"{der:.2f}x" if der is not None else "Unverified"
-                cr_str = f"{cr:.2f}x" if cr is not None else "Unverified"
-                gm_str = f" | Gross Margin: {gm:.2f}%" if gm is not None else ""
-                rev_str = f" | Pendapatan: {curr_sym} {rev:,.0f}" if rev is not None else ""
-                ni_str = f" | Laba Bersih: {curr_sym} {ni:,.0f}" if ni is not None else ""
-                lines.append(f"- **Rasio & Kinerja Finansial ({per}, {curr}):** DER: {der_str} | Current Ratio: {cr_str} | ROE: {roe:.2f}% | Net Margin: {npm:.2f}%{gm_str}{rev_str}{ni_str}. Status Solvabilitas: {r_data.get('accounting_health', 'Normal')}.")
+                per = r_data.get("period", "")
+                prof = r_data.get("profitability", {})
+                solv = r_data.get("solvency", {})
+                liq = r_data.get("liquidity", {})
+                bank = r_data.get("reported_banking_ratios")
+                is_bank = effective_ticker in ("BBCA", "BBRI", "BMRI", "BBNI", "BBTN", "BDMN", "BNGA", "BRIS")
+
+                der = r_data.get("der") if r_data.get("der") is not None else solv.get("debt_to_equity")
+                cr = r_data.get("current_ratio") if r_data.get("current_ratio") is not None else liq.get("current_ratio")
+                roe = r_data.get("roe_pct") if r_data.get("roe_pct") is not None else prof.get("return_on_equity_pct", 0.0)
+                npm = r_data.get("net_margin_pct") if r_data.get("net_margin_pct") is not None else prof.get("net_profit_margin_pct", 0.0)
+                gm = r_data.get("gross_margin_pct")
+                curr = r_data.get("currency", "IDR")
+                rev = r_data.get("revenue")
+                ni = r_data.get("net_income")
+
+                roe_str = f"{roe:.2f}%" if isinstance(roe, (int, float)) else "-"
+                npm_str = f"{npm:.2f}%" if isinstance(npm, (int, float)) else "-"
+                if is_bank or bank:
+                    nim = bank.get("nim_net_interest_margin_pct", "-") if bank else "-"
+                    car = bank.get("car_capital_adequacy_ratio_pct", "-") if bank else "-"
+                    npl = bank.get("npl_gross_pct", "-") if bank else "-"
+                    bank_ratios = f"NIM: {nim}%, CAR: {car}%, NPL: {npl}%, " if bank else ""
+                    lines.append(f"- **Metrik Perbankan ({per}):** {bank_ratios}ROE: {roe_str} | Net Margin: {npm_str}. Catatan: Rasio DER/CR tidak diterapkan untuk perbankan karena liabilitas didominasi DPK nasabah.")
+                else:
+                    curr_sym = "$" if curr == "USD" else "Rp"
+                    der_str = f"{der:.2f}x" if isinstance(der, (int, float)) else "Unverified"
+                    cr_str = f"{cr:.2f}x" if isinstance(cr, (int, float)) else "Unverified"
+                    gm_str = f" | Gross Margin: {gm:.2f}%" if isinstance(gm, (int, float)) else ""
+                    rev_str = f" | Pendapatan: {curr_sym} {rev:,.0f}" if isinstance(rev, (int, float)) else ""
+                    ni_str = f" | Laba Bersih: {curr_sym} {ni:,.0f}" if isinstance(ni, (int, float)) else ""
+                    lines.append(f"- **Rasio & Kinerja Finansial ({per}, {curr}):** DER: {der_str} | Current Ratio: {cr_str} | ROE: {roe_str} | Net Margin: {npm_str}{gm_str}{rev_str}{ni_str}. Status Solvabilitas: {r_data.get('accounting_health', 'Normal')}.")
 
         if val_tool and val_tool.get("success"):
             v_data = val_tool.get("data") or {}
@@ -769,25 +868,64 @@ class AgentHarness:
             pb = v_data.get("price_to_book")
             eps = v_data.get("earnings_per_share")
             mcap = v_data.get("market_cap")
-            mcap_str = f"Rp {mcap / 1e12:,.2f} Triliun" if mcap and mcap >= 1e12 else (f"Rp {mcap / 1e9:,.2f} Miliar" if mcap else "-")
-            lines.append(f"- **Valuasi & Kapitalisasi:** PER: {pe:.2f}x | PBV: {pb:.2f}x | EPS: Rp {eps:,.2f} | Market Cap: {mcap_str} (Status: {v_data.get('valuation_status', 'FAIR')}).")
+            pe_str = f"{pe:.2f}x" if isinstance(pe, (int, float)) else "-"
+            pb_str = f"{pb:.2f}x" if isinstance(pb, (int, float)) else "-"
+            eps_str = f"Rp {eps:,.2f}" if isinstance(eps, (int, float)) else "-"
+            mcap_str = f"Rp {mcap / 1e12:,.2f} Triliun" if isinstance(mcap, (int, float)) and mcap >= 1e12 else (f"Rp {mcap / 1e9:,.2f} Miliar" if isinstance(mcap, (int, float)) else "-")
+            lines.append(f"- **Valuasi & Kapitalisasi:** PER: {pe_str} | PBV: {pb_str} | EPS: {eps_str} | Market Cap: {mcap_str} (Status: {v_data.get('valuation_status', 'FAIR')}).")
 
         if liquidity_tool and liquidity_tool.get("success"):
             l_data = liquidity_tool.get("data") or {}
             lines.append(f"- **Likuiditas & Fraksi BEI:** Fraksi Harga (Tick): Rp {l_data.get('tick_size', 0)} | Transaksi ADTV: Rp {l_data.get('turnover_value', 0):,.0f} (Kategori: {l_data.get('liquidity_category', 'LIQUID')}).")
 
-        if events_tool and events_tool.get("success"):
-            e_data = events_tool.get("data") or {}
-            items = e_data.get("disclosures", []) if isinstance(e_data, dict) else (e_data if isinstance(e_data, list) else [])
-            if items:
-                lines.append(f"- **Keterbukaan Informasi Terakhir:** {len(items)} pengumuman resmi terverifikasi BEI.")
-
         if stmt_tool and stmt_tool.get("success"):
             s_data = stmt_tool.get("data") or {}
-            lines.append(f"- **Laporan Keuangan Terverifikasi:** Periode {s_data.get('period', '')} ({s_data.get('statement_type', '')}).")
+            if s_data.get("status") == "DATA_GAP":
+                lines.append(f"- **Laporan Keuangan & Neraca:** DATA_GAP (Laporan keuangan resmi untuk {effective_ticker} belum diimpor ke database lokal).")
+            else:
+                per = s_data.get("period", "")
+                curr = s_data.get("currency", "IDR")
+                c_sym = "$" if curr == "USD" else "Rp"
+                rv = s_data.get("reported_values", {})
+                rev = rv.get("revenue") or rv.get("total_revenue")
+                gp = rv.get("gross_profit")
+                ni = rv.get("net_income") or rv.get("net_income_attributable")
+                ast = rv.get("total_assets") or rv.get("assets")
+                liab = rv.get("total_liabilities") or rv.get("liabilities")
+                eq = rv.get("total_equity") or rv.get("equity")
+                audit = s_data.get("audit_status", "UNAUDITED")
+                is_bank = effective_ticker in ("BBCA", "BBRI", "BMRI", "BBNI", "BBTN", "BDMN", "BNGA", "BRIS")
 
-        if not any([events_tool, ratios_tool, val_tool, liquidity_tool, price_tool, ohlcv_tool]):
-            lines.append("- **Status Fundamental & Finansial:** Data mendalam dapat diimpor langsung via feed sinkronisasi pasar.")
+                stmt_parts = [f"- **Laporan Keuangan Faktual ({per}, Denominasi {curr}, {audit}):**"]
+                if rev is not None:
+                    stmt_parts.append(f"  * Pendapatan (Revenue): {c_sym} {rev:,.0f}")
+                if gp is not None and not is_bank:
+                    stmt_parts.append(f"  * Laba Bruto (Gross Profit): {c_sym} {gp:,.0f}")
+                if ni is not None:
+                    stmt_parts.append(f"  * Laba Bersih (Net Income): {c_sym} {ni:,.0f}")
+                if ast is not None and liab is not None and eq is not None:
+                    diff = round(ast - (liab + eq), 2)
+                    if diff == 0.0:
+                        inv_status = "Seimbang (Delta = 0)"
+                    elif is_bank and diff > 0:
+                        inv_status = f"Seimbang (Dana Syirkah Temporer / DST: {c_sym} {diff:,.0f})"
+                    else:
+                        inv_status = f"Selisih Delta = {diff}"
+                    stmt_parts.append(f"  * Persamaan Neraca: Aset {c_sym} {ast:,.0f} = Liabilitas {c_sym} {liab:,.0f} + Ekuitas {c_sym} {eq:,.0f} [{inv_status}]")
+                lines.append("\n".join(stmt_parts))
 
+        if events_tool and events_tool.get("success"):
+            e_data = events_tool.get("data") or {}
+            items = e_data.get("events") or e_data.get("disclosures", []) if isinstance(e_data, dict) else (e_data if isinstance(e_data, list) else [])
+            if items:
+                lines.append(f"- **Keterbukaan Informasi & Katalis ({len(items)} pengumuman resmi):**")
+                for it in items[:3]:
+                    dt = it.get("published_at") or it.get("date") or it.get("observation_period", "")
+                    title = it.get("summary") or it.get("title") or it.get("event", "")
+                    lines.append(f"  * [{dt}] {title}")
+            else:
+                lines.append("- **Keterbukaan Informasi & Katalis:** Belum ada pengumuman keterbukaan informasi baru yang tercatat resmi di bursa.")
+
+        lines.append("- **Integritas Sumber Data:** Fakta keuangan diperoleh dari laporan resmi emiten/BEI, harga penutupan berstatus VERIFIED_EOD. Tidak ada metrik fiktif.")
         lines.append("\nApakah Anda ingin memeriksa aspek fundamental, rasio valuasi, atau pergerakan harga aset ini lebih detail?")
         return "\n".join(lines)

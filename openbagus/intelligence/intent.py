@@ -1173,7 +1173,8 @@ class IntentRouter:
         if re.search(r"\b(?:jadwal\s+riset|penjadwalan\s+riset|otomasi\s+riset|auto\s+brief)\b", lower):
             return IntentRequest("DAILY_BRIEF", "DAILY_BRIEF", raw_query=text, focus="status")
         chart = re.search(r"\b(?:chart(?:nya)?|grafik(?:nya)?|visualize|visualisasi|hart)\b", lower)
-        operation = re.search(r"\b(?:backtest|report|laporan|ownership|kepemilikan|pemegang\s+saham|equity\s+curve|export|ekspor)\b", lower)
+        is_fin_report = bool(re.search(r"\blaporan\s+(?:keuangan|tahunan|kuartal|laba|rugi|neraca|arus\s+kas)\b", lower)) and not bool(re.search(r"\b(?:html|word|pdf|docx|export|ekspor)\b", lower))
+        operation = (re.search(r"\b(?:backtest|report|ownership|kepemilikan|pemegang\s+saham|equity\s+curve|export|ekspor)\b", lower) or (re.search(r"\blaporan\b", lower) and not is_fin_report))
         if chart or operation:
             is_terminal = bool(re.search(r"\b(?:terminal|cepat)\b", lower))
             focus_mode = "terminal" if is_terminal else "interactive"

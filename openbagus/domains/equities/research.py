@@ -107,7 +107,13 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
         ratios = packet.fundamentals.get("ratios", {})
         text.append(f"SOURCE GAP: {asset.name} dikenali sebagai {asset.id}, tetapi harga dan OHLCV berizin belum tersedia. Ini kegagalan ketersediaan data, bukan keputusan WAIT setelah evaluasi pasar.")
         if ratios:
-            text.append(f"Laporan {packet.fundamentals['period']} ({packet.fundamentals['basis']}): " + "; ".join(f"{k} {v:,.3f}" for k, v in ratios.items()))
+            formatted_r = []
+            for k, v in ratios.items():
+                if isinstance(v, (int, float)) and not isinstance(v, bool):
+                    formatted_r.append(f"{k} {v:,.3f}")
+                elif v is not None:
+                    formatted_r.append(f"{k} {v}")
+            text.append(f"Laporan {packet.fundamentals['period']} ({packet.fundamentals['basis']}): " + "; ".join(formatted_r))
         else:
             text.append("Laporan keuangan bertanggal juga belum tersedia; rasio bank/valuasi tidak diestimasi.")
         if re.search(r"bi.?rate|suku bunga|nikel|nickel|emas|gold|prospek|sektor", query, re.I):
@@ -139,29 +145,53 @@ def render_equity(packet, quant, asset, query: str, *, language: str = "ID", sho
             f"Analisis Valuasi & Fundamental {asset.symbol}:",
             f"Berdasarkan laporan {f.get('period_type', '')} {f.get('period', '')} ({f.get('basis', 'konsolidasi')}), rasio yang dilaporkan:",
         ]
-        if pbv_val is not None:
+        if pbv_val is not None and isinstance(pbv_val, (int, float)) and not isinstance(pbv_val, bool):
             eval_lines.append(f"  - Price to Book (PBV): {pbv_val:.2f}x")
-        if per_val is not None:
+        elif pbv_val is not None:
+            eval_lines.append(f"  - Price to Book (PBV): {pbv_val}")
+        if per_val is not None and isinstance(per_val, (int, float)) and not isinstance(per_val, bool):
             eval_lines.append(f"  - Price to Earnings (PER): {per_val:.2f}x")
-        if roe_val is not None:
+        elif per_val is not None:
+            eval_lines.append(f"  - Price to Earnings (PER): {per_val}")
+        if roe_val is not None and isinstance(roe_val, (int, float)) and not isinstance(roe_val, bool):
             eval_lines.append(f"  - ROE: {roe_val:.2f}%")
-        if opm_val is not None:
+        elif roe_val is not None:
+            eval_lines.append(f"  - ROE: {roe_val}")
+        if opm_val is not None and isinstance(opm_val, (int, float)) and not isinstance(opm_val, bool):
             eval_lines.append(f"  - Operating Margin: {opm_val:.2f}%")
-        if npm_val is not None:
+        elif opm_val is not None:
+            eval_lines.append(f"  - Operating Margin: {opm_val}")
+        if npm_val is not None and isinstance(npm_val, (int, float)) and not isinstance(npm_val, bool):
             eval_lines.append(f"  - Net Margin: {npm_val:.2f}%")
-        if der_val is not None:
+        elif npm_val is not None:
+            eval_lines.append(f"  - Net Margin: {npm_val}")
+        if der_val is not None and isinstance(der_val, (int, float)) and not isinstance(der_val, bool):
             eval_lines.append(f"  - Debt to Equity (DER): {der_val:.2f}x")
-        if car_val is not None:
+        elif der_val is not None:
+            eval_lines.append(f"  - Debt to Equity (DER): {der_val}")
+        if car_val is not None and isinstance(car_val, (int, float)) and not isinstance(car_val, bool):
             eval_lines.append(f"  - CAR: {car_val:.2f}%")
-        if nim_val is not None:
+        elif car_val is not None:
+            eval_lines.append(f"  - CAR: {car_val}")
+        if nim_val is not None and isinstance(nim_val, (int, float)) and not isinstance(nim_val, bool):
             eval_lines.append(f"  - NIM: {nim_val:.2f}%")
-        if npl_val is not None:
+        elif nim_val is not None:
+            eval_lines.append(f"  - NIM: {nim_val}")
+        if npl_val is not None and isinstance(npl_val, (int, float)) and not isinstance(npl_val, bool):
             eval_lines.append(f"  - NPL Gross: {npl_val:.2f}%")
+        elif npl_val is not None:
+            eval_lines.append(f"  - NPL Gross: {npl_val}")
         eval_lines.append(f"Hasil Quant: {quant.decision_reason}; tidak menyimpulkan premi valuasi tanpa pembanding terverifikasi.")
         text.append("\n".join(eval_lines))
     elif f.get("ratios") and (not follow or re.search(r"fundamental|valuasi|rate|nikel|dampak", query.lower())):
+        formatted_ratios = []
+        for key, value in f["ratios"].items():
+            if isinstance(value, (int, float)) and not isinstance(value, bool):
+                formatted_ratios.append(f"{key} {value:,.3f}")
+            elif value is not None:
+                formatted_ratios.append(f"{key} {value}")
         text.append(f"Fundamental {f['period_type']} {f['period']} ({f['basis']}): " +
-                    "; ".join(f"{key} {value:,.3f}" for key, value in f["ratios"].items()))
+                    "; ".join(formatted_ratios))
     elif not f.get("ratios"):
         text.append("SOURCE GAP: laporan keuangan belum tersedia; EPS/PER/PBV/rasio bank tidak diisi dengan perkiraan.")
     if quant.bullish_validation:
