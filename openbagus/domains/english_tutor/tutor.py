@@ -196,13 +196,13 @@ class EnglishTutor:
                         messages.append(ChatMessage(role=h["role"], content=h["content"]))
                 messages.append(ChatMessage(role="user", content=user_input))
 
-                res = provider.generate(messages, max_tokens=256, temperature=0.3)
+                res = provider.generate(messages, max_tokens=3072 if getattr(provider, "think", False) else 512, temperature=0.3, timeout=120.0)
                 reply_text = getattr(res, "content", "").strip()
                 if not reply_text:
-                    reply_text = self._fallback_dialogue(user_input)
+                    reply_text = "Model tidak menghasilkan jawaban tutor. Pesan dan konteks Anda tetap tersimpan; coba ulangi atau gunakan mode FAST."
             except Exception as e:
-                logger.warning("LLM generation for English Tutor failed (%s), using fallback.", e)
-                reply_text = self._fallback_dialogue(user_input)
+                logger.warning("English Tutor provider failed: %s", type(e).__name__)
+                reply_text = f"Inferensi tutor gagal ({type(e).__name__}). Pesan dan konteks Anda tetap tersimpan; coba ulangi atau gunakan mode FAST."
         else:
             reply_text = self._fallback_dialogue(user_input)
 

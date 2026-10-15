@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections import deque
 import numpy as np
 
 logger = logging.getLogger(__name__)
@@ -24,8 +25,8 @@ class VoiceActivityDetector:
         self,
         threshold: float = 0.55,
         neg_threshold: float = 0.35,
-        silence_timeout_ms: int = 950,
-        extended_silence_timeout_ms: int = 2000,
+        silence_timeout_ms: int = 1300,
+        extended_silence_timeout_ms: int = 2500,
         min_speech_duration_ms: int = 250,
         max_utterance_duration_ms: int = 30000,
         speech_threshold: float | None = None,
@@ -53,8 +54,9 @@ class VoiceActivityDetector:
         self._speech_chunks = 0
         self._silence_chunks = 0
         self._total_chunks = 0
-        self._energy_floor = 1e-4
+        self._energy_floor = 1e-7
         self._noise_floor_rms = 0.0015
+        self._audio_context = deque(maxlen=32)
 
         self._init_model()
 
@@ -84,6 +86,7 @@ class VoiceActivityDetector:
         self._silence_chunks = 0
         self._total_chunks = 0
         self._current_silence_timeout_chunks = self.silence_timeout_chunks
+        self._audio_context.clear()
 
     def set_extended_silence(self, extended: bool = True) -> None:
         """Dynamically toggles extended silence window for incomplete turns."""
@@ -120,6 +123,7 @@ class VoiceActivityDetector:
         return self._noise_floor_rms
 
     def _score_frame(self, frame: np.ndarray, energy: float | None = None) -> float:
+        self._audio_context.append(frame.copy())
         if energy is None:
             energy = float(np.mean(frame ** 2))
         frame_rms = float(np.sqrt(max(0.0, energy)))
@@ -133,12 +137,12 @@ class VoiceActivityDetector:
 
         if self._model is not None and energy > self._energy_floor:
             try:
-                out = self._model(frame, num_samples=FRAME_SAMPLES)
-                return float(out[0]) if len(out) > 0 else 0.0
+                out = self._model(np.concatenate(self._audio_context), num_samples=FRAME_SAMPLES)
+                return float(np.asarray(out).reshape(-1)[-1]) if len(out) > 0 else 0.0
             except Exception as e:
                 logger.debug("VAD inference error: %s", e)
-                return 0.5 if frame_rms > 0.006 else 0.0
-        return 0.6 if frame_rms > 0.008 else 0.0
+                return 0.0
+        return 0.0
 
     def process_frame(self, frame: np.ndarray) -> tuple[bool, bool, float]:
         """Processes a 512-sample (16kHz float32) frame.
@@ -166,6 +170,7 @@ class VoiceActivityDetector:
                 self._speech_chunks += 1
                 if self._speech_chunks >= self.min_speech_chunks:
                     self._is_speech_active = True
+                    self._total_chunks = self._speech_chunks
                     self._silence_chunks = 0
             else:
                 self._speech_chunks = max(0, self._speech_chunks - 1)

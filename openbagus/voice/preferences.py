@@ -106,7 +106,11 @@ def _get_target_path(config_path: Path | str | None = None) -> Path:
     if config_path:
         return Path(config_path)
     # Check local repo directory first
-    repo_file = DEFAULT_VOICE_CONFIG_PATH
+    import sys
+    if getattr(sys, "frozen", False):
+        return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OpenBagus" / "voice_preferences.json"
+    from openbagus.core.env import get_repo_root
+    repo_file = get_repo_root() / DEFAULT_VOICE_CONFIG_PATH
     if repo_file.parent.exists():
         return repo_file
     # Fallback to local appdata directory

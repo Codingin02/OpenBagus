@@ -51,6 +51,12 @@ class ResolveSecurityTool(BaseFinancialTool):
         if not target_query and kwargs:
             target_query = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
         root = get_repo_root()
+        if target_query.strip().upper().replace("/", "").removesuffix("USDT") in ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"):
+            from openbagus.domains.crypto.catalog import CryptoAssetCatalog
+            symbol = target_query.strip().upper().replace("/", "").removesuffix("USDT")
+            crypto, _ = CryptoAssetCatalog(root).resolve_asset(symbol, is_explicit=True)
+            if crypto:
+                return {"symbol": symbol, "name": crypto.name, "asset_type": "CRYPTO", "currency": "USDT"}, {"source": "CryptoAssetCatalog", "verified": True}
         catalog = EquityCatalog(root)
         asset = catalog.resolve(target_query, allow_us=True)
         if asset:
@@ -209,6 +215,8 @@ class GetMarketPriceTool(BaseFinancialTool):
                     "is_crypto": True,
                     "sources": spot.get("cross_exchange_sources", [spot.get("provider", "Binance Vision")]),
                 }, {"source": spot.get("provider", "Binance Vision (Public)"), "date": obs_dt}
+            return {"symbol": f"{sym_clean}USDT", "price": None, "status": "DATA_GAP", "is_crypto": True,
+                    "currency": "USDT", "message": "Provider harga kripto belum menghasilkan data; tidak memakai kuotasi saham sebagai pengganti."}, {"source": "ZeroKeyMarketData", "status": "UNAVAILABLE"}
 
         root = get_repo_root()
         eq_data = EquityData(root)
@@ -240,7 +248,7 @@ class GetMarketPriceTool(BaseFinancialTool):
             "change_pct": chg_pct,
             "observation_date": obs_date,
             "data_quality": "VERIFIED_EOD",
-        }, {"source": "Verified IDX EOD Storage", "date": obs_date}
+        }, {"source": "Local EOD Storage", "source_url": data.get("source"), "date": obs_date, "retrieved_at": data.get("fetched_at") or data.get("published_at")}
 
 
 class GetOHLCVTool(BaseFinancialTool):
@@ -469,7 +477,10 @@ class GetFinancialStatementTool(BaseFinancialTool):
             "unit": unit,
             "reported_values": values,
             "audit_status": stmt.get("audit_status", "UNAUDITED"),
-        }, {"source": "Official Issuer Filing", "period": stmt.get("period"), "doc_id": stmt.get("document_id")}
+            "source_url": stmt.get("source"),
+            "published_at": stmt.get("published_at"),
+            "citations": stmt.get("citations", {}),
+        }, {"source": "Cached Issuer Filing", "period": stmt.get("period"), "doc_id": stmt.get("document_id"), "source_url": stmt.get("source")}
 
 
 class CalculateFinancialRatiosTool(BaseFinancialTool):
@@ -492,18 +503,18 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
             return {"symbol": ticker.upper(), "status": "DATA_GAP", "message": "Laporan keuangan belum tersedia."}, {"source": "Storage"}
 
         vals = stmt.get("values", {})
-        rev = vals.get("revenue") or vals.get("total_revenue", 0.0)
-        gp = vals.get("gross_profit", 0.0)
-        op = vals.get("operating_income") or vals.get("operating_profit", 0.0)
-        ni = vals.get("net_income") or vals.get("net_income_attributable") or vals.get("net_profit", 0.0)
+        rev = vals.get("revenue", vals.get("total_revenue"))
+        gp = vals.get("gross_profit")
+        op = vals.get("operating_income", vals.get("operating_profit"))
+        ni = vals.get("net_income", vals.get("net_income_attributable", vals.get("net_profit")))
 
         # Do not treat missing debt as 0.0 without explicit filing evidence
         if "total_debt" in vals and vals["total_debt"] is not None:
             debt = float(vals["total_debt"])
             debt_verified = True
-        elif ("short_term_debt" in vals and vals["short_term_debt"] is not None) or ("long_term_debt" in vals and vals["long_term_debt"] is not None):
-            st_d = vals.get("short_term_debt") or 0.0
-            lt_d = vals.get("long_term_debt") or 0.0
+        elif vals.get("short_term_debt") is not None and vals.get("long_term_debt") is not None:
+            st_d = vals["short_term_debt"]
+            lt_d = vals["long_term_debt"]
             debt = float(st_d + lt_d)
             debt_verified = True
         elif "interest_bearing_debt" in vals and vals["interest_bearing_debt"] is not None:
@@ -513,16 +524,16 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
             debt = None
             debt_verified = False
 
-        equity = vals.get("total_equity") or vals.get("equity") or vals.get("equity_attributable", 0.0)
-        ca = vals.get("current_assets") or vals.get("total_current_assets", 0.0)
-        cl = vals.get("current_liabilities") or vals.get("total_current_liabilities", 0.0)
+        equity = vals.get("total_equity", vals.get("equity", vals.get("equity_attributable")))
+        ca = vals.get("current_assets", vals.get("total_current_assets"))
+        cl = vals.get("current_liabilities", vals.get("total_current_liabilities"))
 
         der = round(debt / equity, 2) if (debt is not None and equity and equity > 0) else None
-        gm = round((gp / rev) * 100, 2) if rev > 0 else None
-        om = round((op / rev) * 100, 2) if rev > 0 else None
-        nm = round((ni / rev) * 100, 2) if rev > 0 else None
-        roe = round((ni / equity) * 100, 2) if (equity and equity > 0) else None
-        cr = round(ca / cl, 2) if (cl and cl > 0) else None
+        gm = round((gp / rev) * 100, 2) if rev and rev > 0 and gp is not None else None
+        om = round((op / rev) * 100, 2) if rev and rev > 0 and op is not None else None
+        nm = round((ni / rev) * 100, 2) if rev and rev > 0 and ni is not None else None
+        roe = round((ni / equity) * 100, 2) if equity and equity > 0 and ni is not None else None
+        cr = round(ca / cl, 2) if cl and cl > 0 and ca is not None else None
 
         reported_ratios = stmt.get("reported_ratios_pct", {})
 
@@ -545,7 +556,9 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
             "current_ratio": cr,
             "reported_banking_ratios": reported_ratios if reported_ratios else None,
             "accounting_health": ("Solvent" if der < 1.5 else "Moderate/Leveraged") if der is not None else "Debt Unverified",
-        }, {"source": "Filing Financial Calculations", "period": stmt.get("period")}
+        }, {"source": "Filing Financial Calculations", "period": stmt.get("period"), "source_url": stmt.get("source"),
+            "formula": {"roe_pct": "net_income / total_equity * 100 (period return; not annualized)",
+                        "der": "verified interest-bearing debt / total_equity", "net_margin_pct": "net_income / revenue * 100"}}
 
 
 class CalculateValuationTool(BaseFinancialTool):

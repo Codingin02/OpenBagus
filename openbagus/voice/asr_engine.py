@@ -17,7 +17,7 @@ def _register_nvidia_dll_paths() -> None:
     if os.name != "nt":
         return
     import sys
-    base = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
+    base = Path(sys._MEIPASS) / "nvidia" if getattr(sys, "frozen", False) else Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
     if base.exists():
         for bin_dir in base.glob("*/bin"):
             if bin_dir.is_dir():
@@ -118,11 +118,14 @@ class LocalASREngine:
             if snapshots:
                 return str(snapshots[0])
 
-        return "large-v3"
+        return str(Path(os.environ.get("OPENBAGUS_MODEL_DIR", "E:/Projects/OpenBagus/models")) / "asr/faster_whisper")
 
     def _init_model(self) -> None:
         if faster_whisper is None:
             logger.warning("faster-whisper is not installed")
+            return
+        if not Path(self._model_path).is_dir():
+            logger.error("Local ASR model directory unavailable; automatic downloads are disabled")
             return
 
         # Determine target device (CUDA preferred if available)
@@ -131,6 +134,12 @@ class LocalASREngine:
                 import ctranslate2
                 cuda_count = ctranslate2.get_cuda_device_count()
                 self._device = "cuda" if cuda_count > 0 else "cpu"
+                if self._device == "cuda":
+                    from openbagus.voice.gpu_scheduler import GPUScheduler
+                    status = GPUScheduler.get_instance().query_gpu_status()
+                    if status.vram_total_mb <= 8192:
+                        self._device = "cpu"
+                        logger.warning("ASR uses CPU int8 to reserve the limited GPU budget for FAST/DEEP")
             except Exception:
                 self._device = "cpu"
 
@@ -169,6 +178,7 @@ class LocalASREngine:
                     self._model_path,
                     device="cpu",
                     compute_type="int8",
+                    local_files_only=True,
                 )
                 _SHARED_WHISPER_MODEL = self._model
                 _SHARED_MODEL_KEY = cpu_key
@@ -305,7 +315,8 @@ class LocalASREngine:
                 initial_prompt=self.initial_prompt,
                 beam_size=5,
                 temperature=0.0,
-                vad_filter=False,  # Outer VAD already performed frame endpointing
+                vad_filter=True,
+                vad_parameters={"min_speech_duration_ms": 180, "min_silence_duration_ms": 400},
                 no_speech_threshold=0.45,
                 log_prob_threshold=-1.0,
                 compression_ratio_threshold=2.4,
@@ -316,11 +327,11 @@ class LocalASREngine:
             for seg in segments:
                 # Filter out segments where Whisper detected silence/no-speech
                 if getattr(seg, "no_speech_prob", 0.0) > 0.45:
-                    logger.debug("Ignoring segment with high no_speech_prob: %.3f ('%s')", seg.no_speech_prob, seg.text)
+                    logger.debug("Ignoring segment with high no_speech_prob: %.3f", seg.no_speech_prob)
                     discarded_segments += 1
                     continue
                 if getattr(seg, "avg_logprob", 0.0) < -1.35:
-                    logger.debug("Ignoring segment with low avg_logprob: %.3f ('%s')", seg.avg_logprob, seg.text)
+                    logger.debug("Ignoring segment with low avg_logprob: %.3f", seg.avg_logprob)
                     discarded_segments += 1
                     continue
                 valid_segments.append(seg)

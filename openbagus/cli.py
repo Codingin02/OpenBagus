@@ -1150,6 +1150,11 @@ class OpenBagusShell(cmd.Cmd):
         self.provider_mgr = ProviderManager.get_instance()
         self.agent_harness = AgentHarness(provider=self.provider_mgr.get_provider())
         self.working_context = WorkingContext()
+        if self.session.is_persistence_enabled():
+            from openbagus.ai.memory.session_store import SessionStore
+            self.working_context = SessionStore().load("desktop")
+        else:
+            self.working_context.session_id = "desktop"
         self.current_mode: str = getattr(self.provider_mgr, "_current_mode", "FAST") or "FAST"
         self.runtime_profile = get_profile(self.current_mode)
         self.trace_enabled = False
@@ -1159,6 +1164,20 @@ class OpenBagusShell(cmd.Cmd):
         self._companion_available: bool | None = None  # None = untested
 
     def preloop(self) -> None:
+        if hasattr(self, "startup_report"):
+            info = self.startup_report
+            print(f"\nOPENBAGUS | {info['state']}\nLocal AI Research & Conversation")
+            print(f"Provider: {info['provider']} | Model: {info['model']} | Mode: {self.current_mode}")
+            print(f"Microphone: {info['microphone']} | Speaker: {info['speaker']} | Financial Data: {info['financial_data']}")
+            print("Privacy: LOCAL-FIRST | English Tutor: AVAILABLE | Companion: INACTIVE")
+            from openbagus.voice.preferences import load_voice_preferences
+            prefs = load_voice_preferences()
+            if prefs.voice_enabled and prefs.auto_start_on_cli and info['microphone'] == 'READY':
+                import threading
+                threading.Thread(target=self.do_voice, args=("on",), daemon=True).start()
+            else:
+                print("Voice: OFF. /voice on untuk mengaktifkan. Ketik pesan untuk mulai.\n")
+            return
         color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
         banner = f"\033[36m{BANNER}\033[0m" if color else BANNER
         print(banner)
@@ -1202,11 +1221,11 @@ class OpenBagusShell(cmd.Cmd):
             else:
                 gpu_infer_status = "UNAVAILABLE"
         except Exception:
-            model_name = "qwen3.5:2b-q4_K_M"
-            provider_label = "OLLAMA_LOCAL"
-            backend_label = "CUDA"
-            gpu_short = "RTX 3050 6GB"
-            gpu_infer_status = "READY"
+            model_name = "UNAVAILABLE"
+            provider_label = "UNAVAILABLE"
+            backend_label = "UNKNOWN"
+            gpu_short = "UNKNOWN"
+            gpu_infer_status = "BLOCKED"
 
         mic_status = "UNAVAILABLE"
         try:
@@ -1302,7 +1321,11 @@ class OpenBagusShell(cmd.Cmd):
                     line_to_run = f"{underscore_word} {remainder}".strip()
                 else:
                     line_to_run = body
-                result = super().onecmd(line_to_run)
+                if not line_str.startswith("/") and line_str != "EOF":
+                    self.default(line_str)
+                    result = False
+                else:
+                    result = super().onecmd(line_to_run)
         except KeyboardInterrupt:
             output.write("Analisis dibatalkan.\n")
             result = False
@@ -1321,6 +1344,13 @@ class OpenBagusShell(cmd.Cmd):
                 pass
             output.write(f"RUNTIME_QUERY_FAILED ({type(exc).__name__}); sesi tetap aktif. Diagnostic lokal: cli_errors.jsonl.\n")
             result = False
+        try:
+            json.loads(output.getvalue())
+        except (ValueError, TypeError):
+            pass
+        else:
+            print(output.getvalue().rstrip())
+            return result
         width = max(1, min(120, shutil.get_terminal_size((80, 24)).columns - 1))
         text = re.sub(r"\*\*(.*?)\*\*", r"\1", output.getvalue(), flags=re.S)
         if os.environ.get("NO_COLOR") or not self._prompt_output.isatty():
@@ -3420,7 +3450,17 @@ class OpenBagusShell(cmd.Cmd):
         print()
 
     def do_status(self, _arg: str) -> None:
-        _run_status(self.session)
+        provider = self.agent_harness.provider
+        info = provider.get_model_info()
+        print(json.dumps({"provider": provider.get_provider_name(), "model": info,
+                          "context": self.working_context.to_dict(),
+                          "tools": self.agent_harness.tools.list_tool_names(),
+                          "data_health": getattr(self, "startup_report", {}).get("financial_data", "NOT_TESTED"),
+                          "microphone": getattr(self, "startup_report", {}).get("microphone", "NOT_TESTED"),
+                          "speaker": getattr(self, "startup_report", {}).get("speaker", "NOT_TESTED"),
+                          "voice": self.voice_session.get_status_summary() if self.voice_session else {"active": False},
+                          "last_turn": getattr(self, "last_agent_response", None).to_dict() if getattr(self, "last_agent_response", None) else None},
+                         indent=2, ensure_ascii=False))
 
     def do_providers(self, arg: str) -> None:
         check = "--check" in arg or "-c" in arg
@@ -3457,7 +3497,17 @@ class OpenBagusShell(cmd.Cmd):
     def do_chat(self, arg: str) -> None:
         cleaned = arg.strip()
         if cleaned:
-            resp = self.agent_harness.run(cleaned, context=self.working_context, profile=self.runtime_profile)
+            from openbagus.ai.runtime.profiles import get_profile
+            self.current_mode = self.provider_mgr._current_mode
+            self.runtime_profile = get_profile(self.current_mode)
+            resp = self.agent_harness.run(cleaned, context=self.working_context, profile=self.runtime_profile, mode=self.current_mode)
+            self.last_agent_response = resp
+            if self.working_context.active_ticker:
+                self.session.last_asset = self.working_context.active_ticker
+                self.session.timeframe = self.working_context.time_horizon
+            if self.session.is_persistence_enabled():
+                from openbagus.ai.memory.session_store import SessionStore
+                SessionStore().save(self.working_context)
             print(resp.content)
             if self.trace_enabled:
                 print(f"\n[Trace: Provider={resp.provider_name} | Latency={resp.latency_ms:.1f}ms | Tools={len(resp.tool_calls_executed)}]")
@@ -3524,11 +3574,11 @@ class OpenBagusShell(cmd.Cmd):
             self.current_mode = "FAST"
             self.agent_harness.provider = self.provider_mgr.switch_to_fast()
             print("[MODE] Dialihkan ke mode FAST:")
-            print("  - Model: qwen3.5:2b-q4_K_M (100% GPU, ~92 tok/s, think=False)")
+            print(f"  - Provider: {self.agent_harness.provider.get_provider_name()} | Model: {self.agent_harness.provider.get_model_info().get('model_name')}")
             print("  - Context Window: 2,048 tokens | Latensi respon minimal.")
             if self._companion is not None:
                 self._companion.set_mode("FAST")
-            print("[BAGUSMAX] Companion 3D aktif — FAST / WHITE")
+            print("[BAGUSMAX] Companion 3D tidak dimulai otomatis.")
             if self.voice_session:
                 self.voice_session.set_mode("FAST")
             print()
@@ -3537,7 +3587,7 @@ class OpenBagusShell(cmd.Cmd):
             self.current_mode = "DEEP_REASONING"
             self.agent_harness.provider = self.provider_mgr.switch_to_deep()
             print("[MODE] Dialihkan ke mode DEEP_REASONING:")
-            print("  - Model: qwen3.5:4b (100% GPU, ~48 tok/s, think=True)")
+            print(f"  - Provider: {self.agent_harness.provider.get_provider_name()} | Model: {self.agent_harness.provider.get_model_info().get('model_name')}")
             print("  - Context Window: 4,096 tokens | Extended chain-of-thought reasoning.")
             if self._companion is not None:
                 self._companion.set_mode("DEEP_REASONING")
@@ -3549,6 +3599,10 @@ class OpenBagusShell(cmd.Cmd):
             self.runtime_profile = get_profile(target.upper())
             self.current_mode = self.runtime_profile.name
             print(f"[MODE] Dialihkan ke profil: {self.runtime_profile.name} (Max Tokens: {self.runtime_profile.max_tokens}, Iters: {self.runtime_profile.max_tool_iterations})\n")
+        from openbagus.voice.preferences import load_voice_preferences, save_voice_preferences
+        preferences = self.voice_session.preferences if self.voice_session else load_voice_preferences()
+        preferences.default_mode = self.current_mode
+        save_voice_preferences(preferences)
 
 
     def do_model(self, arg: str) -> None:
@@ -4416,108 +4470,8 @@ class OpenBagusShell(cmd.Cmd):
             print(f"{name:<10} {result}")
 
     def default(self, line: str) -> None:
-        cleaned = line.strip()
-        if not cleaned:
-            return
-        lower = cleaned.lower()
-        if re.search(r"(?:kirim hasil ini ke email|email this analysis|send this to email)", lower):
-            self.do_send("email")
-            return
-        if re.search(r"(?:kirim (?:hasil ini )?ke gmail|send (?:this )?to gmail)", lower):
-            self.do_send("gmail")
-            return
-        if re.search(r"(?:kirim hasil ini ke whatsapp|send to whatsapp|wa hasil ini|kirim ke wa)", lower):
-            self.do_send("whatsapp")
-            return
-        if re.search(r"kirim ke email dan whatsapp", lower):
-            self.do_send("all")
-            return
-        if re.search(r"^(?:pantau|monitor|alert)\s+([a-zA-Z0-9]+)$", lower):
-            m = re.search(r"^(?:pantau|monitor|alert)\s+([a-zA-Z0-9]+)$", lower)
-            if m:
-                target_asset = m.group(1).upper()
-                self.do_alerts(f"add {target_asset}")
-                return
-
-        # Natural language companion trigger
-        if re.search(r"\b(?:show|tampilkan|munculkan)\b.*\bopen\s*bagus\b|\bopen\s*bagus\b.*\b(?:show|tampil|muncul)\b", lower):
-            self.do_show_openbagus("")
-            return
-
-        req = self.router.parse(cleaned, session=self.session)
-        if req.request_type == "COMMAND" and req.system_query == "exit":
-            return self.do_exit("")
-
-        # Strict Asset Context Switch Confirmation (Section B)
-        if req.needs_topic_switch_confirmation and req.switch_target_asset:
-            target = req.switch_target_asset
-            curr = self.session.last_asset or "BTC"
-            prompt_str = f"Konteks aktif: {curr}.\nPindah fokus ke {target}? (Y/N): "
-            try:
-                ans = self._ask(prompt_str).strip().lower()
-            except (EOFError, KeyboardInterrupt):
-                ans = "n"
-            if ans in ("y", "yes", "ya"):
-                # Switch active asset to target
-                self.session.last_asset = target
-                req.needs_topic_switch_confirmation = False
-                req.asset = target
-                req.target_assets = [target]
-                result = self.researcher.execute(req, session=self.session)
-                self.session.add_turn(cleaned, result[:300])
-                print(result)
-                print()
-                return
-            else:
-                # Keep curr as active context
-                print(f"[Konteks {curr} dipertahankan.]\n")
-                return
-
-        if not req.needs_asset and (req.request_type != "UNKNOWN" or req.asset or req.candidates or req.request_type in (
-            "SYSTEM_INFO", "MARKET_OUTLOOK", "CATEGORY", "SCREEN", "PREFERENCE", "FEEDBACK", "HARNESS", "SETUP_CONFIG", "CHART",
-            "VISUALIZE", "BACKTEST", "REPORT_WORD", "REPORT_HTML", "EQUITY_OWNERSHIP", "EQUITY_ANALYSIS", "EQUITY_QUOTE", "EQUITY_SECTOR"
-        )):
-            result = self.researcher.execute(req, session=self.session)
-            if result and not ("Unknown coin or command" in result or "SOURCE GAP" in result):
-                self.session.add_turn(cleaned, result[:300])
-                print(result)
-                print()
-                return
-
-        # Natural Conversational AI Agent Harness primary execution path
-        if self._companion is not None:
-            try:
-                self._companion.agent_thinking(mode=self.current_mode)
-            except Exception:
-                pass
-
-        agent_resp = self.agent_harness.run(
-            user_query=cleaned,
-            context=self.working_context,
-            profile=self.runtime_profile,
-            mode=self.current_mode,
-        )
-
-        if self._companion is not None:
-            try:
-                self._companion.system_idle()
-            except Exception:
-                pass
-
-        formatted_output = format_markdown_for_terminal(agent_resp.content)
-        out_enc = getattr(sys.stdout, "encoding", None) or "utf-8"
-        try:
-            print(formatted_output)
-        except (UnicodeEncodeError, OSError):
-            safe_content = formatted_output.encode(out_enc, errors="replace").decode(out_enc, errors="replace")
-            print(safe_content)
-        if self.trace_enabled:
-            print(f"\n[Trace: Provider={agent_resp.provider_name} | Latency={agent_resp.latency_ms:.1f}ms | Tools={len(agent_resp.tool_calls_executed)}]")
-            if agent_resp.thinking_trace:
-                print(f"  [Thinking: {agent_resp.thinking_trace[:200]}{'...' if len(agent_resp.thinking_trace) > 200 else ''}]")
-            for tc in agent_resp.tool_calls_executed:
-                print(f"  - Tool: {tc['name']}({tc['arguments']}) -> Success: {tc['success']} ({tc['latency_ms']:.1f}ms)")
-        print()
+        if line.strip():
+            self.do_chat(line.strip())
 
 
 
@@ -4558,11 +4512,8 @@ def main(argv: list[str] | None = None) -> int:
             print(f"IMPORT_BLOCKED: {type(exc).__name__}")
             return 2
     if not arguments:
-        if sys.stdin.isatty() and sys.stdout.isatty():
-            OpenBagusShell().cmdloop()
-            return 0
-        build_parser().print_help()
-        return 2
+        from openbagus.bootstrap import main as start_application
+        return start_application()
 
     first_arg = arguments[0]
     if first_arg in MODES or first_arg.startswith("-"):

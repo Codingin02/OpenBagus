@@ -180,3 +180,8 @@ rust/**/target/
 *.pcm.tmp
 *.tts.tmp
 *.asr.tmp
+.packaging-venv/
+build/
+dist/
+/release/
+_installed/

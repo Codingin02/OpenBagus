@@ -323,22 +323,6 @@ class VoiceTurnController:
                     self.capture_stream.start_utterance()
 
                 elif self.state in (VoiceState.SPEECH_DETECTED, VoiceState.ENDPOINTING):
-                    # Check adaptive endpointing: if acoustic pause reaches 650ms, inspect partial speech
-                    if not self.vad.is_extended and self.vad.is_acoustic_pause(650):
-                        peek_audio = self.capture_stream.peek_current_utterance_audio()
-                        if 16000 * 0.4 <= len(peek_audio) <= 16000 * 4.5:
-                            try:
-                                partial_res, _ = self.asr_engine.transcribe(peek_audio, sample_rate=16000)
-                                if partial_res.normalized_text and is_likely_incomplete_utterance(partial_res.normalized_text):
-                                    logger.info(
-                                        "Adaptive endpointing: Utterance '%s' appears incomplete; extending silence timeout to %d ms",
-                                        partial_res.normalized_text,
-                                        self.vad.extended_silence_timeout_ms,
-                                    )
-                                    self.vad.set_extended_silence(True)
-                            except Exception as e:
-                                logger.debug("Adaptive endpointing partial transcription error: %s", e)
-
                     if is_endpoint:
                         self.set_state(VoiceState.ENDPOINTING)
                         audio = self.capture_stream.end_utterance()
@@ -353,7 +337,7 @@ class VoiceTurnController:
                         self.set_state(VoiceState.ENDPOINTING)
                     else:
                         self.set_state(VoiceState.SPEECH_DETECTED)
-                        if self.vad.is_extended:
+                        if self.vad.is_extended and prob >= self.vad.threshold:
                             # User resumed speaking; revert back to base timeout
                             self.vad.set_extended_silence(False)
 
@@ -490,6 +474,8 @@ class VoiceTurnController:
             user_query=transcript,
             context=self.working_context,
             profile=active_profile,
+            mode=self.mode_controller.current_mode,
+            cancellation=cancellation,
         )
         metrics.agent_total_latency_ms = (time.perf_counter() - t_agent_start) * 1000.0
         metrics.tools_executed_count = len(agent_resp.tool_calls_executed)

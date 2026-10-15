@@ -172,6 +172,9 @@ def load_runtime_env(repo_root: Path) -> RuntimeEnv:
 
 def get_repo_root() -> Path:
     """Return the absolute path to the repository root directory."""
+    import sys
+    if getattr(sys, "frozen", False):
+        return Path(sys._MEIPASS)
     return Path(__file__).resolve().parents[2]
 
 

@@ -54,8 +54,9 @@ class BaseFinancialTool(ABC):
             res_data, prov = self.run(**arguments)
             elapsed = (time.perf_counter() - t_start) * 1000
             return ToolResult(
-                success=True,
+                success=not (isinstance(res_data, dict) and bool(res_data.get("error"))),
                 data=res_data,
+                error=str(res_data["error"]) if isinstance(res_data, dict) and res_data.get("error") else None,
                 provenance=prov or {},
                 latency_ms=elapsed,
             )

@@ -12,6 +12,7 @@ from openbagus.voice.audio_capture import AudioCaptureStream
 from openbagus.voice.audio_devices import AudioDeviceManager
 from openbagus.voice.audio_playback import AudioPlaybackManager
 from openbagus.voice.gpu_scheduler import GPUScheduler
+from openbagus.voice.mode_controller import VoiceModeController
 from openbagus.voice.preferences import VoicePreferences, load_voice_preferences, save_voice_preferences
 from openbagus.voice.tts_engine import LocalTTSEngine
 from openbagus.voice.turn_controller import VoiceState, VoiceTurnController
@@ -62,6 +63,7 @@ class VoiceSession:
             tts_engine=tts_engine,
             capture_stream=capture_stream,
             playback_manager=playback_manager,
+            mode_controller=VoiceModeController(default_mode=self.preferences.default_mode),
             ask_mode_confirmation=False,  # Frictionless natural two-way conversation
             on_state_change=self._on_state_change,
             on_user_transcript=self._on_user_transcript,
@@ -92,7 +94,8 @@ class VoiceSession:
 
             self.on_terminal_output("\n" + "=" * self._terminal_width)
             self.on_terminal_output("=== OpenBagus Local Native Voice Assistant ===".center(self._terminal_width))
-            self.on_terminal_output(f"Mode          : {self.controller.mode_controller.current_mode} (NVIDIA RTX CUDA)")
+            self.on_terminal_output(f"Mode          : {self.controller.mode_controller.current_mode}")
+            self.on_terminal_output(f"ASR           : {self.controller.asr_engine.device.upper()} / {self.controller.asr_engine.compute_type}")
             self.on_terminal_output(f"Voice Preset  : {self.preferences.voice_preset} (Baymax Demeanor)")
             self.on_terminal_output(f"Interaksi     : {'Hands-Free (VAD Aktif)' if hf else 'Push-to-Talk'}")
             self.on_terminal_output(f"Mikrofon      : {dev_in.name if dev_in else 'Default'}")
@@ -119,6 +122,8 @@ class VoiceSession:
 
     def set_mode(self, mode: str) -> None:
         self.controller.mode_controller.set_mode(mode)
+        self.preferences.default_mode = self.controller.mode_controller.current_mode
+        self.save_preferences()
         self.on_terminal_output(f"[Mode penalaran dialihkan ke: {self.controller.mode_controller.current_mode}]")
 
     def set_preset(self, preset_name: str) -> bool:
