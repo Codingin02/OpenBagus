@@ -1,6 +1,6 @@
 """Local Indonesian Text-to-Speech (TTS) engine using Piper with sentence-level streaming.
 
-Provides distinctive BAGUSMAX_CALM_ID voice preset (calm, soft, caring demeanor inspired by Baymax)
+Provides distinctive BAGUSMAX_GENTLE_ID voice preset (calm, measured, caring demeanor inspired by Baymax)
 and zero-disk memory-only audio synthesis.
 """
 
@@ -25,11 +25,15 @@ except ImportError:
     piper = None
     SynthesisConfig = None  # type: ignore
 
-# Character voice presets
+_SHARED_PIPER_VOICE: Any = None
+_SHARED_PIPER_SAMPLE_RATE: int = 22050
+_SHARED_PIPER_KEY: Any = None
+
+# Canonical voice presets and aliases
 VOICE_PRESETS: dict[str, dict[str, float]] = {
-    "BAGUSMAX_CALM_ID": {
-        "length_scale": 1.08,  # Calmer, measured, caring healthcare robot tempo
-        "noise_scale": 0.55,   # Softer, gentle articulation with low noise
+    "BAGUSMAX_GENTLE_ID": {
+        "length_scale": 1.06,  # Calmer, measured, caring healthcare robot tempo
+        "noise_scale": 0.52,   # Softer, gentle articulation with low noise
         "noise_w_scale": 0.70, # Steady phoneme duration
     },
     "BAGUSMAX_CALM": {
@@ -37,13 +41,18 @@ VOICE_PRESETS: dict[str, dict[str, float]] = {
         "noise_scale": 0.55,
         "noise_w_scale": 0.70,
     },
+    "BAGUSMAX_CALM_ID": {
+        "length_scale": 1.06,
+        "noise_scale": 0.52,
+        "noise_w_scale": 0.70,
+    },
     "BAGUSMAX_SOFT": {
-        "length_scale": 1.12,  # Warmer lower register with gentle delivery
+        "length_scale": 1.10,  # Warmer lower register with gentle delivery
         "noise_scale": 0.50,
         "noise_w_scale": 0.70,
     },
     "NATURAL": {
-        "length_scale": 1.00,
+        "length_scale": 1.00,  # Standard baseline newsreader speed
         "noise_scale": 0.667,
         "noise_w_scale": 0.80,
     },
@@ -59,6 +68,18 @@ VOICE_PRESETS: dict[str, dict[str, float]] = {
     },
 }
 
+PRESET_ALIASES: dict[str, str] = {
+    "BAGUSMAX": "BAGUSMAX_GENTLE_ID",
+    "GENTLE": "BAGUSMAX_GENTLE_ID",
+    "DEFAULT": "BAGUSMAX_GENTLE_ID",
+    "BAGUSMAX_GENTLE": "BAGUSMAX_GENTLE_ID",
+    "CALM": "BAGUSMAX_CALM",
+    "SOFT": "BAGUSMAX_SOFT",
+    "NATURAL": "NATURAL",
+    "STANDARD": "NATURAL",
+    "NORMAL": "NATURAL",
+}
+
 
 class LocalTTSEngine:
     """Ultra-fast local Indonesian voice synthesis engine using Piper ONNX."""
@@ -67,11 +88,11 @@ class LocalTTSEngine:
         self,
         model_path: str | Path | None = None,
         config_path: str | Path | None = None,
-        preset: str = "BAGUSMAX_CALM_ID",
+        preset: str = "BAGUSMAX_GENTLE_ID",
         speed: float = 1.0,
         volume: float = 1.0,
     ) -> None:
-        self.preset = preset if preset in VOICE_PRESETS else "BAGUSMAX_CALM_ID"
+        self.preset = self._resolve_preset_name(preset)
         preset_cfg = VOICE_PRESETS[self.preset]
         self.length_scale = preset_cfg["length_scale"]
         self.noise_scale = preset_cfg["noise_scale"]
@@ -83,27 +104,56 @@ class LocalTTSEngine:
         self._sample_rate = 22050
         self._lock = threading.Lock()
 
-        # Real-time voice profile processor (gentle warmth, high smoothing, soft limiting)
+        # Real-time voice profile processor (gentle warmth, high smoothing, robot resonance)
         from openbagus.voice.voice_processor import VoiceProfileProcessor
         self.processor = VoiceProfileProcessor(preset=self.preset)
 
         self._model_path, self._config_path = self._resolve_model_paths(model_path, config_path)
         self._init_voice()
 
+    @staticmethod
+    def _resolve_preset_name(name: str) -> str:
+        clean = name.upper().strip()
+        if clean in VOICE_PRESETS:
+            return clean
+        if clean in PRESET_ALIASES:
+            return PRESET_ALIASES[clean]
+        return "BAGUSMAX_GENTLE_ID"
+
     def set_preset(self, preset_name: str) -> bool:
-        """Switches the active voice preset."""
-        if preset_name in VOICE_PRESETS:
-            self.preset = preset_name
-            p = VOICE_PRESETS[preset_name]
+        """Switches the active voice preset safely across engine and processor."""
+        canonical = self._resolve_preset_name(preset_name)
+        if canonical in VOICE_PRESETS:
+            self.preset = canonical
+            p = VOICE_PRESETS[canonical]
             self.length_scale = p["length_scale"]
             self.noise_scale = p["noise_scale"]
             self.noise_w_scale = p["noise_w_scale"]
             if hasattr(self, "processor") and self.processor is not None:
-                self.processor.set_preset(preset_name)
-            logger.info("Voice preset set to: %s", preset_name)
+                self.processor.set_preset(canonical)
+            logger.info("Voice preset set to: %s", canonical)
             return True
         logger.warning("Unknown voice preset: %s", preset_name)
         return False
+
+    def get_voice_status(self) -> dict[str, Any]:
+        """Returns structured introspection of current TTS engine status."""
+        return {
+            "active_preset": self.preset,
+            "length_scale": self.length_scale,
+            "noise_scale": self.noise_scale,
+            "noise_w_scale": self.noise_w_scale,
+            "sample_rate": self._sample_rate,
+            "volume": self.volume,
+            "model_path": str(self._model_path),
+            "is_available": self.is_available(),
+            "model_architecture": "Piper VITS/ONNX",
+            "is_single_speaker": True,
+            "base_model_id": "rhasspy/piper-voices/id/id_ID/news_tts/medium",
+            "base_speaker_timbre": "FEMALE_NEWSREADER",
+            "character_styling": "BAGUSMAX_GENTLE_ROBOT",
+            "available_presets": ["BAGUSMAX_GENTLE_ID", "NATURAL", "BAGUSMAX_CALM", "BAGUSMAX_SOFT"],
+        }
 
     def _resolve_model_paths(self, m_path: str | Path | None, c_path: str | Path | None) -> tuple[Path, Path]:
         base_dir = Path(os.environ.get("LOCALAPPDATA", "C:/Users/bagus/AppData/Local")) / "OpenBagus" / "models" / "tts"
@@ -113,7 +163,6 @@ class LocalTTSEngine:
 
     def _get_synthesis_config(self) -> Any:
         if SynthesisConfig is not None:
-            # Adjust length scale by user speed setting (higher speed -> lower length_scale)
             eff_length_scale = self.length_scale / max(0.5, self.speed)
             return SynthesisConfig(
                 length_scale=eff_length_scale,
@@ -132,12 +181,18 @@ class LocalTTSEngine:
             logger.warning("Piper voice files not found at %s", self._model_path)
             return
 
+        global _SHARED_PIPER_VOICE, _SHARED_PIPER_SAMPLE_RATE, _SHARED_PIPER_KEY
+        key = (str(self._model_path), str(self._config_path))
+        if _SHARED_PIPER_VOICE is not None and _SHARED_PIPER_KEY == key:
+            self._voice = _SHARED_PIPER_VOICE
+            self._sample_rate = _SHARED_PIPER_SAMPLE_RATE
+            return
+
         try:
             logger.info("Loading Piper Indonesian voice from %s...", self._model_path)
             self._voice = piper.PiperVoice.load(str(self._model_path), config_path=str(self._config_path))
             self._sample_rate = getattr(self._voice.config, "sample_rate", 22050)
             logger.info("Piper voice loaded successfully (sample rate: %d Hz, preset: %s)", self._sample_rate, self.preset)
-            # Warm-up pass so onnxruntime operators and threadpools are initialized
             try:
                 syn_cfg = self._get_synthesis_config()
                 if syn_cfg:
@@ -146,6 +201,9 @@ class LocalTTSEngine:
                     list(self._voice.synthesize("siap"))
             except Exception:
                 pass
+            _SHARED_PIPER_VOICE = self._voice
+            _SHARED_PIPER_SAMPLE_RATE = self._sample_rate
+            _SHARED_PIPER_KEY = key
         except Exception as e:
             logger.error("Failed to load Piper voice: %s", e)
             self._voice = None
@@ -180,7 +238,6 @@ class LocalTTSEngine:
 
                 if not chunks:
                     return None
-                # Concatenate in-memory chunk arrays for the sentence
                 audio = np.concatenate([c.audio_float_array for c in chunks])
                 if syn_cfg is None and self.volume != 1.0:
                     audio = audio * self.volume
@@ -196,11 +253,7 @@ class LocalTTSEngine:
         text: str,
         stop_event: threading.Event | None = None,
     ) -> Iterator[tuple[np.ndarray, dict[str, Any]]]:
-        """Progressively synthesizes sentences yielding audio chunks as soon as ready.
-
-        Yields:
-            (audio_array: np.ndarray, sentence_telemetry: dict)
-        """
+        """Progressively synthesizes sentences yielding audio chunks as soon as ready."""
         if not self.is_available() or not text.strip():
             return
 

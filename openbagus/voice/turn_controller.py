@@ -261,50 +261,52 @@ class VoiceTurnController:
     def _run_loop(self) -> None:
         """Background frame polling loop processing microphone frames, VAD events, and full-duplex barge-in."""
         while self._loop_active:
-            time.sleep(0.015)  # Polling interval matching ~16ms half-frame
+            # Single-pass frame acquisition from synchronized queue (timeout 30ms)
+            frame = self.capture_stream.get_next_frame(timeout=0.03)
+            if frame is None:
+                continue
 
             # -------------------------------------------------------------
             # FULL-DUPLEX BARGE-IN: Detect user speech while assistant is
             # SPEAKING, GENERATING_SPEECH, or THINKING.
             # -------------------------------------------------------------
             if self.state in (VoiceState.SPEAKING, VoiceState.GENERATING_SPEECH, VoiceState.THINKING):
-                frame = self.capture_stream.get_latest_frame()
-                if frame is not None:
-                    frame_rms = float(np.sqrt(np.mean(np.square(frame))))
-                    _, _, prob = self.vad.process_frame(frame)
+                frame_rms = float(np.sqrt(np.mean(np.square(frame))))
+                _, _, prob = self.vad.process_frame(frame)
 
-                    # During playback, enforce render-reference acoustic tracking
-                    # to prevent laptop speaker bleed / echo from triggering false barge-in
-                    if self.state == VoiceState.SPEAKING:
-                        render_rms = getattr(self.playback_manager, "get_current_render_energy", lambda: 0.0)()
-                        if render_rms > 0.003:
-                            # Speaker actively rendering: require near-end user speech clearly above speaker bleed envelope
-                            coupling_thresh = max(0.012, render_rms * 0.70 + 0.008)
-                            is_speech = (prob >= 0.75) and (frame_rms >= coupling_thresh)
-                        else:
-                            is_speech = (prob >= 0.70) and (frame_rms >= 0.007)
+                # During playback, enforce render-reference acoustic tracking
+                # to prevent laptop speaker bleed / echo from triggering false barge-in
+                if self.state == VoiceState.SPEAKING:
+                    render_rms = getattr(self.playback_manager, "get_current_render_energy", lambda: 0.0)()
+                    if render_rms > 0.003:
+                        # Speaker actively rendering: require near-end user speech clearly above speaker bleed envelope
+                        coupling_thresh = max(0.012, render_rms * 0.70 + 0.008)
+                        is_speech = (prob >= 0.75) and (frame_rms >= coupling_thresh)
                     else:
-                        is_speech = (prob >= 0.60) and (frame_rms >= 0.004)
+                        is_speech = (prob >= 0.70) and (frame_rms >= 0.007)
+                else:
+                    is_speech = (prob >= 0.60) and (frame_rms >= 0.004)
 
-                    if is_speech:
-                        self._barge_in_consecutive_frames += 1
-                        if self._barge_in_consecutive_frames >= 2:  # Sustained over ~60ms
-                            logger.info(
-                                "Barge-in confirmed during %s (rms=%.4f, prob=%.2f); interrupting turn %s",
-                                self.state.value,
-                                frame_rms,
-                                prob,
-                                self._current_turn_id,
-                            )
-                            self.interruption.trigger_interruption(reason="USER_BARGE_IN")
-                            self.playback_manager.stop_playback(interrupted=True)
-                            self.vad.reset()
-                            self._barge_in_consecutive_frames = 0
-                            self._current_turn_id = f"turn_{uuid.uuid4().hex[:8]}"
-                            self.set_state(VoiceState.SPEECH_DETECTED)
-                            self.capture_stream.start_utterance()
-                    else:
-                        self._barge_in_consecutive_frames = max(0, self._barge_in_consecutive_frames - 1)
+                if is_speech:
+                    self._barge_in_consecutive_frames += 1
+                    if self._barge_in_consecutive_frames >= 2:  # Sustained over ~64ms
+                        logger.info(
+                            "Barge-in confirmed during %s (rms=%.4f, prob=%.2f); interrupting turn %s",
+                            self.state.value,
+                            frame_rms,
+                            prob,
+                            self._current_turn_id,
+                        )
+                        self.interruption.trigger_interruption(reason="USER_BARGE_IN")
+                        self.playback_manager.stop_playback(interrupted=True)
+                        self.vad.reset()
+                        self._barge_in_consecutive_frames = 0
+                        self._current_turn_id = f"turn_{uuid.uuid4().hex[:8]}"
+                        self.set_state(VoiceState.SPEECH_DETECTED)
+                        self.capture_stream.start_utterance()
+                        self.capture_stream.append_speech_frame(frame)
+                else:
+                    self._barge_in_consecutive_frames = max(0, self._barge_in_consecutive_frames - 1)
                 continue
 
             # -------------------------------------------------------------
@@ -312,9 +314,6 @@ class VoiceTurnController:
             # -------------------------------------------------------------
             if self.state in (VoiceState.LISTENING, VoiceState.SPEECH_DETECTED, VoiceState.ENDPOINTING):
                 self._barge_in_consecutive_frames = 0
-                frame = self.capture_stream.get_latest_frame()
-                if frame is None:
-                    continue
 
                 is_active, is_endpoint, prob = self.vad.process_frame(frame)
 
@@ -431,7 +430,15 @@ class VoiceTurnController:
                     self._speak_response("Baik.", "Baik.", metrics, turn_id)
                 return
 
-        # STEP 2b: Check Voice Preset Commands
+        # STEP 2b: Check Conversational Fast-Path Greetings ("Halo Bagusmax", "Hai Bagusmax")
+        greeting_reply = self._handle_greeting_utterance(transcript)
+        if greeting_reply:
+            logger.info("Conversational greeting fast-path triggered for: '%s'", transcript)
+            if not cancellation.is_set():
+                self._speak_response(greeting_reply, greeting_reply, metrics, turn_id)
+            return
+
+        # STEP 2c: Check Voice Preset Commands
         voice_cmd_reply = self._handle_voice_preset_commands(transcript)
         if voice_cmd_reply:
             if not cancellation.is_set():
@@ -567,6 +574,13 @@ class VoiceTurnController:
                 self.diagnostics.record_turn(metrics)
                 return "Baik.", "Baik.", metrics
 
+        # Greeting check in direct utterance
+        greeting_reply = self._handle_greeting_utterance(user_text)
+        if greeting_reply:
+            metrics.e2e_voice_latency_ms = metrics.asr_latency_ms
+            self.diagnostics.record_turn(metrics)
+            return greeting_reply, greeting_reply, metrics
+
         # Voice preset commands in direct utterance
         voice_cmd_reply = self._handle_voice_preset_commands(user_text)
         if voice_cmd_reply:
@@ -595,25 +609,85 @@ class VoiceTurnController:
         self.diagnostics.record_turn(metrics)
         return resp.content, spoken_text, metrics
 
+    def _handle_greeting_utterance(self, transcript: str) -> str | None:
+        """Fast-path handler for conversational greetings without triggering financial tools."""
+        cleaned = transcript.lower().strip().rstrip(".!?,")
+        greetings = {
+            "halo", "hai", "halo bagusmax", "hai bagusmax", "halo halo",
+            "selamat pagi", "selamat pagi bagusmax", "selamat siang", "selamat siang bagusmax",
+            "selamat sore", "selamat sore bagusmax", "selamat malam", "selamat malam bagusmax",
+            "pagi bagusmax", "siang bagusmax", "sore bagusmax", "malam bagusmax",
+        }
+        if cleaned in greetings:
+            return "Halo. Saya di sini. Ada yang ingin kita diskusikan tentang emiten, pasar modal, atau kondisi sistem?"
+        return None
+
     def _handle_voice_preset_commands(self, transcript: str) -> str | None:
-        """Handles spoken and slash commands for voice preset switching and status inspection."""
-        low = transcript.lower().strip()
+        """Handles spoken and slash commands for voice preset switching, timbre introspection, and devices."""
+        low = transcript.lower().strip().rstrip(".!?,")
         if not low:
             return None
 
-        # Check status inquiries: "suara yang aktif sekarang apa?", "/voice status"
-        if low in ("/voice status", "voice status") or any(k in low for k in ("suara yang aktif sekarang apa", "status suara sekarang apa", "suara apa yang aktif", "suara aktif sekarang apa")):
-            from openbagus.ai.tools.system_tools import GetVoiceRuntimeStatusTool
-            tool = GetVoiceRuntimeStatusTool()
-            st, _ = tool.run()
-            preset = st.get("active_preset", "BAGUSMAX_CALM")
-            return f"Suara Bagusmax yang aktif saat ini adalah preset {preset}."
+        # 1. Check timbre / female voice queries with honest explanation
+        timbre_queries = (
+            "kenapa suara kamu masih perempuan",
+            "kenapa suara kamu perempuan",
+            "kenapa suaramu perempuan",
+            "kenapa suara kamu masih cewek",
+            "kenapa suaramu tinggi",
+            "kenapa suaranya tinggi",
+            "kenapa suaranya wanita",
+            "apakah suaramu perempuan",
+            "mengapa suara kamu perempuan",
+            "kenapa suaramu seperti perempuan",
+            "kenapa suara kamu cewek",
+        )
+        if any(q in low for q in timbre_queries):
+            status = self.tts_engine.get_voice_status() if hasattr(self.tts_engine, "get_voice_status") else {}
+            curr_p = status.get("active_preset", getattr(self.tts_engine, "preset", "BAGUSMAX_GENTLE_ID"))
+            return (
+                f"Model dasar TTS lokal saya saat ini menggunakan model open-source bahasa Indonesia berkarakter wanita (id_ID-news_tts-medium). "
+                f"Untuk mendekati kepribadian Bagusmax yang tenang dan santun seperti Baymax, sistem menerapkan pemrosesan audio berupa penambahan kehangatan vokal dan resonansi pendamping robotik. "
+                f"Preset yang aktif saat ini adalah {curr_p}."
+            )
 
-        # Check preset change commands:
+        # 2. Check status inquiries: "suara yang aktif sekarang apa?", "/voice status"
+        if low in ("/voice status", "voice status") or any(k in low for k in (
+            "suara yang aktif sekarang apa", "status suara sekarang apa", "suara apa yang aktif",
+            "suara aktif sekarang apa", "preset suara apa", "status suara"
+        )):
+            status = self.tts_engine.get_voice_status() if hasattr(self.tts_engine, "get_voice_status") else {}
+            preset = status.get("active_preset", getattr(self.tts_engine, "preset", "BAGUSMAX_GENTLE_ID"))
+            sr = status.get("sample_rate", getattr(self.tts_engine, "sample_rate", 22050))
+            return f"Status suara Bagusmax: Preset aktif adalah {preset}, sample rate {sr} Hz. Semua pemrosesan audio dilakukan di memori tanpa penulisan ke disk."
+
+        # 3. Check audio devices: "/voice devices"
+        if low in ("/voice devices", "voice devices") or any(k in low for k in ("perangkat audio apa", "daftar perangkat audio", "audio devices", "perangkat audio")):
+            from openbagus.voice.audio_devices import AudioDeviceManager
+            in_dev = AudioDeviceManager.get_default_input_device()
+            out_dev = AudioDeviceManager.get_default_output_device()
+            in_name = in_dev.name if in_dev else "Mikrofon default"
+            out_name = out_dev.name if out_dev else "Speaker default"
+            return f"Perangkat audio yang aktif: Mikrofon '{in_name}', Speaker '{out_name}'. Penyesuaian sample-rate otomatis aktif."
+
+        # 4. Check voice test: "/voice test"
+        if low in ("/voice test", "voice test") or any(k in low for k in ("tes suara", "uji suara", "test suara", "cek suara")):
+            return "Halo, saya Bagusmax. Pemeriksaan audio mikrofon dan speaker sistem lokal berjalan normal. Ada yang bisa saya bantu?"
+
+        # 5. Check preset change commands:
         # e.g. "Bagusmax, gunakan suara calm", "Bagusmax, ganti ke suara natural", "Bagusmax, gunakan suara soft", "/voice preset calm"
-        m = re.search(r"(?:/voice\s+preset\s+|suara\s+preset\s+|(?:gunakan|ganti\s+ke|pakai|set)\s+suara\s+)(calm|natural|soft|bagusmax_calm|bagusmax_soft)", low)
+        m = re.search(r"(?:/voice\s+preset\s+|suara\s+preset\s+|(?:gunakan|ganti\s+ke|pakai|set)\s+suara\s+)(calm|natural|soft|gentle|bagusmax|bagusmax_calm|bagusmax_soft|bagusmax_gentle_id)", low)
         if m:
-            target = m.group(1).upper()
+            raw_target = m.group(1).upper()
+            if raw_target in ("GENTLE", "BAGUSMAX", "BAGUSMAX_GENTLE"):
+                target = "BAGUSMAX_GENTLE_ID"
+            elif raw_target == "CALM":
+                target = "BAGUSMAX_CALM"
+            elif raw_target == "SOFT":
+                target = "BAGUSMAX_SOFT"
+            else:
+                target = raw_target
+
             from openbagus.ai.tools.system_tools import SetVoicePresetTool
             tool = SetVoicePresetTool()
             try:

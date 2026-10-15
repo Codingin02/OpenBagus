@@ -5,6 +5,7 @@ from __future__ import annotations
 import collections
 import logging
 import math
+import queue
 import threading
 import time
 from typing import Callable
@@ -47,6 +48,9 @@ class AudioCaptureStream:
         # Circular buffer for pre-roll to prevent clipping the first syllable
         self._pre_roll_buffer: collections.deque[np.ndarray] = collections.deque(maxlen=self.pre_roll_chunks)
 
+        # Synchronized frame queue to prevent duplicate frame processing in turn controller loop
+        self._frame_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=120)
+
         # Active speech frames buffer for current utterance
         self._active_utterance_frames: list[np.ndarray] = []
         self._is_utterance_active = False
@@ -75,6 +79,11 @@ class AudioCaptureStream:
             self._pre_roll_buffer.clear()
             self._active_utterance_frames.clear()
             self._is_utterance_active = False
+            while not self._frame_queue.empty():
+                try:
+                    self._frame_queue.get_nowait()
+                except Exception:
+                    break
 
     @staticmethod
     def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
@@ -171,6 +180,11 @@ class AudioCaptureStream:
             self._pre_roll_buffer.clear()
             self._active_utterance_frames.clear()
             self._is_utterance_active = False
+            while not self._frame_queue.empty():
+                try:
+                    self._frame_queue.get_nowait()
+                except Exception:
+                    break
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: Any) -> None:
         """PortAudio real-time callback processing incoming microphone audio."""
@@ -219,6 +233,19 @@ class AudioCaptureStream:
             if self._is_utterance_active:
                 self._active_utterance_frames.append(resampled)
 
+        # Enqueue to synchronized frame queue for single-pass consumption
+        try:
+            self._frame_queue.put_nowait(resampled)
+        except queue.Full:
+            try:
+                self._frame_queue.get_nowait()
+            except Exception:
+                pass
+            try:
+                self._frame_queue.put_nowait(resampled)
+            except Exception:
+                pass
+
     def start_utterance(self) -> None:
         """Triggered when VAD detects speech onset. Includes pre-roll buffer."""
         with self._lock:
@@ -247,6 +274,13 @@ class AudioCaptureStream:
             audio = np.concatenate(self._active_utterance_frames)
             self._active_utterance_frames.clear()
             return audio
+
+    def get_next_frame(self, timeout: float = 0.05) -> np.ndarray | None:
+        """Pulls the next unique audio frame from the synchronized queue (blocking up to timeout)."""
+        try:
+            return self._frame_queue.get(timeout=timeout)
+        except (queue.Empty, Exception):
+            return None
 
     def get_latest_frame(self) -> np.ndarray | None:
         """Gets the most recent frame from the circular buffer for VAD processing."""

@@ -29,7 +29,7 @@ class VoicePreferences:
     hands_free: bool = True
     microphone_device_id: int | None = None
     speaker_device_id: int | None = None
-    voice_preset: str = "BAGUSMAX_CALM_ID"  # BAGUSMAX_CALM_ID, STANDARD, FAST
+    voice_preset: str = "BAGUSMAX_GENTLE_ID"  # BAGUSMAX_GENTLE_ID, NATURAL, BAGUSMAX_CALM, BAGUSMAX_SOFT
     speed: float = 1.0
     volume: float = 1.0
     audio_storage: str = "disabled"  # strictly disabled: zero audio saved to disk
@@ -43,9 +43,9 @@ class VoicePreferences:
         """Sanitizes preferences to valid ranges and safe configurations."""
         self.speed = max(0.5, min(2.0, float(self.speed)))
         self.volume = max(0.0, min(1.0, float(self.volume)))
-        valid_presets = ("BAGUSMAX_CALM_ID", "BAGUSMAX_CALM", "BAGUSMAX_SOFT", "NATURAL", "STANDARD", "FAST")
+        valid_presets = ("BAGUSMAX_GENTLE_ID", "BAGUSMAX_CALM_ID", "BAGUSMAX_CALM", "BAGUSMAX_SOFT", "NATURAL", "STANDARD", "FAST")
         if self.voice_preset not in valid_presets:
-            self.voice_preset = "BAGUSMAX_CALM_ID"
+            self.voice_preset = "BAGUSMAX_GENTLE_ID"
         if self.audio_storage != "disabled":
             # Hard enforcement: never allow audio storage on disk
             self.audio_storage = "disabled"

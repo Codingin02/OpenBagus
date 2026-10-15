@@ -45,6 +45,16 @@ class WorkingContext:
         """Returns the most recent conversational turns up to limit."""
         return self.turns[-limit:]
 
+    def update_entity(self, ticker: str, data: dict[str, Any] | None = None) -> None:
+        """Sets the active ticker entity and associates optional metadata."""
+        self.active_ticker = ticker.upper()
+        if data:
+            self.prior_observations[self.active_ticker] = data
+
+    def get_entity(self, ticker: str) -> dict[str, Any] | None:
+        """Retrieves stored metadata for an entity ticker."""
+        return self.prior_observations.get(ticker.upper())
+
     def handle_corrections(self, user_query: str) -> dict[str, Any]:
         """Detects and applies explicit user corrections (entity, strategy, horizon)."""
         lower = user_query.lower()

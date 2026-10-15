@@ -192,7 +192,7 @@ class SetVoicePresetTool(BaseFinancialTool):
         "properties": {
             "preset": {
                 "type": "string",
-                "enum": ["NATURAL", "BAGUSMAX_CALM", "BAGUSMAX_SOFT", "CALM", "SOFT"],
+                "enum": ["BAGUSMAX_GENTLE_ID", "GENTLE", "BAGUSMAX", "NATURAL", "BAGUSMAX_CALM", "BAGUSMAX_SOFT", "CALM", "SOFT"],
                 "description": "Nama preset suara yang diinginkan.",
             }
         },
@@ -202,14 +202,16 @@ class SetVoicePresetTool(BaseFinancialTool):
 
     def run(self, preset: str, **kwargs: Any) -> tuple[dict[str, Any], dict[str, Any]]:
         norm_preset = preset.upper().strip()
-        if norm_preset == "CALM":
+        if norm_preset in ("GENTLE", "BAGUSMAX", "BAGUSMAX_GENTLE"):
+            norm_preset = "BAGUSMAX_GENTLE_ID"
+        elif norm_preset == "CALM":
             norm_preset = "BAGUSMAX_CALM"
         elif norm_preset == "SOFT":
             norm_preset = "BAGUSMAX_SOFT"
 
         from openbagus.voice.tts_engine import VOICE_PRESETS
         if norm_preset not in VOICE_PRESETS:
-            raise ValueError(f"Preset suara tidak dikenal: '{preset}'. Pilihan yang valid: NATURAL, BAGUSMAX_CALM, BAGUSMAX_SOFT.")
+            raise ValueError(f"Preset suara tidak dikenal: '{preset}'. Pilihan yang valid: BAGUSMAX_GENTLE_ID, NATURAL, BAGUSMAX_CALM, BAGUSMAX_SOFT.")
 
         prefs = load_voice_preferences()
         prefs.voice_preset = norm_preset
