@@ -1,0 +1,194 @@
+[
+  {
+    "side": "L",
+    "elbow_deg": 5,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 10,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 15,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 20,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 25,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 75,
+    "counterpart": "ARMOR_WRIST_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 80,
+    "counterpart": "ARMOR_WRIST_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 85,
+    "counterpart": "ARMOR_WRIST_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 95,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 100,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 105,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 110,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 115,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 120,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 125,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "L",
+    "elbow_deg": 130,
+    "counterpart": "ARMOR_FOREARM_L",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 5,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 10,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 15,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 20,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 25,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 75,
+    "counterpart": "ARMOR_WRIST_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 80,
+    "counterpart": "ARMOR_WRIST_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 85,
+    "counterpart": "ARMOR_WRIST_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 95,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 100,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 105,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 110,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 115,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 120,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 125,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  },
+  {
+    "side": "R",
+    "elbow_deg": 130,
+    "counterpart": "ARMOR_FOREARM_R",
+    "operation": "trim actual occupied rigid shell, not convex volume"
+  }
+]

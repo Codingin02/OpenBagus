@@ -1,0 +1,532 @@
+[
+  {
+    "path": "assets/bagusmax/armor/armor_assembly_manifest.json",
+    "bytes": 369350,
+    "sha256": "c47c12b4edb4315a3ce9e757f1f55bb53856666d1b201ffb2a1025cbfab739e3"
+  },
+  {
+    "path": "assets/bagusmax/armor/armor_attachment_map.json",
+    "bytes": 75149,
+    "sha256": "c6c00ce80e619013fd1a1b641f5cea4250f5a29be5d608b4e91662876a5cf9fe"
+  },
+  {
+    "path": "assets/bagusmax/armor/armor_materials.json",
+    "bytes": 2295,
+    "sha256": "6bcd65b158453cdb2f85a4f98c54907a1401daeac086f8070d0d9e237dbe7112"
+  },
+  {
+    "path": "assets/bagusmax/armor/armor_transformation_timeline.json",
+    "bytes": 1025,
+    "sha256": "31234186a28fb1014daeb0acee7e94e47cb3120046e05f38fe2c4718aea9b69f"
+  },
+  {
+    "path": "assets/bagusmax/armor/armor_white_fit.bin",
+    "bytes": 2013056,
+    "sha256": "255652eab7617858ae9a180d246179686be31ca8281c35e70b5113fc5adb7a6e"
+  },
+  {
+    "path": "assets/bagusmax/armor/armor_white_fit.json",
+    "bytes": 3084,
+    "sha256": "f0466837174e777f85d30d15d113294612f6e6d2051596e359d40884f0147ce8"
+  },
+  {
+    "path": "assets/bagusmax/runtime/bagusmax_armored_v1.glb",
+    "bytes": 3419872,
+    "sha256": "2178e34f25a74c363dd518b82a5ebbef3ec529b9799f1a545dd20885fb78ba4b"
+  },
+  {
+    "path": "assets/bagusmax/runtime/bagusmax_armored_v1_quality.glb",
+    "bytes": 4288120,
+    "sha256": "1e7005db4032b1a930743289b656128892a0ae90d8fcf6e503e1e823c674e872"
+  },
+  {
+    "path": "assets/bagusmax/source/bagusmax_armored_v1.blend",
+    "bytes": 18398472,
+    "sha256": "95803df025b5ea4036dd5c5d66995922a79c7c3821a0760ae73e3564a68cb646"
+  },
+  {
+    "path": "docs/bagusmax_3d/ARMORED_V1_ACCEPTANCE_REPORT.md",
+    "bytes": 7981,
+    "sha256": "29749e0d0f0f419998071c5fa8cf652475696f08f6c5d753ebf398c986ebc3fb"
+  },
+  {
+    "path": "docs/bagusmax_3d/ARMORED_V1_ART_DIRECTION.md",
+    "bytes": 8050,
+    "sha256": "6c8ea1f8465de9b3cd8481a2c50f5761dbab377c09693967f99517b2b5f873cf"
+  },
+  {
+    "path": "docs/bagusmax_3d/ARMORED_V1_ASSEMBLY_CONTRACT.md",
+    "bytes": 10096,
+    "sha256": "d9d98f303d5c022174f61c8555632ac71e0e254126148b991ceecb52a87a4b25"
+  },
+  {
+    "path": "docs/bagusmax_3d/ARMORED_V1_RUNTIME_HANDOFF.md",
+    "bytes": 5596,
+    "sha256": "89dcc865a703ba19488448b13020bb7a1409d188f0f010aaaf46d6e7c63d3523"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/abdominal_armor.png",
+    "bytes": 658848,
+    "sha256": "fb341cfdc487df4bea17bfe72657d91a9cdd4641a81ea2678c3b8b0e7a733e2e"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/acceptance_matrix.json",
+    "bytes": 11192,
+    "sha256": "a1ad606d850afdf46b1de5dd5c5d877c3f39eaaf1acdfe0fc339cea82274f139"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/armored_back.png",
+    "bytes": 627244,
+    "sha256": "9a6dd972ffc3262da4cccfa590c3f9c15e5d7bd29adbeb07a76d5f5219bdfec3"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/armored_front.png",
+    "bytes": 625344,
+    "sha256": "4dc0ca67a48f8797b5343636739c506f4f8f0c35f1ef24925588988e201c3dd1"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/armored_left.png",
+    "bytes": 570297,
+    "sha256": "270606fef3e45c1c2c088ac00e9eedd7bf6f069a3f8b02e1b8f1270a410e5a89"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/armored_right.png",
+    "bytes": 564400,
+    "sha256": "07e51773a6fb5734067e2557e072f872ebcaa4137309890c117ff388ce9a42cc"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/armored_three_quarter.png",
+    "bytes": 655857,
+    "sha256": "626742497b0c92c1accde0b7e711270ae85aa126249bb48144f63d4c78bd33b4"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_000.png",
+    "bytes": 641506,
+    "sha256": "277b023bd0e5dd2fd31a42956b6494d58388cedb94ebab7a71c178af283cdb4e"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_020.png",
+    "bytes": 641665,
+    "sha256": "0641344de336aebd28cc7cf58c1ec06f1f6d38974493c6ba3e6fda2daff9d2b6"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_040.png",
+    "bytes": 635303,
+    "sha256": "7cf2760c864f30696766ec6eb86eec24ff530140f53d94bb23d246649094f900"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_070.png",
+    "bytes": 604130,
+    "sha256": "f5963f6b6d48a66f02c02e65504015ce0f2cc079737c673d8a3272fdb80c0e1c"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_100.png",
+    "bytes": 600570,
+    "sha256": "1a66fb8bc8c41b4a96e4010df93d1615410009e8d5cda3ca3f9c9634366a4e6c"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_determinism.json",
+    "bytes": 687,
+    "sha256": "52d30307ca51785bdb36fb66a7fba3db7abd5535e6b1c0a94cb681901b37da5b"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/assembly_preview.png",
+    "bytes": 886740,
+    "sha256": "de573ca3772c55a0ba6680fc75e32a1ab4fee67febfa87dda1524a298da6fa9f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/asset_hashes.json",
+    "bytes": 514,
+    "sha256": "fab768b2cd302903e01182814bcb8e9b947ea2347615bbcec4bf08e858651e9c"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/baseline_inventory.json",
+    "bytes": 33700,
+    "sha256": "f63fb49e861deb24826abf12ecee42a8c61f28a26b8820722f7c72503c133dec"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blender_export_pose.png",
+    "bytes": 633203,
+    "sha256": "7992fccea4f564a71095175df9d22bb1f41339c5cbf21cf64f50ea58956fcde4"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blender_pose_matrices.json",
+    "bytes": 14122116,
+    "sha256": "4e44caf0aa531836a12d7349b5f2825915b6ac875ececa3720a43f15a1332b42"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blockout_back.png",
+    "bytes": 629521,
+    "sha256": "028c7c7e6ec4948c96b871d16073f9b6a07aa9e5ffea149238bfb6614e16f142"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blockout_front.png",
+    "bytes": 614891,
+    "sha256": "ecd05576c47e4904d64a70b4ced7fd24a120e4d42889900611be26c6f3ee5051"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blockout_inventory.json",
+    "bytes": 2548,
+    "sha256": "725e4d337d0a89661b02268bf9f0a9a1aa27205c785192cb1b8d60ade662d8ba"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blockout_left.png",
+    "bytes": 576432,
+    "sha256": "988ad414ba64dcbc5ab95cdde83129380fd7737fbd28692c683e0f420fac2529"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/blockout_three_quarter.png",
+    "bytes": 650935,
+    "sha256": "eff62beb93640c145b247f69ec781ec1819e5091ca53689e47d7435417381a55"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/collision_samples.json",
+    "bytes": 7142,
+    "sha256": "b8fcfb42cef8f3573816bf8f0750a21c79a65f140dba028ee6d4f78eea11742d"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/combined.png",
+    "bytes": 600761,
+    "sha256": "162537c91083f6358bc09980509456c5f636ab23924d7129b7e4080403891a4b"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/comparison_sheet.png",
+    "bytes": 1403312,
+    "sha256": "d7816b577512652f8ecd6363527991bded82246d3e4ba0990d490e462318849d"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/detail_back.png",
+    "bytes": 622642,
+    "sha256": "0b7589f9ecd623e38dddd00a4965e09a21f88251cd136a399bfcb497aca7ddac"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/detail_front.png",
+    "bytes": 620240,
+    "sha256": "b16fe34319ad92e6a696dc33f9e9274ee1287cda09ee4171a351340ef581db48"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/detail_left.png",
+    "bytes": 568053,
+    "sha256": "ddcb7f1aa892eee0b357674e35956be390db3d06c046b18c90a147293f7f0569"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/detail_three_quarter.png",
+    "bytes": 653043,
+    "sha256": "7e43439553051725896a9da9df538fee4d7279d19e226e909a8da896e1f96dad"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_0_closeup.png",
+    "bytes": 674123,
+    "sha256": "40644b6b05f0c8d4a1e2d9d5f651ba181867577c02d342c9b46a8ecf9e980768"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_110_closeup.png",
+    "bytes": 707572,
+    "sha256": "587db8d328e1570dc43f074939c295a95ebcad9199f32acdad071014e32aacbf"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_130.png",
+    "bytes": 633330,
+    "sha256": "a4bdfaae7eb85923b3000f80cf31187ea3f2a00c291783e4d16c11ea4b1f12f8"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_130_closeup.png",
+    "bytes": 703847,
+    "sha256": "f0e085f88ebec187570fbc30921846e5b27d470ea722d3d2a97dcb007ac865ad"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_45_closeup.png",
+    "bytes": 687000,
+    "sha256": "91b98344605b7a48bd95c30b9a27acebc8ac833f9fd25ad6c3c805633bd8c737"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_90_closeup.png",
+    "bytes": 699845,
+    "sha256": "c21710ec2e2ba42b0a51ead72b85cfd12b38578f02705226d3ee660561d9f529"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_L_articulation.png",
+    "bytes": 1099047,
+    "sha256": "effb8f047045aeb32d97e814f3b8c8252658af4d9c44e2f795fdde2d9fc33a13"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_0_closeup.png",
+    "bytes": 670750,
+    "sha256": "f45221855f82ec3e70e7892164dce433d4334b56a249d8f37ea6a4fd91fd4a0b"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_110_closeup.png",
+    "bytes": 692894,
+    "sha256": "a66f7d96fc253b1f425eff0b61762623f24e995f8708ccb04c357a0583784cfd"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_130.png",
+    "bytes": 628184,
+    "sha256": "3da2965313b91b6d82594b967fa7e780aa6c60debe7fd880aa946faded494cfe"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_130_closeup.png",
+    "bytes": 679329,
+    "sha256": "676f8cd5267f9d32fc1a5fb86183183b519e20cc0c08148cb8f581a0a08fc67b"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_45_closeup.png",
+    "bytes": 683551,
+    "sha256": "f33727fb8da477df3cb3d88bc8d805f7452b530610f1d5d1ccbfaaa40293e5af"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_90_closeup.png",
+    "bytes": 691302,
+    "sha256": "2a920898957f0832327b788d5819ec8b7b39e29bbf72e161717abdc31c1d08b4"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/elbow_R_articulation.png",
+    "bytes": 1047947,
+    "sha256": "293ac0b216116690a9322e7c0ad981fcf270d0a899a89c4f17ea02fdd8e018c5"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/export_verification.png",
+    "bytes": 548484,
+    "sha256": "359a61185f969cc8a5d5b95e96820f11eb3f2409df6a1158ef80a6a5e757a89f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/forward_fist.png",
+    "bytes": 637376,
+    "sha256": "0e1c929992cc87f4faa8b901aa7f2eb25818460c41a6185e8525a193e2b365ac"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/head_turn.png",
+    "bytes": 632613,
+    "sha256": "e931b63a22acc93505555c177b00915be50c7830ffbb870f88e37fc22af67d2c"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/helmet_detail.png",
+    "bytes": 604515,
+    "sha256": "42dcab6ff7f77b7a0230e75fc51e2fd8741e324769f467a92da03fc3e4e4fe13"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/independent_glb_export_pose.png",
+    "bytes": 632904,
+    "sha256": "b72650f35ae780ba8429f2e89d621a205c3d0a3dd2d785804bdb53b899204ed4"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/independent_transforms.json",
+    "bytes": 10961,
+    "sha256": "268b9df040fc34759eeeef2fde9fcfc17855617a5951ed3881581e98899634f6"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/khronos_validator.json",
+    "bytes": 1692,
+    "sha256": "d2ae671754f1464995d3a99bad9e8b70d23e9c037a62f6b3b48ebc43a2df704d"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/khronos_validator_quality.json",
+    "bytes": 1701,
+    "sha256": "ec6a8621f835eab72960da9fe8365f88b1a70027d40b0b5c6ad120e393486ad7"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/leg_step.png",
+    "bytes": 632833,
+    "sha256": "6de2235c29e1f408f89c6bb59f137b96dfca034b96e0f3a49962f62d64c8e376"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/legs_detail.png",
+    "bytes": 696134,
+    "sha256": "f208a8cf08b364f8bb224a90b7daee5fef7d0dc9e32531e6c0d2a6ecf47ae667"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/mechanical_hands.png",
+    "bytes": 663574,
+    "sha256": "4a5aee2778d208e7b64b169c480f602917e001077c852b7db4807a10dcac7635"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/neutral_glb_reimport.png",
+    "bytes": 655692,
+    "sha256": "5d344414e1e8159b26a27816cb8c47e512c700265d8697ef4a1e9160e40d902b"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/neutral_reimport.json",
+    "bytes": 13276,
+    "sha256": "ea8ef51af930c310d696450dd1fbcf4c0f2acdb87dd617b2a49a4072dfd73ea7"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/point.png",
+    "bytes": 632551,
+    "sha256": "611055441361337cbf6a203ea1770aeb8ea4fdc6b9e69e05278abbaaa0aff00e"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/pose_validation.png",
+    "bytes": 1599443,
+    "sha256": "85fb92b1f503f01a9a464d8b68c740ea7fad116ef390b28a2694864f6bceeea0"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/preservation_after.json",
+    "bytes": 2753,
+    "sha256": "31edd9137a767e77b5f561416d3c05e05e9548a53f295a80c59e71a02879969d"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/preservation_before.json",
+    "bytes": 2753,
+    "sha256": "31edd9137a767e77b5f561416d3c05e05e9548a53f295a80c59e71a02879969d"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/private_reference_review.html",
+    "bytes": 3394,
+    "sha256": "4769ed8a02d6b08c0c0c0fafd0beda7db9b2564cf84b4f8e979d70a7517d4fd1"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/quality_desktop_profile.json",
+    "bytes": 15202,
+    "sha256": "61c7bd67dfbcfe7ce3f92b270262fd6ac277b0a21b3154c55b730129ef7a09c7"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/quality_statistics.json",
+    "bytes": 682,
+    "sha256": "ab41ea64970b3cc0554e881fd41548b2296f3e119eb17b6ef69433f10fbd5f3a"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/reference_index.json",
+    "bytes": 4580,
+    "sha256": "2f80e2f6b534b710a4dac82f75db84c784b0da726b5e4fa205d5b787a5e0669d"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/rig_compatibility.json",
+    "bytes": 4612,
+    "sha256": "ad9cbc9855108d128a98327529134e188d1c88f38a42fcbdf63df2698decc456"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/saved_source_state.json",
+    "bytes": 165,
+    "sha256": "bd51d64f12dd1cad9898e33e585094e8c6f1f86153a47a43b973da516322d446"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_detail.png",
+    "bytes": 654311,
+    "sha256": "3200d8bcad13846f8d1269cceacb94c72e237649b46efb6967aa5ebe552297b2"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_0_closeup.png",
+    "bytes": 640264,
+    "sha256": "afeae98b7618deeccdcbb4fa49fa62347201a4492095394038753205c93cedcc"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_120_closeup.png",
+    "bytes": 671490,
+    "sha256": "6605e4b2ec948b2a462ff564400c9a229d6dd4461604cc2b5073a510f7ee435f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_145.png",
+    "bytes": 641844,
+    "sha256": "bf1dfe97f6f701c9b44915495c40990f2406295eb437a76b6e38d4ac6dfab612"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_145_closeup.png",
+    "bytes": 656442,
+    "sha256": "0e9be4339fbaafe8de1fa87155ba753bd40291f1d23524b79ccc0d91494d3b83"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_30_closeup.png",
+    "bytes": 660215,
+    "sha256": "ed3c497f7087ade8513abb4cc057e808274bcdbbd0c41c0bc02816ba340947f0"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_60_closeup.png",
+    "bytes": 672171,
+    "sha256": "654481add3042d1a6d2fad220afd7cc6c9c4b592eac98c7597cc5d9a33c299c6"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_90.png",
+    "bytes": 641054,
+    "sha256": "ae942760b288eae8e29ec9be7e28f5c373dca5b3246f46db1912e4f6ac569910"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_90_closeup.png",
+    "bytes": 664909,
+    "sha256": "495fe830fee26cf7f3e0e69f9b7abb37182050d6ec903139446bff1872d6dcfa"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_L_continuity.png",
+    "bytes": 1122916,
+    "sha256": "6ed49d68e5d804fc521defff572d5d09c323f333a180fc6078992d7b1e996397"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_0_closeup.png",
+    "bytes": 638752,
+    "sha256": "d94a84033e9adef3b5e0ec7c1c2633f9771cee142864e0d76ae7f6b6d31d89f6"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_120_closeup.png",
+    "bytes": 684371,
+    "sha256": "4bc23540d89660f8bbdff3800cb19106fc96662347d0ee3d23856d6886969340"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_145_closeup.png",
+    "bytes": 674807,
+    "sha256": "bb9381e5f629e9cc7385cf498e1944b139f999247ceba4b6090d729cd30491de"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_30_closeup.png",
+    "bytes": 662387,
+    "sha256": "541103fa88aaf219d3e19601b1c81d789b422d48189ed1085ce750a9b894e5e0"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_60_closeup.png",
+    "bytes": 678935,
+    "sha256": "005ffce16dca59fda787395e38f257ecd59855f9efbaf80ce6b97895e5e6bc7f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_90_closeup.png",
+    "bytes": 676979,
+    "sha256": "9ed769a8967e93cb3983a096e899cee244ff97c219b078e1bb1a95088240780f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/shoulder_R_continuity.png",
+    "bytes": 1103039,
+    "sha256": "4ce4fa0cfc2485e72557ed47182d1510a8e56e232de21a7762cf7b02b374a5ec"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/source_geometry_audit.json",
+    "bytes": 32484,
+    "sha256": "59eb0d0d4d2206a48cd207fe589c5b6f8ae1f4816b8f1828fee18d018bdf71a9"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/validation_report.json",
+    "bytes": 14430,
+    "sha256": "e500caa18175f4da2075538e5d0eeae2b57d3fa64e0c848ad381493c275ed6d2"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/white_before.png",
+    "bytes": 541122,
+    "sha256": "bf8be0f711626ed959c6e6905e228f7ed7beb3d9f5113a9081da0cceae620bdf"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/white_to_armored.png",
+    "bytes": 648663,
+    "sha256": "e5e1fb6c7b8a16c52bc0a80de3b9e24681101068d2a8ab4c9d76b7c6badff008"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/wings_deployed.png",
+    "bytes": 598763,
+    "sha256": "060f2190f9782cbdc0f5de15cceaa42f6fc6f09e6343e57564aa12911cece543"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/wings_folded.png",
+    "bytes": 661967,
+    "sha256": "5ef512f782f966c5acd6438585971571573f0e62427dd8cf9c1606129a12a210"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1/wings_partial.png",
+    "bytes": 604091,
+    "sha256": "190fbe0a1390bc5ef09f63f2e3555c03ea79f3fd7df3866d39a37c3abee5698e"
+  },
+  {
+    "path": "tools/bagusmax_asset_pipeline/build_armored.py",
+    "bytes": 52742,
+    "sha256": "a23d4a3891c63531111d9568c6331b81a1c4391f299e27351138b939e5b7705b"
+  },
+  {
+    "path": "tools/bagusmax_asset_pipeline/review_armored.py",
+    "bytes": 25710,
+    "sha256": "c412b517e77ea9f8d57f640b83f85cfbd78997743f4a2312d2c296b7e114eec2"
+  }
+]

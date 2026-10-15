@@ -1,0 +1,12 @@
+[
+  {
+    "part": "ARMOR_PAULDRON_L",
+    "vertices_before": 1244,
+    "vertices_after": 2326
+  },
+  {
+    "part": "ARMOR_SHOULDER_RECESS_L",
+    "vertices_before": 254,
+    "vertices_after": 1062
+  }
+]

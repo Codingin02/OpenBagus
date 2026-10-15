@@ -1,0 +1,30 @@
+{
+  "triangles": 246640,
+  "vertices_exported": 123774,
+  "mesh_count": 128,
+  "draw_primitives": 128,
+  "material_count": 7,
+  "joint_counts": [
+    32
+  ],
+  "max_influences_skinned_face": 1,
+  "rigid_armor_vertex_weights": 0,
+  "morph_targets": 0,
+  "animation_clips": 0,
+  "glb_bytes": 4288120,
+  "texture_bytes": 0,
+  "texture_count": 0,
+  "geometry_buffer_bytes": 4167416,
+  "degenerate_triangles": 0,
+  "nonunit_normals": 0,
+  "runtime_fps": "NOT_TESTED",
+  "runtime_vram": "NOT_TESTED",
+  "app_renderer_changes": false,
+  "validator": {
+    "numErrors": 0,
+    "numWarnings": 0,
+    "numInfos": 4,
+    "numHints": 0,
+    "truncated": false
+  }
+}

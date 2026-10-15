@@ -1,0 +1,501 @@
+{
+  "status": "PASS",
+  "parts": [
+    {
+      "part": "ARMOR_FOREARM_R",
+      "max_probe_distance_mm": 0.00044410711552700377
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_L0.07",
+      "max_probe_distance_mm": 0.00030971480668995355
+    },
+    {
+      "part": "ARMOR_HELMET_EAR_R",
+      "max_probe_distance_mm": 0.0003631919298641151
+    },
+    {
+      "part": "ARMOR_INDEX_L_2",
+      "max_probe_distance_mm": 0.0005447082571663486
+    },
+    {
+      "part": "ARMOR_WING_MAIN_R",
+      "max_probe_distance_mm": 0.00030538294026882795
+    },
+    {
+      "part": "ARMOR_HELMET_FACE_FRAME",
+      "max_probe_distance_mm": 0.0003645648973815696
+    },
+    {
+      "part": "ARMOR_KNEE_RECESS_R",
+      "max_probe_distance_mm": 0.00023992720343812834
+    },
+    {
+      "part": "ARMOR_REAR_VENT_R_1",
+      "max_probe_distance_mm": 0.00028154914843980805
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_1",
+      "max_probe_distance_mm": 0.00014466411357716424
+    },
+    {
+      "part": "ARMOR_INDEX_L_1",
+      "max_probe_distance_mm": 0.0005383012080528715
+    },
+    {
+      "part": "ARMOR_KNEE_RECESS_L",
+      "max_probe_distance_mm": 9.453727045638516e-05
+    },
+    {
+      "part": "ARMOR_WING_TIP_HINGE_R",
+      "max_probe_distance_mm": 0.0011107114232800086
+    },
+    {
+      "part": "ARMOR_WING_TIP_R",
+      "max_probe_distance_mm": 0.00042252085563632136
+    },
+    {
+      "part": "ARMOR_WRIST_R",
+      "max_probe_distance_mm": 0.0006276644057834346
+    },
+    {
+      "part": "ARMOR_MIDDLE_L_0",
+      "max_probe_distance_mm": 0.00044410711552700377
+    },
+    {
+      "part": "ARMOR_REAR_VENT_L_0",
+      "max_probe_distance_mm": 0.00024620757699267415
+    },
+    {
+      "part": "ARMOR_CHEST_FLANK_L",
+      "max_probe_distance_mm": 0.0002995096224367444
+    },
+    {
+      "part": "ARMOR_ELBOW_SOCKET_R",
+      "max_probe_distance_mm": 0.0004868742280450533
+    },
+    {
+      "part": "ARMOR_HELMET_FIN_R",
+      "max_probe_distance_mm": 0.0003640327861376136
+    },
+    {
+      "part": "ARMOR_FOREARM_L",
+      "max_probe_distance_mm": 0.00044730737158715783
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_R_1",
+      "max_probe_distance_mm": 0.0002827296441409999
+    },
+    {
+      "part": "ARMOR_FOREARM_CUFF_L",
+      "max_probe_distance_mm": 0.0004787541456607869
+    },
+    {
+      "part": "ARMOR_PAULDRON_L",
+      "max_probe_distance_mm": 0.000373719217350299
+    },
+    {
+      "part": "ARMOR_PAULDRON_R",
+      "max_probe_distance_mm": 0.0003653064482023183
+    },
+    {
+      "part": "ARMOR_PELVIS_REAR",
+      "max_probe_distance_mm": 9.467965611520412e-05
+    },
+    {
+      "part": "ARMOR_REAR_VENT_R_0",
+      "max_probe_distance_mm": 0.00024620757699267415
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_1_R",
+      "max_probe_distance_mm": 6.828570064953965e-05
+    },
+    {
+      "part": "ARMOR_INDEX_R_0",
+      "max_probe_distance_mm": 0.0005430241571957595
+    },
+    {
+      "part": "ARMOR_ELBOW_HUB_R",
+      "max_probe_distance_mm": 0.0008141272473949357
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_R_0",
+      "max_probe_distance_mm": 0.00024073563054116676
+    },
+    {
+      "part": "ARMOR_PALM_L",
+      "max_probe_distance_mm": 0.0003115019922006468
+    },
+    {
+      "part": "ARMOR_INDEX_L_0",
+      "max_probe_distance_mm": 0.0005615681857307209
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_1_L",
+      "max_probe_distance_mm": 6.828570064953965e-05
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_2_L",
+      "max_probe_distance_mm": 8.56006536764653e-05
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_3_L",
+      "max_probe_distance_mm": 0.00012377833513710357
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_4_L",
+      "max_probe_distance_mm": 0.0001341104507446289
+    },
+    {
+      "part": "ARMOR_THUMB_R",
+      "max_probe_distance_mm": 0.0005170509780327848
+    },
+    {
+      "part": "ARMOR_PAULDRON_INLAY_L",
+      "max_probe_distance_mm": 0.00025876693143800367
+    },
+    {
+      "part": "ARMOR_PAULDRON_INLAY_R",
+      "max_probe_distance_mm": 0.0002462146255766129
+    },
+    {
+      "part": "ARMOR_PELVIS_FRONT",
+      "max_probe_distance_mm": 8.429369557916289e-05
+    },
+    {
+      "part": "ARMOR_RING_R_2",
+      "max_probe_distance_mm": 0.0004920204332847788
+    },
+    {
+      "part": "ARMOR_WING_TIP_HINGE_L",
+      "max_probe_distance_mm": 0.0011391350653866539
+    },
+    {
+      "part": "ARMOR_HELMET_CROWN",
+      "max_probe_distance_mm": 0.00037053064261272084
+    },
+    {
+      "part": "ARMOR_THIGH_R",
+      "max_probe_distance_mm": 9.185692562141412e-05
+    },
+    {
+      "part": "ARMOR_WRIST_L",
+      "max_probe_distance_mm": 0.0005190141223465616
+    },
+    {
+      "part": "ARMOR_THIGH_L",
+      "max_probe_distance_mm": 8.043953414471616e-05
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_R0.71",
+      "max_probe_distance_mm": 0.00042252085563632136
+    },
+    {
+      "part": "ARMOR_ELBOW_METAL_R",
+      "max_probe_distance_mm": 0.00033221988360310206
+    },
+    {
+      "part": "ARMOR_ELBOW_HUB_L",
+      "max_probe_distance_mm": 0.0008713755619282892
+    },
+    {
+      "part": "ARMOR_THIGH_RIDGE_R",
+      "max_probe_distance_mm": 9.541398782175747e-05
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_4",
+      "max_probe_distance_mm": 0.0001687519528559278
+    },
+    {
+      "part": "ARMOR_KNUCKLE_MIDDLE_R",
+      "max_probe_distance_mm": 0.0004722163566839299
+    },
+    {
+      "part": "ARMOR_INDEX_R_2",
+      "max_probe_distance_mm": 0.0005851908326803823
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_2",
+      "max_probe_distance_mm": 0.00014466411357716424
+    },
+    {
+      "part": "ARMOR_FOREARM_INLAY_R",
+      "max_probe_distance_mm": 0.00046576559498134884
+    },
+    {
+      "part": "ARMOR_BOOT_R",
+      "max_probe_distance_mm": 0.0003066527085593407
+    },
+    {
+      "part": "ARMOR_HELMET_FIN_L",
+      "max_probe_distance_mm": 0.0003673191031339229
+    },
+    {
+      "part": "ARMOR_HELMET_REAR",
+      "max_probe_distance_mm": 0.0003669741772682755
+    },
+    {
+      "part": "ARMOR_HELMET_CHIN",
+      "max_probe_distance_mm": 0.0003588674815091508
+    },
+    {
+      "part": "ARMOR_WING_ROOT_PIN_L",
+      "max_probe_distance_mm": 0.000579423385715927
+    },
+    {
+      "part": "ARMOR_SHOULDER_RECESS_L",
+      "max_probe_distance_mm": 0.0006043347298145818
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_L_1",
+      "max_probe_distance_mm": 0.00028154914843980805
+    },
+    {
+      "part": "ARMOR_NECK_SEAL",
+      "max_probe_distance_mm": 0.00026331900926379603
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_L0.71",
+      "max_probe_distance_mm": 0.0004339283634635649
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_2_R",
+      "max_probe_distance_mm": 8.56006536764653e-05
+    },
+    {
+      "part": "ARMOR_FOREARM_CUFF_R",
+      "max_probe_distance_mm": 0.0004787541456607869
+    },
+    {
+      "part": "ARMOR_RING_L_1",
+      "max_probe_distance_mm": 0.00041998828237410635
+    },
+    {
+      "part": "ARMOR_RING_R_0",
+      "max_probe_distance_mm": 0.00048222369741779403
+    },
+    {
+      "part": "ARMOR_BOOT_SOLE_R",
+      "max_probe_distance_mm": 0.00016576036898641178
+    },
+    {
+      "part": "ARMOR_CHEST_FRONT",
+      "max_probe_distance_mm": 0.00024575624024691933
+    },
+    {
+      "part": "ARMOR_BOOT_SOLE_L",
+      "max_probe_distance_mm": 0.0001849777504503436
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_3",
+      "max_probe_distance_mm": 0.00014466411357716424
+    },
+    {
+      "part": "ARMOR_WING_ROOT_HINGE_L",
+      "max_probe_distance_mm": 0.0011281665592832724
+    },
+    {
+      "part": "ARMOR_WING_ROOT_PIN_R",
+      "max_probe_distance_mm": 0.0005405651677392598
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_3_R",
+      "max_probe_distance_mm": 0.00012377833513710357
+    },
+    {
+      "part": "ARMOR_FOREARM_INLAY_L",
+      "max_probe_distance_mm": 0.0004172325134277344
+    },
+    {
+      "part": "ARMOR_MIDDLE_R_2",
+      "max_probe_distance_mm": 0.00041536569028721715
+    },
+    {
+      "part": "ARMOR_ELBOW_METAL_L",
+      "max_probe_distance_mm": 0.0004081531130850635
+    },
+    {
+      "part": "ARMOR_THUMB_L",
+      "max_probe_distance_mm": 0.00042278352907487715
+    },
+    {
+      "part": "ARMOR_CHEST_ACCESS_RING",
+      "max_probe_distance_mm": 0.00024073563054116676
+    },
+    {
+      "part": "ARMOR_CHEST_COLLAR",
+      "max_probe_distance_mm": 0.00028131674412179564
+    },
+    {
+      "part": "ARMOR_REAR_VENT_L_1",
+      "max_probe_distance_mm": 0.00028154914843980805
+    },
+    {
+      "part": "ARMOR_KNUCKLE_MIDDLE_L",
+      "max_probe_distance_mm": 0.000545675561625103
+    },
+    {
+      "part": "ARMOR_MIDDLE_L_2",
+      "max_probe_distance_mm": 0.0004172325134277344
+    },
+    {
+      "part": "ARMOR_HELMET_EAR_L",
+      "max_probe_distance_mm": 0.0003668985470994812
+    },
+    {
+      "part": "ARMOR_WING_ROOT_HINGE_R",
+      "max_probe_distance_mm": 0.0011834937367893872
+    },
+    {
+      "part": "ARMOR_KNUCKLE_RING_L",
+      "max_probe_distance_mm": 0.0004030131037779938
+    },
+    {
+      "part": "ARMOR_RING_L_2",
+      "max_probe_distance_mm": 0.0004844596332986839
+    },
+    {
+      "part": "ARMOR_KNUCKLE_RING_R",
+      "max_probe_distance_mm": 0.0003842650926344504
+    },
+    {
+      "part": "ARMOR_PALM_R",
+      "max_probe_distance_mm": 0.000425927112246427
+    },
+    {
+      "part": "ARMOR_SHIN_R",
+      "max_probe_distance_mm": 4.998001301714794e-05
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_R0.07",
+      "max_probe_distance_mm": 0.0004214684850012418
+    },
+    {
+      "part": "ARMOR_CHEST_FLANK_R",
+      "max_probe_distance_mm": 0.0003013573461885244
+    },
+    {
+      "part": "ARMOR_ELBOW_SOCKET_L",
+      "max_probe_distance_mm": 0.0005391724471337511
+    },
+    {
+      "part": "ARMOR_THUMB_TIP_R",
+      "max_probe_distance_mm": 0.0006080331331759226
+    },
+    {
+      "part": "ARMOR_RING_L_0",
+      "max_probe_distance_mm": 0.0004205620030006685
+    },
+    {
+      "part": "ARMOR_WING_TIP_L",
+      "max_probe_distance_mm": 0.00039198835111164954
+    },
+    {
+      "part": "ARMOR_INDEX_R_1",
+      "max_probe_distance_mm": 0.0004636153221326822
+    },
+    {
+      "part": "ARMOR_KNUCKLE_INDEX_R",
+      "max_probe_distance_mm": 0.0005857123142050114
+    },
+    {
+      "part": "ARMOR_MIDDLE_L_1",
+      "max_probe_distance_mm": 0.0004288454817924503
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_L_0",
+      "max_probe_distance_mm": 0.00024620757699267415
+    },
+    {
+      "part": "ARMOR_VISOR_GASKET",
+      "max_probe_distance_mm": 0.0003604110077048972
+    },
+    {
+      "part": "ARMOR_CHEST_ACCESS_LID",
+      "max_probe_distance_mm": 0.00024073563054116676
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_4_R",
+      "max_probe_distance_mm": 0.0001341104507446289
+    },
+    {
+      "part": "ARMOR_WING_MAIN_L",
+      "max_probe_distance_mm": 0.00030971480668995355
+    },
+    {
+      "part": "ARMOR_CHEST_SEAM_L",
+      "max_probe_distance_mm": 0.00024575624024691933
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_1",
+      "max_probe_distance_mm": 0.0002004746164629978
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_2",
+      "max_probe_distance_mm": 0.0002004746164629978
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_4",
+      "max_probe_distance_mm": 0.00015359765370703826
+    },
+    {
+      "part": "ARMOR_CHEST_SEAM_R",
+      "max_probe_distance_mm": 0.00024027400513659813
+    },
+    {
+      "part": "ARMOR_UPPERARM_R",
+      "max_probe_distance_mm": 0.0006085920745135809
+    },
+    {
+      "part": "ARMOR_MIDDLE_R_0",
+      "max_probe_distance_mm": 0.00029737057616330276
+    },
+    {
+      "part": "ARMOR_THUMB_TIP_L",
+      "max_probe_distance_mm": 0.0005103511853121745
+    },
+    {
+      "part": "ARMOR_UPPERARM_L",
+      "max_probe_distance_mm": 0.0006093554816288815
+    },
+    {
+      "part": "ARMOR_THIGH_RIDGE_L",
+      "max_probe_distance_mm": 9.42432194506182e-05
+    },
+    {
+      "part": "ARMOR_RING_R_1",
+      "max_probe_distance_mm": 0.0004931051762468996
+    },
+    {
+      "part": "ARMOR_BACKPACK_CORE",
+      "max_probe_distance_mm": 0.00030429032449319493
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_3",
+      "max_probe_distance_mm": 0.0001687519528559278
+    },
+    {
+      "part": "ARMOR_BOOT_L",
+      "max_probe_distance_mm": 0.0002855624074982188
+    },
+    {
+      "part": "ARMOR_CHEST_REAR",
+      "max_probe_distance_mm": 0.0002995096224367444
+    },
+    {
+      "part": "ARMOR_MIDDLE_R_1",
+      "max_probe_distance_mm": 0.0004097142038972379
+    },
+    {
+      "part": "ARMOR_SHIN_L",
+      "max_probe_distance_mm": 4.998001301714794e-05
+    },
+    {
+      "part": "ARMOR_KNUCKLE_INDEX_L",
+      "max_probe_distance_mm": 0.00042252085563632136
+    },
+    {
+      "part": "ARMOR_SHOULDER_RECESS_R",
+      "max_probe_distance_mm": 0.0006014036557644431
+    }
+  ]
+}

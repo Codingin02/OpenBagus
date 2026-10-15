@@ -1,0 +1,50 @@
+[
+  {
+    "version": "v1_",
+    "side": "L",
+    "elbow_deg": 130,
+    "pair": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_FOREARM_L"
+    ],
+    "bvh_polygon_pairs": 388,
+    "markers": 70,
+    "interpretation": "isolated engineering diagnostic; small markers locate actual surface intersections, not a beauty render"
+  },
+  {
+    "version": "v1_",
+    "side": "R",
+    "elbow_deg": 130,
+    "pair": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_FOREARM_R"
+    ],
+    "bvh_polygon_pairs": 384,
+    "markers": 70,
+    "interpretation": "isolated engineering diagnostic; small markers locate actual surface intersections, not a beauty render"
+  },
+  {
+    "version": "v1_1_",
+    "side": "L",
+    "elbow_deg": 130,
+    "pair": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_FOREARM_L"
+    ],
+    "bvh_polygon_pairs": 0,
+    "markers": 0,
+    "interpretation": "isolated engineering diagnostic; small markers locate actual surface intersections, not a beauty render"
+  },
+  {
+    "version": "v1_1_",
+    "side": "R",
+    "elbow_deg": 130,
+    "pair": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_FOREARM_R"
+    ],
+    "bvh_polygon_pairs": 0,
+    "markers": 0,
+    "interpretation": "isolated engineering diagnostic; small markers locate actual surface intersections, not a beauty render"
+  }
+]

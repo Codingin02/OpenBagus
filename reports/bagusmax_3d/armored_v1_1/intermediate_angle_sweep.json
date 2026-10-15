@@ -1,0 +1,4634 @@
+[
+  {
+    "side": "L",
+    "joint": "Forearm",
+    "step_degrees": 5,
+    "max_return_matrix_error": 0,
+    "samples": [
+      {
+        "degrees": 0,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 5,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 10,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 15,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 20,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 25,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 30,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 35,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 40,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 45,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 50,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 55,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 60,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 276
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 65,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 370
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 70,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 347
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 75,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 322
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 80,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 305
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 85,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 296
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 90,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 95,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 251
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 100,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 215
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 105,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 196
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 110,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 165
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 115,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 120,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 86
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 125,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 72
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 130,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 58
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "side": "L",
+    "joint": "UpperArm",
+    "step_degrees": 5,
+    "max_return_matrix_error": 0,
+    "samples": [
+      {
+        "degrees": 0,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 265
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 5,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 269
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 113
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 90
+          }
+        ]
+      },
+      {
+        "degrees": 10,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 283
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 111
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 83
+          }
+        ]
+      },
+      {
+        "degrees": 15,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 301
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 113
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 87
+          }
+        ]
+      },
+      {
+        "degrees": 20,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 355
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 117
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 85
+          }
+        ]
+      },
+      {
+        "degrees": 25,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 397
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 112
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 30,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 391
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 115
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 35,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 384
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 120
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 40,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 386
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 123
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 88
+          }
+        ]
+      },
+      {
+        "degrees": 45,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 370
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 98
+          }
+        ]
+      },
+      {
+        "degrees": 50,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 355
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 134
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 104
+          }
+        ]
+      },
+      {
+        "degrees": 55,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 336
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 130
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 106
+          }
+        ]
+      },
+      {
+        "degrees": 60,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 298
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 131
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 106
+          }
+        ]
+      },
+      {
+        "degrees": 65,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 294
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 106
+          }
+        ]
+      },
+      {
+        "degrees": 70,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 208
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 126
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 108
+          }
+        ]
+      },
+      {
+        "degrees": 75,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_SHOULDER_RECESS_L",
+            "polygon_pairs": 101
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 123
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 118
+          }
+        ]
+      },
+      {
+        "degrees": 80,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 129
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 117
+          }
+        ]
+      },
+      {
+        "degrees": 85,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 127
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 134
+          }
+        ]
+      },
+      {
+        "degrees": 90,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 148
+          }
+        ]
+      },
+      {
+        "degrees": 95,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 124
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 166
+          }
+        ]
+      },
+      {
+        "degrees": 100,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 120
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 188
+          }
+        ]
+      },
+      {
+        "degrees": 105,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 121
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 205
+          }
+        ]
+      },
+      {
+        "degrees": 110,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 98
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 124
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 249
+          }
+        ]
+      },
+      {
+        "degrees": 115,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 262
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 294
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 121
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 284
+          }
+        ]
+      },
+      {
+        "degrees": 120,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 378
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 306
+          }
+        ]
+      },
+      {
+        "degrees": 125,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 537
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 124
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 329
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FLANK_L",
+            "polygon_pairs": 22
+          }
+        ]
+      },
+      {
+        "degrees": 130,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 582
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_ELBOW_METAL_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 24
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 294
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 132
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 352
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FLANK_L",
+            "polygon_pairs": 36
+          }
+        ]
+      },
+      {
+        "degrees": 135,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 613
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 56
+          },
+          {
+            "a": "ARMOR_ELBOW_METAL_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 38
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 292
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 131
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 333
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FLANK_L",
+            "polygon_pairs": 39
+          }
+        ]
+      },
+      {
+        "degrees": 140,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 652
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 61
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 294
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 133
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 330
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FLANK_L",
+            "polygon_pairs": 41
+          }
+        ]
+      },
+      {
+        "degrees": 145,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 652
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_ELBOW_METAL_L",
+            "polygon_pairs": 257
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_L",
+            "b": "ARMOR_PAULDRON_L",
+            "polygon_pairs": 68
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_CUFF_L",
+            "polygon_pairs": 428
+          },
+          {
+            "a": "ARMOR_FOREARM_L",
+            "b": "ARMOR_FOREARM_INLAY_L",
+            "polygon_pairs": 294
+          },
+          {
+            "a": "ARMOR_WRIST_L",
+            "b": "ARMOR_PALM_L",
+            "polygon_pairs": 188
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 139
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 326
+          },
+          {
+            "a": "ARMOR_PAULDRON_L",
+            "b": "ARMOR_CHEST_FLANK_L",
+            "polygon_pairs": 51
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "side": "R",
+    "joint": "Forearm",
+    "step_degrees": 5,
+    "max_return_matrix_error": 0,
+    "samples": [
+      {
+        "degrees": 0,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 5,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 10,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 15,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 20,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 25,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 30,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 35,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 40,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 45,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 50,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 55,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 60,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 279
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 65,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 375
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 70,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 347
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 75,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 325
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 80,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 306
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 85,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 296
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 90,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 272
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 95,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 249
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 100,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 213
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 105,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 194
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 110,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 166
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 115,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 120,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 85
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 125,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 71
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 130,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 60
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "side": "R",
+    "joint": "UpperArm",
+    "step_degrees": 5,
+    "max_return_matrix_error": 0,
+    "samples": [
+      {
+        "degrees": 0,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 274
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 109
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 84
+          }
+        ]
+      },
+      {
+        "degrees": 5,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 276
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 113
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 10,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 287
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 111
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 83
+          }
+        ]
+      },
+      {
+        "degrees": 15,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 303
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 113
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 87
+          }
+        ]
+      },
+      {
+        "degrees": 20,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 357
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 117
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 85
+          }
+        ]
+      },
+      {
+        "degrees": 25,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 399
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 112
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 30,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 395
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 115
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 35,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 386
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 120
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 86
+          }
+        ]
+      },
+      {
+        "degrees": 40,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 387
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 123
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 88
+          }
+        ]
+      },
+      {
+        "degrees": 45,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 369
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 125
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 98
+          }
+        ]
+      },
+      {
+        "degrees": 50,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 352
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 133
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 104
+          }
+        ]
+      },
+      {
+        "degrees": 55,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 332
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 131
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 107
+          }
+        ]
+      },
+      {
+        "degrees": 60,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 296
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 130
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 106
+          }
+        ]
+      },
+      {
+        "degrees": 65,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 258
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 126
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 106
+          }
+        ]
+      },
+      {
+        "degrees": 70,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 206
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 127
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 108
+          }
+        ]
+      },
+      {
+        "degrees": 75,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_SHOULDER_RECESS_R",
+            "polygon_pairs": 98
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 124
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 118
+          }
+        ]
+      },
+      {
+        "degrees": 80,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 130
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 116
+          }
+        ]
+      },
+      {
+        "degrees": 85,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 128
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 133
+          }
+        ]
+      },
+      {
+        "degrees": 90,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 126
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 151
+          }
+        ]
+      },
+      {
+        "degrees": 95,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 127
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 167
+          }
+        ]
+      },
+      {
+        "degrees": 100,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 120
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 192
+          }
+        ]
+      },
+      {
+        "degrees": 105,
+        "contacts": [
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 121
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 211
+          }
+        ]
+      },
+      {
+        "degrees": 110,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 99
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 124
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 243
+          }
+        ]
+      },
+      {
+        "degrees": 115,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 262
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 120
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 281
+          }
+        ]
+      },
+      {
+        "degrees": 120,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 381
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 124
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 303
+          }
+        ]
+      },
+      {
+        "degrees": 125,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 536
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 123
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 326
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FLANK_R",
+            "polygon_pairs": 22
+          }
+        ]
+      },
+      {
+        "degrees": 130,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 577
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_ELBOW_METAL_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 24
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 131
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 348
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FLANK_R",
+            "polygon_pairs": 34
+          }
+        ]
+      },
+      {
+        "degrees": 135,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 606
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 55
+          },
+          {
+            "a": "ARMOR_ELBOW_METAL_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 37
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 130
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 332
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FLANK_R",
+            "polygon_pairs": 39
+          }
+        ]
+      },
+      {
+        "degrees": 140,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 654
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 62
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 133
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 327
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FLANK_R",
+            "polygon_pairs": 41
+          }
+        ]
+      },
+      {
+        "degrees": 145,
+        "contacts": [
+          {
+            "a": "ARMOR_UPPERARM_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 648
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_ELBOW_METAL_R",
+            "polygon_pairs": 260
+          },
+          {
+            "a": "ARMOR_ELBOW_SOCKET_R",
+            "b": "ARMOR_PAULDRON_R",
+            "polygon_pairs": 68
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_CUFF_R",
+            "polygon_pairs": 365
+          },
+          {
+            "a": "ARMOR_FOREARM_R",
+            "b": "ARMOR_FOREARM_INLAY_R",
+            "polygon_pairs": 290
+          },
+          {
+            "a": "ARMOR_WRIST_R",
+            "b": "ARMOR_PALM_R",
+            "polygon_pairs": 185
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FRONT",
+            "polygon_pairs": 140
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_COLLAR",
+            "polygon_pairs": 322
+          },
+          {
+            "a": "ARMOR_PAULDRON_R",
+            "b": "ARMOR_CHEST_FLANK_R",
+            "polygon_pairs": 51
+          }
+        ]
+      }
+    ]
+  }
+]

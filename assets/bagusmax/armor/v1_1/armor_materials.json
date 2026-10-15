@@ -1,0 +1,100 @@
+[
+  {
+    "doubleSided": true,
+    "name": "Face_Charcoal",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.004999999888241291,
+        0.006000000052154064,
+        0.00800000037997961,
+        1
+      ],
+      "metallicFactor": 0,
+      "roughnessFactor": 0.6499999761581421
+    }
+  },
+  {
+    "doubleSided": true,
+    "name": "Armor_Red",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.5600000023841858,
+        0.02199999988079071,
+        0.008999999612569809,
+        1
+      ],
+      "metallicFactor": 0.3199999928474426,
+      "roughnessFactor": 0.30000001192092896
+    }
+  },
+  {
+    "doubleSided": true,
+    "name": "Armor_Violet",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.08500000089406967,
+        0.041999999433755875,
+        0.23000000417232513,
+        1
+      ],
+      "metallicFactor": 0.11999999731779099,
+      "roughnessFactor": 0.4000000059604645
+    }
+  },
+  {
+    "doubleSided": true,
+    "name": "Armor_Graphite",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.017999999225139618,
+        0.02199999988079071,
+        0.02800000086426735,
+        1
+      ],
+      "metallicFactor": 0.30000001192092896,
+      "roughnessFactor": 0.4099999964237213
+    }
+  },
+  {
+    "doubleSided": true,
+    "name": "Armor_Metal",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.3199999928474426,
+        0.3499999940395355,
+        0.38999998569488525,
+        1
+      ],
+      "metallicFactor": 0.8199999928474426,
+      "roughnessFactor": 0.30000001192092896
+    }
+  },
+  {
+    "doubleSided": true,
+    "name": "Armor_RedTrim",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.27000001072883606,
+        0.008999999612569809,
+        0.004999999888241291,
+        1
+      ],
+      "metallicFactor": 0.25,
+      "roughnessFactor": 0.36000001430511475
+    }
+  },
+  {
+    "doubleSided": true,
+    "name": "Vinyl_WarmWhite",
+    "pbrMetallicRoughness": {
+      "baseColorFactor": [
+        0.7900000214576721,
+        0.7900000214576721,
+        0.7649999856948853,
+        1
+      ],
+      "metallicFactor": 0,
+      "roughnessFactor": 0.4300000071525574
+    }
+  }
+]

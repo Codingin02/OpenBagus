@@ -1,0 +1,30 @@
+{
+  "runtime_import": "PASS",
+  "runtime_blender_bounds": [
+    [
+      -0.6922287344932556,
+      -0.4390447735786438,
+      0.003000010969117284
+    ],
+    [
+      0.6922286748886108,
+      0.3528520464897156,
+      1.6749998331069946
+    ]
+  ],
+  "baseline_height_scale": 1.1088877172950273,
+  "wave_evaluated_bounds": [
+    [
+      -0.6922290325164795,
+      -0.4390447735786438,
+      0.002999984659254551
+    ],
+    [
+      0.9598121643066406,
+      0.3528520464897156,
+      1.8838188648223877
+    ]
+  ],
+  "wave_status": "RENDERED_FOR_VISUAL_REVIEW_NOT_COLLISION_CERTIFIED",
+  "main_application_modified": false
+}

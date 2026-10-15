@@ -1,0 +1,25 @@
+{
+  "result": "GLB_STRUCTURE_SKIN_STATIC_PASS",
+  "bytes": 5953660,
+  "meshes": 13,
+  "materials": 5,
+  "triangles": 163108,
+  "exported_vertices": 83864,
+  "joint_count": 32,
+  "animation_names": [],
+  "external_textures": false,
+  "not_tested": [
+    "OpenBagus runtime loader",
+    "All-pose collision checks",
+    "User visual acceptance",
+    "Runtime FPS",
+    "Runtime VRAM"
+  ],
+  "geometry_buffer_bytes": 5929112,
+  "draw_primitives": 13,
+  "colored_meshes": [
+    "White_Arm_L.002",
+    "White_Arm_R.002",
+    "White_Torso"
+  ]
+}

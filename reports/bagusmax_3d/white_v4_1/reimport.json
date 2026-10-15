@@ -1,0 +1,5 @@
+{
+  "neutral_max_surface_error_m": 5.223914172347577e-07,
+  "joints": 32,
+  "posed_check": "Independent corresponding-vertex evaluation, not importer driver logic"
+}

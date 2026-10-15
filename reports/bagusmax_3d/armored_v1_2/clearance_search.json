@@ -1,0 +1,390 @@
+[
+  {
+    "pose_id": "side_L_S0_E0",
+    "joint_deltas_blender_xyz": {
+      "UpperArm_L": [
+        0,
+        -0.0,
+        0
+      ]
+    },
+    "shoulder_deg": 0,
+    "elbow_deg": 0,
+    "tested_candidates": 14,
+    "clear_cap_sample_found": true,
+    "best": {
+      "translation_m": [
+        0.04,
+        0,
+        0.04
+      ],
+      "rotation_fraction": 0,
+      "rotation_blender_xyz": [
+        0,
+        -0.0,
+        0
+      ],
+      "root_world_matrix": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          0.5600000023841858
+        ],
+        [
+          0.0,
+          1.0,
+          -0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.399999976158142
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "contacts": []
+    },
+    "scope": "bounded one-sided pauldron/liner/inlay envelope only; independent upperarm/chest contacts are not solved by this search",
+    "score": "minimum sampled surface-pair count; not penetration depth or minimum physical clearance"
+  },
+  {
+    "pose_id": "side_L_S90_E0",
+    "joint_deltas_blender_xyz": {
+      "UpperArm_L": [
+        0,
+        -1.5707963267948966,
+        0
+      ]
+    },
+    "shoulder_deg": 90,
+    "elbow_deg": 0,
+    "tested_candidates": 180,
+    "clear_cap_sample_found": false,
+    "best": {
+      "translation_m": [
+        0.08,
+        0,
+        0.16
+      ],
+      "rotation_fraction": 0,
+      "rotation_blender_xyz": [
+        0,
+        -0.0,
+        0
+      ],
+      "root_world_matrix": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          0.6000000238418579
+        ],
+        [
+          0.0,
+          1.0,
+          -0.0,
+          0.0
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.5199999809265137
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "contacts": [
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_ELBOW_METAL_L",
+          "polygon_pairs": 138
+        },
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_ELBOW_HUB_L",
+          "polygon_pairs": 24
+        },
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_ELBOW_SOCKET_L",
+          "polygon_pairs": 212
+        }
+      ]
+    },
+    "scope": "bounded one-sided pauldron/liner/inlay envelope only; independent upperarm/chest contacts are not solved by this search",
+    "score": "minimum sampled surface-pair count; not penetration depth or minimum physical clearance"
+  },
+  {
+    "pose_id": "side_L_S145_E0",
+    "joint_deltas_blender_xyz": {
+      "UpperArm_L": [
+        0,
+        -2.530727415391778,
+        0
+      ]
+    },
+    "shoulder_deg": 145,
+    "elbow_deg": 0,
+    "tested_candidates": 21,
+    "clear_cap_sample_found": true,
+    "best": {
+      "translation_m": [
+        0.04,
+        0.04,
+        0
+      ],
+      "rotation_fraction": 0.25,
+      "rotation_blender_xyz": [
+        -0.0,
+        0.6326818538479445,
+        -0.0
+      ],
+      "root_world_matrix": [
+        [
+          0.8064445853233337,
+          0.0,
+          0.591309666633606,
+          0.5600000023841858
+        ],
+        [
+          -0.0,
+          1.0,
+          0.0,
+          0.03999999910593033
+        ],
+        [
+          -0.591309666633606,
+          -0.0,
+          0.8064445853233337,
+          1.3600000143051147
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "contacts": []
+    },
+    "scope": "bounded one-sided pauldron/liner/inlay envelope only; independent upperarm/chest contacts are not solved by this search",
+    "score": "minimum sampled surface-pair count; not penetration depth or minimum physical clearance"
+  },
+  {
+    "pose_id": "combined_L_S90_E130",
+    "joint_deltas_blender_xyz": {
+      "UpperArm_L": [
+        0,
+        -1.5707963267948966,
+        0
+      ],
+      "Forearm_L": [
+        -2.2689280275926285,
+        0,
+        0
+      ]
+    },
+    "shoulder_deg": 90,
+    "elbow_deg": 130,
+    "tested_candidates": 180,
+    "clear_cap_sample_found": false,
+    "best": {
+      "translation_m": [
+        0.04,
+        0.04,
+        0.16
+      ],
+      "rotation_fraction": 0.25,
+      "rotation_blender_xyz": [
+        -0.0,
+        0.39269908169872414,
+        -0.0
+      ],
+      "root_world_matrix": [
+        [
+          0.9238795042037964,
+          0.0,
+          0.3826834559440613,
+          0.5600000023841858
+        ],
+        [
+          -0.0,
+          1.0,
+          0.0,
+          0.03999999910593033
+        ],
+        [
+          -0.3826834559440613,
+          -0.0,
+          0.9238795042037964,
+          1.5199999809265137
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "contacts": [
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_UPPERARM_L",
+          "polygon_pairs": 98
+        },
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_FOREARM_INLAY_L",
+          "polygon_pairs": 37
+        },
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_FOREARM_L",
+          "polygon_pairs": 299
+        },
+        {
+          "a": "ARMOR_PAULDRON_L",
+          "b": "ARMOR_FOREARM_CUFF_L",
+          "polygon_pairs": 30
+        }
+      ]
+    },
+    "scope": "bounded one-sided pauldron/liner/inlay envelope only; independent upperarm/chest contacts are not solved by this search",
+    "score": "minimum sampled surface-pair count; not penetration depth or minimum physical clearance"
+  },
+  {
+    "pose_id": "combined_L_S145_E130",
+    "joint_deltas_blender_xyz": {
+      "UpperArm_L": [
+        0,
+        -2.530727415391778,
+        0
+      ],
+      "Forearm_L": [
+        -2.2689280275926285,
+        0,
+        0
+      ]
+    },
+    "shoulder_deg": 145,
+    "elbow_deg": 130,
+    "tested_candidates": 109,
+    "clear_cap_sample_found": true,
+    "best": {
+      "translation_m": [
+        0.12,
+        0.08,
+        0
+      ],
+      "rotation_fraction": 0,
+      "rotation_blender_xyz": [
+        0,
+        -0.0,
+        0
+      ],
+      "root_world_matrix": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          0.6399999856948853
+        ],
+        [
+          0.0,
+          1.0,
+          -0.0,
+          0.07999999821186066
+        ],
+        [
+          0.0,
+          0.0,
+          1.0,
+          1.3600000143051147
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "contacts": []
+    },
+    "scope": "bounded one-sided pauldron/liner/inlay envelope only; independent upperarm/chest contacts are not solved by this search",
+    "score": "minimum sampled surface-pair count; not penetration depth or minimum physical clearance"
+  },
+  {
+    "pose_id": "forward_L_S90_E90",
+    "joint_deltas_blender_xyz": {
+      "UpperArm_L": [
+        -1.5707963267948966,
+        0,
+        0
+      ],
+      "Forearm_L": [
+        -1.5707963267948966,
+        0,
+        0
+      ]
+    },
+    "shoulder_deg": 90,
+    "elbow_deg": 90,
+    "tested_candidates": 170,
+    "clear_cap_sample_found": true,
+    "best": {
+      "translation_m": [
+        0.08,
+        0.08,
+        0.16
+      ],
+      "rotation_fraction": -0.15,
+      "rotation_blender_xyz": [
+        -0.23561944901923448,
+        0.0,
+        0.0
+      ],
+      "root_world_matrix": [
+        [
+          1.0,
+          -0.0,
+          0.0,
+          0.6000000238418579
+        ],
+        [
+          0.0,
+          0.972369909286499,
+          0.23344537615776062,
+          0.07999999821186066
+        ],
+        [
+          -0.0,
+          -0.23344537615776062,
+          0.972369909286499,
+          1.5199999809265137
+        ],
+        [
+          0.0,
+          0.0,
+          0.0,
+          1.0
+        ]
+      ],
+      "contacts": []
+    },
+    "scope": "bounded one-sided pauldron/liner/inlay envelope only; independent upperarm/chest contacts are not solved by this search",
+    "score": "minimum sampled surface-pair count; not penetration depth or minimum physical clearance"
+  }
+]

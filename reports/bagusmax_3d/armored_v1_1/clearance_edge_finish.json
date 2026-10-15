@@ -1,0 +1,50 @@
+[
+  {
+    "part": "ARMOR_FOREARM_L",
+    "smoothed_cut_vertices": 1092,
+    "iterations": 10,
+    "factor": 0.65,
+    "guard_post_finish_allowance_m": 0,
+    "scope": "smooth new Boolean rim vertices only; guard solid eroded 0.7mm after smoothing for intermediate-angle clearance"
+  },
+  {
+    "part": "ARMOR_ELBOW_GUARD_L",
+    "smoothed_cut_vertices": 2549,
+    "iterations": 10,
+    "factor": 0.65,
+    "guard_post_finish_allowance_m": 0.0007,
+    "scope": "smooth new Boolean rim vertices only; guard solid eroded 0.7mm after smoothing for intermediate-angle clearance"
+  },
+  {
+    "part": "ARMOR_FOREARM_INLAY_L",
+    "smoothed_cut_vertices": 725,
+    "iterations": 10,
+    "factor": 0.65,
+    "guard_post_finish_allowance_m": 0,
+    "scope": "smooth new Boolean rim vertices only; guard solid eroded 0.7mm after smoothing for intermediate-angle clearance"
+  },
+  {
+    "part": "ARMOR_FOREARM_R",
+    "smoothed_cut_vertices": 1567,
+    "iterations": 10,
+    "factor": 0.65,
+    "guard_post_finish_allowance_m": 0,
+    "scope": "smooth new Boolean rim vertices only; guard solid eroded 0.7mm after smoothing for intermediate-angle clearance"
+  },
+  {
+    "part": "ARMOR_ELBOW_GUARD_R",
+    "smoothed_cut_vertices": 2542,
+    "iterations": 10,
+    "factor": 0.65,
+    "guard_post_finish_allowance_m": 0.0007,
+    "scope": "smooth new Boolean rim vertices only; guard solid eroded 0.7mm after smoothing for intermediate-angle clearance"
+  },
+  {
+    "part": "ARMOR_FOREARM_INLAY_R",
+    "smoothed_cut_vertices": 677,
+    "iterations": 10,
+    "factor": 0.65,
+    "guard_post_finish_allowance_m": 0,
+    "scope": "smooth new Boolean rim vertices only; guard solid eroded 0.7mm after smoothing for intermediate-angle clearance"
+  }
+]

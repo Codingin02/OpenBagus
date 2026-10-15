@@ -1,0 +1,197 @@
+{
+  "status": "PASS",
+  "joints": [
+    {
+      "joint": "Root",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Hips",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Spine",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Chest",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Neck",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Head",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Shoulder_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "ShoulderVolume_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "UpperArm_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "ElbowVolume_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Forearm_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Hand_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Index_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Middle_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Ring_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Thumb_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Shoulder_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "ShoulderVolume_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "UpperArm_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "ElbowVolume_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Forearm_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Hand_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Index_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Middle_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Ring_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Thumb_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Thigh_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Shin_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Foot_L",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Thigh_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Shin_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    },
+    {
+      "joint": "Foot_R",
+      "max_matrix_error": 0.0,
+      "max_inverse_bind_error": 0.0,
+      "parent_matches": true
+    }
+  ]
+}

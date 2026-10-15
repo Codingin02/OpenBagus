@@ -1,0 +1,37 @@
+{
+  "status": "PASS",
+  "repeated_progress_sequence": [
+    0,
+    0.2,
+    0.4,
+    0.7,
+    1,
+    0.7,
+    0.4,
+    0.2,
+    0,
+    1
+  ],
+  "neutral_return_exact": true,
+  "shoulder_continuity": [
+    {
+      "side": "L",
+      "sample_step_degrees": 5,
+      "max_pivot_step_m": 0.0037510916590690613,
+      "tested_range": [
+        0,
+        145
+      ]
+    },
+    {
+      "side": "R",
+      "sample_step_degrees": 5,
+      "max_pivot_step_m": 0.0037510916590690613,
+      "tested_range": [
+        0,
+        145
+      ]
+    }
+  ],
+  "coverage_occlusion": "NOT_TESTED in runtime; exploded previews do not prove collision-free full assembly"
+}

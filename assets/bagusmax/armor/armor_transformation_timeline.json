@@ -1,0 +1,37 @@
+{
+  "duration_seconds": 3.4,
+  "default_wing_state": "folded",
+  "phases": {
+    "prepare": [
+      0,
+      0.2
+    ],
+    "lower": [
+      0.2,
+      0.95
+    ],
+    "torso": [
+      0.55,
+      1.75
+    ],
+    "arms": [
+      1.0,
+      2.35
+    ],
+    "helmet": [
+      1.9,
+      2.85
+    ],
+    "final_lock": [
+      2.7,
+      3.4
+    ]
+  },
+  "easing": "u=clamp((3.4*p-start)/(end-start)); e=u*u*(3-2*u)",
+  "path": "target_translation + inverse(parent_world_3x3)*(offset_world*(1-e) + gltf_up*.08*sin(pi*e))",
+  "rotation": "seated rotation maintained; no arbitrary spin; mechanical hinge controls independent",
+  "reverse": "evaluate the same absolute progress p in descending order; never integrate deltas",
+  "idempotence": "requesting current target must not restart; interruption continues from current progress",
+  "visibility": "cover-to-mask per anatomical region requires Antigravity integration; do not hide entire White on first frame",
+  "runtime_implemented": false
+}

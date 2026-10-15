@@ -1,0 +1,224 @@
+[
+  {
+    "pose": "neutral",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_L_30",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_L_60",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_L_90",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_L_120",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_L_145",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_L_45",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_L_90",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_L_110",
+    "status": "LIMIT",
+    "surface_intersections": [
+      {
+        "a": "ARMOR_UPPERARM_L",
+        "b": "ARMOR_FOREARM_L",
+        "intersecting_surface_triangle_pairs": 326
+      }
+    ],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_L_120",
+    "status": "LIMIT",
+    "surface_intersections": [
+      {
+        "a": "ARMOR_UPPERARM_L",
+        "b": "ARMOR_FOREARM_L",
+        "intersecting_surface_triangle_pairs": 343
+      }
+    ],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_L_130",
+    "status": "LIMIT",
+    "surface_intersections": [
+      {
+        "a": "ARMOR_UPPERARM_L",
+        "b": "ARMOR_FOREARM_L",
+        "intersecting_surface_triangle_pairs": 388
+      }
+    ],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_R_30",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_R_60",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_R_90",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_R_120",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "shoulder_R_145",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_R_45",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_R_90",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_R_110",
+    "status": "LIMIT",
+    "surface_intersections": [
+      {
+        "a": "ARMOR_UPPERARM_R",
+        "b": "ARMOR_FOREARM_R",
+        "intersecting_surface_triangle_pairs": 324
+      }
+    ],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_R_120",
+    "status": "LIMIT",
+    "surface_intersections": [
+      {
+        "a": "ARMOR_UPPERARM_R",
+        "b": "ARMOR_FOREARM_R",
+        "intersecting_surface_triangle_pairs": 343
+      }
+    ],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "elbow_R_130",
+    "status": "LIMIT",
+    "surface_intersections": [
+      {
+        "a": "ARMOR_UPPERARM_R",
+        "b": "ARMOR_FOREARM_R",
+        "intersecting_surface_triangle_pairs": 384
+      }
+    ],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "forward_fist",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "head_turn",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "head_nod",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "leg_step",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "point",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "wings_partial",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "wings_deployed",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "finger_anchor_L",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "finger_anchor_R",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  },
+  {
+    "pose": "combined",
+    "status": "PASS",
+    "surface_intersections": [],
+    "scope": "selected critical armor pairs; excludes intended mating, fasteners, and hidden White core"
+  }
+]

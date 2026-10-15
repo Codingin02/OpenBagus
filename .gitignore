@@ -197,3 +197,7 @@ release/*.zip
 # 3D character reference stills (external reference - local preservation only)
 assets/bagusmax/reference/
 
+# 3D generated review frames (intermediate frame captures - preserved locally, excluded from git)
+reports/bagusmax_3d/**/*.png
+
+

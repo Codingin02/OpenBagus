@@ -1,0 +1,66 @@
+{
+  "assets/bagusmax/source/bagusmax_white.blend": {
+    "sha256": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+    "bytes": 2742104
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_detailed.blend": {
+    "sha256": "dbfb5e734c37a101c969872668214e91d1b9ff615c389b0b2fa03ee994671a04",
+    "bytes": 4951036
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_refined.blend": {
+    "sha256": "7335edd1d6e2039f02782089e4ffe1bf6aa8eb4983d3dfd2c7e87ee8db2b3506",
+    "bytes": 2724220
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_v3.blend": {
+    "sha256": "7712634225a665564bbf1ce58bb5a60d6431ad7a1276d7a8aa2adbbb488588e9",
+    "bytes": 7223290
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_v4.blend": {
+    "sha256": "de444488d02f27ded4445c5ac426ae306857a65b9a52789f8e0ba0a9bed340bb",
+    "bytes": 11056867
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_v4_1.blend": {
+    "sha256": "bca6b53329acb61b89f107dc610e1451ebe88d4ba3fa2ee5606f6915b1849f07",
+    "bytes": 14560526
+  },
+  "assets/bagusmax/source/bagusmax_white_before_anatomy_refinement.blend": {
+    "sha256": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+    "bytes": 2742104
+  },
+  "assets/bagusmax/runtime/bagusmax_white.glb": {
+    "sha256": "96c8928f6f814f17f0c1c66efe7f5f4595976ca9b2027fe2d1f900bc0c0091df",
+    "bytes": 2783000
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_detailed.glb": {
+    "sha256": "8532a844dc62566912d46871f8c13f9d7e6b445ed1f35db46bc8f34b337f68b9",
+    "bytes": 5320884
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_refined.glb": {
+    "sha256": "e03408eec78855a6ed652691af06a2d0d582d5dcad589e9232cfb92a4d5b3d0c",
+    "bytes": 4373360
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_v3.glb": {
+    "sha256": "f301aaec43d0d513ebe1860978b3403717e7c29a958317a4fb4831e89d9d43c6",
+    "bytes": 5953660
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_v4.glb": {
+    "sha256": "239d72a0392e704c859ea4436fee220b758781169e6b2ed64a4ff9d39e7df608",
+    "bytes": 10810532
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_v4_1.glb": {
+    "sha256": "9ec223bb6ecd563437ee17c2b7a20cdd74a9b10d7f98a74e0d1150bb66e9569b",
+    "bytes": 18885552
+  },
+  "assets/models/bagusmax_armored.glb": {
+    "sha256": "a462435244873dcf4496e9805bf3046c2c52ad6a80e4c67c3dd18c1bb1b59f6a",
+    "bytes": 362540
+  },
+  "assets/models/source/bagusmax_armored.blend": {
+    "sha256": "69ec4ed12239f1066d899a1d6e5bc27705c8f56a7dede660643cf24c492e2edc",
+    "bytes": 285928
+  },
+  "docs/bagusmax_3d/WHITE_LIGHTING_SPEC.md": {
+    "sha256": "4e0110a3631d7063eee495e1e5c65bccc8999f26ecf513a3306c03ebfcb80a22",
+    "bytes": 3275
+  }
+}

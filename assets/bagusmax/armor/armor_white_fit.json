@@ -1,0 +1,103 @@
+{
+  "white_glb_sha256": "9ec223bb6ecd563437ee17c2b7a20cdd74a9b10d7f98a74e0d1150bb66e9569b",
+  "target_mesh": "White_SoftSkin",
+  "binary": "armor_white_fit.bin",
+  "binary_sha256": "255652eab7617858ae9a180d246179686be31ca8281c35e70b5113fc5adb7a6e",
+  "little_endian": true,
+  "original_vertex_count": 79867,
+  "mapping_max_error_m": 0.0,
+  "clearance": {
+    "default": 0,
+    "armored": 1,
+    "indices_offset": 0,
+    "count": 8072,
+    "indices_component_type": "UNSIGNED_INT",
+    "position_delta_offset": 32288,
+    "position_delta_type": "FLOAT_VEC3",
+    "coordinates": "mesh bind space glTF; apply before White morphs and skinning",
+    "normal_policy": "recompute vertex normals after applying clearance; renderer integration NOT_TESTED"
+  },
+  "coverage_regions": [
+    {
+      "region": "abdomen",
+      "index_buffer_offset": 129152,
+      "index_count": 19308,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "chest",
+      "index_buffer_offset": 206384,
+      "index_count": 26064,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "elbow_L",
+      "index_buffer_offset": 310640,
+      "index_count": 21834,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "elbow_R",
+      "index_buffer_offset": 397976,
+      "index_count": 21882,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "forearm_L",
+      "index_buffer_offset": 485504,
+      "index_count": 42528,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "forearm_R",
+      "index_buffer_offset": 655616,
+      "index_count": 42516,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "hand_L",
+      "index_buffer_offset": 825680,
+      "index_count": 70098,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "hand_R",
+      "index_buffer_offset": 1106072,
+      "index_count": 70098,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "pelvis",
+      "index_buffer_offset": 1386464,
+      "index_count": 35280,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "shoulder_L",
+      "index_buffer_offset": 1527584,
+      "index_count": 13830,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "shoulder_R",
+      "index_buffer_offset": 1582904,
+      "index_count": 13860,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "upperarm_L",
+      "index_buffer_offset": 1638344,
+      "index_count": 46944,
+      "component_type": "UNSIGNED_INT"
+    },
+    {
+      "region": "upperarm_R",
+      "index_buffer_offset": 1826120,
+      "index_count": 46734,
+      "component_type": "UNSIGNED_INT"
+    }
+  ],
+  "visibility_policy": "keep uncovered regions; mask a region only after its armor is seated and fully occludes it",
+  "reversal": "clearance=0 and restore all original index regions; never mutate original buffers in place",
+  "status": "DATA_VERIFIED; staged occlusion and renderer integration REVIEW_REQUIRED"
+}

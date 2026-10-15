@@ -1,0 +1,28 @@
+{
+  "negative_destination_tests": [
+    {
+      "case": "assets\\bagusmax\\source\\bagusmax_white_anatomy_v4_1.blend",
+      "status": "PASS",
+      "rejected_before_export": "Revision export must not overwrite a baseline"
+    },
+    {
+      "case": "assets\\bagusmax\\runtime\\bagusmax_armored_v1.glb",
+      "status": "PASS",
+      "rejected_before_export": "Revision export must not overwrite a baseline"
+    },
+    {
+      "case": "assets\\bagusmax\\runtime\\bagusmax_armored_v1_1.glb",
+      "status": "PASS",
+      "rejected_before_export": "Revision export must not overwrite a baseline"
+    },
+    {
+      "case": "omitted destination",
+      "status": "PASS"
+    },
+    {
+      "case": "existing V1.2 without explicit replacement (mocked existence, no file created)",
+      "status": "PASS"
+    }
+  ],
+  "successful_atomic_export": "NOT_TESTED; local mechanical gate failed; no candidate promoted"
+}

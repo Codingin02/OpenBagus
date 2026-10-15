@@ -1,0 +1,529 @@
+{
+  "before": {
+    "height_m": 1.68405,
+    "arm_span_m": 1.24803,
+    "arm_span_over_H": 0.7411,
+    "head_width_over_H": 0.2504,
+    "head_height_over_H": 0.1366,
+    "head_depth_over_H": 0.1721,
+    "torso_height_over_H": 0.6533,
+    "torso_width_over_H": 0.5282,
+    "torso_depth_over_H": 0.4884,
+    "leg_height_over_H": 0.2912,
+    "leg_width_over_H": 0.2138,
+    "eye_spacing_over_head_width": 0.3936,
+    "port_x_over_torso_width": 0.1866,
+    "objects": {
+      "White_Torso": [
+        [
+          -0.4447566866874695,
+          -0.46959781646728516,
+          0.389788419008255
+        ],
+        [
+          0.4447566866874695,
+          0.3528520464897156,
+          1.489998698234558
+        ]
+      ],
+      "White_Head": [
+        [
+          -0.21086697280406952,
+          -0.16692595183849335,
+          1.4570574760437012
+        ],
+        [
+          0.21086697280406952,
+          0.12292595207691193,
+          1.6870498657226562
+        ]
+      ],
+      "White_Arm_L": [
+        [
+          0.21286693215370178,
+          -0.17994317412376404,
+          0.3571319878101349
+        ],
+        [
+          0.6240169405937195,
+          0.16108228266239166,
+          1.4049079418182373
+        ]
+      ],
+      "White_Arm_R": [
+        [
+          -0.6240170001983643,
+          -0.17994317412376404,
+          0.3571319580078125
+        ],
+        [
+          -0.21286693215370178,
+          0.16108228266239166,
+          1.4049079418182373
+        ]
+      ],
+      "White_Leg_L": [
+        [
+          0.0024005372542887926,
+          -0.20497752726078033,
+          0.0029999990947544575
+        ],
+        [
+          0.36245909333229065,
+          0.17635805904865265,
+          0.49345898628234863
+        ]
+      ],
+      "White_Leg_R": [
+        [
+          -0.36245906352996826,
+          -0.20497752726078033,
+          0.0029999990947544575
+        ],
+        [
+          -0.0024005381856113672,
+          0.17635805904865265,
+          0.49345898628234863
+        ]
+      ],
+      "Eye_L": [
+        [
+          0.06655646115541458,
+          -0.1702621728181839,
+          1.5562299489974976
+        ],
+        [
+          0.0994499996304512,
+          -0.1618003398180008,
+          1.5857700109481812
+        ]
+      ],
+      "Eye_R": [
+        [
+          -0.0994499996304512,
+          -0.1702621728181839,
+          1.5562299489974976
+        ],
+        [
+          -0.06655646115541458,
+          -0.1618003398180008,
+          1.5857700109481812
+        ]
+      ],
+      "Eye_ContourBridge": [
+        [
+          -0.08348238468170166,
+          -0.17793123424053192,
+          1.5693649053573608
+        ],
+        [
+          0.08348238468170166,
+          -0.1651914119720459,
+          1.572635293006897
+        ]
+      ],
+      "Chest_AccessPort": [
+        [
+          0.1399608552455902,
+          -0.23331743478775024,
+          1.2794560194015503
+        ],
+        [
+          0.19203916192054749,
+          -0.19254177808761597,
+          1.332543969154358
+        ]
+      ]
+    }
+  },
+  "after": {
+    "height_m": 1.68405,
+    "arm_span_m": 1.24803,
+    "arm_span_over_H": 0.7411,
+    "head_width_over_H": 0.2504,
+    "head_height_over_H": 0.1366,
+    "head_depth_over_H": 0.1721,
+    "torso_height_over_H": 0.6423,
+    "torso_width_over_H": 0.5282,
+    "torso_depth_over_H": 0.4884,
+    "leg_height_over_H": 0.2912,
+    "leg_width_over_H": 0.2138,
+    "eye_spacing_over_head_width": 0.3936,
+    "port_x_over_torso_width": 0.1967,
+    "objects": {
+      "White_Torso": [
+        [
+          -0.4447566866874695,
+          -0.46959781646728516,
+          0.4082671105861664
+        ],
+        [
+          0.4447566866874695,
+          0.3528520464897156,
+          1.489998698234558
+        ]
+      ],
+      "White_Head": [
+        [
+          -0.21086697280406952,
+          -0.16692595183849335,
+          1.4570574760437012
+        ],
+        [
+          0.21086697280406952,
+          0.12292595207691193,
+          1.6870498657226562
+        ]
+      ],
+      "White_Arm_L": [
+        [
+          0.21286693215370178,
+          -0.17994317412376404,
+          0.34882456064224243
+        ],
+        [
+          0.6240169405937195,
+          0.16108228266239166,
+          1.4049079418182373
+        ]
+      ],
+      "White_Arm_R": [
+        [
+          -0.6240170001983643,
+          -0.17994317412376404,
+          0.34882456064224243
+        ],
+        [
+          -0.21286693215370178,
+          0.16108228266239166,
+          1.4049079418182373
+        ]
+      ],
+      "White_Leg_L": [
+        [
+          0.0024005372542887926,
+          -0.20497752726078033,
+          0.0029999990947544575
+        ],
+        [
+          0.36245909333229065,
+          0.17635805904865265,
+          0.49345898628234863
+        ]
+      ],
+      "White_Leg_R": [
+        [
+          -0.36245906352996826,
+          -0.20497752726078033,
+          0.0029999990947544575
+        ],
+        [
+          -0.0024005381856113672,
+          0.17635805904865265,
+          0.49345898628234863
+        ]
+      ],
+      "Eye_L": [
+        [
+          0.06655646115541458,
+          -0.16029974818229675,
+          1.5562299489974976
+        ],
+        [
+          0.0994499996304512,
+          -0.14974644780158997,
+          1.5857700109481812
+        ]
+      ],
+      "Eye_R": [
+        [
+          -0.0994499996304512,
+          -0.16029974818229675,
+          1.5562299489974976
+        ],
+        [
+          -0.06655646115541458,
+          -0.14974668622016907,
+          1.5857700109481812
+        ]
+      ],
+      "Eye_ContourBridge": [
+        [
+          -0.08348238468170166,
+          -0.16962802410125732,
+          1.5693649053573608
+        ],
+        [
+          0.08348238468170166,
+          -0.15440216660499573,
+          1.572635293006897
+        ]
+      ],
+      "Chest_AccessPort": [
+        [
+          0.13785000145435333,
+          -0.24266798794269562,
+          1.2628499269485474
+        ],
+        [
+          0.21214981377124786,
+          -0.18167197704315186,
+          1.3371500968933105
+        ]
+      ]
+    }
+  },
+  "meshes": {
+    "White_Torso": {
+      "triangles": 20736,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "White_Head": {
+      "triangles": 14592,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 1
+    },
+    "Eye_R": {
+      "triangles": 160,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 1
+    },
+    "Eye_L": {
+      "triangles": 160,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 1
+    },
+    "Eye_ContourBridge": {
+      "triangles": 788,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 1
+    },
+    "Chest_Access_Port": {
+      "triangles": 2560,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "White_Arm_L": {
+      "triangles": 42674,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "White_Leg_L": {
+      "triangles": 14592,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 3
+    },
+    "White_Arm_R": {
+      "triangles": 42654,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "White_Leg_R": {
+      "triangles": 14592,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 3
+    },
+    "Chest_Access_Detail": {
+      "triangles": 780,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "Chest_Access_Lid": {
+      "triangles": 256,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "Elbow_Panel_Seam_L": {
+      "triangles": 2048,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "Elbow_Panel_Seam_R": {
+      "triangles": 2048,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 2
+    },
+    "Torso_Vinyl_Seam": {
+      "triangles": 2560,
+      "nonmanifold_edges": 0,
+      "duplicate_positions_1e_7": 0,
+      "degenerate_triangles": 0,
+      "weight_errors": 0,
+      "max_influences": 1
+    }
+  },
+  "temporary_poses": {
+    "T1_rest": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T2_left_arm_raised": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 0.9191,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T3_right_arm_raised": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 0.9194,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T4_elbow_flexion": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 0.9503,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T5_hug_forward": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0005,
+        "White_Arm_R": 1.0005,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T6_head_left": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T6_head_right": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T7_torso_forward": {
+      "mesh_volume_ratio": {
+        "White_Torso": 0.9865,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T8_torso_side": {
+      "mesh_volume_ratio": {
+        "White_Torso": 0.9986,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T9_leg": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    },
+    "T10_rotation": {
+      "mesh_volume_ratio": {
+        "White_Torso": 1.0,
+        "White_Arm_L": 1.0,
+        "White_Arm_R": 1.0,
+        "White_Leg_L": 1.0,
+        "White_Leg_R": 1.0
+      },
+      "volume_flags": [],
+      "collision_certified": false
+    }
+  },
+  "joint_count": 20,
+  "actions": 0,
+  "export_seconds": 0.911,
+  "renderer_fps": null,
+  "runtime_gpu_memory": null,
+  "collision_certified": false,
+  "surface_transfer": "nearest mesh vertex weights for seam/port geometry",
+  "finger_articulation": "No finger joints; Hand joint only"
+}

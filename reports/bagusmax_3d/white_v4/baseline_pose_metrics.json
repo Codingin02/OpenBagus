@@ -1,0 +1,662 @@
+{
+  "S0": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S1_L": {
+    "L": {
+      "volume_m3": 0.04756557115029355,
+      "near_zero_triangles": 1
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S2_L": {
+    "L": {
+      "volume_m3": 0.047323388441805725,
+      "near_zero_triangles": 0
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S3_L": {
+    "L": {
+      "volume_m3": 0.04685402865094842,
+      "near_zero_triangles": 2
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S4_L": {
+    "L": {
+      "volume_m3": 0.04474395741527959,
+      "near_zero_triangles": 3
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S5_L": {
+    "L": {
+      "volume_m3": 0.04181008188742141,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S6_L": {
+    "L": {
+      "volume_m3": 0.04058756440222907,
+      "near_zero_triangles": 1
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "E0_L": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "E1_L": {
+    "L": {
+      "volume_m3": 0.04739459800718526,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "E2_L": {
+    "L": {
+      "volume_m3": 0.046982073704130205,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "E3_L": {
+    "L": {
+      "volume_m3": 0.046376867733000905,
+      "near_zero_triangles": 6
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "E4_L": {
+    "L": {
+      "volume_m3": 0.04577596293068781,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "S1_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04758187655174437,
+      "near_zero_triangles": 3
+    }
+  },
+  "S2_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04734067670879322,
+      "near_zero_triangles": 1
+    }
+  },
+  "S3_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04687215824122424,
+      "near_zero_triangles": 1
+    }
+  },
+  "S4_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04475905796491508,
+      "near_zero_triangles": 3
+    }
+  },
+  "S5_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04182506089843515,
+      "near_zero_triangles": 2
+    }
+  },
+  "S6_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.040602502911423755,
+      "near_zero_triangles": 2
+    }
+  },
+  "E0_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "E1_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04741070690448471,
+      "near_zero_triangles": 4
+    }
+  },
+  "E2_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04699884356939019,
+      "near_zero_triangles": 4
+    }
+  },
+  "E3_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.046394031680153214,
+      "near_zero_triangles": 4
+    }
+  },
+  "E4_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.045793251477331855,
+      "near_zero_triangles": 4
+    }
+  },
+  "C1": {
+    "L": {
+      "volume_m3": 0.047354891241988904,
+      "near_zero_triangles": 3
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "C2": {
+    "L": {
+      "volume_m3": 0.04323773124637565,
+      "near_zero_triangles": 1
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "C3": {
+    "L": {
+      "volume_m3": 0.04355702218336777,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.04357206907695912,
+      "near_zero_triangles": 0
+    }
+  },
+  "C4": {
+    "L": {
+      "volume_m3": 0.04718133895842364,
+      "near_zero_triangles": 0
+    },
+    "R": {
+      "volume_m3": 0.047199389480133934,
+      "near_zero_triangles": 0
+    }
+  },
+  "C5": {
+    "L": {
+      "volume_m3": 0.04741641847940787,
+      "near_zero_triangles": 0
+    },
+    "R": {
+      "volume_m3": 0.0474282691424601,
+      "near_zero_triangles": 1
+    }
+  },
+  "C6": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047103154202299345,
+      "near_zero_triangles": 1
+    }
+  },
+  "C7": {
+    "L": {
+      "volume_m3": 0.047564080748843975,
+      "near_zero_triangles": 3
+    },
+    "R": {
+      "volume_m3": 0.0475793307582009,
+      "near_zero_triangles": 1
+    }
+  },
+  "C8": {
+    "L": {
+      "volume_m3": 0.047564087083998396,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579336589753184,
+      "near_zero_triangles": 3
+    }
+  },
+  "C9": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "C10": {
+    "L": {
+      "volume_m3": 0.043398806758714555,
+      "near_zero_triangles": 0
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "F1_point": {
+    "L": {
+      "volume_m3": 0.04754791914712722,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_000": {
+    "L": {
+      "volume_m3": 0.047564086927413984,
+      "near_zero_triangles": 9
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_030": {
+    "L": {
+      "volume_m3": 0.045718862087178826,
+      "near_zero_triangles": 0
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_060": {
+    "L": {
+      "volume_m3": 0.04375627741620764,
+      "near_zero_triangles": 2
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_090": {
+    "L": {
+      "volume_m3": 0.04181008188742141,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_120": {
+    "L": {
+      "volume_m3": 0.040012911633129346,
+      "near_zero_triangles": 2
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_145": {
+    "L": {
+      "volume_m3": 0.03871799924896785,
+      "near_zero_triangles": 1
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_L_160": {
+    "L": {
+      "volume_m3": 0.038057701356396495,
+      "near_zero_triangles": 3
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_000": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_030": {
+    "L": {
+      "volume_m3": 0.04739459800718526,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_060": {
+    "L": {
+      "volume_m3": 0.046982073704130205,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_090": {
+    "L": {
+      "volume_m3": 0.046376867733000905,
+      "near_zero_triangles": 6
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_110": {
+    "L": {
+      "volume_m3": 0.04590078346158331,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_130": {
+    "L": {
+      "volume_m3": 0.045393663771918835,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_L_145": {
+    "L": {
+      "volume_m3": 0.045006938101399295,
+      "near_zero_triangles": 4
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "F2_closed_L": {
+    "L": {
+      "volume_m3": 0.0475332569412113,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "F3_hold_L": {
+    "L": {
+      "volume_m3": 0.04757860822090923,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "shoulder_R_000": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579336903127344,
+      "near_zero_triangles": 4
+    }
+  },
+  "shoulder_R_030": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04573401116296431,
+      "near_zero_triangles": 2
+    }
+  },
+  "shoulder_R_060": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04377133316109266,
+      "near_zero_triangles": 1
+    }
+  },
+  "shoulder_R_090": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04182506089843515,
+      "near_zero_triangles": 2
+    }
+  },
+  "shoulder_R_120": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04002783341493915,
+      "near_zero_triangles": 4
+    }
+  },
+  "shoulder_R_145": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.038732892181877324,
+      "near_zero_triangles": 2
+    }
+  },
+  "shoulder_R_160": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.038072585531350005,
+      "near_zero_triangles": 0
+    }
+  },
+  "elbow_R_000": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047579337276552704,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_R_030": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04741070690448471,
+      "near_zero_triangles": 4
+    }
+  },
+  "elbow_R_060": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04699884356939019,
+      "near_zero_triangles": 4
+    }
+  },
+  "elbow_R_090": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.046394031680153214,
+      "near_zero_triangles": 4
+    }
+  },
+  "elbow_R_110": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.045918042874892394,
+      "near_zero_triangles": 4
+    }
+  },
+  "elbow_R_130": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04541095922671709,
+      "near_zero_triangles": 5
+    }
+  },
+  "elbow_R_145": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04502416671992974,
+      "near_zero_triangles": 4
+    }
+  },
+  "F2_closed_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.04754852387407713,
+      "near_zero_triangles": 5
+    }
+  },
+  "F3_hold_R": {
+    "L": {
+      "volume_m3": 0.04756408727838494,
+      "near_zero_triangles": 5
+    },
+    "R": {
+      "volume_m3": 0.047593855078878734,
+      "near_zero_triangles": 5
+    }
+  }
+}

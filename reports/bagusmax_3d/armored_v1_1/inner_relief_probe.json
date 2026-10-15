@@ -1,0 +1,62 @@
+[
+  {
+    "inner_radius_scale": 0.65,
+    "elbow": 90,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.65,
+    "elbow": 110,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.65,
+    "elbow": 130,
+    "contacts": 398
+  },
+  {
+    "inner_radius_scale": 0.45,
+    "elbow": 90,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.45,
+    "elbow": 110,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.45,
+    "elbow": 130,
+    "contacts": 128
+  },
+  {
+    "inner_radius_scale": 0.25,
+    "elbow": 90,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.25,
+    "elbow": 110,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.25,
+    "elbow": 130,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.1,
+    "elbow": 90,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.1,
+    "elbow": 110,
+    "contacts": 0
+  },
+  {
+    "inner_radius_scale": 0.1,
+    "elbow": 130,
+    "contacts": 0
+  }
+]

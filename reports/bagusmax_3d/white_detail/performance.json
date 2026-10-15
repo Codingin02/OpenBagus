@@ -1,0 +1,19 @@
+{
+  "hardware": "NVIDIA GeForce RTX 3050 6GB Laptop GPU",
+  "physical_gpu_memory_mib": 6144,
+  "glb_bytes": 5320884,
+  "triangles": 161200,
+  "mesh_count": 15,
+  "material_count": 5,
+  "primitive_count_potential_draw_calls": 17,
+  "joint_count": 20,
+  "estimated_vertex_index_buffers_mib": 6.38,
+  "blender_import_seconds_single_sample": 0.694,
+  "openbagus_import_seconds": null,
+  "runtime_frame_time_ms": null,
+  "runtime_gpu_memory_mib": null,
+  "cpu_skinning_overhead_ms": null,
+  "gpu_skinning_runtime_verified": false,
+  "runtime_status": "NOT_TESTED_APPLICATION_INTEGRATION_OUTSIDE_GATE_A",
+  "optimized_export": "NOT_CREATED_NO_MEASURED_RUNTIME_COST_JUSTIFIES_DECIMATION"
+}

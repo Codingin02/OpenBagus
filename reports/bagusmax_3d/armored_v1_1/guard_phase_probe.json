@@ -1,0 +1,1621 @@
+[
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0,
+    "elbow": 30,
+    "contacts": []
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0,
+    "elbow": 60,
+    "contacts": []
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 17
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 48
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 168
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.015,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 15
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.015,
+    "elbow": 60,
+    "contacts": []
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.015,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 59
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.015,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 74
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.015,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 226
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.03,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 24
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.03,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 16
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 18
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.03,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 70
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.03,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 101
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.03,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 332
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.045,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 38
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.045,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 46
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 25
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.045,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 97
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.045,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 211
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.045,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 380
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.06,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 54
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.06,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 75
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 29
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.06,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 152
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.06,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 304
+      }
+    ]
+  },
+  {
+    "fraction": 0.55,
+    "coaxial_travel": 0.06,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 377
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 9
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0,
+    "elbow": 60,
+    "contacts": []
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 13
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 19
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 59
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.015,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 18
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.015,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 10
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.015,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 59
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.015,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 72
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.015,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 100
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.03,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 32
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.03,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 18
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.03,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 74
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.03,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 96
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.03,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 183
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.045,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 44
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.045,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 47
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 16
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.045,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 101
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.045,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 138
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.045,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 289
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.06,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 64
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.06,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 83
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 20
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.06,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 153
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.06,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 209
+      }
+    ]
+  },
+  {
+    "fraction": 0.6,
+    "coaxial_travel": 0.06,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 379
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 15
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0,
+    "elbow": 60,
+    "contacts": []
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 18
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 67
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 19
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 22
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.015,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 30
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.015,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 13
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.015,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 60
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 60
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.015,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 72
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.015,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 64
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.03,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 40
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.03,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 29
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.03,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 76
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 56
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.03,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 96
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.03,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 123
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.045,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 54
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.045,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 57
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.045,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 104
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 50
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.045,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 133
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.045,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 173
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.06,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 104
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.06,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 102
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 19
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.06,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 159
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 35
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.06,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 197
+      }
+    ]
+  },
+  {
+    "fraction": 0.65,
+    "coaxial_travel": 0.06,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 241
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 27
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0,
+    "elbow": 60,
+    "contacts": []
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 17
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 23
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 51
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 18
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.015,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 40
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.015,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 15
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.015,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 67
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 16
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.015,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 63
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 48
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.015,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 64
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.03,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 54
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.03,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 38
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.03,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 85
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 25
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.03,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 103
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 42
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.03,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 119
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.045,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 97
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.045,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 76
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.045,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 126
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 33
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.045,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 143
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 36
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.045,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 161
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.06,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 140
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.06,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 131
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.06,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 173
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 28
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.06,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 189
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 16
+      }
+    ]
+  },
+  {
+    "fraction": 0.7,
+    "coaxial_travel": 0.06,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 215
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 35
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 9
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 27
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 24
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 24
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 58
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.015,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 49
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.015,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 29
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.015,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 69
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.015,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 68
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 18
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.015,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 71
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 52
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.03,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 90
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.03,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 58
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.03,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 102
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 14
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.03,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 114
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 29
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.03,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 124
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 41
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.045,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 137
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.045,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 105
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.045,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 140
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 20
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.045,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 162
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 30
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.045,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 177
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 33
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.06,
+    "elbow": 30,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 159
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.06,
+    "elbow": 60,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 167
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.06,
+    "elbow": 90,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 196
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 26
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.06,
+    "elbow": 110,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 204
+      },
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_WRIST_L",
+        "triangle_pairs": 32
+      }
+    ]
+  },
+  {
+    "fraction": 0.75,
+    "coaxial_travel": 0.06,
+    "elbow": 130,
+    "contacts": [
+      {
+        "a": "ARMOR_ELBOW_GUARD_L",
+        "b": "ARMOR_FOREARM_L",
+        "triangle_pairs": 223
+      }
+    ]
+  }
+]

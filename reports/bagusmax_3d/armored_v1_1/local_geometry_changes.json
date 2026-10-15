@@ -1,0 +1,26 @@
+[
+  {
+    "part": "ARMOR_FOREARM_L",
+    "vertices_before": 2076,
+    "vertices_after": 3333,
+    "method": "subtract 0..130 deg upper-arm convex swept volume plus 4mm clearance; 1.5mm rim bevel"
+  },
+  {
+    "part": "ARMOR_FOREARM_INLAY_L",
+    "vertices_before": 508,
+    "vertices_after": 1048,
+    "method": "subtract 0..130 deg upper-arm convex swept volume plus 4mm clearance; 1.5mm rim bevel"
+  },
+  {
+    "part": "ARMOR_FOREARM_R",
+    "vertices_before": 2076,
+    "vertices_after": 3268,
+    "method": "subtract 0..130 deg upper-arm convex swept volume plus 4mm clearance; 1.5mm rim bevel"
+  },
+  {
+    "part": "ARMOR_FOREARM_INLAY_R",
+    "vertices_before": 508,
+    "vertices_after": 1011,
+    "method": "subtract 0..130 deg upper-arm convex swept volume plus 4mm clearance; 1.5mm rim bevel"
+  }
+]

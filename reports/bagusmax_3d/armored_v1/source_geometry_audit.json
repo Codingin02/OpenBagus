@@ -1,0 +1,1614 @@
+[
+  {
+    "part": "ARMOR_CHEST_FRONT",
+    "vertices": 3062,
+    "faces": 3060,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.003919295042531645,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_COLLAR",
+    "vertices": 2176,
+    "faces": 2176,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.002972178784653392,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_NECK_SEAL",
+    "vertices": 610,
+    "faces": 1220,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00043473148274368356,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_REAR",
+    "vertices": 2054,
+    "faces": 2052,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0034647451937463184,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_FLANK_L",
+    "vertices": 1844,
+    "faces": 1842,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0025630305192107126,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_FLANK_R",
+    "vertices": 1844,
+    "faces": 1842,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0025629941819250443,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_SEGMENT_1",
+    "vertices": 1256,
+    "faces": 1254,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008652984184365026,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_BACK_1",
+    "vertices": 1016,
+    "faces": 1014,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008441141374646226,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_1_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.044511852183821e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_1_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.0445118521838205e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_SEGMENT_2",
+    "vertices": 1256,
+    "faces": 1254,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008773687790963185,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_BACK_2",
+    "vertices": 1016,
+    "faces": 1014,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008560605222591894,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_2_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.0445140121905617e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_2_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.0445140121905607e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_SEGMENT_3",
+    "vertices": 1256,
+    "faces": 1254,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008894411232944979,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_BACK_3",
+    "vertices": 1016,
+    "faces": 1014,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008680087892139535,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_3_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.0444851068249121e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_3_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.0444851068249103e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_SEGMENT_4",
+    "vertices": 1256,
+    "faces": 1254,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0009015166933052954,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_BACK_4",
+    "vertices": 1016,
+    "faces": 1014,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008799586279636829,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_4_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.0444806271223823e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ABDOMEN_LOCK_4_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.044480627122385e-07,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PELVIS_FRONT",
+    "vertices": 1522,
+    "faces": 1520,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0020507558173465893,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PELVIS_REAR",
+    "vertices": 1522,
+    "faces": 1520,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.002017912178623381,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_ACCESS_RING",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.245668169711663e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_ACCESS_LID",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.496675045822024e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_SEAM_L",
+    "vertices": 144,
+    "faces": 140,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.062007765168424e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_CHEST_SEAM_R",
+    "vertices": 144,
+    "faces": 140,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.0620077651672016e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PAULDRON_L",
+    "vertices": 1244,
+    "faces": 2484,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0038513082261287046,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PAULDRON_INLAY_L",
+    "vertices": 661,
+    "faces": 1322,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.814403605946266e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_UPPERARM_L",
+    "vertices": 1633,
+    "faces": 3262,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0015297242320465858,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_SHOULDER_RECESS_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0012586350398590008,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ELBOW_SOCKET_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0022496553846613723,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ELBOW_METAL_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00023987444603795467,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ELBOW_HUB_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 4.4675298110889146e-05,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_FOREARM_L",
+    "vertices": 2076,
+    "faces": 4152,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.003055134241101803,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_FOREARM_CUFF_L",
+    "vertices": 610,
+    "faces": 1220,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0001246482568029691,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_FOREARM_INLAY_L",
+    "vertices": 508,
+    "faces": 1016,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.433617486904079e-05,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PALM_L",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.002282544291233985,
+    "world_determinant": 0.9999998807907104,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0000001192092896
+    ]
+  },
+  {
+    "part": "ARMOR_WRIST_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00022110722172148555,
+    "world_determinant": 0.9999998807907104,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0000001192092896
+    ]
+  },
+  {
+    "part": "ARMOR_INDEX_L_0",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00010211914206397204,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_KNUCKLE_INDEX_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.433712755852196e-06,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_INDEX_L_1",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.202512442199297e-05,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_INDEX_L_2",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.197816403269302e-05,
+    "world_determinant": 0.9999996423721313,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_MIDDLE_L_0",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00010211920298265597,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_KNUCKLE_MIDDLE_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.433735345411452e-06,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_MIDDLE_L_1",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.202532913504272e-05,
+    "world_determinant": 0.9999997615814209,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_MIDDLE_L_2",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.197821828330209e-05,
+    "world_determinant": 0.9999995231628418,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_RING_L_0",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00010211915164252784,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_KNUCKLE_RING_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.433710147082494e-06,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_RING_L_1",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.202524506202603e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_RING_L_2",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.197806203798618e-05,
+    "world_determinant": 0.9999998211860657,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THUMB_L",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0001950900468116912,
+    "world_determinant": 0.9999998211860657,
+    "scale": [
+      0.9999998807907104,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THUMB_TIP_L",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.934563527380676e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PAULDRON_R",
+    "vertices": 1244,
+    "faces": 2484,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0038517313319540417,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PAULDRON_INLAY_R",
+    "vertices": 661,
+    "faces": 1322,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.815331101232765e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_UPPERARM_R",
+    "vertices": 1633,
+    "faces": 3262,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.001529788073401685,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_SHOULDER_RECESS_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0012588345206230244,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ELBOW_SOCKET_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.002249378756322234,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ELBOW_METAL_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00023985360074885127,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_ELBOW_HUB_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 4.467529811088917e-05,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_FOREARM_R",
+    "vertices": 2076,
+    "faces": 4152,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00305498166367791,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_FOREARM_CUFF_R",
+    "vertices": 610,
+    "faces": 1220,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00012464764804371575,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_FOREARM_INLAY_R",
+    "vertices": 508,
+    "faces": 1016,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.446376951526947e-05,
+    "world_determinant": 0.9999997019767761,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_PALM_R",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.002282544291234103,
+    "world_determinant": 0.9999997615814209,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WRIST_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00022117254253150746,
+    "world_determinant": 0.9999997615814209,
+    "scale": [
+      1.0000001192092896,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_INDEX_R_0",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00010211913057909459,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_KNUCKLE_INDEX_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.433712755852192e-06,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_INDEX_R_1",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.202511413522802e-05,
+    "world_determinant": 0.9999998211860657,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_INDEX_R_2",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.197815434499017e-05,
+    "world_determinant": 0.9999998211860657,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_MIDDLE_R_0",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00010211920298265604,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0000001192092896
+    ]
+  },
+  {
+    "part": "ARMOR_KNUCKLE_MIDDLE_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.433735345411458e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0000001192092896
+    ]
+  },
+  {
+    "part": "ARMOR_MIDDLE_R_1",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.202532913504279e-05,
+    "world_determinant": 0.9999999403953552,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_MIDDLE_R_2",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.197821828330215e-05,
+    "world_determinant": 0.9999996423721313,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_RING_R_0",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00010211915164252784,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0000001192092896
+    ]
+  },
+  {
+    "part": "ARMOR_KNUCKLE_RING_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.433710147082494e-06,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0000001192092896
+    ]
+  },
+  {
+    "part": "ARMOR_RING_R_1",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.202524506202604e-05,
+    "world_determinant": 0.9999998807907104,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_RING_R_2",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.197806203798617e-05,
+    "world_determinant": 0.9999996423721313,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THUMB_R",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0001950900779567277,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THUMB_TIP_R",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 8.934563527380674e-05,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THIGH_L",
+    "vertices": 1818,
+    "faces": 3636,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0034398583096033105,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THIGH_RIDGE_L",
+    "vertices": 720,
+    "faces": 1440,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.351165763743268e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_KNEE_RECESS_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0026434674035356134,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_SHIN_L",
+    "vertices": 1322,
+    "faces": 2644,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0013931486944387607,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_BOOT_L",
+    "vertices": 1543,
+    "faces": 3086,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0011637080609455369,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_BOOT_SOLE_L",
+    "vertices": 712,
+    "faces": 1424,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00022330103789950314,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THIGH_R",
+    "vertices": 1818,
+    "faces": 3636,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.003440626371541773,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_THIGH_RIDGE_R",
+    "vertices": 720,
+    "faces": 1440,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.35775610951088e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_KNEE_RECESS_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0026439107986710292,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_SHIN_R",
+    "vertices": 1322,
+    "faces": 2644,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.001392919376643154,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_BOOT_R",
+    "vertices": 1543,
+    "faces": 3086,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0011637080380077361,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_BOOT_SOLE_R",
+    "vertices": 712,
+    "faces": 1424,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0002233010199648404,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_REAR",
+    "vertices": 3522,
+    "faces": 3520,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0017074456237093582,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_CROWN",
+    "vertices": 2944,
+    "faces": 2944,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0010561659147063159,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_CHIN",
+    "vertices": 1784,
+    "faces": 1782,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0003744285486833581,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_FACE_FRAME",
+    "vertices": 3312,
+    "faces": 3312,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0017049739688112242,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_VISOR_GASKET",
+    "vertices": 576,
+    "faces": 1152,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.650521851026091e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_EAR_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.00025194273068889487,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_FIN_L",
+    "vertices": 478,
+    "faces": 476,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.279004906113317e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_EAR_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.000251942730688895,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_HELMET_FIN_R",
+    "vertices": 478,
+    "faces": 476,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 6.278718181787566e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_BACKPACK_CORE",
+    "vertices": 96,
+    "faces": 98,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.06117134384383208,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_VENT_L_0",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.164998134625124e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_NOZZLE_L_0",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.572579522293144e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_VENT_L_1",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.17154699111443e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_NOZZLE_L_1",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.5770568572323198e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_ROOT_HINGE_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.000542327222461453,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_ROOT_PIN_L",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.768052628533488e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_MAIN_L",
+    "vertices": 659,
+    "faces": 1314,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.004570361339034019,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_TIP_HINGE_L",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0001080398394482709,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_TIP_L",
+    "vertices": 585,
+    "faces": 1166,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0008632509307093401,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_PANEL_LINE_L0.07",
+    "vertices": 180,
+    "faces": 176,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.7470794885591773e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_PANEL_LINE_L0.71",
+    "vertices": 180,
+    "faces": 176,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.7602764132260797e-06,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_VENT_R_0",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.165981543078049e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_NOZZLE_R_0",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.5734646314954625e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_VENT_R_1",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 7.171498486639888e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_REAR_NOZZLE_R_1",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.5774392925460047e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_ROOT_HINGE_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0005423366551661129,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_ROOT_PIN_R",
+    "vertices": 480,
+    "faces": 480,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 5.768052628533487e-05,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_MAIN_R",
+    "vertices": 659,
+    "faces": 1314,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.004570393282386327,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_TIP_HINGE_R",
+    "vertices": 254,
+    "faces": 508,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.0001080398394859566,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_TIP_R",
+    "vertices": 585,
+    "faces": 1166,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 0.000863384432832437,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_PANEL_LINE_R0.07",
+    "vertices": 180,
+    "faces": 176,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 2.747077838909392e-06,
+    "world_determinant": 1.0,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  },
+  {
+    "part": "ARMOR_WING_PANEL_LINE_R0.71",
+    "vertices": 180,
+    "faces": 176,
+    "nonmanifold_edges": 0,
+    "signed_volume_m3": 1.7602776997173694e-06,
+    "world_determinant": 1.0000001192092896,
+    "scale": [
+      1.0,
+      1.0,
+      1.0
+    ]
+  }
+]

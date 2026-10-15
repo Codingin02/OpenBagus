@@ -1,0 +1,3026 @@
+[
+  {
+    "parts": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_SHOULDER_RECESS_L"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_L",
+      "ARMOR_CHEST_FRONT"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_L",
+      "ARMOR_CHEST_FLANK_L"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PAULDRON_L",
+      "ARMOR_CHEST_FRONT"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PAULDRON_L",
+      "ARMOR_CHEST_COLLAR"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_SHOULDER_RECESS_R"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_R",
+      "ARMOR_CHEST_FRONT"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_R",
+      "ARMOR_CHEST_FLANK_R"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PAULDRON_R",
+      "ARMOR_CHEST_FRONT"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PAULDRON_R",
+      "ARMOR_CHEST_COLLAR"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "neutral",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_neutral.png"
+      },
+      {
+        "pose": "elbow_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_0.png"
+      },
+      {
+        "pose": "elbow_L_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_30.png"
+      },
+      {
+        "pose": "elbow_L_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_60.png"
+      },
+      {
+        "pose": "elbow_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_90.png"
+      },
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_0.png"
+      },
+      {
+        "pose": "shoulder_L_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_45.png"
+      },
+      {
+        "pose": "shoulder_L_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_90.png"
+      },
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S45_E90.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      },
+      {
+        "pose": "elbow_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_0.png"
+      },
+      {
+        "pose": "elbow_R_30",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_30.png"
+      },
+      {
+        "pose": "elbow_R_60",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_60.png"
+      },
+      {
+        "pose": "elbow_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_90.png"
+      },
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_0",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_0.png"
+      },
+      {
+        "pose": "shoulder_R_45",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_45.png"
+      },
+      {
+        "pose": "shoulder_R_90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_90.png"
+      },
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S45_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S45_E90.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      },
+      {
+        "pose": "wings_partial",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_partial.png"
+      },
+      {
+        "pose": "wings_open",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_wings_open.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_FOREARM_L"
+    ],
+    "root_cause_categories": [
+      4,
+      5
+    ],
+    "diagnosis": "Shell profile and swept clearance: proximal forearm and upper-arm occupy the same inside-fold envelope; distal slide alone is insufficient.",
+    "poses": [
+      {
+        "pose": "elbow_L_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_100.png"
+      },
+      {
+        "pose": "elbow_L_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_110.png"
+      },
+      {
+        "pose": "elbow_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_120.png"
+      },
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_L",
+      "ARMOR_CHEST_COLLAR"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "elbow_L_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_L_130.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      },
+      {
+        "pose": "near_chest_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_L.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "shoulder_L_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_120.png"
+      },
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      },
+      {
+        "pose": "forward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_L.png"
+      },
+      {
+        "pose": "inward_L",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_L.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_ELBOW_SOCKET_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PAULDRON_L",
+      "ARMOR_CHEST_FLANK_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "shoulder_L_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_L_145.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_FOREARM_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_CHEST_FRONT"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Measured occupied-volume clearance failure. Incorrect joint axis, skin weight or rest hierarchy not demonstrated for this pair.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_L",
+      "ARMOR_CHEST_COLLAR"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Measured occupied-volume clearance failure. Incorrect joint axis, skin weight or rest hierarchy not demonstrated for this pair.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E110",
+        "classification": "HIDDEN_INTERNAL",
+        "evidence": "v1_combined_L_S90_E110.png"
+      },
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      },
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_FOREARM_CUFF_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_FOREARM_INLAY_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_WRIST_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PALM_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_L_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_L",
+      "ARMOR_PAULDRON_L"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "combined_L_S120_E110",
+        "classification": "HIDDEN_INTERNAL",
+        "evidence": "v1_combined_L_S120_E110.png"
+      },
+      {
+        "pose": "combined_L_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_L_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_FOREARM_R"
+    ],
+    "root_cause_categories": [
+      4,
+      5
+    ],
+    "diagnosis": "Shell profile and swept clearance: proximal forearm and upper-arm occupy the same inside-fold envelope; distal slide alone is insufficient.",
+    "poses": [
+      {
+        "pose": "elbow_R_100",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_100.png"
+      },
+      {
+        "pose": "elbow_R_110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_110.png"
+      },
+      {
+        "pose": "elbow_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_120.png"
+      },
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_R",
+      "ARMOR_CHEST_COLLAR"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "elbow_R_130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_elbow_R_130.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      },
+      {
+        "pose": "near_chest_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_near_chest_R.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "shoulder_R_120",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_120.png"
+      },
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      },
+      {
+        "pose": "forward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_forward_R.png"
+      },
+      {
+        "pose": "inward_R",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_inward_R.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_ELBOW_SOCKET_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PAULDRON_R",
+      "ARMOR_CHEST_FLANK_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "shoulder_R_145",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_shoulder_R_145.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_FOREARM_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_CHEST_FRONT"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Measured occupied-volume clearance failure. Incorrect joint axis, skin weight or rest hierarchy not demonstrated for this pair.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_UPPERARM_R",
+      "ARMOR_CHEST_COLLAR"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Measured occupied-volume clearance failure. Incorrect joint axis, skin weight or rest hierarchy not demonstrated for this pair.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E110.png"
+      },
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      },
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_FOREARM_CUFF_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_FOREARM_INLAY_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_WRIST_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_PALM_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      5
+    ],
+    "diagnosis": "Physical swept clearance: chest lap or moving arm component reaches hard cap. Bounded cap guide does not certify separation.",
+    "poses": [
+      {
+        "pose": "combined_R_S90_E130",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S90_E130.png"
+      }
+    ]
+  },
+  {
+    "parts": [
+      "ARMOR_SHOULDER_RECESS_R",
+      "ARMOR_PAULDRON_R"
+    ],
+    "root_cause_categories": [
+      2,
+      5
+    ],
+    "diagnosis": "Rigid parent and clearance: liner inherited upper-arm stroke rather than pauldron mount; residual neutral contact still measured.",
+    "poses": [
+      {
+        "pose": "combined_R_S120_E110",
+        "classification": "HIDDEN_INTERNAL",
+        "evidence": "v1_combined_R_S120_E110.png"
+      },
+      {
+        "pose": "combined_R_S145_E90",
+        "classification": "EXPOSED_INTERSECTION",
+        "evidence": "v1_combined_R_S145_E90.png"
+      }
+    ]
+  }
+]

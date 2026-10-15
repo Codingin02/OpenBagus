@@ -1,0 +1,80 @@
+{
+  "preserved": [
+    {
+      "path": "assets\\bagusmax\\source\\bagusmax_white.blend",
+      "before": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+      "after": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\source\\bagusmax_white_anatomy_detailed.blend",
+      "before": "dbfb5e734c37a101c969872668214e91d1b9ff615c389b0b2fa03ee994671a04",
+      "after": "dbfb5e734c37a101c969872668214e91d1b9ff615c389b0b2fa03ee994671a04",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\source\\bagusmax_white_anatomy_refined.blend",
+      "before": "7335edd1d6e2039f02782089e4ffe1bf6aa8eb4983d3dfd2c7e87ee8db2b3506",
+      "after": "7335edd1d6e2039f02782089e4ffe1bf6aa8eb4983d3dfd2c7e87ee8db2b3506",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\source\\bagusmax_white_anatomy_v3.blend",
+      "before": "7712634225a665564bbf1ce58bb5a60d6431ad7a1276d7a8aa2adbbb488588e9",
+      "after": "7712634225a665564bbf1ce58bb5a60d6431ad7a1276d7a8aa2adbbb488588e9",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\source\\bagusmax_white_anatomy_v4.blend",
+      "before": "de444488d02f27ded4445c5ac426ae306857a65b9a52789f8e0ba0a9bed340bb",
+      "after": "de444488d02f27ded4445c5ac426ae306857a65b9a52789f8e0ba0a9bed340bb",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\source\\bagusmax_white_before_anatomy_refinement.blend",
+      "before": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+      "after": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\runtime\\bagusmax_white.glb",
+      "before": "96c8928f6f814f17f0c1c66efe7f5f4595976ca9b2027fe2d1f900bc0c0091df",
+      "after": "96c8928f6f814f17f0c1c66efe7f5f4595976ca9b2027fe2d1f900bc0c0091df",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\runtime\\bagusmax_white_anatomy_detailed.glb",
+      "before": "8532a844dc62566912d46871f8c13f9d7e6b445ed1f35db46bc8f34b337f68b9",
+      "after": "8532a844dc62566912d46871f8c13f9d7e6b445ed1f35db46bc8f34b337f68b9",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\runtime\\bagusmax_white_anatomy_refined.glb",
+      "before": "e03408eec78855a6ed652691af06a2d0d582d5dcad589e9232cfb92a4d5b3d0c",
+      "after": "e03408eec78855a6ed652691af06a2d0d582d5dcad589e9232cfb92a4d5b3d0c",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\runtime\\bagusmax_white_anatomy_v3.glb",
+      "before": "f301aaec43d0d513ebe1860978b3403717e7c29a958317a4fb4831e89d9d43c6",
+      "after": "f301aaec43d0d513ebe1860978b3403717e7c29a958317a4fb4831e89d9d43c6",
+      "unchanged": true
+    },
+    {
+      "path": "assets\\bagusmax\\runtime\\bagusmax_white_anatomy_v4.glb",
+      "before": "239d72a0392e704c859ea4436fee220b758781169e6b2ed64a4ff9d39e7df608",
+      "after": "239d72a0392e704c859ea4436fee220b758781169e6b2ed64a4ff9d39e7df608",
+      "unchanged": true
+    },
+    {
+      "path": "docs\\bagusmax_3d\\WHITE_LIGHTING_SPEC.md",
+      "before": "4e0110a3631d7063eee495e1e5c65bccc8999f26ecf513a3306c03ebfcb80a22",
+      "after": "4e0110a3631d7063eee495e1e5c65bccc8999f26ecf513a3306c03ebfcb80a22",
+      "unchanged": true
+    }
+  ],
+  "created": {
+    "assets\\bagusmax\\source\\bagusmax_white_anatomy_v4_1.blend": "bca6b53329acb61b89f107dc610e1451ebe88d4ba3fa2ee5606f6915b1849f07",
+    "assets\\bagusmax\\runtime\\bagusmax_white_anatomy_v4_1.glb": "9ec223bb6ecd563437ee17c2b7a20cdd74a9b10d7f98a74e0d1150bb66e9569b"
+  }
+}

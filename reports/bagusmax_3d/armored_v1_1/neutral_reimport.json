@@ -1,0 +1,510 @@
+{
+  "status": "PASS",
+  "scope": "all rigid armor vertices, bidirectional nearest vertex; not a surface Hausdorff bound",
+  "parts": [
+    {
+      "part": "ARMOR_PELVIS_FRONT",
+      "max_all_vertex_bidirectional_mm": 8.495479164594144e-05
+    },
+    {
+      "part": "ARMOR_ELBOW_SOCKET_L",
+      "max_all_vertex_bidirectional_mm": 0.0004054238615935901
+    },
+    {
+      "part": "ARMOR_HELMET_EAR_R",
+      "max_all_vertex_bidirectional_mm": 0.00036385998214427673
+    },
+    {
+      "part": "ARMOR_INDEX_R_2",
+      "max_all_vertex_bidirectional_mm": 0.0006316756753221853
+    },
+    {
+      "part": "ARMOR_CHEST_FLANK_R",
+      "max_all_vertex_bidirectional_mm": 0.0003039252476355614
+    },
+    {
+      "part": "ARMOR_NECK_SEAL",
+      "max_all_vertex_bidirectional_mm": 0.0003747019832189835
+    },
+    {
+      "part": "ARMOR_KNUCKLE_RING_L",
+      "max_all_vertex_bidirectional_mm": 0.00038836486737636733
+    },
+    {
+      "part": "ARMOR_THUMB_L",
+      "max_all_vertex_bidirectional_mm": 0.000540770486168185
+    },
+    {
+      "part": "ARMOR_UPPERARM_L",
+      "max_all_vertex_bidirectional_mm": 0.0007374193273790297
+    },
+    {
+      "part": "ARMOR_BACKPACK_CORE",
+      "max_all_vertex_bidirectional_mm": 0.00030429032449319493
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_R_1",
+      "max_all_vertex_bidirectional_mm": 0.0003776349331019446
+    },
+    {
+      "part": "ARMOR_INDEX_L_1",
+      "max_all_vertex_bidirectional_mm": 0.0005146836201674887
+    },
+    {
+      "part": "ARMOR_KNUCKLE_RING_R",
+      "max_all_vertex_bidirectional_mm": 0.00044194959514243237
+    },
+    {
+      "part": "ARMOR_ELBOW_METAL_L",
+      "max_all_vertex_bidirectional_mm": 0.0002274563541959651
+    },
+    {
+      "part": "ARMOR_KNUCKLE_MIDDLE_R",
+      "max_all_vertex_bidirectional_mm": 0.0004814712610823335
+    },
+    {
+      "part": "ARMOR_PALM_R",
+      "max_all_vertex_bidirectional_mm": 0.0004034336313907261
+    },
+    {
+      "part": "ARMOR_THIGH_R",
+      "max_all_vertex_bidirectional_mm": 9.685754776000977e-05
+    },
+    {
+      "part": "ARMOR_REAR_VENT_R_0",
+      "max_all_vertex_bidirectional_mm": 0.00024755667027420714
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_L_1",
+      "max_all_vertex_bidirectional_mm": 0.0002820416398208181
+    },
+    {
+      "part": "ARMOR_WRIST_L",
+      "max_all_vertex_bidirectional_mm": 0.0005306152388584451
+    },
+    {
+      "part": "ARMOR_THUMB_TIP_R",
+      "max_all_vertex_bidirectional_mm": 0.0006322027275018627
+    },
+    {
+      "part": "ARMOR_MIDDLE_L_0",
+      "max_all_vertex_bidirectional_mm": 0.0004723926565475267
+    },
+    {
+      "part": "ARMOR_CHEST_REAR",
+      "max_all_vertex_bidirectional_mm": 0.00030172552101248584
+    },
+    {
+      "part": "ARMOR_FOREARM_INLAY_R",
+      "max_all_vertex_bidirectional_mm": 0.00044410711552700377
+    },
+    {
+      "part": "ARMOR_HELMET_CROWN",
+      "max_all_vertex_bidirectional_mm": 0.0003726035231466085
+    },
+    {
+      "part": "ARMOR_THIGH_L",
+      "max_all_vertex_bidirectional_mm": 0.00010133885552932043
+    },
+    {
+      "part": "ARMOR_HELMET_EAR_L",
+      "max_all_vertex_bidirectional_mm": 0.0003677486120068352
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_2_L",
+      "max_all_vertex_bidirectional_mm": 8.56006536764653e-05
+    },
+    {
+      "part": "ARMOR_INDEX_L_0",
+      "max_all_vertex_bidirectional_mm": 0.0005294107836562034
+    },
+    {
+      "part": "ARMOR_VISOR_GASKET",
+      "max_all_vertex_bidirectional_mm": 0.0004789280296790821
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_3_L",
+      "max_all_vertex_bidirectional_mm": 0.00012377833513710357
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_4_L",
+      "max_all_vertex_bidirectional_mm": 0.0001341104507446289
+    },
+    {
+      "part": "ARMOR_RING_L_2",
+      "max_all_vertex_bidirectional_mm": 0.00044554613509717456
+    },
+    {
+      "part": "ARMOR_FOREARM_L",
+      "max_all_vertex_bidirectional_mm": 0.0004380028997275076
+    },
+    {
+      "part": "ARMOR_WING_TIP_R",
+      "max_all_vertex_bidirectional_mm": 0.00042252085563632136
+    },
+    {
+      "part": "ARMOR_FOREARM_CUFF_R",
+      "max_all_vertex_bidirectional_mm": 0.0004380028997275076
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_3",
+      "max_all_vertex_bidirectional_mm": 0.00014466411357716424
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_1",
+      "max_all_vertex_bidirectional_mm": 0.00014466411357716424
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_2",
+      "max_all_vertex_bidirectional_mm": 0.00014466411357716424
+    },
+    {
+      "part": "ARMOR_ELBOW_SOCKET_R",
+      "max_all_vertex_bidirectional_mm": 0.0003828902492841735
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_3",
+      "max_all_vertex_bidirectional_mm": 0.0001689574133934002
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_1",
+      "max_all_vertex_bidirectional_mm": 0.0002004746164629978
+    },
+    {
+      "part": "ARMOR_RING_L_0",
+      "max_all_vertex_bidirectional_mm": 0.0004099850912098191
+    },
+    {
+      "part": "ARMOR_SHIN_L",
+      "max_all_vertex_bidirectional_mm": 5.625064858350015e-05
+    },
+    {
+      "part": "ARMOR_UPPERARM_R",
+      "max_all_vertex_bidirectional_mm": 0.0007377603310487757
+    },
+    {
+      "part": "ARMOR_ELBOW_METAL_R",
+      "max_all_vertex_bidirectional_mm": 0.00022404454114166583
+    },
+    {
+      "part": "ARMOR_ELBOW_HUB_L",
+      "max_all_vertex_bidirectional_mm": 0.0008447871095995652
+    },
+    {
+      "part": "ARMOR_BOOT_L",
+      "max_all_vertex_bidirectional_mm": 0.00031769977226758783
+    },
+    {
+      "part": "ARMOR_KNUCKLE_INDEX_L",
+      "max_all_vertex_bidirectional_mm": 0.0005158148610462376
+    },
+    {
+      "part": "ARMOR_HELMET_FIN_R",
+      "max_all_vertex_bidirectional_mm": 0.0003645648973815696
+    },
+    {
+      "part": "ARMOR_INDEX_R_1",
+      "max_all_vertex_bidirectional_mm": 0.0005543552674680541
+    },
+    {
+      "part": "ARMOR_RING_R_0",
+      "max_all_vertex_bidirectional_mm": 0.0005197580890126119
+    },
+    {
+      "part": "ARMOR_WING_ROOT_PIN_R",
+      "max_all_vertex_bidirectional_mm": 0.0006145713200567116
+    },
+    {
+      "part": "ARMOR_CHEST_COLLAR",
+      "max_all_vertex_bidirectional_mm": 0.00028154914843980805
+    },
+    {
+      "part": "ARMOR_MIDDLE_L_1",
+      "max_all_vertex_bidirectional_mm": 0.0005085123575554462
+    },
+    {
+      "part": "ARMOR_PAULDRON_INLAY_L",
+      "max_all_vertex_bidirectional_mm": 0.0003725290298461914
+    },
+    {
+      "part": "ARMOR_THUMB_TIP_L",
+      "max_all_vertex_bidirectional_mm": 0.0006843187065896927
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_1_L",
+      "max_all_vertex_bidirectional_mm": 6.828570064953965e-05
+    },
+    {
+      "part": "ARMOR_ELBOW_HUB_R",
+      "max_all_vertex_bidirectional_mm": 0.0007855880994611653
+    },
+    {
+      "part": "ARMOR_HELMET_CHIN",
+      "max_all_vertex_bidirectional_mm": 0.0003588674815091508
+    },
+    {
+      "part": "ARMOR_HELMET_REAR",
+      "max_all_vertex_bidirectional_mm": 0.00036870966368951485
+    },
+    {
+      "part": "ARMOR_KNUCKLE_INDEX_R",
+      "max_all_vertex_bidirectional_mm": 0.0006280180855355866
+    },
+    {
+      "part": "ARMOR_ELBOW_GUARD_L",
+      "max_all_vertex_bidirectional_mm": 0.00038886034303686756
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_3_R",
+      "max_all_vertex_bidirectional_mm": 0.00012377833513710357
+    },
+    {
+      "part": "ARMOR_REAR_VENT_L_0",
+      "max_all_vertex_bidirectional_mm": 0.00024755667027420714
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_L0.07",
+      "max_all_vertex_bidirectional_mm": 0.00031680303891334916
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_2_R",
+      "max_all_vertex_bidirectional_mm": 8.56006536764653e-05
+    },
+    {
+      "part": "ARMOR_INDEX_L_2",
+      "max_all_vertex_bidirectional_mm": 0.0005349911020857689
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_1_R",
+      "max_all_vertex_bidirectional_mm": 6.828570064953965e-05
+    },
+    {
+      "part": "ARMOR_ABDOMEN_LOCK_4_R",
+      "max_all_vertex_bidirectional_mm": 0.0001341104507446289
+    },
+    {
+      "part": "ARMOR_BOOT_SOLE_L",
+      "max_all_vertex_bidirectional_mm": 0.00019239926984937483
+    },
+    {
+      "part": "ARMOR_MIDDLE_R_2",
+      "max_all_vertex_bidirectional_mm": 0.0004902119599137222
+    },
+    {
+      "part": "ARMOR_PAULDRON_INLAY_R",
+      "max_all_vertex_bidirectional_mm": 0.00036256091107134125
+    },
+    {
+      "part": "ARMOR_BOOT_SOLE_R",
+      "max_all_vertex_bidirectional_mm": 0.00017438937049973902
+    },
+    {
+      "part": "ARMOR_ABDOMEN_SEGMENT_4",
+      "max_all_vertex_bidirectional_mm": 0.00015359765370703826
+    },
+    {
+      "part": "ARMOR_REAR_VENT_L_1",
+      "max_all_vertex_bidirectional_mm": 0.00037814908182554063
+    },
+    {
+      "part": "ARMOR_MIDDLE_L_2",
+      "max_all_vertex_bidirectional_mm": 0.0005271647864901752
+    },
+    {
+      "part": "ARMOR_INDEX_R_0",
+      "max_all_vertex_bidirectional_mm": 0.000550788911368727
+    },
+    {
+      "part": "ARMOR_SHOULDER_RECESS_R",
+      "max_all_vertex_bidirectional_mm": 0.00024257332142951782
+    },
+    {
+      "part": "ARMOR_REAR_VENT_R_1",
+      "max_all_vertex_bidirectional_mm": 0.0003772672698687529
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_R_0",
+      "max_all_vertex_bidirectional_mm": 0.0003591767097077536
+    },
+    {
+      "part": "ARMOR_FOREARM_INLAY_L",
+      "max_all_vertex_bidirectional_mm": 0.000479637435546465
+    },
+    {
+      "part": "ARMOR_WING_TIP_HINGE_L",
+      "max_all_vertex_bidirectional_mm": 0.0011511568800415262
+    },
+    {
+      "part": "ARMOR_PAULDRON_L",
+      "max_all_vertex_bidirectional_mm": 0.0003772672698687529
+    },
+    {
+      "part": "ARMOR_BOOT_R",
+      "max_all_vertex_bidirectional_mm": 0.0003154861190068914
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_L0.71",
+      "max_all_vertex_bidirectional_mm": 0.0004349505786649388
+    },
+    {
+      "part": "ARMOR_HELMET_FIN_L",
+      "max_all_vertex_bidirectional_mm": 0.0003677486120068352
+    },
+    {
+      "part": "ARMOR_THUMB_R",
+      "max_all_vertex_bidirectional_mm": 0.0005112206054036506
+    },
+    {
+      "part": "ARMOR_WING_MAIN_R",
+      "max_all_vertex_bidirectional_mm": 0.0003637836982761655
+    },
+    {
+      "part": "ARMOR_CHEST_ACCESS_RING",
+      "max_all_vertex_bidirectional_mm": 0.00024073563054116676
+    },
+    {
+      "part": "ARMOR_PAULDRON_R",
+      "max_all_vertex_bidirectional_mm": 0.0003674277024856565
+    },
+    {
+      "part": "ARMOR_CHEST_FLANK_L",
+      "max_all_vertex_bidirectional_mm": 0.0003013573461885244
+    },
+    {
+      "part": "ARMOR_CHEST_SEAM_L",
+      "max_all_vertex_bidirectional_mm": 0.00024575624024691933
+    },
+    {
+      "part": "ARMOR_RING_R_2",
+      "max_all_vertex_bidirectional_mm": 0.0005421833293439704
+    },
+    {
+      "part": "ARMOR_CHEST_SEAM_R",
+      "max_all_vertex_bidirectional_mm": 0.00024027400513659813
+    },
+    {
+      "part": "ARMOR_WING_MAIN_L",
+      "max_all_vertex_bidirectional_mm": 0.0003674277024856565
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_R0.71",
+      "max_all_vertex_bidirectional_mm": 0.00042252085563632136
+    },
+    {
+      "part": "ARMOR_SHIN_R",
+      "max_all_vertex_bidirectional_mm": 5.427301630334114e-05
+    },
+    {
+      "part": "ARMOR_SHOULDER_RECESS_L",
+      "max_all_vertex_bidirectional_mm": 0.00024978896817628993
+    },
+    {
+      "part": "ARMOR_THIGH_RIDGE_L",
+      "max_all_vertex_bidirectional_mm": 0.00012105761015845928
+    },
+    {
+      "part": "ARMOR_RING_L_1",
+      "max_all_vertex_bidirectional_mm": 0.00043407226257841103
+    },
+    {
+      "part": "ARMOR_CHEST_FRONT",
+      "max_all_vertex_bidirectional_mm": 0.00024620757699267415
+    },
+    {
+      "part": "ARMOR_WRIST_R",
+      "max_all_vertex_bidirectional_mm": 0.000625893108008313
+    },
+    {
+      "part": "ARMOR_CHEST_ACCESS_LID",
+      "max_all_vertex_bidirectional_mm": 0.00024073563054116676
+    },
+    {
+      "part": "ARMOR_ELBOW_GUARD_R",
+      "max_all_vertex_bidirectional_mm": 0.0003111453850124235
+    },
+    {
+      "part": "ARMOR_PALM_L",
+      "max_all_vertex_bidirectional_mm": 0.00030538294026882795
+    },
+    {
+      "part": "ARMOR_WING_TIP_HINGE_R",
+      "max_all_vertex_bidirectional_mm": 0.0011107114232800086
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_L_0",
+      "max_all_vertex_bidirectional_mm": 0.0003591767097077536
+    },
+    {
+      "part": "ARMOR_FOREARM_R",
+      "max_all_vertex_bidirectional_mm": 0.00044229096829440095
+    },
+    {
+      "part": "ARMOR_KNUCKLE_MIDDLE_L",
+      "max_all_vertex_bidirectional_mm": 0.0005181234428164316
+    },
+    {
+      "part": "ARMOR_WING_ROOT_HINGE_R",
+      "max_all_vertex_bidirectional_mm": 0.0011928377716685645
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_4",
+      "max_all_vertex_bidirectional_mm": 0.00016924465739975858
+    },
+    {
+      "part": "ARMOR_ABDOMEN_BACK_2",
+      "max_all_vertex_bidirectional_mm": 0.00020754916363330267
+    },
+    {
+      "part": "ARMOR_FOREARM_CUFF_L",
+      "max_all_vertex_bidirectional_mm": 0.0004380028997275076
+    },
+    {
+      "part": "ARMOR_MIDDLE_R_1",
+      "max_all_vertex_bidirectional_mm": 0.0004183618784736609
+    },
+    {
+      "part": "ARMOR_WING_ROOT_HINGE_L",
+      "max_all_vertex_bidirectional_mm": 0.0011379648867659853
+    },
+    {
+      "part": "ARMOR_KNEE_RECESS_L",
+      "max_all_vertex_bidirectional_mm": 9.453727045638516e-05
+    },
+    {
+      "part": "ARMOR_RING_R_1",
+      "max_all_vertex_bidirectional_mm": 0.000521380968621088
+    },
+    {
+      "part": "ARMOR_KNEE_RECESS_R",
+      "max_all_vertex_bidirectional_mm": 0.00024211522031691857
+    },
+    {
+      "part": "ARMOR_HELMET_FACE_FRAME",
+      "max_all_vertex_bidirectional_mm": 0.0003661033645130374
+    },
+    {
+      "part": "ARMOR_WING_ROOT_PIN_L",
+      "max_all_vertex_bidirectional_mm": 0.0006260261216084473
+    },
+    {
+      "part": "ARMOR_PELVIS_REAR",
+      "max_all_vertex_bidirectional_mm": 0.0001002373082314989
+    },
+    {
+      "part": "ARMOR_THIGH_RIDGE_R",
+      "max_all_vertex_bidirectional_mm": 0.00012287812012345967
+    },
+    {
+      "part": "ARMOR_MIDDLE_R_0",
+      "max_all_vertex_bidirectional_mm": 0.00030547380447387695
+    },
+    {
+      "part": "ARMOR_WING_PANEL_LINE_R0.07",
+      "max_all_vertex_bidirectional_mm": 0.00042252085563632136
+    },
+    {
+      "part": "ARMOR_WING_TIP_L",
+      "max_all_vertex_bidirectional_mm": 0.00040425837255497754
+    }
+  ]
+}

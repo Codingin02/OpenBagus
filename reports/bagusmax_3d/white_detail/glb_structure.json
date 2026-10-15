@@ -1,0 +1,17 @@
+{
+  "result": "GLB_STRUCTURE_SKIN_STATIC_PASS",
+  "bytes": 5320884,
+  "meshes": 15,
+  "materials": 5,
+  "triangles": 161200,
+  "exported_vertices": 84922,
+  "joint_count": 20,
+  "animation_names": [],
+  "external_textures": false,
+  "estimated_vertex_index_memory_mb": 6.38,
+  "not_tested": [
+    "OpenBagus runtime loader",
+    "All-pose collision checks",
+    "User visual acceptance"
+  ]
+}

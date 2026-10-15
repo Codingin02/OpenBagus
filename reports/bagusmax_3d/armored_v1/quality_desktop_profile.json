@@ -1,0 +1,424 @@
+{
+  "ratio": 0.53,
+  "measure": "quality vertices to desktop triangle surface; not Hausdorff bound",
+  "parts": [
+    {
+      "part": "ARMOR_NECK_SEAL",
+      "quality_triangles": 2304,
+      "desktop_triangles": 1220,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.013755564395978581,
+      "rms_sampled_surface_error_mm": 0.003299074784692905
+    },
+    {
+      "part": "ARMOR_PAULDRON_L",
+      "quality_triangles": 4688,
+      "desktop_triangles": 2484,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.4663531726691872,
+      "rms_sampled_surface_error_mm": 0.1921937644266628
+    },
+    {
+      "part": "ARMOR_PAULDRON_INLAY_L",
+      "quality_triangles": 2496,
+      "desktop_triangles": 1322,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.07734946848358959,
+      "rms_sampled_surface_error_mm": 0.02606248411748302
+    },
+    {
+      "part": "ARMOR_UPPERARM_L",
+      "quality_triangles": 6156,
+      "desktop_triangles": 3262,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.1773557742126286,
+      "rms_sampled_surface_error_mm": 0.06882884368628973
+    },
+    {
+      "part": "ARMOR_SHOULDER_RECESS_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.30696348403580487,
+      "rms_sampled_surface_error_mm": 0.13650382620673443
+    },
+    {
+      "part": "ARMOR_ELBOW_SOCKET_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.3012345405295491,
+      "rms_sampled_surface_error_mm": 0.11891942872403152
+    },
+    {
+      "part": "ARMOR_ELBOW_METAL_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19182021787855774,
+      "rms_sampled_surface_error_mm": 0.11167104302163855
+    },
+    {
+      "part": "ARMOR_ELBOW_HUB_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.07370006642304361,
+      "rms_sampled_surface_error_mm": 0.021693318974323715
+    },
+    {
+      "part": "ARMOR_FOREARM_L",
+      "quality_triangles": 7836,
+      "desktop_triangles": 4152,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.17505389405414462,
+      "rms_sampled_surface_error_mm": 0.06504714219671462
+    },
+    {
+      "part": "ARMOR_FOREARM_CUFF_L",
+      "quality_triangles": 2304,
+      "desktop_triangles": 1220,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.002751116880972404,
+      "rms_sampled_surface_error_mm": 0.0006225004390438941
+    },
+    {
+      "part": "ARMOR_FOREARM_INLAY_L",
+      "quality_triangles": 1920,
+      "desktop_triangles": 1016,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.13063364895060658,
+      "rms_sampled_surface_error_mm": 0.040905680315105705
+    },
+    {
+      "part": "ARMOR_WRIST_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19108591368421912,
+      "rms_sampled_surface_error_mm": 0.11293712049240294
+    },
+    {
+      "part": "ARMOR_PAULDRON_R",
+      "quality_triangles": 4688,
+      "desktop_triangles": 2484,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.4663531726691872,
+      "rms_sampled_surface_error_mm": 0.19100072456322276
+    },
+    {
+      "part": "ARMOR_PAULDRON_INLAY_R",
+      "quality_triangles": 2496,
+      "desktop_triangles": 1322,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.0718906958354637,
+      "rms_sampled_surface_error_mm": 0.026860964002000425
+    },
+    {
+      "part": "ARMOR_UPPERARM_R",
+      "quality_triangles": 6156,
+      "desktop_triangles": 3262,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.18253659072797745,
+      "rms_sampled_surface_error_mm": 0.06763723815805132
+    },
+    {
+      "part": "ARMOR_SHOULDER_RECESS_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.30696348403580487,
+      "rms_sampled_surface_error_mm": 0.1350631478538813
+    },
+    {
+      "part": "ARMOR_ELBOW_SOCKET_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.30123465694487095,
+      "rms_sampled_surface_error_mm": 0.12079617007463733
+    },
+    {
+      "part": "ARMOR_ELBOW_METAL_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19182021787855774,
+      "rms_sampled_surface_error_mm": 0.11110997467976873
+    },
+    {
+      "part": "ARMOR_ELBOW_HUB_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.07370006642304361,
+      "rms_sampled_surface_error_mm": 0.021693318974323715
+    },
+    {
+      "part": "ARMOR_FOREARM_R",
+      "quality_triangles": 7836,
+      "desktop_triangles": 4152,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.4152393667027354,
+      "rms_sampled_surface_error_mm": 0.06975934155656137
+    },
+    {
+      "part": "ARMOR_FOREARM_CUFF_R",
+      "quality_triangles": 2304,
+      "desktop_triangles": 1220,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.002525313448131783,
+      "rms_sampled_surface_error_mm": 0.0006375509777653178
+    },
+    {
+      "part": "ARMOR_FOREARM_INLAY_R",
+      "quality_triangles": 1920,
+      "desktop_triangles": 1016,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.11914212518604472,
+      "rms_sampled_surface_error_mm": 0.04034111106759342
+    },
+    {
+      "part": "ARMOR_WRIST_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19108473497908562,
+      "rms_sampled_surface_error_mm": 0.11344584952209237
+    },
+    {
+      "part": "ARMOR_THIGH_L",
+      "quality_triangles": 6864,
+      "desktop_triangles": 3636,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.3302092372905463,
+      "rms_sampled_surface_error_mm": 0.14881985694050437
+    },
+    {
+      "part": "ARMOR_THIGH_RIDGE_L",
+      "quality_triangles": 2720,
+      "desktop_triangles": 1440,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.11890348832821473,
+      "rms_sampled_surface_error_mm": 0.0383189641914542
+    },
+    {
+      "part": "ARMOR_KNEE_RECESS_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.20133043290115893,
+      "rms_sampled_surface_error_mm": 0.1110565715804826
+    },
+    {
+      "part": "ARMOR_SHIN_L",
+      "quality_triangles": 4992,
+      "desktop_triangles": 2644,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.28524137451313436,
+      "rms_sampled_surface_error_mm": 0.0943629625820706
+    },
+    {
+      "part": "ARMOR_BOOT_L",
+      "quality_triangles": 5824,
+      "desktop_triangles": 3086,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.2391572343185544,
+      "rms_sampled_surface_error_mm": 0.08901016021586475
+    },
+    {
+      "part": "ARMOR_BOOT_SOLE_L",
+      "quality_triangles": 2688,
+      "desktop_triangles": 1424,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.007505475423386088,
+      "rms_sampled_surface_error_mm": 0.0012629919057495266
+    },
+    {
+      "part": "ARMOR_THIGH_R",
+      "quality_triangles": 6864,
+      "desktop_triangles": 3636,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.39133880636654794,
+      "rms_sampled_surface_error_mm": 0.1489501838568195
+    },
+    {
+      "part": "ARMOR_THIGH_RIDGE_R",
+      "quality_triangles": 2720,
+      "desktop_triangles": 1440,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.11206291674170643,
+      "rms_sampled_surface_error_mm": 0.03821973332714585
+    },
+    {
+      "part": "ARMOR_KNEE_RECESS_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.20123663125559688,
+      "rms_sampled_surface_error_mm": 0.11107885833790053
+    },
+    {
+      "part": "ARMOR_SHIN_R",
+      "quality_triangles": 4992,
+      "desktop_triangles": 2644,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.286187045276165,
+      "rms_sampled_surface_error_mm": 0.0959718672100807
+    },
+    {
+      "part": "ARMOR_BOOT_R",
+      "quality_triangles": 5824,
+      "desktop_triangles": 3086,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.2391556481597945,
+      "rms_sampled_surface_error_mm": 0.08901087616627694
+    },
+    {
+      "part": "ARMOR_BOOT_SOLE_R",
+      "quality_triangles": 2688,
+      "desktop_triangles": 1424,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.007492320946766995,
+      "rms_sampled_surface_error_mm": 0.0012630858014601213
+    },
+    {
+      "part": "ARMOR_VISOR_GASKET",
+      "quality_triangles": 2176,
+      "desktop_triangles": 1152,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.01675527892075479,
+      "rms_sampled_surface_error_mm": 0.005279803237577082
+    },
+    {
+      "part": "ARMOR_REAR_VENT_L_0",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19015489669982344,
+      "rms_sampled_surface_error_mm": 0.11021769055524196
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_L_0",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.18626998644322157,
+      "rms_sampled_surface_error_mm": 0.07927010715062312
+    },
+    {
+      "part": "ARMOR_REAR_VENT_L_1",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19018983584828675,
+      "rms_sampled_surface_error_mm": 0.10468760008400707
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_L_1",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.1933655730681494,
+      "rms_sampled_surface_error_mm": 0.07877313905935282
+    },
+    {
+      "part": "ARMOR_WING_ROOT_HINGE_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19136274931952357,
+      "rms_sampled_surface_error_mm": 0.11357843515284166
+    },
+    {
+      "part": "ARMOR_WING_MAIN_L",
+      "quality_triangles": 2480,
+      "desktop_triangles": 1314,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.021136109353392385,
+      "rms_sampled_surface_error_mm": 0.006088029553932222
+    },
+    {
+      "part": "ARMOR_WING_TIP_HINGE_L",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19040638289880008,
+      "rms_sampled_surface_error_mm": 0.09618716682543559
+    },
+    {
+      "part": "ARMOR_WING_TIP_L",
+      "quality_triangles": 2202,
+      "desktop_triangles": 1166,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.022540543795912527,
+      "rms_sampled_surface_error_mm": 0.005801151993192736
+    },
+    {
+      "part": "ARMOR_REAR_VENT_R_0",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19015489669982344,
+      "rms_sampled_surface_error_mm": 0.1103129907801661
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_R_0",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.18626998644322157,
+      "rms_sampled_surface_error_mm": 0.08084188897808861
+    },
+    {
+      "part": "ARMOR_REAR_VENT_R_1",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19018983584828675,
+      "rms_sampled_surface_error_mm": 0.104641835097201
+    },
+    {
+      "part": "ARMOR_REAR_NOZZLE_R_1",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19048301328439265,
+      "rms_sampled_surface_error_mm": 0.07918185303383056
+    },
+    {
+      "part": "ARMOR_WING_ROOT_HINGE_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19136274931952357,
+      "rms_sampled_surface_error_mm": 0.11331409603817087
+    },
+    {
+      "part": "ARMOR_WING_MAIN_R",
+      "quality_triangles": 2480,
+      "desktop_triangles": 1314,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.020648474674089812,
+      "rms_sampled_surface_error_mm": 0.005909507101283358
+    },
+    {
+      "part": "ARMOR_WING_TIP_HINGE_R",
+      "quality_triangles": 960,
+      "desktop_triangles": 508,
+      "quality_to_desktop_surface_samples": 480,
+      "max_sampled_surface_error_mm": 0.19040638289880008,
+      "rms_sampled_surface_error_mm": 0.09618713212706527
+    },
+    {
+      "part": "ARMOR_WING_TIP_R",
+      "quality_triangles": 2202,
+      "desktop_triangles": 1166,
+      "quality_to_desktop_surface_samples": 512,
+      "max_sampled_surface_error_mm": 0.05702089038095437,
+      "rms_sampled_surface_error_mm": 0.00675561015475577
+    }
+  ],
+  "quality_meshes_retained_in_source": true,
+  "status": "MEASURED; visual review required"
+}

@@ -1,0 +1,237 @@
+[
+  {
+    "path": "docs/bagusmax_3d/ARMORED_V1_2_ACCEPTANCE_REPORT.md",
+    "bytes": 1595,
+    "sha256": "20c60d10ec1295d598180ea45617894e0c49bdc863b87b4d5c2895cee580c820"
+  },
+  {
+    "path": "docs/bagusmax_3d/ARMORED_V1_2_HANDOFF.md",
+    "bytes": 5804,
+    "sha256": "e8788ecbf96ea065d183a25aca1f1b7e36549cef16b2b83d18563f9c90db27fc"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/asset_hashes.json",
+    "bytes": 37493,
+    "sha256": "d11bc1f1b73b143264db8bd0348233e98114f393da21ffba1660fb399a981cf9"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_combined_L_S90_E130.png",
+    "bytes": 652925,
+    "sha256": "eeb2f9639c1198cb03e33921b7c738a161c6d317d6fc73d291721239fdb78e58"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_independent_transforms.json",
+    "bytes": 18512,
+    "sha256": "59632b54c88e698f9d75e4c25cc5e2d6b8e04218191a1239a574f1d366eacc54"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_inventory.json",
+    "bytes": 21445,
+    "sha256": "8f6e30f3fa0cc748d1e391abc3f13c0ce8f577dd6bc9f83685721d2d7599d8b3"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_khronos_validator.json",
+    "bytes": 1670,
+    "sha256": "66bb41b02ce6b98524b21e9ab35ccf5870442514e07de981938c28cce8105c71"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_side_L_S0_E0.png",
+    "bytes": 648779,
+    "sha256": "122f0ecea513616089d009312e57539c25eadca8cd48efc45f887df202387f14"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_side_L_S145_E0.png",
+    "bytes": 664333,
+    "sha256": "eb9ba19db007c113fbcd019f332953f738a75243416c7f6ef3b298ff81e9e3d2"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_side_L_S90_E0.png",
+    "bytes": 664587,
+    "sha256": "cacd9c79e26e228baf4f7e3db7abc307464216abe13f85d013a787b0e653b2e9"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/baseline_validation.json",
+    "bytes": 20209,
+    "sha256": "59ffc1b8379492d8c673b642fa1c2dc1d39721d3b953f7a791f07cce6b71dcec"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/CHECKPOINT.md",
+    "bytes": 1426,
+    "sha256": "71c67e57f49bf8830204993b272aa15af622925f7293a9e51447f4d3280f78b0"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/clearance_search.json",
+    "bytes": 8556,
+    "sha256": "7bc3b449e15a28d98aea209b54fa8746acd0be36b6072257c3e295546a374083"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/collision_report.json",
+    "bytes": 968132,
+    "sha256": "916715065f134fb4125b4fa432a3b9be66c857a647228d4922e1a0d8789a0f72"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/export_policy_tests.json",
+    "bytes": 935,
+    "sha256": "1d26eade04a1a8b583e5c4e4db474e2061419cf65d37162186af16f1b05783ef"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/failure_combined145_130.png",
+    "bytes": 536428,
+    "sha256": "6849565b0161ecc99a9be11161f8b96630d3fc37832ae435708348f106de3122"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/failure_combined90_130.png",
+    "bytes": 523556,
+    "sha256": "eac2b9caeacca4d981e43a979355b75b17f55921628f2cf6eaccd12eb2a6a097"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/failure_diagnostics.json",
+    "bytes": 130235,
+    "sha256": "003a500adf3d4a521a0a3e1d86fec7b2941924cb1b3c9de34553f0c72533fff1"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/failure_neutral.png",
+    "bytes": 515551,
+    "sha256": "0a1c0fdc016ddf09d3016db57620506c2621e27dfed15ef7f623159981b947ac"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/failure_side90.png",
+    "bytes": 548508,
+    "sha256": "6f3f8f97332ebb90f6d864f751319690ebb1e17c522008249a2250e9b6535261"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/git_status.txt",
+    "bytes": 104,
+    "sha256": "6f7b5b49c1e92a601b7e1b24846cd2e5656195928c56e17d8d490e4f29cbfa6a"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/index.html",
+    "bytes": 1630,
+    "sha256": "adba61519f1963c4d27ada29c52fdf5d400bf0b930d55ea6a9b69910ecc107e1"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_inner_lip_combined_L_S90_E130.png",
+    "bytes": 650950,
+    "sha256": "7acfca0d674880e0e416aa7d76a781383fb197e0741085edec6e1a653565ffa5"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_inner_lip_side_L_S0_E0.png",
+    "bytes": 648566,
+    "sha256": "0ee7e0a0b10c962354fbb7dddb7904dae31a6b26fa68a605e3e964f126e7de42"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_inner_lip_side_L_S145_E0.png",
+    "bytes": 673728,
+    "sha256": "987fcbf1bc53e2addb62bc894807e40ad2be71f5ee952d2959d996bd90a2eaa2"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_inner_lip_side_L_S90_E0.png",
+    "bytes": 658776,
+    "sha256": "8fad15e5404baa0f6fbf45ed978b80b74f10c4b5d13825c607827c293aff2587"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_only_combined_L_S90_E130.png",
+    "bytes": 650730,
+    "sha256": "6034141db2f255969e0bdc16e4f1cd9e29d52bcc2ff67b95566cdcd16dc3a26e"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_only_side_L_S0_E0.png",
+    "bytes": 648779,
+    "sha256": "b313a74861d4a4477b2661e12e165ddc4555727c47b18163991c4b245ca38a35"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_only_side_L_S145_E0.png",
+    "bytes": 674705,
+    "sha256": "21037d9e5278493e2ba7795f6a60b4a391b86b5c1e9edeb3ecebd6169c1b1802"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pivot_only_side_L_S90_E0.png",
+    "bytes": 660340,
+    "sha256": "88643b50ca8c0594c1d38f55ea544ed87104ddece5a7ca044c345872a4d4255b"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/pose_matrix.json",
+    "bytes": 309718,
+    "sha256": "b673562de4d36689371c1ca55f9d937942f2a2898240d06dc9834af32c23c0a2"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/preservation_after.json",
+    "bytes": 35478,
+    "sha256": "c70b2f02d7fb4ee23fd7aa5805f53c0200eaef6a4d62c24866a17d34f1bdc44f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/preservation_before.json",
+    "bytes": 35478,
+    "sha256": "c70b2f02d7fb4ee23fd7aa5805f53c0200eaef6a4d62c24866a17d34f1bdc44f"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/prototype_geometry.json",
+    "bytes": 213,
+    "sha256": "1cacbf2d2391855d8930b23db583faacf67c4fe955802d6c1ce61c3deaeec2a5"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/prototype_results.json",
+    "bytes": 765388,
+    "sha256": "7a8f3b2b6196c2b2150daca080095f6f664326f6cde1972849f0621780e9e85a"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/sheet_a_failure_localization.png",
+    "bytes": 1090737,
+    "sha256": "c65d98367773ceb4852a9544220c3ec994df9ffd5c7ab5bb558208e378deaef8"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/sheet_b_left_prototype.png",
+    "bytes": 1896394,
+    "sha256": "4f58a5ac9b3867eac3a5575604bcd37720e056071c57626a8ef4e616ddf8fa80"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_combined_L_S145_E130.png",
+    "bytes": 655504,
+    "sha256": "714695227734d60912858e5734d7ec972c65de2b1ad10755059b9e3b4e09264e"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_combined_L_S90_E130.png",
+    "bytes": 653644,
+    "sha256": "49b5bb933a770777a14acc3effb530d79c6c515ef554d11cecb110de624f8321"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_forward_L_S90_E90.png",
+    "bytes": 665443,
+    "sha256": "a7422fb3a2132b146d153e33f70bdea44512f41c69ab6058055b7b12a68c5b63"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_samples.png",
+    "bytes": 1711408,
+    "sha256": "e772be292e8c378a7c41b00346483064eaf8435a46117e1aa99988aacb26d912"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_side_L_S0_E0.png",
+    "bytes": 651705,
+    "sha256": "cf205f44467754e8f04b9d338459eb2f7ca8c9e4ba63eaeb34e1cf61425a7fca"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_side_L_S145_E0.png",
+    "bytes": 665062,
+    "sha256": "ca7e23b2205e29229993a2aa90c28f1ba96aae7cda250b6e8af543fcf11d7298"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/slide_search_side_L_S90_E0.png",
+    "bytes": 658236,
+    "sha256": "32cde87bdab4b223f7733850945bc0ae40e3c148f6d17e6350a6313194883749"
+  },
+  {
+    "path": "reports/bagusmax_3d/armored_v1_2/validation_report.json",
+    "bytes": 24184,
+    "sha256": "0dd2e267e04158493f7e01aaebb607ed5d08b88602bed8419507eff1551199bf"
+  },
+  {
+    "path": "tools/bagusmax_asset_pipeline/build_armored.py",
+    "bytes": 103321,
+    "sha256": "e8ed1c976d8c51650f739a29399068846d18c4dd84f579455ac5747862b68239"
+  },
+  {
+    "path": "tools/bagusmax_asset_pipeline/review_armored.py",
+    "bytes": 68750,
+    "sha256": "c103e3536d9b00121765cbb0ab4439f5b95a9a642de9c75fb98ab9f53facafd1"
+  }
+]

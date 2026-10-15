@@ -1,0 +1,62 @@
+{
+  "blender": "5.2.2 LTS",
+  "mesh_count": 10,
+  "triangles": 135786,
+  "materials": [
+    "AccessPort_White",
+    "Face_Charcoal",
+    "Vinyl_WarmWhite"
+  ],
+  "blender_bounds": [
+    [
+      -0.6922290325164795,
+      -0.4390447735786438,
+      0.002999984659254551
+    ],
+    [
+      0.6922289729118347,
+      0.3528520464897156,
+      1.6749998331069946
+    ]
+  ],
+  "height_m": 1.67199984844774,
+  "joints": [
+    "Root",
+    "Hips",
+    "Spine",
+    "Chest",
+    "Neck",
+    "Head",
+    "Shoulder_L",
+    "UpperArm_L",
+    "Forearm_L",
+    "Hand_L",
+    "Shoulder_R",
+    "UpperArm_R",
+    "Forearm_R",
+    "Hand_R",
+    "Thigh_L",
+    "Shin_L",
+    "Foot_L",
+    "Thigh_R",
+    "Shin_R",
+    "Foot_R"
+  ],
+  "clips": [
+    "IDLE",
+    "LISTEN",
+    "SPEAK",
+    "WAVE",
+    "THINK",
+    "RETURN_TO_IDLE"
+  ],
+  "geometry_checks": "MANIFOLD_UV_WEIGHT_PASS",
+  "approval": "AWAITING_USER_VISUAL_REVIEW",
+  "limitations": [
+    "Provisional procedural skinning; not production deformation acceptance",
+    "No facial blend shapes",
+    "No application integration",
+    "No collision-free certification for all poses",
+    "No external HDRI or textures bundled"
+  ]
+}

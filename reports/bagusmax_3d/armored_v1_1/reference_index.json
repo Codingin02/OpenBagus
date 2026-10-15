@@ -1,0 +1,107 @@
+[
+  {
+    "id": "R01",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-059aa4ad-a564-435a-bda4-cb31c08401ac.jpg",
+    "exists": true,
+    "sha256": "0b30ba3cd5f60c18904e5dc471425e7c011899edec20312467d5d5d98f4e9ca1",
+    "observation": "Flight / foreshortening; fist, wing sweep"
+  },
+  {
+    "id": "R02",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-437991c8-f6a7-4e7c-a52f-28cb897f839b.jpg",
+    "exists": true,
+    "sha256": "5a1630677bf092a3df20af562093292440a07010763b52b2f120a53db3b9eb00",
+    "observation": "Standing low angle; torso, hands, legs"
+  },
+  {
+    "id": "R03",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-c879b479-5aea-4cf9-8eb3-63d54ec98fa4.jpg",
+    "exists": true,
+    "sha256": "3b09e0d5642e491d3366de9c3b36c2099b11e726657a29ccfd572d9085b91df9",
+    "observation": "Exploded toy; module allocation, not film topology"
+  },
+  {
+    "id": "R04",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-838af715-9a4c-433a-9b7a-8f14373329c1.jpg",
+    "exists": true,
+    "sha256": "75e8cee00afffb36558860c92c174c5296c3909f073d58758783a2e95299040a",
+    "observation": "Flight; wing sweep and chest"
+  },
+  {
+    "id": "R05",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-c60eb315-fe1a-44af-89cf-0b11f0c37f80.jpg",
+    "exists": true,
+    "sha256": "e10ed45a3b1e87d58671c33c59ffe52146346e8f0a984d6b20526b407b4cdf8b",
+    "observation": "White exposed; fitting evidence, not final silhouette"
+  },
+  {
+    "id": "R06",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-cf0aa463-130e-4198-8d83-3b00bcd32f06.jpg",
+    "exists": true,
+    "sha256": "dabe9b9c71047db107d1d14806040c52cb297f3264494bf36a742a5b99cc5749",
+    "observation": "White plus lower apparatus; assembly mood"
+  },
+  {
+    "id": "R07",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-1a61eb1a-6293-4ba8-adb2-202248bef4af.jpg",
+    "exists": true,
+    "sha256": "5a42ecd582f67645fd67fea962d40c4fb7ee72022d77587daf5c84681e3663a6",
+    "observation": "Near duplicate of R01"
+  },
+  {
+    "id": "R08",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-85eb0772-c548-4f5f-a288-da3fe82555f6.jpg",
+    "exists": true,
+    "sha256": "481fce4e490e7d4a74afb01a5603f2c8c3895e7d213dbca544b522f4e1997e16",
+    "observation": "Near duplicate of R02"
+  },
+  {
+    "id": "R09",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-3c4610b3-75c6-4ae8-a59a-f736d12e0600.jpg",
+    "exists": true,
+    "sha256": "4bef4ce9e6c7e3fd23e1377bcc5b0063312e289273172eb1650c54697b89d7f1",
+    "observation": "Toy side; elbow bearing, forearm inset"
+  },
+  {
+    "id": "R10",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-f16d7ad1-2f8b-4845-b150-79d0ed7e4115.jpg",
+    "exists": true,
+    "sha256": "a39feeff7cbaadbef5d743dade0cfef4357fe8020bcdfbdaa8896712c436c455",
+    "observation": "Film lab; grounded silhouette"
+  },
+  {
+    "id": "R11",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-b9803f85-ef53-49c2-81e2-2d0fd27e0db5.jpg",
+    "exists": true,
+    "sha256": "735e5902290b7726df823c0e95b93494c8bf1ae92d0b05b2944e38719dd1a978",
+    "observation": "Standing frontal toy; expanded wings"
+  },
+  {
+    "id": "R12",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-030e7559-1242-486f-a10f-44c5c557c6f8.jpg",
+    "exists": true,
+    "sha256": "f4192b2fc48b3e53f1bacd13860993b3cfcbc40f00715e7a7190f2e65adabc8d",
+    "observation": "Flight close; helmet and pauldron"
+  },
+  {
+    "id": "R13",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-f1742fb2-b140-447d-9f2e-4e9380be1869.jpg",
+    "exists": true,
+    "sha256": "92f297c4293321fde2f14aadbf64c2b43221bc9440e011102f0e555345981136",
+    "observation": "Flight frontal; abdomen and wing roots"
+  },
+  {
+    "id": "R14",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-9b832c61-033c-4797-9d92-66aecf0f70e4.jpg",
+    "exists": true,
+    "sha256": "8a6d6a3e38f41543e6a6c1bb6a7a2e11a6e60a4239a71dbcfdf149e51e1e07a7",
+    "observation": "Toy rear; backpack and root hinges"
+  },
+  {
+    "id": "R15",
+    "path": "C:\\Users\\bagus\\AppData\\Local\\Temp\\codex-clipboard-11319f29-e790-4e1a-934e-f94bb2f054fc.jpg",
+    "exists": true,
+    "sha256": "65bdf8c18c73faa85662c6a3e539a2b43163fa101f9a47404057c74cf8bffcd6",
+    "observation": "Helmet close-up; aperture, cheek, ear fin"
+  }
+]

@@ -1,0 +1,26 @@
+[
+  {
+    "side": "L",
+    "status": "PASS",
+    "sample_step_degrees": 5,
+    "range_degrees": [
+      0,
+      130
+    ],
+    "contacts": [],
+    "max_return_matrix_error": 0,
+    "scope": "local elbow shell pairs, not shoulder or mathematically continuous collision proof"
+  },
+  {
+    "side": "R",
+    "status": "PASS",
+    "sample_step_degrees": 5,
+    "range_degrees": [
+      0,
+      130
+    ],
+    "contacts": [],
+    "max_return_matrix_error": 0,
+    "scope": "local elbow shell pairs, not shoulder or mathematically continuous collision proof"
+  }
+]

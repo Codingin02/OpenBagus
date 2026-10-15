@@ -1,0 +1,138 @@
+{
+  "actions": 0,
+  "nla_tracks": 0,
+  "max_pose_angle_rad": 0.0,
+  "morph_defaults": {
+    "Shoulder_90_L": 0.0,
+    "Shoulder_145_L": 0.0,
+    "Elbow_90_L": 0.0,
+    "Elbow_130_L": 0.0,
+    "Shoulder_90_R": 0.0,
+    "Shoulder_145_R": 0.0,
+    "Elbow_90_R": 0.0,
+    "Elbow_130_R": 0.0,
+    "ShoulderForward_90_L": 0.0,
+    "ShoulderForward_90_R": 0.0
+  },
+  "skin_connected_components": 1,
+  "transforms": {
+    "White_Head": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Eye_R": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Eye_L": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Eye_ContourBridge": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Chest_Access_Port": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "White_Leg_L": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "White_Leg_R": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Chest_Access_Detail": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Chest_Access_Lid": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Torso_Vinyl_Seam": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "White_SoftSkin": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": "Bagusmax_Rig"
+    },
+    "Bagusmax_Rig": {
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "determinant": 1.0,
+      "parent": null
+    }
+  },
+  "finger_influenced_vertices": {
+    "Thumb_L": 2971,
+    "Index_L": 4543,
+    "Middle_L": 5418,
+    "Ring_L": 4102,
+    "Thumb_R": 2968,
+    "Index_R": 4541,
+    "Middle_R": 5420,
+    "Ring_R": 4102
+  }
+}

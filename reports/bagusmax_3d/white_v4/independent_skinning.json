@@ -1,0 +1,221 @@
+{
+  "implementation": "NumPy glTF accessors + sparse morphs + hierarchy + inverse binds + LBS; no Blender skinning",
+  "poses": {
+    "shoulder_L_090": {
+      "max_position_error_m": 8.518802004170875e-07,
+      "rms_position_error_m": 1.8875314696492257e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.003627900222367248,
+        "max": 0.010607012590383854,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "shoulder_R_090": {
+      "max_position_error_m": 7.935363266646054e-07,
+      "rms_position_error_m": 1.8843445668604909e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.00362761479283104,
+        "max": 0.009361777577284798,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "shoulder_L_120": {
+      "max_position_error_m": 5.418317628908677e-07,
+      "rms_position_error_m": 1.54247378944066e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 1.1385995038032584,
+        "max": 25.225327014158268,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "shoulder_R_120": {
+      "max_position_error_m": 5.766001260935901e-07,
+      "rms_position_error_m": 1.5437530378826524e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 1.1274999202143503,
+        "max": 25.106268208790123,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "shoulder_L_145": {
+      "max_position_error_m": 5.894555685427098e-07,
+      "rms_position_error_m": 1.626883574345113e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.00366843298758993,
+        "max": 0.010607012590383854,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "shoulder_R_145": {
+      "max_position_error_m": 6.50050041867518e-07,
+      "rms_position_error_m": 1.6275472183930515e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.0036597671292954524,
+        "max": 0.009361777577284798,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_L_060": {
+      "max_position_error_m": 4.77116546808405e-07,
+      "rms_position_error_m": 1.7896721150098406e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 7.709105983394735,
+        "max": 42.36061486469699,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_R_060": {
+      "max_position_error_m": 4.768466626024096e-07,
+      "rms_position_error_m": 1.7896207388420338e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 7.7010453251784545,
+        "max": 42.37727576638862,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_L_090": {
+      "max_position_error_m": 4.976432756720296e-07,
+      "rms_position_error_m": 1.8078331465101913e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.003574726134393666,
+        "max": 0.010607012590383854,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_R_090": {
+      "max_position_error_m": 4.648228298973209e-07,
+      "rms_position_error_m": 1.806528910039906e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.0035767767882144284,
+        "max": 0.009361777577284798,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_L_110": {
+      "max_position_error_m": 5.750247960701819e-07,
+      "rms_position_error_m": 1.809010507586027e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 2.017992941821076,
+        "max": 36.835136075435486,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_R_110": {
+      "max_position_error_m": 5.605253091330864e-07,
+      "rms_position_error_m": 1.809126980248285e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 2.028962041810447,
+        "max": 36.60378404943771,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_L_130": {
+      "max_position_error_m": 5.654246282779565e-07,
+      "rms_position_error_m": 1.8407359898631884e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.003578207638054116,
+        "max": 0.010607012590383854,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "elbow_R_130": {
+      "max_position_error_m": 5.654246282779565e-07,
+      "rms_position_error_m": 1.8394790085582886e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.003576361833907147,
+        "max": 0.009361777577284798,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "S0": {
+      "max_position_error_m": 4.087322696968628e-07,
+      "rms_position_error_m": 1.7569019271867187e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 0.0036096373231308226,
+        "max": 0.010607012590383854,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "C2": {
+      "max_position_error_m": 5.999868852461085e-07,
+      "rms_position_error_m": 1.792119346639964e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 21.896511255913094,
+        "max": 74.52674581406191,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "C5": {
+      "max_position_error_m": 6.052010459675729e-07,
+      "rms_position_error_m": 1.837019674575062e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 22.33514326553874,
+        "max": 45.59052363818932,
+        "vertices_over_90_degrees": 0
+      }
+    },
+    "F1_point": {
+      "max_position_error_m": 1.017256006487727e-05,
+      "rms_position_error_m": 2.5808809960233756e-07,
+      "vertices": 110510,
+      "pass": true,
+      "arm_normal_error_degrees": {
+        "p95": 8.38355344431232,
+        "max": 112.40269437305237,
+        "vertices_over_90_degrees": 39
+      }
+    }
+  },
+  "cpu_numpy_evaluation_ms": {
+    "median": 32.75920000305632,
+    "min": 27.893799997400492,
+    "max": 39.36010000325041,
+    "samples": 5
+  },
+  "not_tested": [
+    "OpenBagus renderer",
+    "GPU skinning cost",
+    "runtime FPS",
+    "runtime VRAM"
+  ],
+  "source_state": {
+    "actions": 0,
+    "nla_tracks": 0,
+    "max_pose_angle_rad": 0.0,
+    "max_corrective_weight": 0.0
+  }
+}

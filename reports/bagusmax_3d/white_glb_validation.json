@@ -1,0 +1,24 @@
+{
+  "result": "GLB_STRUCTURE_SKIN_ANIMATION_PASS",
+  "bytes": 2783000,
+  "meshes": 10,
+  "materials": 3,
+  "triangles": 82438,
+  "exported_vertices": 42712,
+  "joint_count": 20,
+  "animation_names": [
+    "IDLE",
+    "LISTEN",
+    "RETURN_TO_IDLE",
+    "SPEAK",
+    "THINK",
+    "WAVE"
+  ],
+  "external_textures": false,
+  "estimated_vertex_index_memory_mb": 3.22,
+  "not_tested": [
+    "OpenBagus runtime loader",
+    "All-pose collision checks",
+    "User visual acceptance"
+  ]
+}

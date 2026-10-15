@@ -1,0 +1,5 @@
+## feat/bagusmax-3d-art
+?? assets/bagusmax/
+?? docs/bagusmax_3d/
+?? reports/bagusmax_3d/
+?? tools/

@@ -1,0 +1,200 @@
+[
+  {
+    "degrees": 0,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.244394297269775,
+    "max_step_m": 0
+  },
+  {
+    "degrees": 5,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.246020650471268,
+    "max_step_m": 0.08735933651016077
+  },
+  {
+    "degrees": 10,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.246996308078557,
+    "max_step_m": 0.08712215080736523
+  },
+  {
+    "degrees": 15,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.246087316808433,
+    "max_step_m": 0.08690127310160607
+  },
+  {
+    "degrees": 20,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.2430296074911995,
+    "max_step_m": 0.08669873292227798
+  },
+  {
+    "degrees": 25,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.238014678904532,
+    "max_step_m": 0.08651321568429717
+  },
+  {
+    "degrees": 30,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.231428534452556,
+    "max_step_m": 0.08674802667429858
+  },
+  {
+    "degrees": 35,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.22373803852273,
+    "max_step_m": 0.08714766759374724
+  },
+  {
+    "degrees": 40,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.215581112866132,
+    "max_step_m": 0.08758455541239457
+  },
+  {
+    "degrees": 45,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.207777445716795,
+    "max_step_m": 0.08804662764426954
+  },
+  {
+    "degrees": 50,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.201422983588003,
+    "max_step_m": 0.0885312630973806
+  },
+  {
+    "degrees": 55,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.197517874086925,
+    "max_step_m": 0.08902559014761104
+  },
+  {
+    "degrees": 60,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.1969621922910845,
+    "max_step_m": 0.08954126800494026
+  },
+  {
+    "degrees": 65,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.200826132405202,
+    "max_step_m": 0.0900641140257961
+  },
+  {
+    "degrees": 70,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.210119811123076,
+    "max_step_m": 0.09059190359166266
+  },
+  {
+    "degrees": 75,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.225624446735795,
+    "max_step_m": 0.09112513175612484
+  },
+  {
+    "degrees": 80,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.247806259539566,
+    "max_step_m": 0.09165668899349147
+  },
+  {
+    "degrees": 85,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.2768975269503695,
+    "max_step_m": 0.09219323171056068
+  },
+  {
+    "degrees": 90,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.313056686200895,
+    "max_step_m": 0.09273041213692125
+  },
+  {
+    "degrees": 95,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.317220069548739,
+    "max_step_m": 0.0870565087467055
+  },
+  {
+    "degrees": 100,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.320895801637213,
+    "max_step_m": 0.08705637763781275
+  },
+  {
+    "degrees": 105,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.32406551223459,
+    "max_step_m": 0.08705642823281774
+  },
+  {
+    "degrees": 110,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.326719544211976,
+    "max_step_m": 0.0870568138054072
+  },
+  {
+    "degrees": 115,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.328853791327581,
+    "max_step_m": 0.08705647436283723
+  },
+  {
+    "degrees": 120,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.330471141303406,
+    "max_step_m": 0.08705638510654252
+  },
+  {
+    "degrees": 125,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.331579346422826,
+    "max_step_m": 0.08705658991597648
+  },
+  {
+    "degrees": 130,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.332191791247351,
+    "max_step_m": 0.0870566653468258
+  },
+  {
+    "degrees": 135,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.332326715089428,
+    "max_step_m": 0.08705639589431986
+  },
+  {
+    "degrees": 140,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.332008169833788,
+    "max_step_m": 0.08705646374753229
+  },
+  {
+    "degrees": 145,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.3312649450053415,
+    "max_step_m": 0.0870563546198172
+  },
+  {
+    "degrees": 150,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.330279002353574,
+    "max_step_m": 0.08705664660223063
+  },
+  {
+    "degrees": 155,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.329352148205598,
+    "max_step_m": 0.08705665152186431
+  },
+  {
+    "degrees": 160,
+    "near_zero_triangles": 0,
+    "surface_area_m2": 4.328506072777268,
+    "max_step_m": 0.08705624194804071
+  }
+]

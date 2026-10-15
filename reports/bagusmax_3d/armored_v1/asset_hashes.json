@@ -1,0 +1,14 @@
+{
+  "assets/bagusmax/runtime/bagusmax_armored_v1.glb": {
+    "sha256": "2178e34f25a74c363dd518b82a5ebbef3ec529b9799f1a545dd20885fb78ba4b",
+    "bytes": 3419872
+  },
+  "assets/bagusmax/runtime/bagusmax_armored_v1_quality.glb": {
+    "sha256": "1e7005db4032b1a930743289b656128892a0ae90d8fcf6e503e1e823c674e872",
+    "bytes": 4288120
+  },
+  "assets/bagusmax/source/bagusmax_armored_v1.blend": {
+    "sha256": "95803df025b5ea4036dd5c5d66995922a79c7c3821a0760ae73e3564a68cb646",
+    "bytes": 18398472
+  }
+}

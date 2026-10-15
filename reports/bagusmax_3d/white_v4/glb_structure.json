@@ -1,0 +1,58 @@
+{
+  "result": "GLB_STRUCTURE_SKIN_STATIC_PASS",
+  "bytes": 10810532,
+  "meshes": 13,
+  "materials": 5,
+  "triangles": 216400,
+  "exported_vertices": 110510,
+  "joint_count": 32,
+  "animation_names": [],
+  "external_textures": false,
+  "not_tested": [
+    "OpenBagus runtime loader",
+    "All-pose collision checks",
+    "User visual acceptance",
+    "Runtime FPS",
+    "Runtime VRAM",
+    "GPU skinning time"
+  ],
+  "draw_primitives": 13,
+  "morph_targets": [
+    {
+      "mesh": "White_Arm_L.002",
+      "name": "Shoulder_90_L"
+    },
+    {
+      "mesh": "White_Arm_L.002",
+      "name": "Shoulder_145_L"
+    },
+    {
+      "mesh": "White_Arm_L.002",
+      "name": "Elbow_90_L"
+    },
+    {
+      "mesh": "White_Arm_L.002",
+      "name": "Elbow_130_L"
+    },
+    {
+      "mesh": "White_Arm_R.002",
+      "name": "Shoulder_90_R"
+    },
+    {
+      "mesh": "White_Arm_R.002",
+      "name": "Shoulder_145_R"
+    },
+    {
+      "mesh": "White_Arm_R.002",
+      "name": "Elbow_90_R"
+    },
+    {
+      "mesh": "White_Arm_R.002",
+      "name": "Elbow_130_R"
+    }
+  ],
+  "morph_target_count": 8,
+  "base_geometry_buffer_bytes": 7954208,
+  "morph_buffer_bytes": 2825872,
+  "max_vertex_influences": 4
+}

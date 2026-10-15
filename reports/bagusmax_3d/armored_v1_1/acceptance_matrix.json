@@ -1,0 +1,76 @@
+{
+  "status": "REVIEW_REQUIRED",
+  "asset_sha256": "6e65c46e5d5d6256a1a67b497db395ce31a56749205860be0be397f2bb052afb",
+  "criteria": [
+    {
+      "name": "Elbow and shoulder clearance",
+      "status": "FAIL",
+      "evidence": "See per-pose clearance_matrix.json; no silent rotation clamp"
+    },
+    {
+      "name": "Local elbow 5-degree sweep",
+      "status": "PASS",
+      "evidence": "Both arms 0..130; excludes shoulder and intentional co-moving mating"
+    },
+    {
+      "name": "Static wing clearance",
+      "status": "PASS",
+      "evidence": "Folded / partial / open against helmet, pauldron and backpack; not full continuous swept volume"
+    },
+    {
+      "name": "Rigid modular articulation",
+      "status": "PASS",
+      "evidence": "126 armor parts; all original IDs retained; 51 controls"
+    },
+    {
+      "name": "GLB structural validation",
+      "status": "PASS",
+      "evidence": "{'numErrors': 0, 'numWarnings': 0, 'numInfos': 4, 'numHints': 0, 'truncated': False}"
+    },
+    {
+      "name": "Independent GLB transforms",
+      "status": "PASS",
+      "evidence": "45 poses; max 0.001237 mm"
+    },
+    {
+      "name": "Neutral round-trip",
+      "status": "PASS",
+      "evidence": "All rigid vertices, both directions"
+    },
+    {
+      "name": "White rig contract",
+      "status": "PASS",
+      "evidence": "32 joint names, parents, rest and inverse bind matrices"
+    },
+    {
+      "name": "Geometry integrity",
+      "status": "PASS",
+      "evidence": "0 degenerate triangles; 0 nonmanifold edges"
+    },
+    {
+      "name": "White / V1 / rollback preserved",
+      "status": "PASS",
+      "evidence": "SHA-256 equality"
+    },
+    {
+      "name": "Neutral return / unchanged studio",
+      "status": "PASS",
+      "evidence": "Folded wings, relaxed hands, original diagnostic studio"
+    },
+    {
+      "name": "No animation clips",
+      "status": "PASS",
+      "evidence": "Static disposable inspections only"
+    },
+    {
+      "name": "Runtime FPS / VRAM",
+      "status": "NOT_TESTED",
+      "evidence": "No renderer or companion changes"
+    },
+    {
+      "name": "Visual approval",
+      "status": "NOT_TESTED",
+      "evidence": "User review required; no production-ready claim"
+    }
+  ]
+}

@@ -1,0 +1,281 @@
+[
+  {
+    "name": "neutral",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003216374199811423,
+    "matrix_and_probe_eval_ms": 7.90629999983139,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_L_30",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00032924146292128174,
+    "matrix_and_probe_eval_ms": 4.980100000011589,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_L_60",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00031606320634132516,
+    "matrix_and_probe_eval_ms": 5.214799999976094,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_L_90",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00033080112741251417,
+    "matrix_and_probe_eval_ms": 5.464599999868369,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_L_120",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00031882227474178137,
+    "matrix_and_probe_eval_ms": 5.627500000173313,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_L_145",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00031336161764943134,
+    "matrix_and_probe_eval_ms": 5.314300000009098,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_L_45",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00032603743285711945,
+    "matrix_and_probe_eval_ms": 4.901199999949313,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_L_90",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003222767281233322,
+    "matrix_and_probe_eval_ms": 4.971000000296044,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_L_110",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00032710728738673885,
+    "matrix_and_probe_eval_ms": 5.58839999985139,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_L_120",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003206184203632941,
+    "matrix_and_probe_eval_ms": 5.376500000238593,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_L_130",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003244714753939587,
+    "matrix_and_probe_eval_ms": 5.474399999911839,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_R_30",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.000332801902471666,
+    "matrix_and_probe_eval_ms": 5.309499999839318,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_R_60",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.000313252271695613,
+    "matrix_and_probe_eval_ms": 4.977199999757431,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_R_90",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00033206148120529954,
+    "matrix_and_probe_eval_ms": 4.840099999910308,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_R_120",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003142488950130771,
+    "matrix_and_probe_eval_ms": 5.000600000130362,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "shoulder_R_145",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003177701435071967,
+    "matrix_and_probe_eval_ms": 4.785999999967316,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_R_45",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.000326591233676143,
+    "matrix_and_probe_eval_ms": 4.904599999917991,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_R_90",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00032254139304028166,
+    "matrix_and_probe_eval_ms": 5.202199999985169,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_R_110",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003276822634084247,
+    "matrix_and_probe_eval_ms": 4.9050000002353045,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_R_120",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00032092307845523274,
+    "matrix_and_probe_eval_ms": 5.0449999998818384,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "elbow_R_130",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003241543364241663,
+    "matrix_and_probe_eval_ms": 5.23639999983061,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "forward_fist",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.000341223078151183,
+    "matrix_and_probe_eval_ms": 5.474499999763793,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "head_turn",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003217480096708311,
+    "matrix_and_probe_eval_ms": 5.365700000311335,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "head_nod",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003225188278596112,
+    "matrix_and_probe_eval_ms": 5.742300000292744,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "leg_step",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.0003217361257910248,
+    "matrix_and_probe_eval_ms": 5.273299999771552,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "point",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.000328622738515345,
+    "matrix_and_probe_eval_ms": 4.872500000146829,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "wings_partial",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012314600273861827,
+    "rms_position_error_mm": 0.0003210391733603843,
+    "matrix_and_probe_eval_ms": 4.870499999924505,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "wings_deployed",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.001237288680263021,
+    "rms_position_error_mm": 0.0003260673736454567,
+    "matrix_and_probe_eval_ms": 4.869199999575358,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "finger_anchor_L",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.000323480330171518,
+    "matrix_and_probe_eval_ms": 4.972899999756919,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "finger_anchor_R",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.0012349545554535565,
+    "rms_position_error_mm": 0.00032517835294884417,
+    "matrix_and_probe_eval_ms": 5.26350000018283,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  },
+  {
+    "name": "combined",
+    "sampled_vertices": 2976,
+    "max_position_error_mm": 0.001237288680263021,
+    "rms_position_error_mm": 0.00034604122292298677,
+    "matrix_and_probe_eval_ms": 5.682699999852048,
+    "status": "PASS",
+    "scope": "rigid nodes plus original joint matrices; not a collision or visual acceptance result"
+  }
+]

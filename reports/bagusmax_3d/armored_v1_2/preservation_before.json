@@ -1,0 +1,822 @@
+{
+  "assets/bagusmax/armor/armor_assembly_manifest.json": {
+    "sha256": "c47c12b4edb4315a3ce9e757f1f55bb53856666d1b201ffb2a1025cbfab739e3",
+    "bytes": 369350
+  },
+  "assets/bagusmax/armor/armor_attachment_map.json": {
+    "sha256": "c6c00ce80e619013fd1a1b641f5cea4250f5a29be5d608b4e91662876a5cf9fe",
+    "bytes": 75149
+  },
+  "assets/bagusmax/armor/armor_materials.json": {
+    "sha256": "6bcd65b158453cdb2f85a4f98c54907a1401daeac086f8070d0d9e237dbe7112",
+    "bytes": 2295
+  },
+  "assets/bagusmax/armor/armor_transformation_timeline.json": {
+    "sha256": "31234186a28fb1014daeb0acee7e94e47cb3120046e05f38fe2c4718aea9b69f",
+    "bytes": 1025
+  },
+  "assets/bagusmax/armor/armor_white_fit.json": {
+    "sha256": "f0466837174e777f85d30d15d113294612f6e6d2051596e359d40884f0147ce8",
+    "bytes": 3084
+  },
+  "assets/bagusmax/armor/v1_1/armor_assembly_manifest.json": {
+    "sha256": "3eb4f84b6990810f6f1b223fe73b0d1c0916c30ba89fb9e3ebd1c5bb4a07a7bd",
+    "bytes": 544623
+  },
+  "assets/bagusmax/armor/v1_1/armor_attachment_map.json": {
+    "sha256": "5c4fc512a9ad948924e071edc87d870d6ff42f2a68eaeeee5e098dc9fa99e1ad",
+    "bytes": 76083
+  },
+  "assets/bagusmax/armor/v1_1/armor_materials.json": {
+    "sha256": "6bcd65b158453cdb2f85a4f98c54907a1401daeac086f8070d0d9e237dbe7112",
+    "bytes": 2295
+  },
+  "assets/bagusmax/armor/v1_1/armor_transformation_timeline.json": {
+    "sha256": "31234186a28fb1014daeb0acee7e94e47cb3120046e05f38fe2c4718aea9b69f",
+    "bytes": 1025
+  },
+  "assets/bagusmax/runtime/bagusmax_armored_v1.glb": {
+    "sha256": "2178e34f25a74c363dd518b82a5ebbef3ec529b9799f1a545dd20885fb78ba4b",
+    "bytes": 3419872
+  },
+  "assets/bagusmax/runtime/bagusmax_armored_v1_1.glb": {
+    "sha256": "6e65c46e5d5d6256a1a67b497db395ce31a56749205860be0be397f2bb052afb",
+    "bytes": 3909556
+  },
+  "assets/bagusmax/runtime/bagusmax_armored_v1_quality.glb": {
+    "sha256": "1e7005db4032b1a930743289b656128892a0ae90d8fcf6e503e1e823c674e872",
+    "bytes": 4288120
+  },
+  "assets/bagusmax/runtime/bagusmax_white.glb": {
+    "sha256": "96c8928f6f814f17f0c1c66efe7f5f4595976ca9b2027fe2d1f900bc0c0091df",
+    "bytes": 2783000
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_detailed.glb": {
+    "sha256": "8532a844dc62566912d46871f8c13f9d7e6b445ed1f35db46bc8f34b337f68b9",
+    "bytes": 5320884
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_refined.glb": {
+    "sha256": "e03408eec78855a6ed652691af06a2d0d582d5dcad589e9232cfb92a4d5b3d0c",
+    "bytes": 4373360
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_v3.glb": {
+    "sha256": "f301aaec43d0d513ebe1860978b3403717e7c29a958317a4fb4831e89d9d43c6",
+    "bytes": 5953660
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_v4.glb": {
+    "sha256": "239d72a0392e704c859ea4436fee220b758781169e6b2ed64a4ff9d39e7df608",
+    "bytes": 10810532
+  },
+  "assets/bagusmax/runtime/bagusmax_white_anatomy_v4_1.glb": {
+    "sha256": "9ec223bb6ecd563437ee17c2b7a20cdd74a9b10d7f98a74e0d1150bb66e9569b",
+    "bytes": 18885552
+  },
+  "assets/bagusmax/source/bagusmax_armored_v1.blend": {
+    "sha256": "95803df025b5ea4036dd5c5d66995922a79c7c3821a0760ae73e3564a68cb646",
+    "bytes": 18398472
+  },
+  "assets/bagusmax/source/bagusmax_armored_v1_1.blend": {
+    "sha256": "c13bd796795371179d02b8da48ba06b7ee45f6b872d596339ecc31ff2e517881",
+    "bytes": 18947040
+  },
+  "assets/bagusmax/source/bagusmax_white.blend": {
+    "sha256": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+    "bytes": 2742104
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_detailed.blend": {
+    "sha256": "dbfb5e734c37a101c969872668214e91d1b9ff615c389b0b2fa03ee994671a04",
+    "bytes": 4951036
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_refined.blend": {
+    "sha256": "7335edd1d6e2039f02782089e4ffe1bf6aa8eb4983d3dfd2c7e87ee8db2b3506",
+    "bytes": 2724220
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_v3.blend": {
+    "sha256": "7712634225a665564bbf1ce58bb5a60d6431ad7a1276d7a8aa2adbbb488588e9",
+    "bytes": 7223290
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_v4.blend": {
+    "sha256": "de444488d02f27ded4445c5ac426ae306857a65b9a52789f8e0ba0a9bed340bb",
+    "bytes": 11056867
+  },
+  "assets/bagusmax/source/bagusmax_white_anatomy_v4_1.blend": {
+    "sha256": "bca6b53329acb61b89f107dc610e1451ebe88d4ba3fa2ee5606f6915b1849f07",
+    "bytes": 14560526
+  },
+  "assets/bagusmax/source/bagusmax_white_before_anatomy_refinement.blend": {
+    "sha256": "1edb34fd517a8c58e51fc251ce56adc5eb71931d385cc4594fafad6691da6dfa",
+    "bytes": 2742104
+  },
+  "assets/models/bagusmax_armored.glb": {
+    "sha256": "a462435244873dcf4496e9805bf3046c2c52ad6a80e4c67c3dd18c1bb1b59f6a",
+    "bytes": 362540
+  },
+  "assets/models/source/bagusmax_armored.blend": {
+    "sha256": "69ec4ed12239f1066d899a1d6e5bc27705c8f56a7dede660643cf24c492e2edc",
+    "bytes": 285928
+  },
+  "docs/bagusmax_3d/ARMORED_V1_1_HANDOFF.md": {
+    "sha256": "93db104e16e5176d5e360f4f6079f99ae82dd08e606b7178c7b0617e2f018ef5",
+    "bytes": 25327
+  },
+  "docs/bagusmax_3d/ARMORED_V1_ACCEPTANCE_REPORT.md": {
+    "sha256": "29749e0d0f0f419998071c5fa8cf652475696f08f6c5d753ebf398c986ebc3fb",
+    "bytes": 7981
+  },
+  "docs/bagusmax_3d/ARMORED_V1_ART_DIRECTION.md": {
+    "sha256": "6c8ea1f8465de9b3cd8481a2c50f5761dbab377c09693967f99517b2b5f873cf",
+    "bytes": 8050
+  },
+  "docs/bagusmax_3d/ARMORED_V1_ASSEMBLY_CONTRACT.md": {
+    "sha256": "d9d98f303d5c022174f61c8555632ac71e0e254126148b991ceecb52a87a4b25",
+    "bytes": 10096
+  },
+  "docs/bagusmax_3d/ARMORED_V1_RUNTIME_HANDOFF.md": {
+    "sha256": "89dcc865a703ba19488448b13020bb7a1409d188f0f010aaaf46d6e7c63d3523",
+    "bytes": 5596
+  },
+  "docs/bagusmax_3d/WHITE_LIGHTING_SPEC.md": {
+    "sha256": "4e0110a3631d7063eee495e1e5c65bccc8999f26ecf513a3306c03ebfcb80a22",
+    "bytes": 3275
+  },
+  "reports/bagusmax_3d/armored_v1_1/acceptance_matrix.json": {
+    "sha256": "9e77650ef5a7344f4a62779ae2ea4a1c56269454c4ec47a1b78ab00cf3d39ae5",
+    "bytes": 2315
+  },
+  "reports/bagusmax_3d/armored_v1_1/baseline_inventory.json": {
+    "sha256": "c611393a642b7509c8d481e68f605286c05674b43bae42629f426be2b43a7c41",
+    "bytes": 28110
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_combined_L_S90_E130.png": {
+    "sha256": "f811bfe0907ea6b236873efc45d18e70b7446ba5b79bf36c52bb547035b0b46d",
+    "bytes": 623814
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_combined_R_S90_E130.png": {
+    "sha256": "27e5d1f82e5ec1fc982b96269c557a71babb60077c2f14e88ddb1a9416732b19",
+    "bytes": 621072
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_elbow_L_130.png": {
+    "sha256": "6c18372d58aaf3039d04717e9a807b2f2e4ffef8f47c574a26917761f6d59e17",
+    "bytes": 682401
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_elbow_R_130.png": {
+    "sha256": "aa3bff3f3ab45cadad5d7f9c97679cdd3653cb85c192a7d5a169a0a201429b8c",
+    "bytes": 673415
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_pose_matrices.json": {
+    "sha256": "d026794d95c39469ea342a37b6fc433983030721ae83500b34b0d115b455dd1b",
+    "bytes": 20829915
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_shoulder_L_145.png": {
+    "sha256": "ffc1b92d02a9d87c44967377a28b866748c8c9e019f4c02e2408d5a8978aac8a",
+    "bytes": 667183
+  },
+  "reports/bagusmax_3d/armored_v1_1/blender_shoulder_R_145.png": {
+    "sha256": "71b0d334ffd41204238463e81673ab99dbfbcba4adfc776b497561b4a54b8118",
+    "bytes": 673713
+  },
+  "reports/bagusmax_3d/armored_v1_1/clearance_edge_finish.json": {
+    "sha256": "005bf4963a11fdfa39ef9e3874d853b54edf38266d58ceb20f5abc4759be7fe9",
+    "bytes": 1783
+  },
+  "reports/bagusmax_3d/armored_v1_1/clearance_matrix.json": {
+    "sha256": "f5559c7f555f66f4bd3badee61782ba8060ff684a8ded79521a5114317fb33f5",
+    "bytes": 649934
+  },
+  "reports/bagusmax_3d/armored_v1_1/clearance_parameter_probe.json": {
+    "sha256": "902a30437137294d6f9a69e6fe86fea4024ef2f9134c38c5acf01fa7d40fac49",
+    "bytes": 5555
+  },
+  "reports/bagusmax_3d/armored_v1_1/combined_comparison.png": {
+    "sha256": "7e28789ff57017947ffb1c088fda65484d50b722d75649951e3a9bf478b83106",
+    "bytes": 3626418
+  },
+  "reports/bagusmax_3d/armored_v1_1/contact_diagnostic.png": {
+    "sha256": "c9b912902336e24d85d2404f3c9d12c9d8cfabdaab6d737b4ae083b9687925bb",
+    "bytes": 1595818
+  },
+  "reports/bagusmax_3d/armored_v1_1/contact_evidence.json": {
+    "sha256": "2e6ec3569ea83d3ad54ccf3ea72577a327bf376a5e836bfdad032444f7df0e33",
+    "bytes": 1321
+  },
+  "reports/bagusmax_3d/armored_v1_1/deliverable_inventory.json": {
+    "sha256": "b997cd8d6725f725827a7c72f59dc82c0855b7751236b40ffc9c04007f303579",
+    "bytes": 33203
+  },
+  "reports/bagusmax_3d/armored_v1_1/elbow_L_comparison.png": {
+    "sha256": "2210690200e038a2dd6499bd2994c63de79153c094cc6d5290e82a553872f45b",
+    "bytes": 2145874
+  },
+  "reports/bagusmax_3d/armored_v1_1/elbow_R_comparison.png": {
+    "sha256": "d566d03e9c0c43c4576dd85251a79aca9c17c78bec368f067d14dd202c88f906",
+    "bytes": 2077513
+  },
+  "reports/bagusmax_3d/armored_v1_1/export_verification.png": {
+    "sha256": "132d8b5a884770418d8e5b5fb5996675308176f2497f5bd481a1f4925e4a00f3",
+    "bytes": 2491417
+  },
+  "reports/bagusmax_3d/armored_v1_1/final_neutral.png": {
+    "sha256": "b7266485757ed0d2b2a4f870c8032be992aac4740d581aa17f5abcfd630e3dbf",
+    "bytes": 1141456
+  },
+  "reports/bagusmax_3d/armored_v1_1/git_status.txt": {
+    "sha256": "6f7b5b49c1e92a601b7e1b24846cd2e5656195928c56e17d8d490e4f29cbfa6a",
+    "bytes": 104
+  },
+  "reports/bagusmax_3d/armored_v1_1/glb_combined_L_S90_E130.png": {
+    "sha256": "467cd16686777baa02aa9e3755fc39f8a2bcd207d9e330adb5f59ea081d0099e",
+    "bytes": 623856
+  },
+  "reports/bagusmax_3d/armored_v1_1/glb_combined_R_S90_E130.png": {
+    "sha256": "ab4fefbbdf6a7603fca7dc4424d65fed4342d5d549985b975875e74b6028cf89",
+    "bytes": 621299
+  },
+  "reports/bagusmax_3d/armored_v1_1/glb_elbow_L_130.png": {
+    "sha256": "09c52914139b04185492fd9aa370a0718c87444a7188e27d6215497c2153d51f",
+    "bytes": 682479
+  },
+  "reports/bagusmax_3d/armored_v1_1/glb_elbow_R_130.png": {
+    "sha256": "487de5923a04fe13a4d08b48cb848b9ace950e247719564553f16debd164a6fc",
+    "bytes": 672689
+  },
+  "reports/bagusmax_3d/armored_v1_1/glb_shoulder_L_145.png": {
+    "sha256": "692ecd8430f49be9685bbe9f04e20c874af501000c7bc8fdb5326e50e3b5021b",
+    "bytes": 667052
+  },
+  "reports/bagusmax_3d/armored_v1_1/glb_shoulder_R_145.png": {
+    "sha256": "9d5d99726d8427bac1ba1b74ecdb2fc62f04b3c82e13990f7a3cdf516292fde8",
+    "bytes": 674265
+  },
+  "reports/bagusmax_3d/armored_v1_1/guard_edge_clearance.json": {
+    "sha256": "61e539eddb0bebf1d35e8be85e34d35d376bba6c1279499eced1e1bc5724bb42",
+    "bytes": 5187
+  },
+  "reports/bagusmax_3d/armored_v1_1/guard_phase_probe.json": {
+    "sha256": "b7717079c6cb2222c93488421ed93c3d3b134c2faadf3c3dfb52bd7922ccbf76",
+    "bytes": 31033
+  },
+  "reports/bagusmax_3d/armored_v1_1/independent_transforms.json": {
+    "sha256": "2c484b113962922dd86744ec5cff1a020c85888166c9b119c5ecf4b68fddd1e7",
+    "bytes": 18513
+  },
+  "reports/bagusmax_3d/armored_v1_1/index.html": {
+    "sha256": "4ef6feb660b58d800372c90b9e82e34b7ef6aa24920a47a5732d4b7b439f8dc5",
+    "bytes": 2378
+  },
+  "reports/bagusmax_3d/armored_v1_1/inner_relief_probe.json": {
+    "sha256": "03f08e8f43edc7109aed2397e0b2d98a992dae85feada9a4d1706e8dc5817ab4",
+    "bytes": 984
+  },
+  "reports/bagusmax_3d/armored_v1_1/intermediate_angle_sweep.json": {
+    "sha256": "81fcc43090576bcb36e3065abdf27844b75a852e8ae8ac1fcbe0e6ab57b03582",
+    "bytes": 121370
+  },
+  "reports/bagusmax_3d/armored_v1_1/intermediate_elbow_clearance.json": {
+    "sha256": "3115ac67ae3d5b11a4a50674b5b0b95284e007c5ebc2e880fad9f8abf8d2b72f",
+    "bytes": 585
+  },
+  "reports/bagusmax_3d/armored_v1_1/intersection_diagnosis.json": {
+    "sha256": "670f86802a94907b0e4adc5ffb232e22008f97719a76b3e410b6626ff7cddb95",
+    "bytes": 87960
+  },
+  "reports/bagusmax_3d/armored_v1_1/khronos_validator.json": {
+    "sha256": "7ac578cd549a9dbac0268169604d48369775ba1e81a83a6e29376687ee1629fd",
+    "bytes": 1695
+  },
+  "reports/bagusmax_3d/armored_v1_1/local_geometry_changes.json": {
+    "sha256": "f64d5f026cb82714df4174eff8cb5c237b0c00f9221efcaf017594cefdb8ad34",
+    "bytes": 833
+  },
+  "reports/bagusmax_3d/armored_v1_1/modular_exploded.png": {
+    "sha256": "bd34db3031a1c3ce72dd30015220a1672afc0c1a3974272813014814aa702452",
+    "bytes": 655280
+  },
+  "reports/bagusmax_3d/armored_v1_1/modular_exploded_000.png": {
+    "sha256": "0b8eb6992ebc7905b4ed5948ab91a6fed9b0120cb20943fc54b7c68c1b96479d",
+    "bytes": 637455
+  },
+  "reports/bagusmax_3d/armored_v1_1/modular_exploded_040.png": {
+    "sha256": "3099cda01778ada5d0c1590f850c0690752d6e795d45efe9977f63be548fa662",
+    "bytes": 630372
+  },
+  "reports/bagusmax_3d/armored_v1_1/modular_exploded_100.png": {
+    "sha256": "28a922b16aec03729824c2ed2e09825216e6fc25217f52752424838bd15e8934",
+    "bytes": 602627
+  },
+  "reports/bagusmax_3d/armored_v1_1/neutral_comparison.png": {
+    "sha256": "4fef2eea3d55e84bf92444bf376f6761d396369a8ae6cd392de608f432fd8bf6",
+    "bytes": 1560081
+  },
+  "reports/bagusmax_3d/armored_v1_1/neutral_glb_reimport.png": {
+    "sha256": "2ca6c50473eb9d9f6bec0324925504cfc2ffca262fe30ddafb670c473ec02281",
+    "bytes": 659726
+  },
+  "reports/bagusmax_3d/armored_v1_1/neutral_reimport.json": {
+    "sha256": "f1855068fd247039cea152ee8e8038b7cfa8f4039b570f49939b53a04ec09a91",
+    "bytes": 14855
+  },
+  "reports/bagusmax_3d/armored_v1_1/preservation_after.json": {
+    "sha256": "8c9e96b53817458f8fb814b908ab5808942638a173cebfcc2426be402097194f",
+    "bytes": 4905
+  },
+  "reports/bagusmax_3d/armored_v1_1/preservation_before.json": {
+    "sha256": "8c9e96b53817458f8fb814b908ab5808942638a173cebfcc2426be402097194f",
+    "bytes": 4905
+  },
+  "reports/bagusmax_3d/armored_v1_1/private_reference_review.html": {
+    "sha256": "6260f013ef1b9fe4a17508072d3141b6b9db0ec17bdf795b9f555dc4ae13f503",
+    "bytes": 3407
+  },
+  "reports/bagusmax_3d/armored_v1_1/reference_index.json": {
+    "sha256": "2f80e2f6b534b710a4dac82f75db84c784b0da726b5e4fa205d5b787a5e0669d",
+    "bytes": 4580
+  },
+  "reports/bagusmax_3d/armored_v1_1/rig_compatibility.json": {
+    "sha256": "ad9cbc9855108d128a98327529134e188d1c88f38a42fcbdf63df2698decc456",
+    "bytes": 4612
+  },
+  "reports/bagusmax_3d/armored_v1_1/saved_source_state.json": {
+    "sha256": "f14364e5495c2ef61a451c1ed40071baab9430144552afbb8222164a880cdf84",
+    "bytes": 199
+  },
+  "reports/bagusmax_3d/armored_v1_1/shoulder_L_comparison.png": {
+    "sha256": "a281ab0ddb6120de830c5978a2a39f38f98241c3f4d9e9d9d416b8846af0b7a2",
+    "bytes": 1794271
+  },
+  "reports/bagusmax_3d/armored_v1_1/shoulder_R_comparison.png": {
+    "sha256": "7ed73342ff45b5f4780670e88ddd085774aac911b0ba19b9b4419eb0b82c5bf9",
+    "bytes": 1780813
+  },
+  "reports/bagusmax_3d/armored_v1_1/source_geometry_audit.json": {
+    "sha256": "b39d9f8cebeb91cc311574dc53842f3bb3456052cbcc92f05020cd31903d277b",
+    "bytes": 33092
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_classified_contacts.json": {
+    "sha256": "7a889cc7f4daf913dd955a3df11a2293f47530ef7eda72818cb05221455885a3",
+    "bytes": 557689
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_L_S120_E110.png": {
+    "sha256": "7c73907083b78f89db9354e359c28b8c0c47ed0fe037941e2092edfd43383722",
+    "bytes": 623647
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_L_S145_E90.png": {
+    "sha256": "4d6bcd0502b8c839184f81d632344de7ee9f3e6b7ec1bc66425637dbdde3ab24",
+    "bytes": 625305
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_L_S45_E90.png": {
+    "sha256": "5960558a89662c91a74506fa9f587c61e5a5990b3f6d0edf5af2d1909162aa2e",
+    "bytes": 628751
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_L_S90_E110.png": {
+    "sha256": "edd7096a1e39c128923eebf96481e2a479de61ff4e1ad8f31925b80f51364fd8",
+    "bytes": 625220
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_L_S90_E130.png": {
+    "sha256": "2b69f1fce3cbc4bf6c2de2222a6e8a096dab5289bc44040553f39325d421c4e2",
+    "bytes": 623814
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_R_S120_E110.png": {
+    "sha256": "fddd10350d88f1c52b4d7c4272d0ee314406be0fb7220c48f0efd164c644bb24",
+    "bytes": 623791
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_R_S145_E90.png": {
+    "sha256": "854fe2b518a2c472b54d77fb93e27be83e70bb10fb7e1ad1b00f82702778aa0d",
+    "bytes": 625800
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_R_S45_E90.png": {
+    "sha256": "e70e675d061d04c479dbbb3599aac0c6a65c7f96e1421db84444bd5bcec10014",
+    "bytes": 623043
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_R_S90_E110.png": {
+    "sha256": "3ae8d3c9d694663546474f62d696242dc4c7ee16f312942fc2af38b376bb2efa",
+    "bytes": 621048
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_combined_R_S90_E130.png": {
+    "sha256": "3f1a13a727e708f8270fddc8e9bc3bc01b327eb5b9fdbcbe9ffe4f25bf60effb",
+    "bytes": 621072
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_contact_diagnosis.json": {
+    "sha256": "f7fd17bba4544aa700f48ce9a01438efbf4569ed71669759f3e3a087dd373e6b",
+    "bytes": 496086
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_contact_L_inside.png": {
+    "sha256": "007d912bea4c773887f245ee2d498289b2362933d2ef8234266ac340c15aa2f5",
+    "bytes": 571100
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_contact_L_outside.png": {
+    "sha256": "1479cd29431df5302aa143df8d03782ed8d737466dbbe64fb88c28b0eb5c27f1",
+    "bytes": 553343
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_contact_R_inside.png": {
+    "sha256": "55049c734f9fdf56ace62f24e715b21bd806bcf63a2a0bbabe11f541b44dc9f3",
+    "bytes": 566494
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_contact_R_outside.png": {
+    "sha256": "2c7a3fe3efa931527819ef36b887b5c961b8bbc35d2d1226d267680d53588018",
+    "bytes": 552557
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_0.png": {
+    "sha256": "b2f91d8eb98eda5244fa09337550f8772b4651b56dd21d51c4ce954c918b902d",
+    "bytes": 673148
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_100.png": {
+    "sha256": "92fd616be693d7c32964241854d1962ba7f02503daf81dca35983babdd80c6b0",
+    "bytes": 686911
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_110.png": {
+    "sha256": "ea19dc461660f65dba4e1542637a5565a4f501628691f2653565a9c57af5bcb5",
+    "bytes": 687217
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_120.png": {
+    "sha256": "12475233951f58c30936515c4f3276f64fc05897e2ac55036a16bf132acf5ad6",
+    "bytes": 685896
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_130.png": {
+    "sha256": "b229e47818475db8f915ecfe46db62cd043f14b847010fd296810685bf02c21a",
+    "bytes": 682401
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_30.png": {
+    "sha256": "dd86f0829c37a50e88c6b0bb25fd6a658c4679f3505102b4b542d381227841b4",
+    "bytes": 676149
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_60.png": {
+    "sha256": "0ec912b5c260542b93d145cb2405663ef716d5e02ecb05cf847e8fafb3eaacd7",
+    "bytes": 683824
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_L_90.png": {
+    "sha256": "3972f8f12b60f73264b11129786617ae8828885725cfd7d09307d5c36d9b2bd3",
+    "bytes": 685263
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_0.png": {
+    "sha256": "4175f86ca373f262f59219c4862e8ee9a29858213490164e37620d7c397392ce",
+    "bytes": 676201
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_100.png": {
+    "sha256": "9b07395376f62090eb797ce519ec7c3e56a1c9567a93eff749f2be2014d9af56",
+    "bytes": 683269
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_110.png": {
+    "sha256": "245390e5f72a9f6be07e1bf1f888c53b2fc42bf9bf2cd21e89d454793de34424",
+    "bytes": 681708
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_120.png": {
+    "sha256": "0b30f0887b0af009b5d28ef460c3f3cd14ca5739edc1669827f190d5355ec93d",
+    "bytes": 678723
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_130.png": {
+    "sha256": "ea26b2761e84623d31d7a79d7aecc60760f89043dc820bf9f6ec1b66320c632a",
+    "bytes": 673415
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_30.png": {
+    "sha256": "f247737f2f1c68b1aad761f9047f7e18bc0410d89ee3dfe602e5c5cf01857cb9",
+    "bytes": 678516
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_60.png": {
+    "sha256": "e4181ee0cfa29508cb91bd6db118c30f17fbeb878b29255dbc907460cedef7b0",
+    "bytes": 683393
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_elbow_R_90.png": {
+    "sha256": "b6ac800b97919fed624313eafcc5cd1a9dd5983205a04293331e0103a285ba85",
+    "bytes": 682178
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_forward_L.png": {
+    "sha256": "8c9a4f70f3cf3b0bf38d0e7a219662ccb3acffd19763a0987a11a2a3e183f352",
+    "bytes": 626730
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_forward_R.png": {
+    "sha256": "140791b4d79022a1cfbaf7c390986c9e9128d29ab99263c7316599502daa7e00",
+    "bytes": 623492
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_inward_L.png": {
+    "sha256": "db148d8c8c476f679b9d51968bf68da350bcdf7d231ba9d73d23520fc0364283",
+    "bytes": 626965
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_inward_R.png": {
+    "sha256": "18bfbb9024f2f005bc954e0ce97edb499a0ad3474b5b0059a61d38fc8f1f94bd",
+    "bytes": 621378
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_near_chest_L.png": {
+    "sha256": "f1d704b8bed3d4d8c44b5393527d3aaafb5139eea723c334b7d6781cfd950790",
+    "bytes": 627814
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_near_chest_R.png": {
+    "sha256": "8212c7a6b1d9b300cb380e0236a3b5abdb813948fd8ef29d9ce3862e0c300cd6",
+    "bytes": 620752
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_neutral.png": {
+    "sha256": "014c6fa487aacea9d4f1a6a3021a610e944adcdaff15d97fcbdbcd49b2d7670b",
+    "bytes": 623881
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_neutral_back.png": {
+    "sha256": "97be83bba9863dc97d602133e050d0c3352b5a48b3256e7bafa4a15e7dc106f4",
+    "bytes": 627052
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_neutral_front.png": {
+    "sha256": "1fc5b2e818c5cb58f606ccf47eda07d79ade80d4616ba8135c10851989852b3b",
+    "bytes": 630162
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_neutral_left.png": {
+    "sha256": "0670cf5e7593912790240c3d476b49f274a35310679728df3acd84d34a02ad5b",
+    "bytes": 571115
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_neutral_right.png": {
+    "sha256": "301aede3c1335e521fffd1df0659ff248cecd6484e1a37c091baeee71f06d461",
+    "bytes": 564664
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_neutral_three_quarter.png": {
+    "sha256": "ba5c890cbfdae38ac1dc8aa9bace7c92ab20d6232eb29d8526a6669fee848875",
+    "bytes": 659784
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_L_0.png": {
+    "sha256": "a65920b9e591e9a7c7c42333b72699f0a41dfca7442cfbfd4cebdc5f62dd7075",
+    "bytes": 654590
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_L_120.png": {
+    "sha256": "63e911dcd39ab09baa8586e7b2f4045132ae2f22862b611e10b473617a3f53d8",
+    "bytes": 670073
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_L_145.png": {
+    "sha256": "62f26428ac82d5633660f8d84a1cc95f8eddf4d771ea9418c83437168b223bee",
+    "bytes": 667183
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_L_45.png": {
+    "sha256": "df54c7b18fb606390a3abe50a5ac606e787d8ed46cd798cd62b415b34a5da79e",
+    "bytes": 671827
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_L_90.png": {
+    "sha256": "8b1dc5ddc20531f3a9dbcaa794a9f34b5e9e097ed858b927d277e6dfe13aa30f",
+    "bytes": 668163
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_R_0.png": {
+    "sha256": "37b2fbc90e290c8ec662fadde25f1526a10a9a66b819ffd7ee8eecb3fadb7fd7",
+    "bytes": 651895
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_R_120.png": {
+    "sha256": "f21a7e505e0b834b5c3b3819c1502642eadf73a9e43635a1e0c90c43f2ee2b70",
+    "bytes": 678909
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_R_145.png": {
+    "sha256": "8603780245d446994599d1189dcd723243db060f0bc69ca88a6db8d8e8ae370c",
+    "bytes": 673713
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_R_45.png": {
+    "sha256": "c7c15eff8880d30f01c5d749531e64f68a5e933e4bda75aeefb67756720fc128",
+    "bytes": 672303
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_shoulder_R_90.png": {
+    "sha256": "f7b7b981533eb5ca3bf6be1bdcd28fd6f74a85e30f31af6585bd0a5d10c93df5",
+    "bytes": 673137
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_wings_folded.png": {
+    "sha256": "08011cacaa9bb4750d466930e721752a242e643c16162b40c15fa2ef8eab9811",
+    "bytes": 661287
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_wings_open.png": {
+    "sha256": "2a4b2a9a03c5a5343663b217538c7bcfb01b3a7973ad09f01e33f61aff9fa077",
+    "bytes": 599734
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_1_wings_partial.png": {
+    "sha256": "d4b214c524101fbec549623a1b2ad04e418fbc8375d7cfc571db657c026a9ee2",
+    "bytes": 603870
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_classified_contacts.json": {
+    "sha256": "a09290a9f6eef06da303b711a6d85c18281d0921a354948a74bb72430e981125",
+    "bytes": 744760
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_L_S120_E110.png": {
+    "sha256": "dfe721905ce5f0828e86996b209d0c10b5c35404f059ecb3cbe3c099a8194e14",
+    "bytes": 622540
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_L_S145_E90.png": {
+    "sha256": "6a66c7a31074cdc28ee6d34f54dfedc6b589a5f86b2c1b82e0d352db4305dbe3",
+    "bytes": 622810
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_L_S45_E90.png": {
+    "sha256": "848bb2411640f257dc3386bea8b766334a22f0c202bdda745a5ab78e3ef2cae7",
+    "bytes": 627395
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_L_S90_E110.png": {
+    "sha256": "bc0b826d91ee782f7031928f71676ad1d12e7810b1b22502822908be052ac2e8",
+    "bytes": 624155
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_L_S90_E130.png": {
+    "sha256": "2b3a660ff1c5c0c1a987aabd8b7516bce9e89a5c488dbf8fb03310c92006b2c7",
+    "bytes": 621799
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_R_S120_E110.png": {
+    "sha256": "e293d243be8700f19c4add765967e7b0a5e5a15a895f1c9d82a24459aa4445c1",
+    "bytes": 621166
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_R_S145_E90.png": {
+    "sha256": "aa9cbbc47f287120fc10f182bbe5bf8cf769e1cc4f385e286cc3c1f8a66dad89",
+    "bytes": 623256
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_R_S45_E90.png": {
+    "sha256": "51742ac0e60bef7416a537565135e26f5c0fffc531151c9025885381755cdd3e",
+    "bytes": 621403
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_R_S90_E110.png": {
+    "sha256": "1a27603639c6e3b162a595b630b2aee8c3d36843065a076d266a016abdaaf00a",
+    "bytes": 618159
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_combined_R_S90_E130.png": {
+    "sha256": "6843c3953c6bb8f4ea959254850a48ad5dc016c3a939d014ecfd65e76ce1e244",
+    "bytes": 618171
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_contact_diagnosis.json": {
+    "sha256": "cbe84f1217b65aa85b71a2bf958ccb83e4fb83c60b03360a37b1d6cdbd8fe78e",
+    "bytes": 651323
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_contact_L_inside.png": {
+    "sha256": "6acaa44ea78b9a143528a4d4f7f395fd052b7c6a6534be3f0f167c190c4a1334",
+    "bytes": 571600
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_contact_L_outside.png": {
+    "sha256": "93efde40aa50a06133cf1646b0431000f1839b368838b4ca9561ef06f0da337b",
+    "bytes": 556977
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_contact_R_inside.png": {
+    "sha256": "9a1f562b2a4516130857e28b901fa9a03d306ab7f2560a5bdb3b2f4a1de6c834",
+    "bytes": 568099
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_contact_R_outside.png": {
+    "sha256": "59346178227328419d96b6d14956bd3522ea7ade8fbc6caee8e34454e7da1428",
+    "bytes": 552021
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_0.png": {
+    "sha256": "ad066a2e6d05945dd9e8edcd218e69516815d2ef6f2a0f09b230529d85ab2350",
+    "bytes": 666519
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_100.png": {
+    "sha256": "a649fc195de01401d6f03a07f7df5c8b29fcc3397be2b3fda99a5f2a31401bf7",
+    "bytes": 686876
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_110.png": {
+    "sha256": "5824737168905794f650d6ab513997123a1b128fdfb84ed3465aba429d67c7e3",
+    "bytes": 687771
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_120.png": {
+    "sha256": "2f3c474ef9babcb22d62857803bd5430bf6ee90793a08eacf07ebf894a8ea08d",
+    "bytes": 686454
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_130.png": {
+    "sha256": "2f95d7727f7c09d1074c12a45f88626018b4a27bce782c863d09eef7ea9f38bf",
+    "bytes": 683109
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_30.png": {
+    "sha256": "ef12aef0f636d2cca4827b61b3eddd407d211b71ac12fd82694a262a28b991a2",
+    "bytes": 672498
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_60.png": {
+    "sha256": "0b259352a7de67c9958b49fc0c61ff6af54cf29cf38269f04b539a36fb1feb5d",
+    "bytes": 682487
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_L_90.png": {
+    "sha256": "e9172045248a5b5813d78f8b752fbd1acdd7ab9fd39d94ba00358196bc94fff8",
+    "bytes": 684918
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_0.png": {
+    "sha256": "37e83516630ae9b9dff07973c6a606ed18507e6138328d75703596065e1aca02",
+    "bytes": 669684
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_100.png": {
+    "sha256": "9f6f9c37b3a468f40744bea381b4fb778dd8741ff6cd69100822d7e8cff2d609",
+    "bytes": 683285
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_110.png": {
+    "sha256": "5a57f4043cd475e79ab3548805ef2bd7d716918bc09f4f81e2be7e51810ce188",
+    "bytes": 681854
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_120.png": {
+    "sha256": "ba1645a50eea78f6348c53c8687d568ece6313a0e68df4a6893399a10cb20b52",
+    "bytes": 679013
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_130.png": {
+    "sha256": "14a1472e2890d0afd9fd72835934e10b87d718fed991617bd688f4653328ccde",
+    "bytes": 672857
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_30.png": {
+    "sha256": "8678763c2a561f1c650dcc8e1ab7e5fba9a1af4d3d6738c298812228006639c4",
+    "bytes": 675751
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_60.png": {
+    "sha256": "dc2dd764ba99dff205965194ef69436756e8ed85f006888c3c6111c89219bb36",
+    "bytes": 682803
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_elbow_R_90.png": {
+    "sha256": "35467f79511b439716d3353663200cfd21cb9194050fff62a226c77556ea3dbb",
+    "bytes": 682127
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_forward_L.png": {
+    "sha256": "d1c459e7bfd819af564e5f1d29c6b29271ed0f816cf77d76abd7629d6a95096f",
+    "bytes": 625279
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_forward_R.png": {
+    "sha256": "382b3273ee8843d22bd8058f3f46a8b3bfbe7430ee1e1e42cb3975202fcf32c8",
+    "bytes": 621791
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_inward_L.png": {
+    "sha256": "a1357e4ee9f6fc55d1f520005deba8593d7d3f9c4443a872cc6a805b71349680",
+    "bytes": 625889
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_inward_R.png": {
+    "sha256": "0b32d05c8a96e0bdffef191f03d17cf8d8a53bdbee566db59192e143beacc581",
+    "bytes": 619905
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_near_chest_L.png": {
+    "sha256": "8621327ec01058766f918d3d58b872f151e837bd56975675342583662577529b",
+    "bytes": 626631
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_near_chest_R.png": {
+    "sha256": "55b806115bbe2496bca04a16b5df5a6e3bd6ef8eb1b8472f1d1415b16b1bdfb0",
+    "bytes": 619117
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_neutral.png": {
+    "sha256": "56a21ee90e5955ef27a0fd518df1358d4131908a5e13dc832745ba38921fc0de",
+    "bytes": 621279
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_neutral_back.png": {
+    "sha256": "aaf0d115f1575df5bedaf2d80e8d25df1692422c2163da99feb103014a269b4d",
+    "bytes": 627244
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_neutral_front.png": {
+    "sha256": "25181ce82552284c16f7fef09ff98b4d3cf1b89d951ca3f2443663b8e339f2a7",
+    "bytes": 625344
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_neutral_left.png": {
+    "sha256": "05c3742ae5d3635123783ccd531b1aa7d1e0b84a06800778d5f938b9290a5121",
+    "bytes": 570297
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_neutral_right.png": {
+    "sha256": "3527a5256a99ee5968c777d519f2cabf4dd267919d7a0429b9eca775c979700f",
+    "bytes": 564400
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_neutral_three_quarter.png": {
+    "sha256": "c750feab6475dbdf4c0d371f4809d2622dc3f70bd758cf910e5fd21e1504511d",
+    "bytes": 655857
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_L_0.png": {
+    "sha256": "9c29d63315a1869bafbb811c1df708eeb87e8c3c49620d3972fe2937083b50c9",
+    "bytes": 650752
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_L_120.png": {
+    "sha256": "6e7d46fc5f14a18dfcbf9f41e6c8062090aab5f09cbfe708aface090e705613b",
+    "bytes": 668041
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_L_145.png": {
+    "sha256": "46dddc28caa183295f235ea904197d3c9c8174954f2f57a59d3dbd21028d0e97",
+    "bytes": 661872
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_L_45.png": {
+    "sha256": "5cb86a0b75c429191a513b128c0d038f03d71d186dae719c58bc410ac1b29279",
+    "bytes": 669895
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_L_90.png": {
+    "sha256": "14a42253d0a173af667812d26748d614b1d455ff3dcdad82b0511f3f5a5924f2",
+    "bytes": 664574
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_R_0.png": {
+    "sha256": "9bd567ddaa532baa3ec9d81346ad390373bd085223185dcd45f3765eb9e2c52e",
+    "bytes": 648236
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_R_120.png": {
+    "sha256": "aef94a85969e51e2ade1c00c771574fe31ae0e072ca14af4d74f423a8455fcc1",
+    "bytes": 674103
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_R_145.png": {
+    "sha256": "d2e5ad2ae03bfc0f3c90358487110537f7ffa4a067ac5639ebc5cc4c110f052c",
+    "bytes": 670144
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_R_45.png": {
+    "sha256": "9f8d81ecf2b48a60427557f194239bb8c8bdcdf95f14d51577eb27836b49558e",
+    "bytes": 669386
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_shoulder_R_90.png": {
+    "sha256": "214fb1e805db2b9ff526b6ba1f113eb1dd1dca8c003a9b2739c2540298ac8095",
+    "bytes": 670374
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_wings_folded.png": {
+    "sha256": "c5ba00ad6198faa970407164c29d261b8b380b004e5e7d5dcf52fcaddce688ca",
+    "bytes": 661959
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_wings_open.png": {
+    "sha256": "434d06fbd6906f1934470a20479b1a6f68ebc90dd6dbcee8bae00eec04b9afe1",
+    "bytes": 599414
+  },
+  "reports/bagusmax_3d/armored_v1_1/v1_wings_partial.png": {
+    "sha256": "dc5dcd4aff19ada9eade691aea8a841bc7e078eb1a0148e485d95b68d747c0ec",
+    "bytes": 604074
+  },
+  "reports/bagusmax_3d/armored_v1_1/validation_report.json": {
+    "sha256": "cba521d5c5ddb83ff4ca36ed3c7f6df2a705b8b497e4c341886d8a16c2ae7784",
+    "bytes": 21071
+  },
+  "reports/bagusmax_3d/armored_v1_1/wing_clearance.json": {
+    "sha256": "59633258da43a74cba3a24e7fdb2e158530f02f07049b4a53ff6eb917c2290ba",
+    "bytes": 608
+  },
+  "reports/bagusmax_3d/armored_v1_1/wing_states.png": {
+    "sha256": "060736da12057dcae13de5ae3c71483ff089b028e7ba5833ec24f09995940dfd",
+    "bytes": 672520
+  }
+}
