@@ -15,6 +15,8 @@ if str(ROOT_DIR) not in sys.path:
 
 
 def main() -> int:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(line_buffering=True, encoding="utf-8")
     print("=" * 70)
     print("OPENBAGUS V5.0 VOICE QUALITY RECOVERY - 20 SCENARIOS ACCEPTANCE")
     print("=" * 70)
@@ -43,7 +45,7 @@ def main() -> int:
         doc = getattr(test_case, name).__doc__ or ""
         short_doc = doc.strip().split("\n")[0] if doc else name
 
-        print(f"[{idx:02d}/20] {name} ... ", end="", flush=True)
+        print(f"[{idx:02d}/{len(all_tests):02d}] {name} ... ", end="", flush=True)
         t_start = time.perf_counter()
         result = unittest.TestResult()
         test_case.run(result)

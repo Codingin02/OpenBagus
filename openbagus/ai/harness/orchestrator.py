@@ -53,6 +53,17 @@ KONTEKS AKTIF SAAT INI:
 - Kandidat Shortlist  : {active_candidates}
 """
 
+ENGLISH_TUTOR_SYSTEM_PROMPT = """You are Bagusmax, an encouraging, friendly, and structured native English conversation tutor.
+The learner's current proficiency level is: {tutor_level}.
+
+PRIMARY INSTRUCTIONS:
+1. Converse naturally in clear, idiomatic English suitable for the learner's level ({tutor_level}).
+2. Keep your conversational dialogue engaging and concise (2 to 3 sentences), followed by a natural follow-up question.
+3. If the user makes grammatical, vocabulary, or structural mistakes, provide polite constructive feedback labeled '[Koreksi & Penjelasan]:' with brief explanations in Indonesian so the user understands the grammatical logic clearly.
+4. If the user speaks in Indonesian, answer warmly, translate the key idea into English, and invite them to try saying it in English.
+5. STRICT BOUNDARY: You are in ENGLISH_TUTOR mode. Do NOT mention stock tickers, financial reports, or trading strategies unless the user explicitly asks to return to finance.
+"""
+
 SYSTEM_PROMPT_TEMPLATE = FINANCIAL_SYSTEM_PROMPT
 
 
@@ -121,11 +132,47 @@ class AgentHarness:
                 stream_callback(msg)
             return AgentResponse(content=msg, latency_ms=0.0, provider_name="SECURITY_GUARD")
 
+        lower_q = user_query.lower().strip()
+
+        # STEP 1b: Namespace Switching (FINANCIAL_RESEARCH <-> ENGLISH_TUTOR)
+        if any(p in lower_q for p in ("aku mau belajar bahasa inggris", "mari belajar bahasa inggris", "mode english tutor", "belajar bahasa inggris", "mode bahasa inggris", "practice english", "start english lesson", "tutor inggris")):
+            ctx.context_namespace = "ENGLISH_TUTOR"
+            ack_msg = "Siap! Kita beralih ke mode English Tutor. Hello! I am Bagusmax, your English speaking companion. What would you like to talk about today?"
+            if stream_callback:
+                stream_callback(ack_msg)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", ack_msg)
+            return AgentResponse(content=ack_msg, latency_ms=(time.perf_counter() - t_start) * 1000.0, provider_name="ENGLISH_TUTOR")
+
+        if any(p in lower_q for p in ("kembali ke saham", "bahas saham lagi", "kembali ke finansial", "mode finansial", "analisis saham lagi", "selesai belajar inggris", "stop belajar inggris")):
+            ctx.context_namespace = "FINANCIAL_RESEARCH"
+            ack_msg = "Baik, kita kembali ke mode Riset Finansial. Ada emiten atau topik pasar modal yang ingin dianalisis?"
+            if stream_callback:
+                stream_callback(ack_msg)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", ack_msg)
+            return AgentResponse(content=ack_msg, latency_ms=(time.perf_counter() - t_start) * 1000.0, provider_name="FINANCIAL_RESEARCH")
+
+        if getattr(ctx, "context_namespace", "FINANCIAL_RESEARCH") == "ENGLISH_TUTOR":
+            from openbagus.domains.english_tutor import EnglishTutor
+            tutor = EnglishTutor()
+            if hasattr(ctx, "tutor_level"):
+                tutor.set_level(ctx.tutor_level)
+            assessment = tutor.generate_tutor_response(
+                user_input=user_query,
+                recent_history=ctx.get_recent_history(limit=6),
+                provider=self.provider,
+            )
+            out_text = assessment.format_text_output()
+            if stream_callback:
+                stream_callback(out_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", out_text)
+            return AgentResponse(content=out_text, latency_ms=(time.perf_counter() - t_start) * 1000.0, provider_name="ENGLISH_TUTOR")
+
         # STEP 2: Handle User Corrections & Candidate References
         corrections = ctx.handle_corrections(user_query)
         cand_ref = ctx.resolve_candidate_reference(user_query)
-
-        lower_q = user_query.lower().strip()
 
         # Disambiguate "reset saham RATU ..." from 3D companion reset
         if "reset" in lower_q and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q):

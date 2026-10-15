@@ -25,6 +25,9 @@ class WorkingContext:
     prior_observations: dict[str, Any] = field(default_factory=dict)
     pending_action: dict[str, Any] | None = None
     active_domain: str = "GENERAL"  # "GENERAL" | "EQUITY" | "CRYPTO" | "SYSTEM" | "VOICE"
+    context_namespace: str = "FINANCIAL_RESEARCH"  # "FINANCIAL_RESEARCH" | "ENGLISH_TUTOR"
+    tutor_level: str = "INTERMEDIATE"              # "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+    tutor_memory: dict[str, Any] = field(default_factory=dict)
     turns: list[dict[str, str]] = field(default_factory=list)
     user_style: str = "PROFESSIONAL_DIRECT"
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
