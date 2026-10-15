@@ -4,7 +4,7 @@
   "hands_free": true,
   "microphone_device_id": null,
   "speaker_device_id": null,
-  "voice_preset": "BAGUSMAX_GENTLE_ID",
+  "voice_preset": "NATURAL",
   "speed": 1.0,
   "volume": 1.0,
   "audio_storage": "disabled",

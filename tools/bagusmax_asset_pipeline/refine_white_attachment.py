@@ -921,7 +921,7 @@ def inspect_saved():
 
 
 def main():
-    assert ROOT.name == "OpenBagus-3D"
+    assert ROOT.name in ("OpenBagus", "OpenBagus-3D")
     for path in (SOURCE, SOURCE.parent.parent/"runtime/bagusmax_white_anatomy_v4.glb",
                  ROOT/"docs/bagusmax_3d/WHITE_ANATOMY_V4_HANDOFF.md",
                  ROOT/"reports/bagusmax_3d/white_v4",ROOT/"docs/bagusmax_3d/WHITE_LIGHTING_SPEC.md"):

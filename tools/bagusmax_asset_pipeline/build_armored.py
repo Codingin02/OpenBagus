@@ -1546,10 +1546,9 @@ def shoulder_paths():
     REPORT=ROOT/"reports/bagusmax_3d/armored_v1_2"
     DATA=ASSETS/"armor/v1_2"
     SOURCE=ASSETS/"source/bagusmax_armored_v1_2.blend"
-    GLB=ASSETS/"runtime/bagusmax_armored_v1_2.glb"
-    assert ROOT.resolve()==Path("E:/Projects/OpenBagus-3D").resolve()
+    assert ROOT.resolve() in (Path("E:/Projects/OpenBagus").resolve(), Path("E:/Projects/OpenBagus-3D").resolve())
     branch=subprocess.run(["git","branch","--show-current"],cwd=ROOT,capture_output=True,text=True,check=True).stdout.strip()
-    assert branch=="feat/bagusmax-3d-art",branch
+    assert branch in ("feat/bagusmax-3d-art", "integrate/openbagus-single-repository", "main"), branch
     REPORT.mkdir(exist_ok=True,parents=True)
     live=shoulder_protected()
     saved=REPORT/"preservation_before.json"

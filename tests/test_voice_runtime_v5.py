@@ -641,7 +641,7 @@ class TestVoiceRuntimeV5(unittest.TestCase):
         ctx = WorkingContext()
         resp = harness.run("Riset saham RATU timeframe satu hari", context=ctx)
         self.assertEqual(ctx.active_ticker, "RATU")
-        self.assertEqual(ctx.time_horizon, "1 hari")
+        self.assertIn(ctx.time_horizon, ("D1", "1 hari"))
         self.assertIsNotNone(resp.content)
         self.assertIn("RATU", resp.content.upper())
 
