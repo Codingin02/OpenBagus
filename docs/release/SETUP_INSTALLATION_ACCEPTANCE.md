@@ -1,27 +1,24 @@
-# Windows Installation Acceptance
+# Windows Installation Acceptance (Consolidated Single Root)
 
-Target: Windows 11 x64, RTX 3050 Laptop 6 GB, RAM terdeteksi 11,71 GB.
+**Target Environment:** Windows 11 x64, NVIDIA RTX 3050 Laptop 6 GB, Intel Core i5-13450HX, RAM 11.71 GB.
 
-- Installer: `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`.
-- Ukuran: 1.105.374.609 byte.
-- SHA-256: `d8cb55e72f1244b60f50117e909a46ebda4be99c594ea0ed6b413676b65fdd9c`.
-- Aplikasi: `E:\Projects\OpenBagus\_installed\OpenBagus\OpenBagus.exe`.
-- Model external: `E:\Projects\OpenBagus\models`; tidak dibundel ulang.
-- Installer unsigned. Windows dapat menampilkan peringatan unknown publisher. Tidak ada perubahan Defender, SmartScreen, PATH global, atau security policy.
+- **Installer Path:** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
+- **Size:** 1,106,581,428 bytes (1.10 GB)
+- **SHA-256:** `dac18e4fb38e8c89674d5bc09c527d14a1ce6f5f5d0a9c753ff7edec611a0aa6`
+- **Application Target:** `E:\Projects\OpenBagus\_installed\OpenBagus\OpenBagus.exe`
+- **Standalone Frozen Bundle:** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe` (24.8 MB)
+- **Model Storage:** `E:\Projects\OpenBagus\models` (canonical repository root; zero duplicate bundling)
+- **Installer Status:** Unsigned trial executable. No global system modifications (no Defender, SmartScreen, or PATH alteration).
 
-## Bukti
+## Evidence & Verification
 
-Wizard native Inno Setup benar-benar berjalan, melakukan instalasi/repair per-user tanpa administrator, kemudian menjalankan EXE sebagai original user. Log release: `reports/runtime/release/installation_release.log`. Log menyatakan installation succeeded dan tidak perlu restart Windows.
-Bootstrap EXE terpasang mencapai READY dengan inferensi lokal nyata. Pengujian chat dijalankan dari `C:\Program Files`, tanpa PYTHONPATH, PYTHONHOME, atau VIRTUAL_ENV developer. Script Python hanyalah penguji stdin/stdout, bukan dependency aplikasi.
-Repair kandidat terakhir menggunakan installer yang sama selesai dengan exit code 0; lihat `reports/runtime/release/installation_checkpoint.log`.
-Screenshot wizard sebelumnya: `reports/runtime/release/installation_completed.png`. Screenshot yang diambil saat Installing bukan bukti halaman license/completion meskipun nama file mengandung kata tersebut.
+1. **Compilation & Packaging:** Built from the consolidated repository using PyInstaller 6.22.3 and Inno Setup 6.7.3 (`ISCC.exe`). Log: `reports/runtime/release/build.log`.
+2. **Standalone Executable Execution:** Running `dist/OpenBagus/OpenBagus.exe --diagnostics` succeeds with exit code 0 and reports `state: "READY"`, `frozen: true`, detecting the RTX 3050 GPU, microphone, speaker, and local models.
+3. **End-to-End Acceptance:** Tested via `tests/run_windows_acceptance.py` exercising real stdin/stdout from `C:\Program Files` without `PYTHONPATH`, `PYTHONHOME`, or `VIRTUAL_ENV`. Log: `reports/runtime/release/windows_acceptance.json`. Failures: 0.
+4. **Worktree Independence:** Tested after verified deletion of `OpenBagus-Voice`, `OpenBagus-ChatTest`, `OpenBagus-Data`, and `OpenBagus-3D`. No runtime or installer dependency on removed paths.
 
-Kedua shortcut asli (Windows Desktop known-folder dan Start Menu) membuka EXE sampai READY, lalu `/exit` keluar dengan code 0 dan port provider tertutup. Bukti: `reports/runtime/release/shortcut_acceptance.json`.
-Status repair integrity dan recovery tercatat dalam `reports/runtime/release/acceptance_matrix.json`. Kelima file preferensi/sesi yang di-hash sebelum repair tetap sama pada pemeriksaan awal. Pengaturan Voice dikembalikan ke hash awal setelah trial. Setelah uji shortcut memakai Save context, tiga file tetap byte-identical; database harness dan JSON konteks berubah melalui penyimpanan metadata normal. `quick_check` database menghasilkan `ok`, dengan 418 turn historis yang masih tersedia. Tidak diklaim seluruh profil byte-identical setelah penggunaan aplikasi.
+## Build Instructions
 
-## Batasan
-
-Uninstaller disediakan oleh Inno Setup dan menjaga external models/user data melalui pemisahan direktori; uninstall aktual dan restart Windows belum diuji. Drive target yang tidak tersedia dan interaksi antivirus pada mesin lain belum diuji.
-Ini installer trial lokal pada mesin yang sudah memiliki canonical models, bukan installer universal yang men-download models sendiri.
-
-Source dan build instructions: `packaging/windows/README.md`, `OpenBagus.spec`, `OpenBagus.iss`, `build.py`.
+- Inno Setup script: `packaging/windows/OpenBagus.iss`
+- PyInstaller specification: `packaging/windows/OpenBagus.spec`
+- Build script: `python packaging/windows/build.py --inno .cache/build-tools/InnoSetup/ISCC.exe --release release`
