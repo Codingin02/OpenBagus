@@ -1,0 +1,110 @@
+{
+  "files": [
+    {
+      "size_bytes": 14560526,
+      "category": "3D_SOURCE",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-3D\\assets\\bagusmax\\source\\bagusmax_white_anatomy_v4_1.blend",
+      "destination_path": "assets\\bagusmax\\source\\bagusmax_white_anatomy_v4_1.blend",
+      "sha256": "BCA6B53329ACB61B89F107DC610E1451EBE88D4BA3FA2EE5606F6915B1849F07"
+    },
+    {
+      "size_bytes": 18885552,
+      "category": "3D_RUNTIME",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-3D\\assets\\bagusmax\\runtime\\bagusmax_white_anatomy_v4_1.glb",
+      "destination_path": "assets\\bagusmax\\runtime\\bagusmax_white_anatomy_v4_1.glb",
+      "sha256": "9EC223BB6ECD563437EE17C2B7A20CDD74A9B10D7F98A74E0D1150BB66E9569B"
+    },
+    {
+      "size_bytes": 18947040,
+      "category": "3D_SOURCE",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-3D\\assets\\bagusmax\\source\\bagusmax_armored_v1_1.blend",
+      "destination_path": "assets\\bagusmax\\source\\bagusmax_armored_v1_1.blend",
+      "sha256": "C13BD796795371179D02B8DA48BA06B7EE45F6B872D596339ECC31FF2E517881"
+    },
+    {
+      "size_bytes": 3909556,
+      "category": "3D_RUNTIME",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-3D\\assets\\bagusmax\\runtime\\bagusmax_armored_v1_1.glb",
+      "destination_path": "assets\\bagusmax\\runtime\\bagusmax_armored_v1_1.glb",
+      "sha256": "6E65C46E5D5D6256A1A67B497DB395CE31A56749205860BE0BE397F2BB052AFB"
+    },
+    {
+      "size_bytes": 369350,
+      "category": "3D_MANIFEST",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-3D\\assets\\bagusmax\\armor\\armor_assembly_manifest.json",
+      "destination_path": "assets\\bagusmax\\armor\\armor_assembly_manifest.json",
+      "sha256": "C47C12B4EDB4315A3CE9E757F1F55BB53856666D1B201FFB2A1025CBFAB739E3"
+    },
+    {
+      "size_bytes": 2013056,
+      "category": "3D_ASSEMBLY",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-3D\\assets\\bagusmax\\armor\\armor_white_fit.bin",
+      "destination_path": "assets\\bagusmax\\armor\\armor_white_fit.bin",
+      "sha256": "255652EAB7617858AE9A180D246179686BE31CA8281C35E70B5113FC5ADB7A6E"
+    },
+    {
+      "size_bytes": 417792,
+      "category": "FINANCIAL_DB",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-Data\\data\\equities\\financial_facts.db",
+      "destination_path": "data\\equities\\financial_facts.db",
+      "sha256": "361598E31D632C5D417709CF7478B2282E4E8C04C99A8222F2E9D684850A1512"
+    },
+    {
+      "size_bytes": 5943,
+      "category": "SECURITY_MODULE",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus-Data\\openbagus\\ai\\credentials.py",
+      "destination_path": "openbagus\\ai\\credentials.py",
+      "sha256": "EB53FA76CBD0CE6B599DABD4CCF062934B694145108C2A28E2EB20C9772EA370"
+    },
+    {
+      "size_bytes": 2497280256,
+      "category": "AI_MODEL_LLM",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus\\models\\llm\\fast\\Qwen3-4B-Q4_K_M.gguf",
+      "destination_path": "models\\llm\\fast\\Qwen3-4B-Q4_K_M.gguf",
+      "sha256": "7485FE6F11AF29433BC51CAB58009521F205840F5B4AE3A32FA7F92E8534FDF5"
+    },
+    {
+      "size_bytes": 62950044,
+      "category": "AI_MODEL_TTS_ID",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus\\models\\tts\\indonesian\\id_ID-news_tts-medium.onnx",
+      "destination_path": "models\\tts\\indonesian\\id_ID-news_tts-medium.onnx",
+      "sha256": "ED8F02AA593F7AF6B19ACBDB8142E0DA0DD72F46194EB33D38E0EB10A52597E8"
+    },
+    {
+      "size_bytes": 63531379,
+      "category": "AI_MODEL_TTS_EN",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus\\models\\tts\\english\\norman-medium\\en_US-norman-medium.onnx",
+      "destination_path": "models\\tts\\english\\norman-medium\\en_US-norman-medium.onnx",
+      "sha256": "B9739443232A80A59C7D18810DD856899BF16A7964725F5AB81EA49B1351CB71"
+    },
+    {
+      "size_bytes": 1245151,
+      "category": "AI_MODEL_VAD",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus\\models\\vad\\silero\\silero_vad_v6.onnx",
+      "destination_path": "models\\vad\\silero\\silero_vad_v6.onnx",
+      "sha256": "4CBF549B8326F60F80F2536D9EEFEB450A9ABE83365A098031C89719F1BE17D2"
+    },
+    {
+      "size_bytes": 3087284237,
+      "category": "AI_MODEL_ASR",
+      "verified": true,
+      "source_path": "E:\\Projects\\OpenBagus\\models\\asr\\faster_whisper\\model.bin",
+      "destination_path": "models\\asr\\faster_whisper\\model.bin",
+      "sha256": "69F74147E3334731BC3A76048724833325D2EC74642FB52620EDA87352E3D4F1"
+    }
+  ],
+  "canonical_root": "E:\\Projects\\OpenBagus",
+  "generated_at": "2026-10-16T06:24:53+07:00"
+}

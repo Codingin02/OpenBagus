@@ -96,6 +96,7 @@ secrets/
 secrets*
 credentials/
 credentials*
+!openbagus/ai/credentials.py
 tokens*
 local_runtime/
 local_backups/
@@ -180,3 +181,15 @@ rust/**/target/
 *.pcm.tmp
 *.tts.tmp
 *.asr.tmp
+
+# Migration temporary recovery storage
+.migration/
+
+# Windows release installer binaries
+release/*.exe
+release/*.zip
+
+# 3D character reference stills (external reference - local preservation only)
+assets/bagusmax/reference/
+
+
