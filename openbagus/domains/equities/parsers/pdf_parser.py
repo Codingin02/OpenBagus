@@ -91,7 +91,28 @@ class IdxPdfParser:
         citations: dict[str, SourceCitation] = {}
         total_extracted_text_chars = 0
 
-        # Scan financial statement pages (typically first 20 pages)
+        BALANCE_SHEET_FIELDS = {
+            "cash_and_equivalents", "trade_receivables", "inventories",
+            "current_assets", "non_current_assets", "total_assets",
+            "trade_payables", "short_term_debt", "long_term_debt", "lease_liabilities",
+            "interest_bearing_debt", "current_liabilities", "non_current_liabilities",
+            "total_liabilities", "share_capital", "retained_earnings",
+            "equity_attributable_to_owners", "non_controlling_interests", "total_equity",
+            "syirkah_funds"
+        }
+        INCOME_STATEMENT_FIELDS = {
+            "revenue", "cost_of_revenue", "gross_profit", "operating_expenses",
+            "operating_income", "finance_costs", "profit_before_tax", "tax_expense",
+            "net_income_total", "net_income_attributable", "net_income_non_controlling",
+            "eps_basic", "eps_diluted", "net_interest_income", "nim_pct",
+            "npl_gross_pct", "npl_net_pct", "car_pct", "ldr_pct", "casa_pct"
+        }
+        CASH_FLOW_FIELDS = {
+            "operating_cash_flow", "capex_ppe", "capex_intangibles",
+            "capital_expenditures", "investing_cash_flow", "financing_cash_flow", "dividends_paid"
+        }
+
+        # Scan financial statement pages (typically first 30 pages)
         scan_limit = min(30, total_pages)
         for page_num in range(1, scan_limit + 1):
             try:
@@ -103,6 +124,19 @@ class IdxPdfParser:
             if not page_text.strip():
                 continue
 
+            # Detect statement section from top header lines of the page
+            header_sample = "\n".join(page_text.splitlines()[:8]).upper()
+            current_section = None
+            if "LAPORAN POSISI KEUANGAN" in header_sample or "FINANCIAL POSITION" in header_sample:
+                current_section = "BALANCE_SHEET"
+            elif "LAPORAN LABA RUGI" in header_sample or "PROFIT OR LOSS" in header_sample or "PENGHASILAN KOMPREHENSIF" in header_sample:
+                current_section = "INCOME_STATEMENT"
+            elif "LAPORAN ARUS KAS" in header_sample or "CASH FLOWS" in header_sample:
+                current_section = "CASH_FLOWS"
+
+            if not current_section:
+                continue
+
             lines = page_text.splitlines()
             for line in lines:
                 clean_line = line.strip()
@@ -110,20 +144,48 @@ class IdxPdfParser:
                     continue
 
                 for field_name, patterns in LINE_ITEM_PATTERNS.items():
+                    # Scope validation by statement section
+                    if current_section == "BALANCE_SHEET" and field_name not in BALANCE_SHEET_FIELDS:
+                        continue
+                    if current_section == "INCOME_STATEMENT" and field_name not in INCOME_STATEMENT_FIELDS:
+                        continue
+                    if current_section == "CASH_FLOWS" and field_name not in CASH_FLOW_FIELDS:
+                        continue
+
                     if getattr(stmt, field_name, None) is not None:
                         continue
-                    if any(re.search(p, clean_line, re.I) for p in patterns):
-                        # Extract trailing numeric amounts on this line
-                        nums = re.findall(r"\(?[0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]+)?\)?", clean_line)
+
+                    # Contextual handling of attributable equity vs income rows
+                    if field_name == "net_income_attributable" and current_section != "INCOME_STATEMENT":
+                        continue
+                    if field_name == "equity_attributable_to_owners" and current_section != "BALANCE_SHEET":
+                        continue
+
+                    matched = any(re.search(p, clean_line, re.I) for p in patterns)
+                    if not matched:
+                        # Special sub-label matching for profit attributable
+                        if current_section == "INCOME_STATEMENT":
+                            if field_name == "net_income_attributable" and re.search(r"^\s*pemilik\s+entitas\s+induk\b", clean_line, re.I):
+                                matched = True
+                            elif field_name == "net_income_non_controlling" and re.search(r"^\s*kepentingan\s+non-?pengendali\b", clean_line, re.I):
+                                matched = True
+
+                    if matched:
+                        # Extract amounts on this line
+                        nums = re.findall(r"\(?-?[0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]+)?\)?", clean_line)
                         if nums:
-                            val = _clean_numeric_value(nums[-1])
+                            # In two-period comparative tables, current period is nums[-2] if >= 2 amounts
+                            target_num_str = nums[-2] if len(nums) >= 2 else nums[-1]
+                            val = _clean_numeric_value(target_num_str, is_id_locale=(stmt.currency == "IDR"))
                             if val is not None:
+                                if field_name in {"cost_of_revenue", "operating_expenses", "finance_costs", "tax_expense", "capex_ppe", "capex_intangibles", "capital_expenditures"}:
+                                    val = abs(val)
                                 setattr(stmt, field_name, val)
                                 citations[field_name] = SourceCitation(
-                                    statement_type="PDF Financial Report",
+                                    statement_type=current_section,
                                     page_number=page_num,
                                     row_label=clean_line[:60],
-                                    raw_reported_text=nums[-1],
+                                    raw_reported_text=target_num_str,
                                     file_path=str(path),
                                 )
                                 break

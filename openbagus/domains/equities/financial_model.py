@@ -80,6 +80,7 @@ class CanonicalFinancialStatement:
     current_liabilities: float | None = None
     non_current_liabilities: float | None = None
     total_liabilities: float | None = None
+    syirkah_funds: float | None = None  # Dana Syirkah Temporer (Indonesian PSAK banking)
 
     share_capital: float | None = None
     retained_earnings: float | None = None
@@ -139,16 +140,17 @@ class CanonicalFinancialStatement:
         """Verifies accounting invariants and flags discrepancies without mutating facts."""
         issues: list[str] = []
 
-        # 1. Assets = Liabilities + Equity
+        # 1. Assets = Liabilities (+ Syirkah Funds) + Equity
         if self.total_assets is not None and self.total_liabilities is not None and self.total_equity is not None:
-            calc_assets = self.total_liabilities + self.total_equity
+            calc_assets = self.total_liabilities + (self.syirkah_funds or 0.0) + self.total_equity
             diff = abs(self.total_assets - calc_assets)
             # Allow minor rounding threshold (0.1% or 100 units)
             threshold = max(100.0, abs(self.total_assets) * 0.001)
             if diff > threshold:
                 issues.append(
                     f"Discrepansi Neraca: Total Aset ({self.total_assets:,.0f}) != "
-                    f"Liabilitas ({self.total_liabilities:,.0f}) + Ekuitas ({self.total_equity:,.0f}) [Selisih: {diff:,.0f}]"
+                    f"Liabilitas ({self.total_liabilities:,.0f}) + Ekuitas ({self.total_equity:,.0f})"
+                    f"{f' + Syirkah ({self.syirkah_funds:,.0f})' if self.syirkah_funds else ''} [Selisih: {diff:,.0f}]"
                 )
 
         # 2. Attributable + NCI = Total Net Income
@@ -209,13 +211,28 @@ class CanonicalFinancialStatement:
             values["net_income"] = self.net_income_total
         if self.net_income_attributable is not None:
             values["net_income_attributable"] = self.net_income_attributable
+        if self.current_assets is not None:
+            values["current_assets"] = self.current_assets
+        if self.non_current_assets is not None:
+            values["non_current_assets"] = self.non_current_assets
         if self.total_assets is not None:
             values["total_assets"] = self.total_assets
+        if self.current_liabilities is not None:
+            values["current_liabilities"] = self.current_liabilities
+        if self.non_current_liabilities is not None:
+            values["non_current_liabilities"] = self.non_current_liabilities
         if self.total_liabilities is not None:
             values["total_liabilities"] = self.total_liabilities
+        if self.cash_and_equivalents is not None:
+            values["cash_and_equivalents"] = self.cash_and_equivalents
+        if self.short_term_debt is not None:
+            values["short_term_debt"] = self.short_term_debt
+        if self.long_term_debt is not None:
+            values["long_term_debt"] = self.long_term_debt
         if self.interest_bearing_debt is not None:
             values["interest_bearing_debt"] = self.interest_bearing_debt
         if self.total_equity is not None:
+            values["total_equity"] = self.total_equity
             values["equity"] = self.total_equity
         if self.equity_attributable_to_owners is not None:
             values["equity_attributable"] = self.equity_attributable_to_owners
@@ -285,12 +302,22 @@ def detect_period(text_or_filename: str) -> tuple[str, str] | None:
     clean = text_or_filename.strip().upper()
 
     # 1. YYYY-FY / YYYY_FY / FY2024 / FY-2024 / Tahunan YYYY
-    m_fy = re.search(r"(?:FY[-_ ]?(\d{4})|(\d{4})[-_ ]?FY|TAHUNAN[-_ ]?(\d{4})|(\d{4})[-_ ]?(?:ANNUAL|AUDITED))", clean)
+    m_fy = re.search(r"(?:FY[-_ ]?(\d{4})|(\d{4})[-_ ]?FY|TAHUNAN[-_ ]?(\d{4})|\b(20[12]\d)[-_ ]?(?:ANNUAL|AUDITED))", clean)
     if m_fy:
         year = next(g for g in m_fy.groups() if g)
         return f"{year}-FY", "FY"
 
-    # 2. YYYY-Q[1-4] / Q[1-4]-YYYY / Kuartal [1-4] YYYY
+    # 2. YYYY-Q[1-4] / Q[1-4]-YYYY / Kuartal [1-4] YYYY / TW-I..IV / Triwulan I..IV
+    m_tw = re.search(r"(?:(?:TW|TRIWULAN)[-_ ]?(IV|III|II|I|[1-4])[-_ ]?(\d{4})|(\d{4})[-_ ]?(?:TW|TRIWULAN)[-_ ]?(IV|III|II|I|[1-4]))", clean)
+    if m_tw:
+        groups = [g for g in m_tw.groups() if g]
+        if len(groups) >= 2:
+            roman_map = {"I": "1", "II": "2", "III": "3", "IV": "4"}
+            raw_q = groups[0] if len(groups[0]) != 4 else groups[1]
+            raw_yr = groups[1] if len(groups[0]) != 4 else groups[0]
+            q_num = roman_map.get(raw_q, raw_q)
+            return f"{raw_yr}-Q{q_num}", f"Q{q_num}"
+
     m_q = re.search(r"(?:Q([1-4])[-_ ]?(\d{4})|(\d{4})[-_ ]?Q([1-4])|KUARTAL[-_ ]?([1-4])[-_ ]?(\d{4}))", clean)
     if m_q:
         groups = [g for g in m_q.groups() if g]
@@ -314,7 +341,27 @@ def detect_period(text_or_filename: str) -> tuple[str, str] | None:
         groups = [g for g in m_9m.groups() if g]
         return f"{groups[0]}-9M", "9M"
 
-    # 5. YYYY-12-31 / 31 Desember YYYY
+    # 5. Dates with month names or YYYY-MM-DD
+    m_mar = re.search(r"(?:31[-_ ]?(?:MARET|MAR|MARCH)[-_ ]?(\d{4})|(\d{4})[-_ ]?03[-_ ]?31|(\d{4})[-_ ]?(?:MARET|MAR|MARCH)[-_ ]?31)", clean)
+    if m_mar:
+        yr = next(g for g in m_mar.groups() if g)
+        return f"{yr}-Q1", "Q1"
+
+    m_jun = re.search(r"(?:30[-_ ]?(?:JUNI|JUN|JUNE)[-_ ]?(\d{4})|(\d{4})[-_ ]?06[-_ ]?30|(\d{4})[-_ ]?(?:JUNI|JUN|JUNE)[-_ ]?30)", clean)
+    if m_jun:
+        yr = next(g for g in m_jun.groups() if g)
+        return f"{yr}-Q2", "Q2"
+
+    m_sep = re.search(r"(?:30[-_ ]?(?:SEPTEMBER|SEP)[-_ ]?(\d{4})|(\d{4})[-_ ]?09[-_ ]?30|(\d{4})[-_ ]?(?:SEPTEMBER|SEP)[-_ ]?30)", clean)
+    if m_sep:
+        yr = next(g for g in m_sep.groups() if g)
+        return f"{yr}-Q3", "Q3"
+
+    m_des = re.search(r"(?:31[-_ ]?(?:DESEMBER|DES|DECEMBER|DEC)[-_ ]?(\d{4})|(\d{4})[-_ ]?12[-_ ]?31|(\d{4})[-_ ]?(?:DESEMBER|DES|DECEMBER|DEC)[-_ ]?31)", clean)
+    if m_des:
+        yr = next(g for g in m_des.groups() if g)
+        return f"{yr}-FY", "FY"
+
     m_date = re.search(r"(\d{4})[-_](12)[-_](31)", clean)
     if m_date:
         return f"{m_date.group(1)}-FY", "FY"

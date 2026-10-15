@@ -104,7 +104,7 @@ class LlamaServerProvider(BaseModelProvider):
         max_tokens: int = 1024,
         temperature: float = 0.2,
         stream: bool = False,
-        timeout: float = 60.0,
+        timeout: float = 120.0,
     ) -> ChatCompletionResponse | Iterator[ChatCompletionChunk]:
         port = self._ensure_server(timeout=timeout)
         endpoint = f"http://127.0.0.1:{port}/v1/chat/completions"

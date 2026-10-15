@@ -246,7 +246,7 @@ class FinancialFactsDatabase:
         self, symbol: str, metric_name: str, period: str, include_quarantined: bool = False
     ) -> dict[str, Any] | None:
         """Retrieves a specific fact for an issuer and period."""
-        status_clause = "" if include_quarantined else " AND validation_status = 'VALID'"
+        status_clause = "" if include_quarantined else " AND validation_status IN ('VALID', 'VALIDATED')"
         with self._connection() as conn:
             cur = conn.execute(
                 f"""
@@ -271,7 +271,7 @@ class FinancialFactsDatabase:
         self, symbol: str, period: str, include_quarantined: bool = False
     ) -> dict[str, float]:
         """Returns all metric values for an issuer and period as a {metric_name: value} dictionary."""
-        status_clause = "" if include_quarantined else " AND validation_status = 'VALID'"
+        status_clause = "" if include_quarantined else " AND validation_status IN ('VALID', 'VALIDATED')"
         with self._connection() as conn:
             cur = conn.execute(
                 f"""
@@ -299,7 +299,7 @@ class FinancialFactsDatabase:
         """
         params: list[Any] = [symbol.upper(), metric_name]
         if not include_quarantined:
-            query += " AND validation_status = 'VALID'"
+            query += " AND validation_status IN ('VALID', 'VALIDATED')"
         if period_type:
             query += " AND period_type = ?"
             params.append(period_type)
@@ -312,7 +312,7 @@ class FinancialFactsDatabase:
 
     def list_available_periods(self, symbol: str, include_quarantined: bool = False) -> list[str]:
         """Lists all distinct reporting periods available in the database for an issuer."""
-        status_clause = "" if include_quarantined else " WHERE validation_status = 'VALID' AND symbol = ?"
+        status_clause = "" if include_quarantined else " WHERE validation_status IN ('VALID', 'VALIDATED') AND symbol = ?"
         where_clause = status_clause if not include_quarantined else " WHERE symbol = ?"
         with self._connection() as conn:
             cur = conn.execute(

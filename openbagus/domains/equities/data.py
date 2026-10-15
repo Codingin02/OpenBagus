@@ -677,6 +677,49 @@ class EquityData:
         storage = FinancialStatementStorage(self.root)
         storage.store_statement(statement)
 
+        # Sync atomic facts with provenance to FinancialFactsDatabase
+        try:
+            from openbagus.domains.equities.facts_db import FinancialFactsDatabase
+            facts_db = FinancialFactsDatabase(root=self.root)
+            fiscal_yr = int(str(statement.get("period", "2026")).split("-")[0]) if "-" in str(statement.get("period", "")) else None
+            facts_db.record_filing(
+                symbol=sym,
+                exchange="IDX",
+                filing_type=statement.get("period_type", "QUARTER"),
+                period=statement.get("period", ""),
+                fiscal_year=fiscal_yr,
+                period_end_date=statement.get("period_end_date"),
+                filing_date=statement.get("published_at") or now_iso,
+                source_provider="OFFICIAL_FILING",
+                source_url=statement.get("source"),
+                local_path=str(path),
+                status=statement.get("validation_status", "VALIDATED"),
+            )
+            for m_key, m_val in statement.get("values", {}).items():
+                if m_val is not None:
+                    cit = statement.get("citations", {}).get(m_key, {})
+                    orig_lbl = cit.get("row_label") if isinstance(cit, dict) else getattr(cit, "row_label", None)
+                    facts_db.store_fact(
+                        symbol=sym,
+                        exchange="IDX",
+                        period=statement.get("period", ""),
+                        period_type=statement.get("period_type", "QUARTER"),
+                        metric_name=m_key,
+                        value=float(m_val),
+                        currency=statement.get("currency", "IDR"),
+                        unit_scaling=statement.get("unit", "billion_IDR"),
+                        period_end_date=statement.get("period_end_date"),
+                        filing_date=statement.get("published_at") or now_iso,
+                        original_label=orig_lbl,
+                        source_provider="OFFICIAL_FILING",
+                        source_url=statement.get("source"),
+                        accession_number=path.name,
+                        extraction_method="PDF_PARSE" if ext == ".pdf" else "XBRL_NORMALIZATION",
+                        validation_status=statement.get("validation_status", "VALIDATED"),
+                    )
+        except Exception:
+            pass
+
         # Retrieve previous statement if available to compute beginning/ending averages
         prev_stmt = None
         history = storage.get_history(sym, max_periods=5)

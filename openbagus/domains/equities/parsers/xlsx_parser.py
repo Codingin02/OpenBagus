@@ -46,9 +46,9 @@ LINE_ITEM_PATTERNS = {
     "cash_and_equivalents": [r"\bkas\s+dan\s+setara\s+kas\b", r"\bcash\s+and\s+cash\s+equivalents\b"],
     "trade_receivables": [r"\bpiutang\s+usaha\b", r"\btrade\s+receivables\b"],
     "inventories": [r"\bpersediaan\b", r"\binventories\b"],
-    "current_assets": [r"\bjumlah\s+aset\s+lancar\b", r"\btotal\s+current\s+assets\b", r"\baset\s+lancar\b"],
-    "non_current_assets": [r"\bjumlah\s+aset\s+tidak\s+lancar\b", r"\btotal\s+non-?current\s+assets\b"],
-    "total_assets": [r"\bjumlah\s+aset\b", r"\btotal\s+assets\b", r"\bjumlah\s+aktiva\b"],
+    "current_assets": [r"\bjumlah\s+aset\s+lancar\b", r"\btotal\s+current\s+assets\b", r"^\s*aset\s+lancar\s*$"],
+    "non_current_assets": [r"\bjumlah\s+aset\s+tidak\s+lancar\b", r"\btotal\s+non-?current\s+assets\b", r"^\s*aset\s+tidak\s+lancar\s*$"],
+    "total_assets": [r"\bjumlah\s+aset(?!\s+(?:lancar|tidak\s+lancar))\b", r"\btotal\s+assets(?!\s+(?:current|non-?current))\b", r"\bjumlah\s+aktiva(?!\s+(?:lancar|tidak\s+lancar))\b"],
 
     # Liabilities
     "trade_payables": [r"\butang\s+usaha\b", r"\btrade\s+payables\b"],
@@ -56,32 +56,32 @@ LINE_ITEM_PATTERNS = {
     "long_term_debt": [r"\bpinjaman\s+(?:bank\s+)?jangka\s+panjang\b", r"\butang\s+(?:bank\s+)?jangka\s+panjang\b", r"\blong-?term\s+(?:borrowings|debt|bank\s+loans)\b"],
     "lease_liabilities": [r"\bliabilitas\s+sewa\b", r"\blease\s+liabilities\b"],
     "interest_bearing_debt": [r"\butang\s+berbunga\b", r"\binterest-?bearing\s+debt\b"],
-    "current_liabilities": [r"\bjumlah\s+liabilitas\s+jangka\s+pendek\b", r"\btotal\s+current\s+liabilities\b"],
-    "non_current_liabilities": [r"\bjumlah\s+liabilitas\s+jangka\s+panjang\b", r"\btotal\s+non-?current\s+liabilities\b"],
-    "total_liabilities": [r"\bjumlah\s+liabilitas\b", r"\btotal\s+liabilities\b", r"\bjumlah\s+kewajiban\b"],
+    "current_liabilities": [r"\bjumlah\s+liabilitas\s+jangka\s+pendek\b", r"\btotal\s+current\s+liabilities\b", r"^\s*liabilitas\s+jangka\s+pendek\s*$"],
+    "non_current_liabilities": [r"\bjumlah\s+liabilitas\s+jangka\s+panjang\b", r"\btotal\s+non-?current\s+liabilities\b", r"^\s*liabilitas\s+jangka\s+panjang\s*$"],
+    "total_liabilities": [r"\bjumlah\s+liabilitas(?!\s+(?:jangka\s+pendek|jangka\s+panjang|lancar|tidak\s+lancar|dan\s+ekuitas))\b", r"\btotal\s+liabilities(?!\s+(?:current|non-?current|and\s+equity))\b", r"\bjumlah\s+kewajiban(?!\s+(?:jangka\s+pendek|jangka\s+panjang|lancar|tidak\s+lancar|dan\s+ekuitas))\b"],
 
     # Equity
-    "share_capital": [r"\bmodal\s+saham\b", r"\bshare\s+capital\b"],
+    "share_capital": [r"\bmodal\s+saham(?!\s+yang\s+diperoleh)\b", r"\bshare\s+capital\b"],
     "retained_earnings": [r"\bsaldo\s+laba\b", r"\bretained\s+earnings\b"],
     "equity_attributable_to_owners": [
         r"\bekuitas\s+(?:yang\s+)?diatribusikan\s+kepada\s+pemilik\s+entitas\s+induk\b",
         r"\bequity\s+attributable\s+to\s+owners\b",
     ],
     "non_controlling_interests": [r"\bkepentingan\s+non-?pengendali\b", r"\bnon-?controlling\s+interests\b"],
-    "total_equity": [r"\bjumlah\s+ekuitas\b", r"\btotal\s+equity\b"],
+    "total_equity": [r"\bjumlah\s+ekuitas(?!\s+yang\s+dapat\s+diatribusikan)\b", r"\btotal\s+equity(?!\s+attributable)\b"],
 
     # P&L
-    "revenue": [r"\bpenjualan\s+dan\s+pendapatan\s+usaha\b", r"\bpendapatan\s+usaha\b", r"\bpenjualan\s+bersih\b", r"\brevenue\b", r"\bsales\b"],
+    "revenue": [r"^\s*pendapatan\b", r"\bpenjualan\s+dan\s+pendapatan\s+usaha\b", r"\bpendapatan\s+usaha\b", r"\bpenjualan\s+bersih\b", r"\brevenue\b", r"\bsales\b"],
     "cost_of_revenue": [r"\bbeban\s+pokok\s+pendapatan\b", r"\bbeban\s+pokok\s+penjualan\b", r"\bcost\s+of\s+goods\s+sold\b", r"\bcost\s+of\s+revenue\b"],
     "gross_profit": [r"\blaba\s+kotor\b", r"\bgross\s+profit\b"],
-    "operating_expenses": [r"\bbeban\s+usaha\b", r"\boperating\s+expenses\b"],
+    "operating_expenses": [r"\bbeban\s+usaha\b", r"\boperating\s+expenses\b", r"\bjumlah\s+beban\s+operasi\b", r"\bbiaya\s+dan\s+beban\b"],
     "operating_income": [r"\blaba\s+usaha\b", r"\blaba\s+operasi\b", r"\boperating\s+profit\b", r"\boperating\s+income\b"],
     "finance_costs": [r"\bbeban\s+keuangan\b", r"\bfinance\s+costs\b", r"\bbeban\s+bunga\b"],
     "profit_before_tax": [r"\blaba\s+sebelum\s+pajak\b", r"\bprofit\s+before\s+tax\b"],
     "tax_expense": [r"\bbeban\s+pajak\s+penghasilan\b", r"\btax\s+expense\b"],
-    "net_income_total": [r"\blaba\s+tahun\s+berjalan\b", r"\blaba\s+bersih\b", r"\bnet\s+profit\b", r"\bprofit\s+for\s+the\s+year\b"],
+    "net_income_total": [r"\blaba\s+(?:periode|tahun)\s+berjalan\b", r"\blaba\s+bersih\b", r"\bnet\s+profit\b", r"\bprofit\s+for\s+the\s+(?:period|year)\b"],
     "net_income_attributable": [
-        r"\blaba\s+(?:tahun\s+berjalan\s+)?yang\s+diatribusikan\s+kepada\s+pemilik\s+entitas\s+induk\b",
+        r"\blaba\s+(?:tahun|periode)?\s*(?:berjalan\s+)?yang\s+diatribusikan\s+kepada\s+pemilik\s+entitas\s+induk\b",
         r"\bprofit\s+attributable\s+to\s+owners\b",
     ],
     "net_income_non_controlling": [
@@ -91,12 +91,12 @@ LINE_ITEM_PATTERNS = {
     "eps_basic": [r"\blaba\s+per\s+saham\s+dasar\b", r"\bbasic\s+earnings\s+per\s+share\b", r"\blaba\s+bersih\s+per\s+saham\b"],
 
     # Cash Flows
-    "operating_cash_flow": [r"\barus\s+kas\s+(?:bersih\s+)?dari\s+aktivitas\s+operasi\b", r"\boperating\s+cash\s+flows?\b"],
-    "capex_ppe": [r"\bperolehan\s+aset\s+tetap\b", r"\bpurchase\s+of\s+property[,\s]+plant\b", r"\bpenambahan\s+aset\s+tetap\b"],
-    "capex_intangibles": [r"\bperolehan\s+aset\s+takberwujud\b", r"\bpurchase\s+of\s+intangible\s+assets\b"],
+    "operating_cash_flow": [r"\barus\s+kas\s+(?:bersih\s+)?(?:yang\s+dihasilkan\s+dari|dari)\s+kegiatan\s+operasi\b", r"\barus\s+kas\s+(?:bersih\s+)?dari\s+aktivitas\s+operasi\b", r"\boperating\s+cash\s+flows?\b"],
+    "capex_ppe": [r"\bpembelian\s+aset\s+tetap\b", r"\bperolehan\s+aset\s+tetap\b", r"\bpurchase\s+of\s+property[,\s]+plant\b", r"\bpenambahan\s+aset\s+tetap\b"],
+    "capex_intangibles": [r"\bpembelian\s+aset\s+takberwujud\b", r"\bperolehan\s+aset\s+takberwujud\b", r"\bpurchase\s+of\s+intangible\s+assets\b"],
     "capital_expenditures": [r"\bbelanja\s+modal\b", r"\bcapex\b", r"\bcapital\s+expenditures?\b"],
-    "investing_cash_flow": [r"\barus\s+kas\s+(?:bersih\s+)?dari\s+aktivitas\s+investasi\b", r"\binvesting\s+cash\s+flows?\b"],
-    "financing_cash_flow": [r"\barus\s+kas\s+(?:bersih\s+)?dari\s+aktivitas\s+pendanaan\b", r"\bfinancing\s+cash\s+flows?\b"],
+    "investing_cash_flow": [r"\barus\s+kas\s+(?:bersih\s+)?(?:yang\s+digunakan\s+untuk|dari)\s+kegiatan\s+investasi\b", r"\barus\s+kas\s+(?:bersih\s+)?dari\s+aktivitas\s+investasi\b", r"\binvesting\s+cash\s+flows?\b"],
+    "financing_cash_flow": [r"\barus\s+kas\s+(?:bersih\s+)?(?:yang\s+digunakan\s+untuk|dari)\s+kegiatan\s+pendanaan\b", r"\barus\s+kas\s+(?:bersih\s+)?dari\s+aktivitas\s+pendanaan\b", r"\bfinancing\s+cash\s+flows?\b"],
     "dividends_paid": [r"\bpembayaran\s+dividen\b", r"\bdividends?\s+paid\b"],
 
     # Shares
@@ -105,6 +105,7 @@ LINE_ITEM_PATTERNS = {
 
     # Banking
     "net_interest_income": [r"\bpendapatan\s+bunga\s+bersih\b", r"\bnet\s+interest\s+income\b"],
+    "syirkah_funds": [r"\bdana\s+syirkah\s+temporer\b", r"\btemporary\s+syirkah\s+deposits?\b"],
     "nim_pct": [r"\bnet\s+interest\s+margin\b", r"\bnim\b"],
     "npl_gross_pct": [r"\bnpl\s+gross\b", r"\bnpl\s+kotor\b"],
     "npl_net_pct": [r"\bnpl\s+net\b", r"\bnpl\s+bersih\b"],
@@ -114,8 +115,8 @@ LINE_ITEM_PATTERNS = {
 }
 
 
-def _clean_numeric_value(raw: Any) -> float | None:
-    """Parses numeric cells, handling parentheses for negative values '(1,234.56)'."""
+def _clean_numeric_value(raw: Any, is_id_locale: bool = True) -> float | None:
+    """Parses numeric cells, handling parentheses for negative values '(1,234.56)' and Indonesian dot-thousands."""
     if raw is None or raw == "":
         return None
     if isinstance(raw, (int, float)):
@@ -129,7 +130,34 @@ def _clean_numeric_value(raw: Any) -> float | None:
         is_negative = True
         val_str = val_str[1:].strip()
 
-    val_str = val_str.replace(",", "").replace(" ", "").replace("%", "")
+    val_str = val_str.replace(" ", "").replace("%", "")
+    if not val_str:
+        return None
+
+    # Handle Indonesian vs English number formats
+    if "." in val_str and "," in val_str:
+        first_dot = val_str.find(".")
+        first_comma = val_str.find(",")
+        if first_dot < first_comma:
+            # Indonesian/European: 4.389,66 -> 4389.66
+            val_str = val_str.replace(".", "").replace(",", ".")
+        else:
+            # English: 4,389.66 -> 4389.66
+            val_str = val_str.replace(",", "")
+    elif "," in val_str:
+        parts = val_str.split(",")
+        if len(parts) == 2 and len(parts[1]) in (1, 2):
+            # Decimal comma in ID (e.g., 43,90 -> 43.90)
+            val_str = val_str.replace(",", ".")
+        else:
+            val_str = val_str.replace(",", "")
+    elif "." in val_str:
+        if is_id_locale:
+            parts = val_str.split(".")
+            # If all parts after first dot have exactly 3 digits, treat dot as thousand separator
+            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
+                val_str = val_str.replace(".", "")
+
     try:
         num = float(val_str)
         return -num if is_negative else num

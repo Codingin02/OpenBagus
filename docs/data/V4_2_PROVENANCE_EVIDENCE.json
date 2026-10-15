@@ -1,0 +1,155 @@
+{
+  "audit_version": "V4.2",
+  "generated_at": "2026-10-15T07:15:00+07:00",
+  "auditor": "Antigravity Real-Time AI & Financial Data Engineer",
+  "worktree": "E:\\Projects\\OpenBagus-Data",
+  "branch": "feat/openbagus-automated-data-intelligence",
+  "issuers": {
+    "TLKM": {
+      "company_name": "Perusahaan Perseroan (Persero) PT Telekomunikasi Indonesia Tbk.",
+      "exchange": "IDX",
+      "sector": "Infrastructures / Telecommunication",
+      "filings": [
+        {
+          "period": "2026-Q1",
+          "period_type": "Q1",
+          "audit_status": "unaudited",
+          "source_url": "https://www.telkom.co.id/minio/show/data/lampiran/1780050149175_original_TW-I-2026-FS-Konsolidasian-Telkom-Bahasa.pdf",
+          "local_path": "data/equities/downloads/TLKM/TW-I-2026-FS-Konsolidasian-Telkom-Bahasa.pdf",
+          "size_bytes": 2287518,
+          "sha256": "853342ab1464ff6e69c98a63c99bcfc160a1208f7b3c21a3324fa7dd07e7feba",
+          "currency": "IDR",
+          "unit": "billion_IDR",
+          "multiplier": 1000000000.0,
+          "accounting_invariants": {
+            "total_assets": 289955.0,
+            "total_liabilities": 134145.0,
+            "total_equity": 155810.0,
+            "discrepancy": 0.0,
+            "balanced": true
+          },
+          "key_metrics": {
+            "revenue": 37189.0,
+            "operating_income": 8929.0,
+            "profit_before_tax": 8248.0,
+            "net_income": 6054.0,
+            "net_income_attributable": 4344.0,
+            "cash_and_equivalents": 37549.0,
+            "interest_bearing_debt": 20919.0,
+            "der": 0.13,
+            "operating_margin_pct": 24.01,
+            "net_margin_pct": 16.28,
+            "current_ratio": 0.92
+          },
+          "validation_status": "VALIDATED"
+        },
+        {
+          "period": "2025-FY",
+          "period_type": "FY",
+          "audit_status": "audited",
+          "source_url": "https://www.telkom.co.id/minio/show/data/lampiran/1778544388122_original_LK-Konsolidasian-Telkom-Tahun-2025-Audited-Bahasa.pdf",
+          "local_path": "data/equities/downloads/TLKM/LK-Konsolidasian-Telkom-Tahun-2025-Audited-Bahasa.pdf",
+          "size_bytes": 2678144,
+          "sha256": "aa74ace935097be5f4b012009b23db6e1715edbb6a11cc885a03afdeab28b9ca",
+          "currency": "IDR",
+          "unit": "billion_IDR",
+          "multiplier": 1000000000.0,
+          "accounting_invariants": {
+            "total_assets": 287759.0,
+            "total_liabilities": 137222.0,
+            "total_equity": 150537.0,
+            "discrepancy": 0.0,
+            "balanced": true
+          },
+          "key_metrics": {
+            "der": 0.18,
+            "operating_margin_pct": 23.61,
+            "net_margin_pct": 16.67,
+            "roe_pct": 15.86,
+            "current_ratio": 0.82
+          },
+          "validation_status": "VALIDATED"
+        }
+      ]
+    },
+    "BBCA": {
+      "company_name": "PT Bank Central Asia Tbk.",
+      "exchange": "IDX",
+      "sector": "Financials / Banking",
+      "filings": [
+        {
+          "period": "2026-Q1",
+          "period_type": "Q1",
+          "audit_status": "unaudited",
+          "source_url": "https://www.bca.co.id/-/media/Feature/Report/File/S8/Laporan-Triwulan/2026/20260423-laporan-keuangan-konsolidasi-pt-bca-tbk-periode-31-maret-2026-billingual.pdf",
+          "local_path": "data/equities/downloads/BBCA/20260423-laporan-keuangan-konsolidasi-pt-bca-tbk-periode-31-maret-2026-billingual.pdf",
+          "size_bytes": 2713904,
+          "sha256": "4c7e60003600d5588b69b605c2136f9e3491b29b37fca542b0c5a63773b7b2ee",
+          "currency": "IDR",
+          "unit": "million_IDR",
+          "multiplier": 1000000.0,
+          "accounting_invariants": {
+            "total_assets": 1640830566.0,
+            "total_liabilities": 1370360247.0,
+            "syirkah_funds": 11111526.0,
+            "total_equity": 259358793.0,
+            "discrepancy": 0.0,
+            "balanced": true
+          },
+          "validation_status": "VALIDATED"
+        },
+        {
+          "period": "2025-FY",
+          "period_type": "FY",
+          "audit_status": "audited",
+          "source_url": "https://www.bca.co.id/-/media/Feature/Report/File/S8/Laporan-Diaudit/2026/20260127-audited-financial-statement-bca-31-december-2025-indonesia-combined.pdf",
+          "local_path": "data/equities/downloads/BBCA/20260127-audited-financial-statement-bca-31-december-2025-indonesia-combined.pdf",
+          "size_bytes": 4869203,
+          "sha256": "4ad4429143bd02606c8548283bfed7054125abc27998635b7c74baf67a6369c4",
+          "currency": "IDR",
+          "unit": "million_IDR",
+          "multiplier": 1000000.0,
+          "accounting_invariants": {
+            "total_assets": 1586828536.0,
+            "total_liabilities": 1294508286.0,
+            "syirkah_funds": 10632695.0,
+            "total_equity": 281687555.0,
+            "discrepancy": 0.0,
+            "balanced": true
+          },
+          "key_metrics": {
+            "roe_pct": 20.44
+          },
+          "validation_status": "VALIDATED"
+        }
+      ]
+    },
+    "RATU": {
+      "company_name": "PT Raharja Energi Cepu Tbk.",
+      "exchange": "IDX",
+      "sector": "Energy",
+      "fundamental_status": "DATA_GAP",
+      "quarantined_synthetic_statements": [
+        "data/quarantine/financials/RATU/2023-FY.json",
+        "data/quarantine/financials/RATU/2024-FY.json"
+      ],
+      "active_statements_count": 0,
+      "technical_status": "AUTHENTIC_LIVE_EOD",
+      "candle_count": 400,
+      "technicals": {
+        "last_close": 3620.0,
+        "rsi_14": 31.68,
+        "atr_14": 195.47,
+        "sma_20": 4050.5,
+        "vwap": 7200.72
+      }
+    },
+    "DATA": {
+      "company_name": "PT Remala Abadi Tbk.",
+      "exchange": "IDX",
+      "board": "DEVELOPMENT",
+      "listing_date": "2024-05-07",
+      "resolution": "RESOLVED_LEXICALLY_DISAMBIGUATED"
+    }
+  }
+}

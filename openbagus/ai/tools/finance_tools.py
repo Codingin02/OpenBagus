@@ -513,9 +513,9 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
             debt = None
             debt_verified = False
 
-        equity = vals.get("total_equity") or vals.get("equity_attributable", 0.0)
-        ca = vals.get("current_assets", 0.0)
-        cl = vals.get("current_liabilities", 0.0)
+        equity = vals.get("total_equity") or vals.get("equity") or vals.get("equity_attributable", 0.0)
+        ca = vals.get("current_assets") or vals.get("total_current_assets", 0.0)
+        cl = vals.get("current_liabilities") or vals.get("total_current_liabilities", 0.0)
 
         der = round(debt / equity, 2) if (debt is not None and equity and equity > 0) else None
         gm = round((gp / rev) * 100, 2) if rev > 0 else None
@@ -648,19 +648,30 @@ class GetFinancialProvenanceTool(BaseFinancialTool):
     def run(self, ticker: str, metric: str, period: str = "LATEST") -> tuple[Any, dict[str, Any]]:
         root = get_repo_root()
         db = FinancialFactsDatabase(root=root)
-        p = None if period == "LATEST" else period
-        fact = db.get_fact(ticker.upper(), metric.lower(), p or "2024-FY")
+        clean_period = None if (not period or period.upper() == "LATEST") else period.upper()
+        if not clean_period:
+            periods = db.list_available_periods(ticker.upper())
+            clean_period = periods[-1] if periods else None
+        if not clean_period:
+            storage = FinancialStatementStorage(root)
+            stmt = storage.get_statement(ticker.upper())
+            if stmt:
+                clean_period = stmt.get("period")
+
+        fact = db.get_fact(ticker.upper(), metric.lower(), clean_period or "") if clean_period else None
         if fact:
             return {
                 "symbol": ticker.upper(),
                 "metric": metric,
                 "value": fact.get("value"),
                 "period": fact.get("period"),
-                "document_id": fact.get("source_document_id"),
+                "document_id": fact.get("accession_number") or fact.get("source_document_id"),
                 "source_url": fact.get("source_url"),
-                "verified": bool(fact.get("verified")),
+                "unit_scaling": fact.get("unit_scaling"),
+                "original_label": fact.get("original_label"),
+                "verified": fact.get("validation_status") in ("VALID", "VALIDATED"),
             }, {"source": "FinancialFactsDatabase", "hash": fact.get("source_hash")}
-        return {"symbol": ticker.upper(), "metric": metric, "status": "NOT_INDEXED"}, {"source": "FactsDB"}
+        return {"symbol": ticker.upper(), "metric": metric, "period": clean_period or "LATEST", "status": "NOT_INDEXED"}, {"source": "FactsDB"}
 
 
 class SearchOfficialDisclosuresTool(BaseFinancialTool):
@@ -804,8 +815,8 @@ class CalculateIndicatorsTool(BaseFinancialTool):
             sma_series = calculate_sma(closes, 20)
             res["sma_20"] = round(sma_series[-1], 2)
         if "VWAP" in req_ind:
-            vwap_series = calculate_vwap(highs, lows, closes, vols)
-            res["vwap"] = round(vwap_series[-1], 2)
+            vwap_series = calculate_vwap(closes, vols)
+            res["vwap"] = round(vwap_series[-1], 2) if (vwap_series and vwap_series[-1] is not None) else None
 
         return res, {"source": "OpenBagus Quant Engine (Rust/Vectorized Fallback)"}
 
