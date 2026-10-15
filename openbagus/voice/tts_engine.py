@@ -154,10 +154,13 @@ class LocalTTSEngine:
             return
         if not self._en_model_path.exists() or not self._en_config_path.exists():
             return
-        global _SHARED_PIPER_EN_VOICE, _SHARED_PIPER_EN_KEY
+        global _SHARED_PIPER_EN_VOICE, _SHARED_PIPER_EN_KEY, _SHARED_PIPER_VOICE, _SHARED_PIPER_KEY
         key = (str(self._en_model_path), str(self._en_config_path))
         if _SHARED_PIPER_EN_VOICE is not None and _SHARED_PIPER_EN_KEY == key:
             self._en_voice = _SHARED_PIPER_EN_VOICE
+            return
+        if _SHARED_PIPER_VOICE is not None and _SHARED_PIPER_KEY == key:
+            self._en_voice = _SHARED_PIPER_VOICE
             return
         try:
             self._en_voice = piper.PiperVoice.load(str(self._en_model_path), config_path=str(self._en_config_path))
@@ -251,11 +254,15 @@ class LocalTTSEngine:
             logger.warning("Piper voice files not found at %s", self._model_path)
             return
 
-        global _SHARED_PIPER_VOICE, _SHARED_PIPER_SAMPLE_RATE, _SHARED_PIPER_KEY
+        global _SHARED_PIPER_VOICE, _SHARED_PIPER_SAMPLE_RATE, _SHARED_PIPER_KEY, _SHARED_PIPER_EN_VOICE, _SHARED_PIPER_EN_KEY
         key = (str(self._model_path), str(self._config_path))
         if _SHARED_PIPER_VOICE is not None and _SHARED_PIPER_KEY == key:
             self._voice = _SHARED_PIPER_VOICE
             self._sample_rate = _SHARED_PIPER_SAMPLE_RATE
+            return
+        if _SHARED_PIPER_EN_VOICE is not None and _SHARED_PIPER_EN_KEY == key:
+            self._voice = _SHARED_PIPER_EN_VOICE
+            self._sample_rate = getattr(self._voice.config, "sample_rate", 22050)
             return
 
         try:
