@@ -4,53 +4,13 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+import subprocess
 import sys
 import time
-from typing import Any
-import unittest
 
 ROOT_DIR = Path(__file__).resolve().parent.parent
 if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
-
-
-class FormattedAcceptanceResult(unittest.TextTestResult):
-    """Custom TestResult that outputs scenario-by-scenario metrics in real time."""
-
-    def __init__(self, stream: Any, descriptions: bool, verbosity: int) -> None:
-        super().__init__(stream, descriptions, verbosity)
-        self.current_idx = 0
-        self.total_count = 31
-        self.t_test_start = 0.0
-        self.short_doc = ""
-
-    def startTest(self, test: unittest.TestCase) -> None:
-        super().startTest(test)
-        self.current_idx += 1
-        name = test._testMethodName
-        doc = getattr(test, name).__doc__ or ""
-        self.short_doc = doc.strip().split("\n")[0] if doc else name
-        self.stream.write(f"[{self.current_idx:02d}/{self.total_count:02d}] {name} ... ")
-        self.stream.flush()
-        self.t_test_start = time.perf_counter()
-
-    def addSuccess(self, test: unittest.TestCase) -> None:
-        super().addSuccess(test)
-        dt = (time.perf_counter() - self.t_test_start) * 1000.0
-        self.stream.write(f"PASS ({dt:.1f} ms)\n       -> {self.short_doc}\n\n")
-        self.stream.flush()
-
-    def addFailure(self, test: unittest.TestCase, err: Any) -> None:
-        super().addFailure(test, err)
-        dt = (time.perf_counter() - self.t_test_start) * 1000.0
-        self.stream.write(f"FAIL ({dt:.1f} ms)\n       -> {self.short_doc}\n\n")
-        self.stream.flush()
-
-    def addError(self, test: unittest.TestCase, err: Any) -> None:
-        super().addError(test, err)
-        dt = (time.perf_counter() - self.t_test_start) * 1000.0
-        self.stream.write(f"ERROR ({dt:.1f} ms)\n       -> {self.short_doc}\n\n")
-        self.stream.flush()
 
 
 def main() -> int:
@@ -61,30 +21,71 @@ def main() -> int:
     print("OPENBAGUS V5.1 REPOSITORY-LOCAL STORAGE & VOICE ACCEPTANCE", flush=True)
     print("=" * 70, flush=True)
 
-    loader = unittest.TestLoader()
-    suite = loader.loadTestsFromName("tests.test_voice_runtime_v5")
+    # Load test names and docstrings dynamically from the test class
+    from tests.test_voice_runtime_v5 import TestVoiceRuntimeV5
 
-    total_scenarios = suite.countTestCases()
+    test_names = [m for m in dir(TestVoiceRuntimeV5) if m.startswith("test_")]
+    test_names.sort()
+
+    total_scenarios = len(test_names)
     print(f"Total scenarios discovered: {total_scenarios}\n", flush=True)
 
-    class CustomRunner(unittest.TextTestRunner):
-        resultclass = FormattedAcceptanceResult
+    passed = 0
+    failed = 0
+    t_total_start = time.perf_counter()
 
-    runner = CustomRunner(stream=sys.stdout, verbosity=0)
-    t_start = time.perf_counter()
-    result = runner.run(suite)
-    total_time = time.perf_counter() - t_start
+    # Run each test with clean native heap and process isolation
+    for scenario_idx, test_name in enumerate(test_names, 1):
+        method = getattr(TestVoiceRuntimeV5, test_name)
+        doc = method.__doc__ or test_name
+        short_doc = doc.strip().split("\n")[0]
 
-    passed = result.testsRun - len(result.failures) - len(result.errors)
-    failed = len(result.failures) + len(result.errors)
+        print(f"[{scenario_idx:02d}/{total_scenarios:02d}] {test_name} ... ", end="", flush=True)
+        t0 = time.perf_counter()
 
+        cmd = [
+            sys.executable,
+            "-m",
+            "unittest",
+            f"tests.test_voice_runtime_v5.TestVoiceRuntimeV5.{test_name}",
+        ]
+        res = subprocess.run(
+            cmd,
+            cwd=str(ROOT_DIR),
+            capture_output=True,
+            text=True,
+            env=dict(
+                os.environ,
+                KMP_DUPLICATE_LIB_OK="TRUE",
+                PYTHONPATH=str(ROOT_DIR),
+            ),
+        )
+        dt = (time.perf_counter() - t0) * 1000.0
+
+        if res.returncode == 0:
+            passed += 1
+            print(f"PASS ({dt:.1f} ms)")
+            print(f"       -> {short_doc}\n", flush=True)
+        else:
+            failed += 1
+            print(f"FAIL ({dt:.1f} ms)")
+            print(f"       -> {short_doc}")
+            if res.stderr:
+                err_lines = [
+                    line for line in res.stderr.splitlines()
+                    if "AssertionError" in line or "Error" in line
+                ]
+                for el in err_lines[:2]:
+                    print(f"          ERR: {el.strip()}")
+            print("", flush=True)
+
+    total_time = time.perf_counter() - t_total_start
     print("=" * 70, flush=True)
     print(f"ACCEPTANCE AUDIT SUMMARY: {passed} PASSED, {failed} FAILED (Total time: {total_time:.2f}s)", flush=True)
     print("=" * 70, flush=True)
 
-    return 0 if result.wasSuccessful() else 1
+    return 0 if failed == 0 else 1
 
 
 if __name__ == "__main__":
-    code = main()
-    sys.exit(code)
+    sys.exit(main())
