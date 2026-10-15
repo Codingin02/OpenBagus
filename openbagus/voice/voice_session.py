@@ -35,6 +35,12 @@ class VoiceSession:
         self.gpu_scheduler = GPUScheduler.get_instance()
         self.preferences = preferences or load_voice_preferences()
 
+        try:
+            from openbagus.core.model_resolver import get_model_resolver
+            get_model_resolver().configure_environment_caches()
+        except Exception as e:
+            logger.debug("ModelResolver cache configuration notice: %s", e)
+
         in_dev, out_dev = self.preferences.resolve_devices()
         capture_stream = AudioCaptureStream(
             device_id=in_dev,

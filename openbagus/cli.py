@@ -965,14 +965,65 @@ def _run_voice(sub_args: list[str]) -> int:
         gpu = GPUScheduler.get_instance().query_gpu_status()
         asr = LocalASREngine()
         tts = LocalTTSEngine()
+        v_status = tts.get_voice_status() if hasattr(tts, "get_voice_status") else {}
         print("\n=== Status Sistem Suara OpenBagus ===")
         print(f"GPU Hardware: {gpu.device_name} (CUDA: {gpu.cuda_available})")
         print(f"VRAM        : {gpu.vram_used_mb:.0f} MB / {gpu.vram_total_mb:.0f} MB (Free: {gpu.vram_free_mb:.0f} MB)")
         print(f"Whisper ASR : {asr.model_size_or_path} (Akselerasi: {asr.device.upper()} {asr.compute_type})")
         print(f"Piper TTS   : {tts.model_path.name}")
+        print(f"Preset Aktif: {v_status.get('active_preset', getattr(tts, 'preset', 'BAGUSMAX_GENTLE_ID'))} (Timbre: {v_status.get('base_speaker_timbre', 'FEMALE_NEWSREADER')})")
+        print(f"Karakter    : {v_status.get('character_styling', 'BAGUSMAX_GENTLE_ROBOT')} (Zero-disk audio: ACTIVE)")
         print(f"Mode Default: FAST / DEEP_REASONING (Spoken selection)")
         print()
         return 0
+
+    if action in ("preset", "set-preset"):
+        from openbagus.voice.preferences import load_voice_preferences, save_voice_preferences
+        from openbagus.voice.tts_engine import VOICE_PRESETS
+        target_preset = sub_args[1].upper() if len(sub_args) > 1 else ""
+        if target_preset in ("GENTLE", "BAGUSMAX", "BAGUSMAX_GENTLE"):
+            target_preset = "BAGUSMAX_GENTLE_ID"
+        elif target_preset == "CALM":
+            target_preset = "BAGUSMAX_CALM"
+        elif target_preset == "SOFT":
+            target_preset = "BAGUSMAX_SOFT"
+
+        if not target_preset:
+            prefs = load_voice_preferences()
+            print(f"\nPreset suara aktif saat ini: {prefs.voice_preset}")
+            print(f"Pilihan preset tersedia: {', '.join(VOICE_PRESETS.keys())}\n")
+            return 0
+
+        if target_preset not in VOICE_PRESETS:
+            print(f"Error: Preset '{target_preset}' tidak valid. Pilihan: {', '.join(VOICE_PRESETS.keys())}")
+            return 1
+
+        prefs = load_voice_preferences()
+        prefs.voice_preset = target_preset
+        save_voice_preferences(prefs)
+        print(f"Preset suara Bagusmax berhasil diubah ke: {target_preset}")
+        return 0
+
+    if action in ("test", "test-voice"):
+        from openbagus.voice.tts_engine import LocalTTSEngine
+        from openbagus.voice.audio_playback import AudioPlaybackManager
+        import time
+        tts = LocalTTSEngine()
+        pm = AudioPlaybackManager()
+        test_phrase = "Halo, saya Bagusmax. Pemeriksaan audio mikrofon dan speaker sistem lokal berjalan normal. Ada yang bisa saya bantu?"
+        print(f"Menguji sintesis suara preset [{tts.preset}]...")
+        audio = tts.synthesize_sentence(test_phrase)
+        if audio is not None and len(audio) > 0:
+            print(f"Audio berhasil disintesis ({len(audio)} sampel, {len(audio)/tts.sample_rate:.2f} detik). Memutar audio...")
+            gen_id = pm.new_turn()
+            pm.enqueue(audio, samplerate=tts.sample_rate, generation_id=gen_id)
+            while pm.is_playing:
+                time.sleep(0.05)
+            print("Pengujian audio selesai.")
+            return 0
+        else:
+            print("Gagal mensintesis audio pengujian.")
+            return 1
 
     if action in ("start", "run", "interactive"):
         session = VoiceSession()
@@ -986,7 +1037,7 @@ def _run_voice(sub_args: list[str]) -> int:
             session.stop()
         return 0
 
-    print("Usage: openbagus voice [status|devices|start]")
+    print("Usage: openbagus voice [status|devices|preset <name>|test|start]")
     return 1
 
 
@@ -4214,21 +4265,24 @@ class OpenBagusShell(cmd.Cmd):
 
         if subcmd in ("preset", "voice-preset"):
             if not subarg:
-                curr = self.voice_session.preferences.voice_preset if self.voice_session else "BAGUSMAX_CALM_ID"
+                curr = self.voice_session.preferences.voice_preset if self.voice_session else "BAGUSMAX_GENTLE_ID"
                 print(f"Voice preset aktif: {curr}")
-                print("Pilihan preset: calm (BAGUSMAX_CALM_ID), standard, fast")
-                print("Gunakan: /voice preset calm\n")
+                print("Pilihan preset: gentle (BAGUSMAX_GENTLE_ID), calm, soft, natural")
+                print("Gunakan: /voice preset gentle  atau  /voice preset calm\n")
                 return
             preset_map = {
-                "calm": "BAGUSMAX_CALM_ID",
-                "baymax": "BAGUSMAX_CALM_ID",
-                "bagusmax": "BAGUSMAX_CALM_ID",
-                "bagusmax_calm_id": "BAGUSMAX_CALM_ID",
+                "gentle": "BAGUSMAX_GENTLE_ID",
+                "bagusmax_gentle_id": "BAGUSMAX_GENTLE_ID",
+                "baymax": "BAGUSMAX_GENTLE_ID",
+                "bagusmax": "BAGUSMAX_GENTLE_ID",
+                "calm": "BAGUSMAX_CALM",
+                "bagusmax_calm": "BAGUSMAX_CALM",
+                "bagusmax_calm_id": "BAGUSMAX_GENTLE_ID",
                 "soft": "BAGUSMAX_SOFT",
                 "bagusmax_soft": "BAGUSMAX_SOFT",
                 "natural": "NATURAL",
-                "standard": "STANDARD",
-                "fast": "FAST",
+                "standard": "NATURAL",
+                "fast": "NATURAL",
             }
             chosen = preset_map.get(subarg.lower(), subarg.upper())
             if self.voice_session:
@@ -4239,6 +4293,26 @@ class OpenBagusShell(cmd.Cmd):
                 p.voice_preset = chosen
                 save_voice_preferences(p)
                 print(f"[Voice preset disimpan: {chosen}]")
+            return
+
+        if subcmd in ("test", "test-voice"):
+            from openbagus.voice.tts_engine import LocalTTSEngine
+            from openbagus.voice.audio_playback import AudioPlaybackManager
+            import time
+            tts = self.voice_session.controller.tts_engine if self.voice_session else LocalTTSEngine()
+            pm = self.voice_session.controller.playback_manager if self.voice_session else AudioPlaybackManager()
+            test_phrase = "Halo, saya Bagusmax. Pemeriksaan audio mikrofon dan speaker sistem lokal berjalan normal. Ada yang bisa saya bantu?"
+            print(f"Menguji sintesis suara preset [{tts.preset}]...")
+            audio = tts.synthesize_sentence(test_phrase)
+            if audio is not None and len(audio) > 0:
+                print(f"Audio berhasil disintesis ({len(audio)} sampel, {len(audio)/tts.sample_rate:.2f} detik). Memutar audio...")
+                gen_id = pm.new_turn()
+                pm.enqueue(audio, samplerate=tts.sample_rate, generation_id=gen_id)
+                while pm.is_playing:
+                    time.sleep(0.05)
+                print("Pengujian audio selesai.\n")
+            else:
+                print("Gagal mensintesis audio pengujian.\n")
             return
 
         if subcmd in ("auto", "autostart"):
@@ -4288,7 +4362,7 @@ class OpenBagusShell(cmd.Cmd):
                 print("[Sesi suara dimulai. Bicara langsung ke mikrofon...]\n")
             return
 
-        print("Perintah /voice tidak dikenal. Pilihan: start, on, stop, off, preset, auto, devices, status, mode, mute, unmute\n")
+        print("Perintah /voice tidak dikenal. Pilihan: start, on, stop, off, preset, test, auto, devices, status, mode, mute, unmute\n")
 
     def do_send(self, arg: str) -> None:
         channel = arg.strip().lower()
