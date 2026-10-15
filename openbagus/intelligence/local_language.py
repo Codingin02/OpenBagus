@@ -111,8 +111,15 @@ LOCAL_RUNTIME_DIR = get_local_appdata_dir()
 MODELS_DIR = LOCAL_RUNTIME_DIR / "models"
 BIN_DIR = LOCAL_RUNTIME_DIR / "bin"
 CACHE_DIR = LOCAL_RUNTIME_DIR / "cache"
+def get_canonical_model_file() -> Path:
+    try:
+        from openbagus.core.model_resolver import get_model_resolver
+        return get_model_resolver().get_llm_fast_path()
+    except Exception:
+        return MODELS_DIR / MODEL_NAME
+
 MODEL_NAME = "Qwen3-4B-Q4_K_M.gguf"
-MODEL_FILE = MODELS_DIR / MODEL_NAME
+MODEL_FILE = get_canonical_model_file()
 OLD_MODEL_FILE = MODELS_DIR / "Qwen3-0.6B-Q8_0.gguf"
 LLAMA_SERVER_EXE = BIN_DIR / ("llama-server.exe" if os.name == "nt" else "llama-server")
 

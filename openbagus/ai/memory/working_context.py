@@ -25,6 +25,9 @@ class WorkingContext:
     prior_observations: dict[str, Any] = field(default_factory=dict)
     pending_action: dict[str, Any] | None = None
     active_domain: str = "GENERAL"  # "GENERAL" | "EQUITY" | "CRYPTO" | "SYSTEM" | "VOICE"
+    context_namespace: str = "FINANCIAL_RESEARCH"  # "FINANCIAL_RESEARCH" | "ENGLISH_TUTOR"
+    tutor_level: str = "INTERMEDIATE"              # "BEGINNER" | "INTERMEDIATE" | "ADVANCED"
+    tutor_memory: dict[str, Any] = field(default_factory=dict)
     turns: list[dict[str, str]] = field(default_factory=list)
     user_style: str = "PROFESSIONAL_DIRECT"
     created_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
@@ -35,6 +38,7 @@ class WorkingContext:
             "role": role,
             "content": content,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "namespace": self.context_namespace,
         })
         self.updated_at = datetime.now(timezone.utc).isoformat()
         # Keep turns bounded to recent 30 turns
@@ -43,7 +47,17 @@ class WorkingContext:
 
     def get_recent_history(self, limit: int = 10) -> list[dict[str, str]]:
         """Returns the most recent conversational turns up to limit."""
-        return self.turns[-limit:]
+        return [t for t in self.turns if t.get("namespace", "FINANCIAL_RESEARCH") == self.context_namespace][-limit:]
+
+    def update_entity(self, ticker: str, data: dict[str, Any] | None = None) -> None:
+        """Sets the active ticker entity and associates optional metadata."""
+        self.active_ticker = ticker.upper()
+        if data:
+            self.prior_observations[self.active_ticker] = data
+
+    def get_entity(self, ticker: str) -> dict[str, Any] | None:
+        """Retrieves stored metadata for an entity ticker."""
+        return self.prior_observations.get(ticker.upper())
 
     def handle_corrections(self, user_query: str) -> dict[str, Any]:
         """Detects and applies explicit user corrections (entity, strategy, horizon)."""
@@ -118,6 +132,11 @@ class WorkingContext:
     def to_dict(self) -> dict[str, Any]:
         return {
             "session_id": self.session_id,
+            "active_ticker_name": self.active_ticker_name,
+            "context_namespace": self.context_namespace,
+            "active_domain": self.active_domain,
+            "tutor_level": self.tutor_level,
+            "tutor_memory": self.tutor_memory,
             "active_ticker": self.active_ticker,
             "comparison_tickers": self.comparison_tickers,
             "market": self.market,
@@ -134,6 +153,11 @@ class WorkingContext:
     def from_dict(cls, data: dict[str, Any]) -> WorkingContext:
         ctx = cls(session_id=data.get("session_id", "default"))
         ctx.active_ticker = data.get("active_ticker")
+        ctx.active_ticker_name = data.get("active_ticker_name")
+        ctx.context_namespace = data.get("context_namespace", "FINANCIAL_RESEARCH")
+        ctx.active_domain = data.get("active_domain", "GENERAL")
+        ctx.tutor_level = data.get("tutor_level", "INTERMEDIATE")
+        ctx.tutor_memory = data.get("tutor_memory", {})
         ctx.comparison_tickers = data.get("comparison_tickers", [])
         ctx.market = data.get("market", "IDX")
         ctx.strategy = data.get("strategy", "GENERAL")

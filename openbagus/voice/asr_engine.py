@@ -17,7 +17,7 @@ def _register_nvidia_dll_paths() -> None:
     if os.name != "nt":
         return
     import sys
-    base = Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
+    base = Path(sys._MEIPASS) / "nvidia" if getattr(sys, "frozen", False) else Path(sys.prefix) / "Lib" / "site-packages" / "nvidia"
     if base.exists():
         for bin_dir in base.glob("*/bin"):
             if bin_dir.is_dir():
@@ -49,6 +49,33 @@ _SHARED_MODEL_KEY: tuple[str, str, str] | None = None
 class LocalASREngine:
     """High-performance local Indonesian ASR engine powered by faster-whisper on CUDA."""
 
+    PHANTOM_OUTRO_MARKERS = (
+        "terima kasih telah menonton",
+        "terima kasih sudah menonton",
+        "terima kasih telah menyaksikan",
+        "terima kasih sudah menyaksikan",
+        "terima kasih banyak telah menonton",
+        "terima kasih banyak sudah menonton",
+        "terima kasih atas perhatiannya",
+        "terima kasih telah mendengarkan",
+        "terima kasih atas kunjungannya",
+        "terima kasih banyak",
+        "terima kasih.",
+        "terima kasih!",
+        "terima kasih",
+        "jangan lupa subscribe",
+        "jangan lupa like",
+        "jangan lupa share",
+        "sampai jumpa di video",
+        "sampai jumpa lagi",
+        "sampai jumpa",
+        "tonton terus video",
+        "subtitles by",
+        "subtitle by",
+        "translated by",
+        "thank you for watching",
+    )
+
     def __init__(
         self,
         model_size_or_path: str | Path | None = None,
@@ -75,18 +102,30 @@ class LocalASREngine:
         if custom:
             return str(custom)
 
-        # Check local huggingface snapshot first (offline guarantee)
+        # 1. Check canonical repository model directory via ModelResolver
+        try:
+            from openbagus.core.model_resolver import get_model_resolver
+            canon_dir = get_model_resolver().get_asr_model_dir()
+            if canon_dir.is_dir() and (canon_dir / "model.bin").is_file():
+                return str(canon_dir)
+        except Exception:
+            pass
+
+        # 2. Check local huggingface snapshot fallback
         hf_base = Path(os.environ.get("USERPROFILE", "C:/Users/bagus")) / ".cache" / "huggingface" / "hub" / "models--Systran--faster-whisper-large-v3" / "snapshots"
         if hf_base.exists():
             snapshots = list(hf_base.glob("*"))
             if snapshots:
                 return str(snapshots[0])
 
-        return "large-v3"
+        return str(Path(os.environ.get("OPENBAGUS_MODEL_DIR", "E:/Projects/OpenBagus/models")) / "asr/faster_whisper")
 
     def _init_model(self) -> None:
         if faster_whisper is None:
             logger.warning("faster-whisper is not installed")
+            return
+        if not Path(self._model_path).is_dir():
+            logger.error("Local ASR model directory unavailable; automatic downloads are disabled")
             return
 
         # Determine target device (CUDA preferred if available)
@@ -95,6 +134,12 @@ class LocalASREngine:
                 import ctranslate2
                 cuda_count = ctranslate2.get_cuda_device_count()
                 self._device = "cuda" if cuda_count > 0 else "cpu"
+                if self._device == "cuda":
+                    from openbagus.voice.gpu_scheduler import GPUScheduler
+                    status = GPUScheduler.get_instance().query_gpu_status()
+                    if status.vram_total_mb <= 8192:
+                        self._device = "cpu"
+                        logger.warning("ASR uses CPU int8 to reserve the limited GPU budget for FAST/DEEP")
             except Exception:
                 self._device = "cpu"
 
@@ -109,10 +154,12 @@ class LocalASREngine:
 
         try:
             logger.info("Loading Whisper model from %s on %s (%s)...", self._model_path, self._device, self._compute_type)
+            is_local = Path(self._model_path).is_dir()
             self._model = faster_whisper.WhisperModel(
                 self._model_path,
                 device=self._device,
                 compute_type=self._compute_type,
+                local_files_only=is_local,
             )
             logger.info("Whisper model successfully loaded on %s", self._device)
             _SHARED_WHISPER_MODEL = self._model
@@ -131,6 +178,7 @@ class LocalASREngine:
                     self._model_path,
                     device="cpu",
                     compute_type="int8",
+                    local_files_only=True,
                 )
                 _SHARED_WHISPER_MODEL = self._model
                 _SHARED_MODEL_KEY = cpu_key
@@ -226,8 +274,8 @@ class LocalASREngine:
         # Dynamic floor with hysteresis:
         # Rejects pure digital silence or flat noise without energy contrast.
         # But if crest_factor is high (> 3.2) and peak > 0.015, allow quiet speech through.
-        dynamic_floor = max(0.0015, self._noise_floor_rms * 1.25)
-        is_silence = (rms < 0.0010) or (rms < dynamic_floor and snr_db < 2.0 and crest_factor < 3.0)
+        dynamic_floor = max(0.0035, self._noise_floor_rms * 1.35)
+        is_silence = (rms < 0.0035 and peak < 0.025) or (rms < 0.0018) or (rms < dynamic_floor and snr_db < 3.0 and crest_factor < 3.2)
 
         if is_silence:
             logger.debug(
@@ -267,8 +315,9 @@ class LocalASREngine:
                 initial_prompt=self.initial_prompt,
                 beam_size=5,
                 temperature=0.0,
-                vad_filter=False,  # Outer VAD already performed frame endpointing
-                no_speech_threshold=0.55,
+                vad_filter=True,
+                vad_parameters={"min_speech_duration_ms": 180, "min_silence_duration_ms": 400},
+                no_speech_threshold=0.45,
                 log_prob_threshold=-1.0,
                 compression_ratio_threshold=2.4,
                 condition_on_previous_text=False,
@@ -277,12 +326,12 @@ class LocalASREngine:
             discarded_segments = 0
             for seg in segments:
                 # Filter out segments where Whisper detected silence/no-speech
-                if getattr(seg, "no_speech_prob", 0.0) > 0.55:
-                    logger.debug("Ignoring segment with high no_speech_prob: %.3f ('%s')", seg.no_speech_prob, seg.text)
+                if getattr(seg, "no_speech_prob", 0.0) > 0.45:
+                    logger.debug("Ignoring segment with high no_speech_prob: %.3f", seg.no_speech_prob)
                     discarded_segments += 1
                     continue
-                if getattr(seg, "avg_logprob", 0.0) < -1.4:
-                    logger.debug("Ignoring segment with low avg_logprob: %.3f ('%s')", seg.avg_logprob, seg.text)
+                if getattr(seg, "avg_logprob", 0.0) < -1.35:
+                    logger.debug("Ignoring segment with low avg_logprob: %.3f", seg.avg_logprob)
                     discarded_segments += 1
                     continue
                 valid_segments.append(seg)
@@ -293,19 +342,9 @@ class LocalASREngine:
             raw_text = ""
             discarded_segments = 0
 
-        # YouTube / Outro hallucination gate:
-        # Check if the phrase matches phantom outro markers
+        # YouTube / Outro phantom hallucination gate
         lower_raw = raw_text.lower().strip()
-        phantom_markers = (
-            "terima kasih telah menonton",
-            "terima kasih sudah menonton",
-            "terima kasih telah menyaksikan",
-            "jangan lupa subscribe",
-            "jangan lupa like",
-            "sampai jumpa di video",
-            "tonton terus video",
-        )
-        has_outro_marker = any(marker in lower_raw for marker in phantom_markers)
+        has_outro_marker = any(marker in lower_raw for marker in self.PHANTOM_OUTRO_MARKERS)
         outro_suppressed = False
         outro_accepted_as_genuine = False
 
@@ -314,16 +353,16 @@ class LocalASREngine:
             avg_logprob = float(np.mean([getattr(s, "avg_logprob", 0.0) for s in valid_segments]))
 
             # Genuine user speech has:
-            # 1. Substantial duration (>= 0.65s)
-            # 2. Good SNR (>= 4.5 dB) or reasonable RMS (>= 0.006)
-            # 3. Confident logprob (>= -1.1) and low no_speech_prob (<= 0.40)
-            # 4. Natural crest factor (>= 1.8)
+            # 1. Substantial duration (>= 0.70s)
+            # 2. Measurable speech energy (rms >= 0.007 or peak >= 0.035)
+            # 3. Confident logprob (>= -0.95) and low no_speech_prob (<= 0.35)
+            # 4. Natural crest factor (>= 1.6)
             is_genuine_speech = (
-                audio_duration >= 0.65
-                and (snr_db >= 4.5 or rms >= 0.006)
-                and avg_no_speech <= 0.40
-                and avg_logprob >= -1.1
-                and (crest_factor >= 1.5 or rms >= 0.012)
+                audio_duration >= 0.70
+                and (rms >= 0.007 or peak >= 0.035)
+                and avg_no_speech <= 0.35
+                and avg_logprob >= -0.95
+                and (crest_factor >= 1.2 or rms >= 0.015)
             )
 
             if is_genuine_speech:
@@ -336,6 +375,17 @@ class LocalASREngine:
                 logger.info(
                     "Rejected phantom ASR outro hallucination from low-evidence noise: '%s' (dur=%.2fs, rms=%.4f, snr=%.1fdB, avg_no_speech=%.3f, logprob=%.2f)",
                     raw_text, audio_duration, rms, snr_db, avg_no_speech, avg_logprob,
+                )
+                raw_text = ""
+                outro_suppressed = True
+
+        # General acoustic evidence gate:
+        # If text was decoded, but the physical audio lacks speech energy (e.g. ambient fan noise / hiss)
+        if raw_text and not has_outro_marker:
+            if (rms < 0.0035 and snr_db < 3.5 and crest_factor < 2.5) or (audio_duration < 0.35 and rms < 0.006):
+                logger.info(
+                    "Suppressed acoustic hallucination on low energy noise: '%s' (dur=%.2fs, rms=%.5f, snr=%.1fdB, crest=%.2f)",
+                    raw_text, audio_duration, rms, snr_db, crest_factor,
                 )
                 raw_text = ""
                 outro_suppressed = True

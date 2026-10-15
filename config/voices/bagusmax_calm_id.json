@@ -1,17 +1,19 @@
 {
-  "profile_id": "BAGUSMAX_CALM_ID",
+  "profile_id": "BAGUSMAX_GENTLE_ID",
   "language": "id-ID",
   "voice_provider": "LOCAL_TTS",
   "voice_model_id": "rhasspy/piper-voices/id/id_ID/news_tts/medium",
   "model_file": "id_ID-news_tts-medium.onnx",
   "model_sha256": "ed8f02aa593f7af6b19acbdb8142e0da0dd72f46194eb33d38e0eb10a52597e8",
-  "speaking_style": "CALM_GENTLE_SYNTHETIC",
-  "length_scale": 1.08,
-  "noise_scale": 0.55,
+  "speaking_style": "GENTLE_ROBOT_COMPANION",
+  "length_scale": 1.06,
+  "noise_scale": 0.52,
   "noise_w_scale": 0.70,
   "pitch_shift_semitones": 0.0,
-  "warmth_gain_db": 0.8,
+  "warmth_gain_db": 1.8,
   "smoothing_enabled": true,
+  "robot_resonance_enabled": true,
+  "robot_resonance_mix": 0.05,
   "peak_limiting": true,
   "volume": 1.0,
   "sample_rate": 22050,
@@ -21,14 +23,31 @@
   "streaming_playback": true,
   "interruptible": true,
   "presets": {
+    "BAGUSMAX_GENTLE_ID": {
+      "description": "Bagusmax canonical profile: calm healthcare robot demeanor, low-mid acoustic warmth, subtle companion resonance, de-essed highs",
+      "length_scale": 1.06,
+      "noise_scale": 0.52,
+      "noise_w_scale": 0.70,
+      "pitch_shift_semitones": 0.0,
+      "warmth_gain_db": 1.8,
+      "smoothing_enabled": true,
+      "robot_resonance_enabled": true,
+      "robot_resonance_mix": 0.05,
+      "peak_limiting": true,
+      "volume": 1.0
+    },
     "NATURAL": {
-      "description": "Baseline newsreader tempo, original pitch, zero postprocessing",
+      "description": "Baseline newsreader rate, standard pitch, zero postprocessing",
       "length_scale": 1.00,
       "noise_scale": 0.667,
       "noise_w_scale": 0.80,
       "pitch_shift_semitones": 0.0,
       "warmth_gain_db": 0.0,
-      "smoothing_enabled": false
+      "smoothing_enabled": false,
+      "robot_resonance_enabled": false,
+      "robot_resonance_mix": 0.0,
+      "peak_limiting": false,
+      "volume": 1.0
     },
     "BAGUSMAX_CALM": {
       "description": "Measured calm delivery, reduced noise variability, subtle high-frequency smoothing",
@@ -36,17 +55,25 @@
       "noise_scale": 0.55,
       "noise_w_scale": 0.70,
       "pitch_shift_semitones": 0.0,
-      "warmth_gain_db": 0.8,
-      "smoothing_enabled": true
+      "warmth_gain_db": 1.2,
+      "smoothing_enabled": true,
+      "robot_resonance_enabled": false,
+      "robot_resonance_mix": 0.0,
+      "peak_limiting": true,
+      "volume": 1.0
     },
     "BAGUSMAX_SOFT": {
-      "description": "Gentle robot companion, warm lower-register, conservative -1 semitone, rounded soft articulation",
-      "length_scale": 1.12,
+      "description": "Gentle robot companion, warm lower register, soft rounded articulation",
+      "length_scale": 1.10,
       "noise_scale": 0.50,
       "noise_w_scale": 0.70,
-      "pitch_shift_semitones": -1.0,
-      "warmth_gain_db": 1.2,
-      "smoothing_enabled": true
+      "pitch_shift_semitones": 0.0,
+      "warmth_gain_db": 1.5,
+      "smoothing_enabled": true,
+      "robot_resonance_enabled": true,
+      "robot_resonance_mix": 0.03,
+      "peak_limiting": true,
+      "volume": 0.95
     }
   }
 }

@@ -122,8 +122,21 @@ class AudioPlaybackManager:
                 self._worker_thread = threading.Thread(target=self._playback_loop, daemon=True, name="AudioPlaybackWorker")
                 self._worker_thread.start()
 
+    @staticmethod
+    def _resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int) -> np.ndarray:
+        if orig_sr == target_sr or len(audio) == 0:
+            return audio
+        target_len = int(round(len(audio) * target_sr / orig_sr))
+        if target_len <= 0:
+            return np.empty(0, dtype=np.float32)
+        return np.interp(
+            np.linspace(0, len(audio), target_len, endpoint=False),
+            np.arange(len(audio)),
+            audio,
+        ).astype(np.float32)
+
     def _playback_loop(self) -> None:
-        """Sequential playback loop processing audio chunks."""
+        """Sequential playback loop processing audio chunks with sample-rate negotiation."""
         while not self._stop_event.is_set():
             try:
                 audio, sr, chunk_gen = self._queue.get(timeout=0.1)
@@ -151,16 +164,32 @@ class AudioPlaybackManager:
                         pass
 
             try:
-                # Play using sounddevice OutputStream or sd.play with event check
                 dev_out = self.device_id
                 if dev_out is None:
                     d = AudioDeviceManager.get_default_output_device()
                     dev_out = d.id if d else None
 
-                sd.play(audio, samplerate=sr, device=dev_out)
+                play_audio = audio
+                play_sr = sr
+
+                # Safe sample-rate negotiation with output device (WASAPI/DirectSound compatibility)
+                if dev_out is not None and sd is not None:
+                    try:
+                        sd.check_output_settings(device=dev_out, samplerate=sr)
+                    except Exception:
+                        try:
+                            info = sd.query_devices(dev_out)
+                            native_sr = int(info.get("default_samplerate", 48000))
+                            if native_sr != sr:
+                                play_audio = self._resample_audio(audio, sr, native_sr)
+                                play_sr = native_sr
+                        except Exception as e_negotiate:
+                            logger.debug("Playback sample rate negotiation fallback: %s", e_negotiate)
+
+                sd.play(play_audio, samplerate=play_sr, device=dev_out)
 
                 # Check stop event during chunk duration and emit synchronized playback levels
-                chunk_dur = len(audio) / sr
+                chunk_dur = len(play_audio) / play_sr
                 chunk_start = time.time()
                 deadline = chunk_start + chunk_dur
                 last_level_emit = 0.0
@@ -174,12 +203,12 @@ class AudioPlaybackManager:
                     if self.on_playback_level and (now - last_level_emit >= 0.033):
                         last_level_emit = now
                         elapsed = now - chunk_start
-                        curr_s = int(elapsed * sr)
-                        w_len = int(0.04 * sr)
-                        start_i = max(0, min(len(audio) - 1, curr_s))
-                        end_i = max(0, min(len(audio), start_i + w_len))
+                        curr_s = int(elapsed * play_sr)
+                        w_len = int(0.04 * play_sr)
+                        start_i = max(0, min(len(play_audio) - 1, curr_s))
+                        end_i = max(0, min(len(play_audio), start_i + w_len))
                         if end_i > start_i:
-                            sub = audio[start_i:end_i]
+                            sub = play_audio[start_i:end_i]
                             curr_rms = float(np.sqrt(np.mean(np.square(sub))))
                             self._current_render_rms = curr_rms
                             self._render_energy_timestamp = now

@@ -1,10 +1,10 @@
 {
   "version": 1,
-  "voice_enabled": true,
+  "voice_enabled": false,
   "hands_free": true,
   "microphone_device_id": null,
   "speaker_device_id": null,
-  "voice_preset": "NATURAL",
+  "voice_preset": "BAGUSMAX_GENTLE_ID",
   "speed": 1.0,
   "volume": 1.0,
   "audio_storage": "disabled",
@@ -12,5 +12,5 @@
   "barge_in_enabled": true,
   "echo_cancellation_guard_ms": 250,
   "default_mode": "FAST",
-  "auto_start_on_cli": true
+  "auto_start_on_cli": false
 }

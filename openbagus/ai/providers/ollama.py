@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import time
 import urllib.error
 import urllib.request
@@ -41,14 +42,16 @@ class OllamaProvider(BaseModelProvider):
 
     def __init__(
         self,
-        base_url: str = "http://127.0.0.1:11434",
+        base_url: str | None = None,
         model: str = OLLAMA_FAST_MODEL,
         think: bool = False,
         keep_alive: str = "30m",
         num_gpu: int = 99,
         context_window: int = 4096,
     ) -> None:
-        self.base_url = base_url.rstrip("/")
+        self.base_url = (base_url or os.environ.get("OLLAMA_HOST") or "http://127.0.0.1:11434").rstrip("/")
+        if "://" not in self.base_url:
+            self.base_url = "http://" + self.base_url
         self.model = model
         self.think = think
         self.keep_alive = keep_alive
@@ -107,6 +110,7 @@ class OllamaProvider(BaseModelProvider):
             "gpu_layers": self.num_gpu,
             "context_window": self.context_window,
             "is_warm": self.is_model_warm(),
+            "last_generation": getattr(self, "last_generation", None),
         }
 
     def generate(
@@ -166,7 +170,7 @@ class OllamaProvider(BaseModelProvider):
                 data = json.loads(resp.read().decode("utf-8"))
         except urllib.error.HTTPError as e:
             err_body = e.read().decode("utf-8", errors="replace")
-            logger.error("Ollama HTTPError %d: %s (payload: %s)", e.code, err_body, body[:300])
+            logger.error("Ollama HTTPError %d", e.code)
             # If Ollama failed with a tool syntax/parsing error from model output (e.g. unclosed JSON object),
             # retry without tools so the model can generate a natural text reply without failing
             if tools and ("can't find closing" in err_body or "tool" in err_body.lower() or e.code == 400):
@@ -190,11 +194,30 @@ class OllamaProvider(BaseModelProvider):
         except Exception as e:
             raise RuntimeError(f"Ollama request error: {e}") from e
 
-        latency = (time.perf_counter() - t_start) * 1000
         msg = data.get("message", {})
+        initial_reason = data.get("done_reason", "stop")
+        recovery = None
+        remaining = timeout - (time.perf_counter() - t_start)
+        if self.think and not msg.get("content", "").strip() and not msg.get("tool_calls") and initial_reason == "length" and remaining > 1:
+            retry_payload = dict(payload)
+            retry_payload["think"] = False
+            retry_payload["options"] = {**payload["options"], "num_predict": min(max_tokens, 512)}
+            retry_request = urllib.request.Request(endpoint, data=json.dumps(retry_payload, ensure_ascii=False).encode("utf-8"),
+                                                 headers={"Content-Type": "application/json"}, method="POST")
+            with urllib.request.urlopen(retry_request, timeout=min(30.0, remaining)) as retry_response:
+                data = json.loads(retry_response.read().decode("utf-8"))
+            msg = data.get("message", {})
+            recovery = "THINKING_LIMIT_FINALIZATION"
+        self.last_generation = {"model": data.get("model", self.model), "requested_think": self.think,
+                                "effective_think": False if recovery else self.think, "recovery": recovery,
+                                "initial_finish_reason": initial_reason, "finish_reason": data.get("done_reason", "stop"),
+                                "completion_tokens": data.get("eval_count")}
+        latency = (time.perf_counter() - t_start) * 1000
 
         # Keep thinking trace separate; do NOT mix into user-facing content
         content = msg.get("content", "")
+        if recovery and content.strip():
+            content = f"[DEEP mencapai batas token penalaran. Jawaban berikut dibuat ulang oleh model {data.get('model', self.model)} yang sama dengan thinking dinonaktifkan, bukan perpindahan ke FAST.]\n\n" + content
         thinking_trace = msg.get("thinking", "")
 
         raw_tools = msg.get("tool_calls", [])
@@ -210,7 +233,7 @@ class OllamaProvider(BaseModelProvider):
         response = ChatCompletionResponse(
             content=content,
             tool_calls=tool_calls,
-            finish_reason="stop",
+            finish_reason=data.get("done_reason", "stop"),
             model=data.get("model", self.model),
             provider_name=self.get_provider_name(),
             latency_ms=round(latency, 1),

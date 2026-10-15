@@ -39,7 +39,7 @@ class InterruptionCoordinator:
         """Initializes a new conversational assistant turn with a fresh cancellation token."""
         with self._lock:
             self._current_turn_id = turn_id
-            self._cancellation_event.clear()
+            self._cancellation_event = threading.Event()
 
     def trigger_interruption(self, reason: str = "USER_BARGE_IN") -> bool:
         """Triggers immediate speech cancellation and signals all generators to abort."""

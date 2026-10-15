@@ -105,7 +105,7 @@ class AudioDeviceManager:
         try:
             raw_devices = sd.query_devices()
             hostapis = sd.query_hostapis()
-            default_in = sd.default.device[0] if isinstance(sd.default.device, (list, tuple)) else -1
+            default_in = sd.default.device[0]
 
             for idx, dev in enumerate(raw_devices):
                 if dev.get("max_input_channels", 0) > 0:
@@ -133,7 +133,7 @@ class AudioDeviceManager:
         try:
             raw_devices = sd.query_devices()
             hostapis = sd.query_hostapis()
-            default_out = sd.default.device[1] if isinstance(sd.default.device, (list, tuple)) else -1
+            default_out = sd.default.device[1]
 
             for idx, dev in enumerate(raw_devices):
                 if dev.get("max_output_channels", 0) > 0:

@@ -6,6 +6,8 @@ import json
 import logging
 import re
 import time
+import threading
+from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any, Callable, Iterator
 
@@ -53,6 +55,17 @@ KONTEKS AKTIF SAAT INI:
 - Kandidat Shortlist  : {active_candidates}
 """
 
+ENGLISH_TUTOR_SYSTEM_PROMPT = """You are Bagusmax, an encouraging, friendly, and structured native English conversation tutor.
+The learner's current proficiency level is: {tutor_level}.
+
+PRIMARY INSTRUCTIONS:
+1. Converse naturally in clear, idiomatic English suitable for the learner's level ({tutor_level}).
+2. Keep your conversational dialogue engaging and concise (2 to 3 sentences), followed by a natural follow-up question.
+3. If the user makes grammatical, vocabulary, or structural mistakes, provide polite constructive feedback labeled '[Koreksi & Penjelasan]:' with brief explanations in Indonesian so the user understands the grammatical logic clearly.
+4. If the user speaks in Indonesian, answer warmly, translate the key idea into English, and invite them to try saying it in English.
+5. STRICT BOUNDARY: You are in ENGLISH_TUTOR mode. Do NOT mention stock tickers, financial reports, or trading strategies unless the user explicitly asks to return to finance.
+"""
+
 SYSTEM_PROMPT_TEMPLATE = FINANCIAL_SYSTEM_PROMPT
 
 
@@ -92,14 +105,26 @@ class AgentHarness:
         self.provider = provider or self.provider_mgr.get_provider()
         self.tools = tool_registry or get_global_tool_registry()
         self.strategies = StrategyRegistry()
+        self._turn_lock = threading.RLock()
 
     def run(
+        self, user_query: str, context: WorkingContext | None = None,
+        profile: RuntimeProfile | None = None, stream_callback=None,
+        mode: str = "BALANCED", cancellation=None,
+    ) -> AgentResponse:
+        with self._turn_lock:
+            if cancellation is not None and cancellation.is_set():
+                return AgentResponse(content="", working_context=context, provider_name="CANCELLED")
+            return self._run(user_query, context, profile, stream_callback, mode, cancellation)
+
+    def _run(
         self,
         user_query: str,
         context: WorkingContext | None = None,
         profile: RuntimeProfile | None = None,
         stream_callback: Callable[[str], None] | None = None,
         mode: str = "BALANCED",
+        cancellation=None,
     ) -> AgentResponse:
         t_start = time.perf_counter()
         ctx = context or WorkingContext()
@@ -121,17 +146,67 @@ class AgentHarness:
                 stream_callback(msg)
             return AgentResponse(content=msg, latency_ms=0.0, provider_name="SECURITY_GUARD")
 
+        lower_q = user_query.lower().strip()
+        if re.search(r"(?:model.*(?:apa|aktif)|menggunakan model|memakai model|apa.*bisa.*lakukan|kemampuan.*aktif)", lower_q):
+            info = self.provider.get_model_info()
+            text = (f"Saya menggunakan {info.get('model_name', 'UNAVAILABLE')} melalui {self.provider.get_provider_name()}. "
+                    "Saya dapat membantu percakapan, English Tutor, dan riset finansial melalui tool yang tersedia. "
+                    "Data finansial diperiksa saat diminta; ketersediaan internet dan sumber dapat membatasi hasil. /status menampilkan status operasional.")
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", text)
+            return AgentResponse(content=text, working_context=ctx, provider_name="RUNTIME_STATUS")
+        if "bagusmax" in lower_q and re.search(r"\b(?:pindah|gerak|geser|kanan|kiri)\b", lower_q) and not re.search(r"\b(?:saham|emiten|ticker)\b", lower_q):
+            return AgentResponse(content="Companion 3D tidak aktif pada sesi chat ini; tidak ada jendela yang dipindahkan.", working_context=ctx, provider_name="RUNTIME_STATUS")
+
+        # STEP 1b: Namespace Switching (FINANCIAL_RESEARCH <-> ENGLISH_TUTOR)
+        if any(p in lower_q for p in ("aku mau belajar bahasa inggris", "mari belajar bahasa inggris", "mode english tutor", "belajar bahasa inggris", "mode bahasa inggris", "practice english", "start english lesson", "tutor inggris")):
+            ctx.context_namespace = "ENGLISH_TUTOR"
+            ack_msg = "Siap! Kita beralih ke mode English Tutor. Hello! I am Bagusmax, your English speaking companion. What would you like to talk about today?"
+            if stream_callback:
+                stream_callback(ack_msg)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", ack_msg)
+            return AgentResponse(content=ack_msg, latency_ms=(time.perf_counter() - t_start) * 1000.0, provider_name="ENGLISH_TUTOR")
+
+        if any(p in lower_q for p in ("kembali ke saham", "kembali ke analisis", "bahas saham lagi", "kembali ke finansial", "mode finansial", "analisis saham lagi", "selesai belajar inggris", "stop belajar inggris")):
+            ctx.context_namespace = "FINANCIAL_RESEARCH"
+            ack_msg = "Baik, kita kembali ke mode Riset Finansial. Ada emiten atau topik pasar modal yang ingin dianalisis?"
+            if stream_callback:
+                stream_callback(ack_msg)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", ack_msg)
+            if not re.search(r"\b[A-Z]{3,5}\b", user_query):
+                return AgentResponse(content=ack_msg, latency_ms=(time.perf_counter() - t_start) * 1000.0, provider_name="FINANCIAL_RESEARCH", working_context=ctx)
+
+        if getattr(ctx, "context_namespace", "FINANCIAL_RESEARCH") == "ENGLISH_TUTOR":
+            from openbagus.domains.english_tutor import EnglishTutor
+            tutor = EnglishTutor()
+            if hasattr(ctx, "tutor_level"):
+                tutor.set_level(ctx.tutor_level)
+            assessment = tutor.generate_tutor_response(
+                user_input=user_query,
+                recent_history=ctx.get_recent_history(limit=6),
+                provider=self.provider,
+            )
+            if cancellation is not None and cancellation.is_set():
+                return AgentResponse(content="", working_context=ctx, provider_name="CANCELLED")
+            out_text = assessment.format_text_output()
+            if stream_callback:
+                stream_callback(out_text)
+            ctx.record_turn("user", user_query)
+            ctx.record_turn("assistant", out_text)
+            return AgentResponse(content=out_text, latency_ms=(time.perf_counter() - t_start) * 1000.0, provider_name="ENGLISH_TUTOR")
+
+        previous_ticker = ctx.active_ticker
         # STEP 2: Handle User Corrections & Candidate References
         corrections = ctx.handle_corrections(user_query)
         cand_ref = ctx.resolve_candidate_reference(user_query)
 
-        lower_q = user_query.lower().strip()
-
-        # Disambiguate "reset saham RATU ..." from 3D companion reset
-        if "reset" in lower_q and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q):
+        # Disambiguate "reset/riset saham RATU timeframe ..." from 3D companion reset
+        if any(k in lower_q for k in ("reset", "riset", "timeframe")) and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q):
             ctx.explicit_constraints.clear()
-            if "satu hari" in lower_q or "1 hari" in lower_q or "harian" in lower_q:
-                ctx.time_horizon = "1 hari"
+            if re.search(r"\b(?:satu hari|1 hari|harian|d1|1d)\b", lower_q):
+                ctx.time_horizon = "D1"
 
         # Check financial intent strictly before extracting tickers
         from openbagus.ai.providers.fallback import (
@@ -143,10 +218,16 @@ class AgentHarness:
         has_explicit_prefix = bool(re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE))
         is_comparison = bool(re.search(r"\b(?:bandingkan|komparasi|versus|vs)\b", lower_q))
         is_financial = (not is_coverage_q) and (
-            has_explicit_prefix or is_comparison or any(kw in lower_q for kw in FINANCIAL_CONTEXT_KEYWORDS) or any(
-                t in lower_q for t in ("bbca", "bbri", "bmri", "tlkm", "asii", "ratu", "goto", "bren", "cuan")
+            has_explicit_prefix or is_comparison or any(re.search(r"\b" + re.escape(kw) + r"\b", lower_q) for kw in FINANCIAL_CONTEXT_KEYWORDS) or any(
+                re.search(r"\b" + t + r"\b", lower_q) for t in ("bbca", "bbri", "bmri", "tlkm", "asii", "ratu", "goto", "bren", "cuan")
             )
         )
+        if ctx.active_ticker and re.search(r"\b(?:katalis|volume|laporan|keuangan|pbv|roe|per|harganya|valuasi|ganti ke|pindah ke)\b", lower_q):
+            is_financial = True
+        if re.fullmatch(r"[A-Z]{3,5}(?:USDT)?", user_query.strip()):
+            from openbagus.domains.equities.catalog import EquityCatalog
+            from openbagus.core.env import get_repo_root
+            is_financial = bool(EquityCatalog(get_repo_root()).resolve(user_query.strip(), allow_us=True)) or user_query.strip() in ("BTC", "ETH", "BTCUSDT", "ETHUSDT")
 
         # Extract explicit ticker if mentioned WITH financial context
         if is_financial and not corrections.get("entity_corrected"):
@@ -157,8 +238,9 @@ class AgentHarness:
             # 1. Crypto ticker detection
             found_crypto = False
             for c in ("BTC", "ETH", "SOL", "BNB", "XRP", "DOGE"):
-                if re.search(r"\b" + c + r"\b", user_query, re.IGNORECASE) or ("bitcoin" in lower_q and c == "BTC") or ("ethereum" in lower_q and c == "ETH"):
+                if re.search(r"\b" + c + r"(?:/?USDT)?\b", user_query, re.IGNORECASE) or ("bitcoin" in lower_q and c == "BTC") or ("ethereum" in lower_q and c == "ETH"):
                     ctx.active_ticker = c
+                    ctx.market = "CRYPTO"
                     found_crypto = True
                     break
 
@@ -174,8 +256,14 @@ class AgentHarness:
             pref_m = re.search(r"\b(?:saham|emiten|ticker|kode)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
             if pref_m:
                 cand = pref_m.group(1).upper()
+                if cand not in LEXICAL_NON_TICKERS and cat.resolve(cand) is None:
+                    message = f"Kode {cand} belum terverifikasi pada katalog aktif. Saya tidak akan memakai data {ctx.active_ticker or 'aset lain'} sebagai penggantinya. Periksa kode atau ketersediaan katalog."
+                    ctx.record_turn("user", user_query)
+                    ctx.record_turn("assistant", message)
+                    return AgentResponse(content=message, working_context=ctx, provider_name="ENTITY_UNRESOLVED", data_gaps=["VERIFIED_ENTITY"])
                 if cand not in LEXICAL_NON_TICKERS and cat.resolve(cand):
                     ctx.active_ticker = cand
+                    ctx.market = "IDX"
 
             # 4. Comparison ("Bandingkan DATA dengan TLKM" or "Bandingkan dengan ISAT")
             comp_two = re.search(r"\b(?:bandingkan|komparasi|versus|vs)\s+([A-Za-z]{4})\s+(?:dengan|dan|vs|versus)\s+([A-Za-z]{4})\b", user_query, re.IGNORECASE)
@@ -196,7 +284,7 @@ class AgentHarness:
                     ctx.active_ticker = t_cand
 
             # 5. Standalone words
-            if not ctx.active_ticker and not found_crypto:
+            if not found_crypto:
                 raw_words = re.findall(r"\b[A-Za-z]{4}\b", user_query)
                 for w in raw_words:
                     upper = w.upper()
@@ -208,11 +296,18 @@ class AgentHarness:
                     elif upper not in LEXICAL_NON_TICKERS:
                         if cat.resolve(upper):
                             ctx.active_ticker = upper
+                            ctx.market = "IDX"
                             break
+
+        specialized_finance = bool(re.search(r"\b(?:screener|carikan|backtest|portofolio|monte carlo|dcf|makro|inflasi|pdb|gdp)\b", lower_q))
+        if is_financial and ctx.active_ticker and not specialized_finance:
+            if is_comparison and previous_ticker and previous_ticker != ctx.active_ticker and previous_ticker not in ctx.comparison_tickers:
+                ctx.comparison_tickers.append(previous_ticker)
+            return self._run_financial_evidence(user_query, ctx, t_start, stream_callback, cancellation)
 
         # STEP 3: Complexity Classification & Fast Conversational Paths
         is_ack = bool(re.match(r"^(?:oke|ok|iya|ya|baik|sip|paham|siap|noted|mengerti)[\.\!\?]?\s*$", lower_q))
-        is_greeting = bool(re.match(r"^(?:halo|hi|hai|selamat\s+(?:pagi|siang|sore|malam)|assalamualaikum)\b", lower_q)) and not is_financial
+        is_greeting = bool(re.fullmatch(r"(?:halo|hi|hai|selamat\s+(?:pagi|siang|sore|malam)|assalamualaikum)(?:\s+bagusmax)?[.!?]*", lower_q)) and not is_financial
         is_thanks = bool(re.search(r"^(?:terima\s+kasih|makasih|matur\s+nuwun|thanks|thank\s+you|syukran)\b", lower_q))
         is_pause = bool(re.search(r"^(?:tunggu\s+sebentar|stop\s+dulu|sebentar|pause|tunggu|tahan\s+dulu)\b", lower_q)) and not is_financial
         is_casual = any(p in lower_q for p in ("ngobrol santai", "bicara santai", "obrolan santai", "cerita santai"))
@@ -241,7 +336,7 @@ class AgentHarness:
 
         # FAST PATH 2: Friendly natural greeting (Warm, unhurried, not an IDX sales pitch)
         if is_greeting:
-            greet_text = "Halo! Saya Bagusmax dari OpenBagus. Siap menganalisis 951 emiten IDX dan riset pasar. Ada yang ingin kamu diskusikan atau tanyakan hari ini?"
+            greet_text = "Halo! Saya Bagusmax. Apa yang ingin kamu bicarakan hari ini?"
             if stream_callback:
                 stream_callback(greet_text)
             ctx.record_turn("user", user_query)
@@ -476,6 +571,8 @@ class AgentHarness:
         messages.append(ChatMessage(role="user", content=user_query))
 
         tool_defs = self.tools.list_definitions()
+        if not is_financial:
+            tool_defs = [t for t in tool_defs if t.name in ("get_system_diagnostics", "get_runtime_capabilities", "get_voice_runtime_status")]
 
         # STEP 5: Multi-Step Bounded Agent Loop
         final_text = ""
@@ -550,6 +647,7 @@ class AgentHarness:
                             "error": tool_res.error,
                             "latency_ms": tool_res.latency_ms,
                             "data": tool_res.data,
+                            "provenance": tool_res.provenance,
                         })
                         if tool_res.success and isinstance(tool_res.data, dict) and tool_res.data.get("status") == "DATA_GAP":
                             data_gaps.append(f"{tc.function_name}: {tool_res.data.get('message')}")
@@ -615,8 +713,12 @@ class AgentHarness:
                 final_text = self._compose_evidence_response(ctx, executed_tools, user_query)
             else:
                 final_text = resp.content if resp and resp.content else "Saya telah menerima pertanyaan Anda, namun data pendukung belum mencukupi untuk analisis lengkap."
+        if is_financial:
+            final_text = self._compose_evidence_response(ctx, executed_tools, user_query) if executed_tools else "Tool belum menghasilkan bukti untuk permintaan riset ini. Saya tidak dapat menyajikan angka atau kesimpulan finansial tanpa sumber."
 
         # Capture thinking trace (DEEP_REASONING mode only) — NEVER expose to TTS or user-facing output
+        if cancellation is not None and cancellation.is_set():
+            return AgentResponse(content="", working_context=ctx, provider_name="CANCELLED")
         thinking_trace = getattr(resp, "thinking_trace", "") or "" if resp else ""
 
         # Stream callback delivery for responsive terminal UX
@@ -632,10 +734,70 @@ class AgentHarness:
             tool_calls_executed=executed_tools,
             working_context=ctx,
             latency_ms=elapsed,
-            provider_name=self.provider.get_provider_name(),
+            provider_name=resp.provider_name or self.provider.get_provider_name(),
             data_gaps=data_gaps,
             thinking_trace=thinking_trace,
         )
+
+    def _run_financial_evidence(self, query, ctx, started, callback, cancellation=None):
+        lower = query.lower()
+        names = ["resolve_security"]
+        if any(w in lower for w in ("harga", "volume", "analisis", "timeframe", "bandingkan", "ganti", "pindah")):
+            names.append("get_market_price")
+        if any(w in lower for w in ("laporan", "neraca", "analisis", "keuangan")):
+            names.append("get_financial_statement")
+        if any(w in lower for w in ("rasio", "roe", "der", "analisis")):
+            names.append("calculate_financial_ratios")
+        if any(w in lower for w in ("pbv", "per", "valuasi")):
+            names.append("calculate_valuation")
+        if any(w in lower for w in ("katalis", "berita", "pengumuman", "analisis")):
+            names.append("get_recent_company_events")
+        if any(w in lower for w in ("volume", "likuid")):
+            names.append("get_liquidity_metrics")
+        targets = [ctx.active_ticker]
+        if ctx.market == "CRYPTO":
+            names = ["resolve_security", "get_market_price"]
+        if re.search(r"\b(?:bandingkan|komparasi|versus|vs)\b", lower):
+            targets += [t for t in ctx.comparison_tickers if t not in targets]
+        executed, sections = [], []
+        for ticker in targets:
+            rows = []
+            for name in names:
+                if cancellation is not None and cancellation.is_set():
+                    return AgentResponse(content="", working_context=ctx, provider_name="CANCELLED")
+                if self.tools.get(name) is None:
+                    continue
+                args = {"query": ticker} if name == "resolve_security" else {"ticker": ticker}
+                result = self.tools.execute(name, args)
+                row = {"name": name, "arguments": args, **result.to_dict(), "retrieved_at": datetime.now(timezone.utc).isoformat()}
+                data = result.data if isinstance(result.data, dict) else {}
+                aliases = (ticker, ticker + "USDT", ticker + "/USDT") if ctx.market == "CRYPTO" else (ticker,)
+                if data.get("symbol", ticker) not in aliases:
+                    row.update(success=False, error="INSTRUMENT_MISMATCH", data=None)
+                rows.append(row)
+                if name == "resolve_security" and row["success"] and ticker == ctx.active_ticker:
+                    ctx.active_ticker_name = data.get("name")
+            executed.extend(rows)
+            sections.append(self._compose_evidence_response(ctx, rows, query))
+            for row in rows:
+                provenance = row.get("provenance", {})
+                data = row.get("data") or {}
+                observed = data.get("observation_date") or data.get("period") or provenance.get("date") or "tidak tersedia"
+                source = provenance.get("source") or data.get("source") or "sumber tidak tersedia"
+                status = "UNAVAILABLE" if not row["success"] or data.get("status") in ("DATA_GAP", "UNAVAILABLE") or data.get("valuation_status") == "DATA_GAP" else "CACHED"
+                link = provenance.get("source_url") or data.get("source_url") or "tautan dokumen belum tersedia"
+                sections.append(f"Sumber {row['name']}: {source} | {link} | observasi/periode: {observed} | diakses UTC: {row['retrieved_at']} | {status}; bukan klaim real-time.")
+                if not row["success"]:
+                    sections.append(f"Tool gagal: {row.get('error') or 'UNAVAILABLE'}")
+        ctx.prior_observations["last_verified_evidence"] = executed
+        text = "\n\n".join(sections)
+        ctx.record_turn("user", query)
+        ctx.record_turn("assistant", text)
+        if callback:
+            callback(text)
+        return AgentResponse(content=text, tool_calls_executed=executed, working_context=ctx,
+                             provider_name="EVIDENCE_TOOLS", latency_ms=(time.perf_counter()-started)*1000,
+                             data_gaps=[r["name"] for r in executed if not r["success"] or (r.get("data") or {}).get("status") == "DATA_GAP"])
 
     @classmethod
     def submit_turn(
@@ -664,6 +826,8 @@ class AgentHarness:
         """Synthesizes structured tool results into a fluent, natural Indonesian answer with real numerical evidence."""
         ticker = ctx.active_ticker or "Aset / Pasar"
         lines = []
+        amount_units = {"IDR": "Rp", "USD": "USD", "million_IDR": "juta Rp", "billion_IDR": "miliar Rp",
+                        "trillion_IDR": "triliun Rp", "million_USD": "juta USD", "billion_USD": "miliar USD"}
 
         macro_tool = next((t for t in executed_tools if t["name"] == "get_macro_series"), None)
         coverage_tool = next((t for t in executed_tools if t["name"] == "get_data_coverage"), None)
@@ -786,7 +950,7 @@ class AgentHarness:
                 if target_sym:
                     break
         effective_ticker = target_sym or ticker
-        lines.append(f"Berikut hasil pemeriksaan data terverifikasi untuk **{effective_ticker}**:")
+        lines.append(f"Berikut data yang tersedia untuk **{effective_ticker}**:")
 
         if profile_tool and profile_tool.get("success"):
             p_data = profile_tool.get("data") or {}
@@ -798,15 +962,16 @@ class AgentHarness:
 
         if price_tool and price_tool.get("success"):
             p_data = price_tool.get("data") or {}
-            if p_data.get("asset_type") == "CRYPTO":
-                px = p_data.get("price", 0.0)
-                h24 = p_data.get("high_24h", 0.0)
-                l24 = p_data.get("low_24h", 0.0)
-                v24 = p_data.get("volume_24h", 0.0)
-                bps = p_data.get("basis_spread_bps", 0.0)
+            if p_data.get("status") == "DATA_GAP":
+                lines.append("- **Harga Pasar:** DATA_GAP; sumber harga yang diminta belum menghasilkan data. Tidak ada harga pengganti yang diasumsikan.")
+            elif p_data.get("asset_type") == "CRYPTO" or p_data.get("is_crypto"):
+                px = p_data.get("price")
+                h24 = p_data.get("high_24h", p_data.get("high"))
+                l24 = p_data.get("low_24h", p_data.get("low"))
+                v24 = p_data.get("volume_24h", p_data.get("volume"))
                 obs = p_data.get("observation_date", "-")
-                lines.append(f"- **Harga Spot Kripto:** $ {px:,.2f} (Rentang 24j: $ {l24:,.2f} - $ {h24:,.2f})")
-                lines.append(f"- **Likuiditas & Volume:** Volume 24j: {v24:,.2f} {ticker} | Spread konsensus: {bps:.1f} bps | Observasi: {obs}")
+                lines.append(f"- **Harga Spot Kripto:** {px} {p_data.get('currency', 'USDT')} | rentang 24j: {l24} - {h24} | Observasi: {obs}")
+                lines.append(f"- **Volume:** {v24} (satuan mengikuti provider; jangan dianggap otomatis volume dalam BTC).")
             elif p_data.get("close") is not None:
                 c_close = p_data.get("close", 0.0)
                 c_open = p_data.get("open", 0.0)
@@ -816,8 +981,6 @@ class AgentHarness:
                 obs = p_data.get("observation_date", "-")
                 lines.append(f"- **Harga Pasar Terakhir:** Rp {c_close:,.0f} (Open: Rp {c_open:,.0f}, High: Rp {c_high:,.0f}, Low: Rp {c_low:,.0f})")
                 lines.append(f"- **Volume Perdagangan:** {c_vol:,.0f} lembar saham (per {obs}).")
-            elif p_data.get("status") == "DATA_GAP":
-                lines.append("- **Harga Pasar EOD:** Data harga pasar harian berstatus DATA_GAP (belum diimpor ke database lokal).")
 
         if ohlcv_tool and ohlcv_tool.get("success"):
             o_data = ohlcv_tool.get("data") or {}
@@ -838,8 +1001,8 @@ class AgentHarness:
 
                 der = r_data.get("der") if r_data.get("der") is not None else solv.get("debt_to_equity")
                 cr = r_data.get("current_ratio") if r_data.get("current_ratio") is not None else liq.get("current_ratio")
-                roe = r_data.get("roe_pct") if r_data.get("roe_pct") is not None else prof.get("return_on_equity_pct", 0.0)
-                npm = r_data.get("net_margin_pct") if r_data.get("net_margin_pct") is not None else prof.get("net_profit_margin_pct", 0.0)
+                roe = r_data.get("roe_pct") if r_data.get("roe_pct") is not None else prof.get("return_on_equity_pct")
+                npm = r_data.get("net_margin_pct") if r_data.get("net_margin_pct") is not None else prof.get("net_profit_margin_pct")
                 gm = r_data.get("gross_margin_pct")
                 curr = r_data.get("currency", "IDR")
                 rev = r_data.get("revenue")
@@ -854,7 +1017,7 @@ class AgentHarness:
                     bank_ratios = f"NIM: {nim}%, CAR: {car}%, NPL: {npl}%, " if bank else ""
                     lines.append(f"- **Metrik Perbankan ({per}):** {bank_ratios}ROE: {roe_str} | Net Margin: {npm_str}. Catatan: Rasio DER/CR tidak diterapkan untuk perbankan karena liabilitas didominasi DPK nasabah.")
                 else:
-                    curr_sym = "$" if curr == "USD" else "Rp"
+                    curr_sym = amount_units.get(r_data.get("unit") or curr, f"{r_data.get('unit')} {curr}")
                     der_str = f"{der:.2f}x" if isinstance(der, (int, float)) else "Unverified"
                     cr_str = f"{cr:.2f}x" if isinstance(cr, (int, float)) else "Unverified"
                     gm_str = f" | Gross Margin: {gm:.2f}%" if isinstance(gm, (int, float)) else ""
@@ -885,7 +1048,7 @@ class AgentHarness:
             else:
                 per = s_data.get("period", "")
                 curr = s_data.get("currency", "IDR")
-                c_sym = "$" if curr == "USD" else "Rp"
+                c_sym = amount_units.get(s_data.get("unit") or curr, f"{s_data.get('unit')} {curr}")
                 rv = s_data.get("reported_values", {})
                 rev = rv.get("revenue") or rv.get("total_revenue")
                 gp = rv.get("gross_profit")
@@ -913,6 +1076,7 @@ class AgentHarness:
                         inv_status = f"Selisih Delta = {diff}"
                     stmt_parts.append(f"  * Persamaan Neraca: Aset {c_sym} {ast:,.0f} = Liabilitas {c_sym} {liab:,.0f} + Ekuitas {c_sym} {eq:,.0f} [{inv_status}]")
                 lines.append("\n".join(stmt_parts))
+                lines.append(f"  * Satuan sumber: {s_data.get('unit', 'tidak tersedia')}. Tanggal publikasi arsip: {s_data.get('published_at') or 'tidak tersedia'}; tanggal filing asli belum diverifikasi ulang.")
 
         if events_tool and events_tool.get("success"):
             e_data = events_tool.get("data") or {}
@@ -924,8 +1088,12 @@ class AgentHarness:
                     title = it.get("summary") or it.get("title") or it.get("event", "")
                     lines.append(f"  * [{dt}] {title}")
             else:
-                lines.append("- **Keterbukaan Informasi & Katalis:** Belum ada pengumuman keterbukaan informasi baru yang tercatat resmi di bursa.")
+                lines.append("- **Keterbukaan Informasi & Katalis:** Tidak ada catatan pada sumber yang diperiksa; ini bukan bukti bahwa tidak ada pengumuman baru di bursa.")
 
-        lines.append("- **Integritas Sumber Data:** Fakta keuangan diperoleh dari laporan resmi emiten/BEI, harga penutupan berstatus VERIFIED_EOD. Tidak ada metrik fiktif.")
+        for tool in executed_tools:
+            data = tool.get("data") or {}
+            if data.get("status") == "DATA_GAP":
+                lines.append(f"- **{tool['name']}: DATA_GAP**. Nilai yang tidak tersedia tidak diganti dengan estimasi.")
+        lines.append("- **Batasan:** Data teramati dan hasil hitung tool, bukan prediksi harga atau rekomendasi transaksi. Angka laporan mengikuti mata uang dan periode yang ditampilkan.")
         lines.append("\nApakah Anda ingin memeriksa aspek fundamental, rasio valuasi, atau pergerakan harga aset ini lebih detail?")
         return "\n".join(lines)

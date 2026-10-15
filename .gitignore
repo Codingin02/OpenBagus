@@ -181,15 +181,19 @@ rust/**/target/
 *.pcm.tmp
 *.tts.tmp
 *.asr.tmp
-
-# Migration temporary recovery storage
-.migration/
+# Windows packaging build artifacts
+.packaging-venv/
+build/
+dist/
+_installed/
 
 # Windows release installer binaries
 release/*.exe
 release/*.zip
 
+# Migration temporary recovery storage
+.migration/
+
 # 3D character reference stills (external reference - local preservation only)
 assets/bagusmax/reference/
-
 

@@ -60,6 +60,190 @@ from openbagus.voice.turn_controller import (
 from openbagus.voice.vad import VoiceActivityDetector
 
 
+class TestWindowsReleaseRecovery(unittest.TestCase):
+    def test_frozen_startup_error_survives_closed_stdin(self):
+        import contextlib
+        import io
+        import sys
+        import tempfile
+        from openbagus import bootstrap
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.dict(os.environ, {"LOCALAPPDATA": directory, "OPENBAGUS_MODEL_DIR": directory + "/missing"}), \
+                 patch.object(sys, "frozen", True, create=True), patch("sys.stdin") as stdin, \
+                 patch("builtins.input", side_effect=EOFError), patch.object(bootstrap.logging, "basicConfig"), \
+                 contextlib.redirect_stdout(io.StringIO()) as output:
+                stdin.isatty.return_value = True
+                result = bootstrap.main()
+            self.assertEqual(result, 1)
+            self.assertIn("BLOCKED", output.getvalue())
+
+    def test_ollama_empty_thinking_limit_has_bounded_transparent_same_model_retry(self):
+        import json
+        from openbagus.ai.providers.ollama import OllamaProvider
+        responses = []
+        for data in ({"model": "qwen3.5:4b", "message": {"content": "", "thinking": "private trace"}, "done_reason": "length"},
+                     {"model": "qwen3.5:4b", "message": {"content": "Use went for the past tense."}, "done_reason": "stop", "eval_count": 8}):
+            response = MagicMock()
+            response.__enter__.return_value.read.return_value = json.dumps(data).encode()
+            responses.append(response)
+        provider = OllamaProvider(model="qwen3.5:4b", think=True)
+        with patch("urllib.request.urlopen", side_effect=responses) as request:
+            result = provider.generate([ChatMessage(role="user", content="Explain went")], max_tokens=3072)
+        payloads = [json.loads(call.args[0].data) for call in request.call_args_list]
+        self.assertEqual(len(payloads), 2)
+        self.assertEqual(payloads[0]["model"], payloads[1]["model"])
+        self.assertFalse(payloads[1]["think"])
+        self.assertEqual(payloads[1]["options"]["num_predict"], 512)
+        self.assertIn("Use went", result.content)
+        self.assertIn("thinking dinonaktifkan", result.content)
+        self.assertNotIn("private trace", result.content)
+        self.assertEqual(provider.last_generation["recovery"], "THINKING_LIMIT_FINALIZATION")
+
+    def test_crypto_provider_gap_does_not_fall_through_to_equity_price(self):
+        from openbagus.ai.tools.finance_tools import GetMarketPriceTool
+        with patch("openbagus.data.zerokey.ZeroKeyMarketData") as provider, patch("openbagus.ai.tools.finance_tools.EquityData") as equities:
+            provider.return_value.get_spot_ticker.return_value = None
+            result, _ = GetMarketPriceTool().run("BTC")
+        equities.assert_not_called()
+        self.assertEqual(result["status"], "DATA_GAP")
+        self.assertEqual(result["currency"], "USDT")
+        self.assertTrue(result["is_crypto"])
+        text = AgentHarness(provider=MagicMock())._compose_evidence_response(
+            WorkingContext(active_ticker="BTC", market="CRYPTO"),
+            [{"name": "get_market_price", "success": True, "data": result}], "Harga BTC")
+        self.assertIn("DATA_GAP", text)
+        self.assertNotIn("None USDT", text)
+
+    def test_unknown_explicit_ticker_never_reuses_previous_asset_data(self):
+        context = WorkingContext(active_ticker="TLKM")
+        provider = MagicMock()
+        response = AgentHarness(provider=provider).run("Analisis saham ZZZZ.", context=context)
+        self.assertEqual(response.provider_name, "ENTITY_UNRESOLVED")
+        self.assertEqual(response.tool_calls_executed, [])
+        provider.generate.assert_not_called()
+        self.assertIn("belum terverifikasi", response.content)
+
+    def test_new_voice_turn_does_not_uncancel_previous_turn(self):
+        coordinator = InterruptionCoordinator()
+        coordinator.start_turn("old")
+        previous = coordinator.get_cancellation_event()
+        coordinator.trigger_interruption()
+        coordinator.start_turn("new")
+        self.assertTrue(previous.is_set())
+        self.assertFalse(coordinator.get_cancellation_event().is_set())
+
+    def test_idle_time_does_not_consume_maximum_utterance_duration(self):
+        vad = VoiceActivityDetector(max_utterance_duration_ms=1000, min_speech_duration_ms=64)
+        frame = np.zeros(512, dtype=np.float32)
+        with patch.object(vad, "_score_frame", return_value=0.0):
+            for _ in range(100):
+                vad.process_frame(frame)
+        with patch.object(vad, "_score_frame", return_value=0.99):
+            vad.process_frame(frame)
+            vad.process_frame(frame)
+            active, endpoint, _ = vad.process_frame(frame)
+        self.assertTrue(active)
+        self.assertFalse(endpoint)
+
+    def test_structured_status_is_not_corrupted_by_terminal_wrapping(self):
+        import cmd
+        import contextlib
+        import io
+        import json
+        from openbagus.cli import OpenBagusShell
+        shell = object.__new__(OpenBagusShell)
+        cmd.Cmd.__init__(shell)
+        expected = {"detail": "long diagnostic text " * 30}
+        shell.do_probe = lambda _: print(json.dumps(expected, indent=2))
+        capture = io.StringIO()
+        with contextlib.redirect_stdout(capture):
+            shell.onecmd("/probe")
+        self.assertEqual(json.loads(capture.getvalue()), expected)
+
+    def test_cancelled_turn_does_not_generate_or_write_history(self):
+        import threading
+        cancelled = threading.Event()
+        cancelled.set()
+        provider = MagicMock()
+        context = WorkingContext()
+        result = AgentHarness(provider=provider).run("test", context=context, cancellation=cancelled)
+        provider.generate.assert_not_called()
+        self.assertEqual(context.turns, [])
+        self.assertEqual(result.provider_name, "CANCELLED")
+
+    def test_missing_financial_inputs_remain_missing(self):
+        from openbagus.ai.tools.finance_tools import CalculateFinancialRatiosTool
+        statement = {"period": "2026-Q1", "currency": "IDR", "unit": "million_IDR", "values": {"revenue": 10, "total_equity": 20}}
+        with patch("openbagus.ai.tools.finance_tools.FinancialStatementStorage") as storage:
+            storage.return_value.get_statement.return_value = statement
+            data, _ = CalculateFinancialRatiosTool().run("BBCA")
+        for field in ("net_income", "gross_profit", "roe_pct", "gross_margin_pct", "operating_margin_pct", "net_margin_pct", "current_ratio", "der"):
+            self.assertIsNone(data[field], field)
+
+    def test_plain_input_uses_conversation_not_legacy_ticker_parser(self):
+        from openbagus.cli import OpenBagusShell
+        shell = object.__new__(OpenBagusShell)
+        shell.do_chat = MagicMock()
+        shell.router = MagicMock()
+        shell.router.parse.side_effect = AssertionError("legacy parser must not own chat")
+        shell.session = MagicMock()
+        shell.default("Aku mau tahu")
+        shell.do_chat.assert_called_once_with("Aku mau tahu")
+
+    def test_new_ticker_updates_state_and_tool_arguments(self):
+        from openbagus.ai.tools.registry import ToolRegistry
+        from openbagus.ai.providers.base import ChatCompletionResponse
+        from openbagus.ai.tools.base import BaseFinancialTool
+
+        class PriceTool(BaseFinancialTool):
+            name = "get_market_price"
+            description = "Unit fixture"
+            parameters_schema = {"type": "object", "properties": {"ticker": {"type": "string"}}}
+
+            def run(self, ticker):
+                return {"symbol": ticker, "price": None, "status": "DATA_GAP"}, {"source": "unit fixture"}
+
+        registry = ToolRegistry()
+        registry.register(PriceTool())
+        provider = MagicMock()
+        provider.generate.return_value = ChatCompletionResponse(content="Untrusted price 999999 and probability 72%")
+        provider.get_provider_name.return_value = "UNIT_PROVIDER"
+        harness = AgentHarness(provider=provider, tool_registry=registry)
+        ctx = WorkingContext(active_ticker="RATU")
+        result = harness.run("Sekarang ganti ke BBCA. Berapa harganya?", context=ctx)
+        self.assertEqual(ctx.active_ticker, "BBCA")
+        self.assertTrue(result.tool_calls_executed)
+        self.assertTrue(all(t["arguments"].get("ticker", "BBCA") == "BBCA" for t in result.tool_calls_executed))
+        self.assertNotIn("999999", result.content)
+        self.assertNotIn("72%", result.content)
+        self.assertIn("DATA_GAP", result.content)
+
+    def test_namespace_and_timeframe_survive_serialization(self):
+        ctx = WorkingContext(active_ticker="BBCA", context_namespace="ENGLISH_TUTOR", time_horizon="D1")
+        restored = WorkingContext.from_dict(ctx.to_dict())
+        self.assertEqual(restored.context_namespace, "ENGLISH_TUTOR")
+        self.assertEqual(restored.active_ticker, "BBCA")
+        self.assertEqual(restored.time_horizon, "D1")
+
+    def test_deep_tutor_has_reasoning_budget_and_reports_failure(self):
+        from openbagus.domains.english_tutor import EnglishTutor
+        from openbagus.ai.providers.base import ChatCompletionResponse
+        provider = MagicMock()
+        provider.think = True
+        provider.generate.return_value = ChatCompletionResponse(content="")
+        result = EnglishTutor().generate_tutor_response("Explain past tense", provider=provider)
+        self.assertGreaterEqual(provider.generate.call_args.kwargs["max_tokens"], 2048)
+        self.assertIn("tidak menghasilkan", result.format_text_output().lower())
+
+    def test_vad_keeps_temporal_context_for_real_model(self):
+        vad = VoiceActivityDetector()
+        vad._model = MagicMock(return_value=np.array([0.9], dtype=np.float32))
+        frame = np.ones(512, dtype=np.float32) * 0.05
+        for _ in range(10):
+            vad._score_frame(frame)
+        self.assertGreater(len(vad._model.call_args.args[0]), 512)
+
+
 class TestConversationalRecoveryRegression(unittest.TestCase):
     """20-scenario regression test suite covering real-world user failures."""
 
