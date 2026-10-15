@@ -51,9 +51,19 @@ class EquityData:
             "Metadata: symbol, source HTTPS, authorized_use=true, currency=IDR, volume_unit=shares, "
             "timeframe=D1, adjustment=adjusted/unadjusted, retrieved_at. Schema lengkap: /help idx.")
 
-    def __init__(self, root: Path) -> None:
-        self.root = root
-        self.directory = root / "data/equities"
+    def __init__(self, root: Path | None = None, data_root: Path | None = None) -> None:
+        from openbagus.core.env import get_repo_root, get_operational_data_root
+        self.root = root or get_repo_root()
+        if data_root is not None:
+            self.data_root = data_root
+        elif os.environ.get("OPENBAGUS_DATA_ROOT"):
+            self.data_root = Path(os.environ["OPENBAGUS_DATA_ROOT"]).resolve()
+        elif root is not None and (root / "data" / "equities").exists() and not (get_operational_data_root() / "equities").exists():
+            self.data_root = root / "data"
+        else:
+            self.data_root = get_operational_data_root()
+        self.directory = self.data_root / "equities"
+        self.directory.mkdir(parents=True, exist_ok=True)
 
     def load(self, symbol: str, auto_fetch: bool = False) -> dict:
         if not re.fullmatch(r"[A-Z][A-Z0-9-]{1,14}", symbol):

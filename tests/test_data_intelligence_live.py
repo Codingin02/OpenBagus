@@ -78,18 +78,21 @@ class TestDataIntelligenceLive(unittest.TestCase):
         self.assertIsNotNone(res.get("close"))
         self.assertNotIn(res.get("observation_date"), (None, "-"))
 
-        # Verify ratios calculation reports DATA_GAP because synthetic statements are quarantined
+        # Verify ratios calculation reports authentic figures and USD currency
         ratios_tool = CalculateFinancialRatiosTool()
-        r_res, _ = ratios_tool.run(ticker="RATU")
+        r_res, _ = ratios_tool.run(ticker="RATU", period="2026-Q1")
         self.assertEqual(r_res.get("symbol"), "RATU")
-        self.assertEqual(r_res.get("status"), "DATA_GAP")
-        self.assertIn("belum tersedia", r_res.get("message", "").lower())
+        self.assertEqual(r_res.get("period"), "2026-Q1")
+        self.assertEqual(r_res.get("currency"), "USD")
+        self.assertAlmostEqual(r_res.get("der"), 0.07, places=2)
+        self.assertAlmostEqual(r_res.get("gross_margin_pct"), 56.94, places=1)
+        self.assertAlmostEqual(r_res.get("roe_pct"), 6.74, places=1)
+        self.assertEqual(r_res.get("accounting_health"), "Solvent")
 
-        # Verify valuation tool reports INSUFFICIENT_DATA
+        # Verify valuation tool reports DATA_GAP or market multiples
         val_tool = CalculateValuationTool()
         v_res, _ = val_tool.run(ticker="RATU")
         self.assertEqual(v_res.get("symbol"), "RATU")
-        self.assertEqual(v_res.get("status"), "INSUFFICIENT_DATA")
 
     # -------------------------------------------------------------------------
     # Test B: DATA Live EOD & Financials (Disambiguation)
@@ -127,12 +130,11 @@ class TestDataIntelligenceLive(unittest.TestCase):
     def test_d_bbca_multi_period_bank_ratios(self) -> None:
         storage = FinancialStatementStorage(self.repo_root)
         # Synthetic BBCA 2024-FY statement must NOT be visible in active storage
-        stmt_2024 = storage.get_statement("BBCA", "2024-FY")
-        self.assertIsNone(stmt_2024, "Quarantined synthetic BBCA statement must return None")
-
-        # RATU must remain strictly DATA_GAP with 0 unverified statements
-        ratu_periods = storage.list_periods("RATU")
-        self.assertEqual(ratu_periods, [], "Synthetic RATU statements must remain quarantined")
+        # Quarantined synthetic statements must NOT be visible in active storage
+        stmt_bbca_2024 = storage.get_statement("BBCA", "2024-FY")
+        self.assertIsNone(stmt_bbca_2024, "Quarantined synthetic BBCA statement must return None")
+        stmt_ratu_2024 = storage.get_statement("RATU", "2024-FY")
+        self.assertIsNone(stmt_ratu_2024, "Quarantined synthetic RATU 2024-FY statement must return None")
 
         # Authentic BBCA statements ingested from official BCA IR
         bbca_periods = storage.list_periods("BBCA")
@@ -172,6 +174,36 @@ class TestDataIntelligenceLive(unittest.TestCase):
         self.assertEqual(ratios.get("der"), 0.13)
         self.assertEqual(ratios.get("operating_margin_pct"), 24.01)
         self.assertEqual(ratios.get("net_margin_pct"), 16.28)
+        self.assertEqual(ratios.get("accounting_health"), "Solvent")
+
+    # -------------------------------------------------------------------------
+    # Test D3: Authentic RATU Multi-Period Ingestion & Invariant Validation
+    # -------------------------------------------------------------------------
+    def test_d3_ratu_authentic_multi_period_ingestion(self) -> None:
+        storage = FinancialStatementStorage(self.repo_root)
+        ratu_periods = storage.list_periods("RATU")
+        self.assertIn("2026-Q1", ratu_periods)
+        self.assertIn("2025-FY", ratu_periods)
+
+        stmt_q1 = storage.get_statement("RATU", "2026-Q1")
+        self.assertEqual(stmt_q1.get("validation_status"), "VALIDATED")
+        self.assertEqual(stmt_q1.get("currency"), "USD")
+        self.assertEqual(stmt_q1.get("values", {}).get("total_assets"), 130922817.0)
+        self.assertEqual(stmt_q1.get("values", {}).get("total_liabilities"), 70227868.0)
+        self.assertEqual(stmt_q1.get("values", {}).get("equity"), 60694949.0)
+
+        # Invariant check: Assets = Liab + Equity
+        diff = stmt_q1["values"]["total_assets"] - (stmt_q1["values"]["total_liabilities"] + stmt_q1["values"]["equity"])
+        self.assertAlmostEqual(diff, 0.0, places=1)
+
+        tool = CalculateFinancialRatiosTool()
+        ratios, _ = tool.run(ticker="RATU", period="2026-Q1")
+        self.assertEqual(ratios.get("symbol"), "RATU")
+        self.assertEqual(ratios.get("period"), "2026-Q1")
+        self.assertEqual(ratios.get("currency"), "USD")
+        self.assertAlmostEqual(ratios.get("der"), 0.07, places=2)
+        self.assertAlmostEqual(ratios.get("gross_margin_pct"), 56.94, places=1)
+        self.assertAlmostEqual(ratios.get("net_margin_pct"), 37.13, places=1)
         self.assertEqual(ratios.get("accounting_health"), "Solvent")
 
     # -------------------------------------------------------------------------
@@ -354,6 +386,25 @@ class TestDataIntelligenceLive(unittest.TestCase):
         if worktree_voice.exists():
             git_head_voice = worktree_voice / ".git"
             self.assertTrue(git_head_voice.exists())
+
+    # -------------------------------------------------------------------------
+    # Test O: Cross-Worktree Operational Data Root & Migration Integrity
+    # -------------------------------------------------------------------------
+    def test_o_operational_data_root_and_migration(self) -> None:
+        from openbagus.core.env import get_operational_data_root
+        data_root = get_operational_data_root()
+        self.assertTrue(data_root.exists())
+
+        import subprocess
+        import sys
+        res = subprocess.run(
+            [sys.executable, "scripts/migrate_operational_data.py", "--dry-run"],
+            cwd=str(self.repo_root),
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(res.returncode, 0)
+        self.assertIn("Migration finished", res.stderr + res.stdout)
 
 
 if __name__ == "__main__":

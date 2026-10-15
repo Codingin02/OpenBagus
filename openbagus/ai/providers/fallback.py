@@ -201,8 +201,8 @@ class DeterministicFallbackProvider(BaseModelProvider):
             elif ("laporan keuangan" in lower or "neraca" in lower or "arus kas" in lower or "statement" in lower) and "get_financial_statement" in tool_names and ticker:
                 st = "BALANCE_SHEET" if "neraca" in lower else ("CASH_FLOW" if "arus kas" in lower else "INCOME_STATEMENT")
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="get_financial_statement", arguments={"ticker": ticker, "statement_type": st}))
-            # Financial ratios
-            elif ("rasio" in lower or "der" in lower or "roic" in lower or "roe" in lower) and "calculate_financial_ratios" in tool_names and ticker:
+            # Financial ratios & fundamental health
+            elif any(w in lower for w in ("rasio", "der", "roic", "roe", "fundamental", "bedah", "kinerja keuangan", "margin")) and "calculate_financial_ratios" in tool_names and ticker:
                 tool_calls.append(ToolCall(id="call_fallback_1", function_name="calculate_financial_ratios", arguments={"ticker": ticker}))
             # Valuation
             elif ("valuasi" in lower or "dcf" in lower or "fcf" in lower) and "calculate_valuation" in tool_names and ticker:

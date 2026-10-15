@@ -173,3 +173,34 @@ def load_runtime_env(repo_root: Path) -> RuntimeEnv:
 def get_repo_root() -> Path:
     """Return the absolute path to the repository root directory."""
     return Path(__file__).resolve().parents[2]
+
+
+def get_operational_data_root() -> Path:
+    """Return the operational data directory root shared across all worktrees.
+
+    Precedence:
+    1. OPENBAGUS_DATA_ROOT environment variable (if explicitly defined)
+    2. Centralized shared operational directory:
+       - Windows: %LOCALAPPDATA%/OpenBagus/data
+       - POSIX: ~/.local/share/openbagus/data
+    3. Fallback to repo_root / "data" if central directory is not yet created.
+    """
+    env_root = os.environ.get("OPENBAGUS_DATA_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+
+    local_app_data = os.environ.get("LOCALAPPDATA")
+    if local_app_data:
+        central = Path(local_app_data) / "OpenBagus" / "data"
+    else:
+        central = Path.home() / ".local" / "share" / "openbagus" / "data"
+
+    if central.exists():
+        return central
+
+    repo_data = get_repo_root() / "data"
+    if repo_data.exists():
+        return repo_data
+
+    return central
+

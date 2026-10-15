@@ -46,9 +46,18 @@ def _period_sort_key(period: str) -> tuple[int, int]:
 class FinancialStatementStorage:
     """Manages persistent multi-period financial filings and their retrieval."""
 
-    def __init__(self, root: Path | None = None) -> None:
-        self.root = root or Path.cwd()
-        self.base_dir = self.root / "data" / "equities" / "financials"
+    def __init__(self, root: Path | None = None, data_root: Path | None = None) -> None:
+        from openbagus.core.env import get_operational_data_root
+        if data_root is not None:
+            self.data_root = data_root
+        elif os.environ.get("OPENBAGUS_DATA_ROOT"):
+            self.data_root = Path(os.environ["OPENBAGUS_DATA_ROOT"]).resolve()
+        elif root is not None and (root / "data" / "equities" / "financials").exists() and not (get_operational_data_root() / "equities" / "financials").exists():
+            self.data_root = root / "data"
+        else:
+            self.data_root = get_operational_data_root()
+        self.root = root or self.data_root.parent
+        self.base_dir = self.data_root / "equities" / "financials"
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def _get_symbol_dir(self, symbol: str) -> Path:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -21,12 +22,20 @@ logger = logging.getLogger(__name__)
 class FinancialFactsDatabase:
     """SQLite-backed canonical repository of atomic financial facts and filing indices."""
 
-    def __init__(self, db_path: Path | None = None, root: Path | None = None) -> None:
+    def __init__(self, db_path: Path | None = None, root: Path | None = None, data_root: Path | None = None) -> None:
         if db_path is not None:
             self.db_path = db_path
         else:
-            base = root or Path.cwd()
-            self.db_path = base / "data" / "equities" / "financial_facts.db"
+            from openbagus.core.env import get_operational_data_root
+            if data_root is not None:
+                base = data_root
+            elif os.environ.get("OPENBAGUS_DATA_ROOT"):
+                base = Path(os.environ["OPENBAGUS_DATA_ROOT"]).resolve()
+            elif root is not None and (root / "data" / "equities" / "financial_facts.db").exists() and not (get_operational_data_root() / "equities" / "financial_facts.db").exists():
+                base = root / "data"
+            else:
+                base = get_operational_data_root()
+            self.db_path = base / "equities" / "financial_facts.db"
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
         self._init_schema()
 

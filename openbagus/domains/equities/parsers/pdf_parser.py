@@ -82,7 +82,7 @@ class IdxPdfParser:
             unit_multiplier=multiplier,
             basis="consolidated",
             audit_status="audited" if "FY" in period_type else "unaudited",
-            period_end_date="2024-12-31",
+            period_end_date="2026-03-31" if "Q1" in period_type else "2025-12-31",
             source_document=path.name,
             document_format="PDF",
             source_url=f"https://www.idx.co.id/perusahaan-tercatat/laporan-keuangan-dan-tahunan/ ({path.name})",
@@ -112,20 +112,23 @@ class IdxPdfParser:
             "capital_expenditures", "investing_cash_flow", "financing_cash_flow", "dividends_paid"
         }
 
-        # Scan financial statement pages (typically first 30 pages)
+        # Multi-page scan
         scan_limit = min(30, total_pages)
         for page_num in range(1, scan_limit + 1):
-            try:
-                page_text = reader.pages[page_num - 1].extract_text() or ""
-            except Exception:
-                page_text = ""
+            page = reader.pages[page_num - 1]
+            page_modes: dict[str, str] = {}
+            for mode in ("layout", "standard"):
+                try:
+                    page_modes[mode] = page.extract_text(extraction_mode="layout" if mode == "layout" else None) or ""
+                except Exception:
+                    page_modes[mode] = ""
 
-            total_extracted_text_chars += len(page_text)
-            if not page_text.strip():
+            total_extracted_text_chars += len(page_modes["standard"]) + len(page_modes["layout"])
+            if not page_modes["standard"].strip() and not page_modes["layout"].strip():
                 continue
 
-            # Detect statement section from top header lines of the page
-            header_sample = "\n".join(page_text.splitlines()[:8]).upper()
+            # Detect statement section from top lines
+            header_sample = (page_modes["standard"][:500] + " " + page_modes["layout"][:500]).upper()
             current_section = None
             if "LAPORAN POSISI KEUANGAN" in header_sample or "FINANCIAL POSITION" in header_sample:
                 current_section = "BALANCE_SHEET"
@@ -137,60 +140,94 @@ class IdxPdfParser:
             if not current_section:
                 continue
 
-            lines = page_text.splitlines()
-            for line in lines:
-                clean_line = line.strip()
-                if not clean_line or len(clean_line) < 5:
-                    continue
+            # Detect column layout from header: DATE_NOTE_DATE vs NOTE_DATE_DATE
+            col_order = "NOTE_DATE_DATE"
+            for t in (page_modes["layout"], page_modes["standard"]):
+                for hline in t.splitlines()[:25]:
+                    hline_u = hline.upper()
+                    if ("CATATAN" in hline_u or "NOTES" in hline_u) and any(y in hline_u for y in ("2024", "2025", "2026", "MARET", "DESEMBER", "MARCH", "DECEMBER", "2 0 2")):
+                        pos_notes = min(hline_u.find(w) for w in ("CATATAN", "NOTES") if w in hline_u)
+                        date_matches = [m.start() for m in re.finditer(r"(?:20[12]\d|31\s+MAR|31\s+DES|2\s+0\s+2)", hline_u)]
+                        if date_matches:
+                            col_order = "DATE_NOTE_DATE" if min(date_matches) < pos_notes else "NOTE_DATE_DATE"
+                            break
+                if col_order == "DATE_NOTE_DATE":
+                    break
 
-                for field_name, patterns in LINE_ITEM_PATTERNS.items():
-                    # Scope validation by statement section
-                    if current_section == "BALANCE_SHEET" and field_name not in BALANCE_SHEET_FIELDS:
-                        continue
-                    if current_section == "INCOME_STATEMENT" and field_name not in INCOME_STATEMENT_FIELDS:
-                        continue
-                    if current_section == "CASH_FLOWS" and field_name not in CASH_FLOW_FIELDS:
-                        continue
-
-                    if getattr(stmt, field_name, None) is not None:
-                        continue
-
-                    # Contextual handling of attributable equity vs income rows
-                    if field_name == "net_income_attributable" and current_section != "INCOME_STATEMENT":
-                        continue
-                    if field_name == "equity_attributable_to_owners" and current_section != "BALANCE_SHEET":
+            # Process lines: check layout mode first, fallback to standard text
+            for mode in ("layout", "standard"):
+                lines = page_modes[mode].splitlines()
+                for line in lines:
+                    clean_line = line.strip()
+                    if not clean_line or len(clean_line) < 5:
                         continue
 
-                    matched = any(re.search(p, clean_line, re.I) for p in patterns)
-                    if not matched:
-                        # Special sub-label matching for profit attributable
-                        if current_section == "INCOME_STATEMENT":
-                            if field_name == "net_income_attributable" and re.search(r"^\s*pemilik\s+entitas\s+induk\b", clean_line, re.I):
-                                matched = True
-                            elif field_name == "net_income_non_controlling" and re.search(r"^\s*kepentingan\s+non-?pengendali\b", clean_line, re.I):
-                                matched = True
+                    for field_name, patterns in LINE_ITEM_PATTERNS.items():
+                        if current_section == "BALANCE_SHEET" and field_name not in BALANCE_SHEET_FIELDS:
+                            continue
+                        if current_section == "INCOME_STATEMENT" and field_name not in INCOME_STATEMENT_FIELDS:
+                            continue
+                        if current_section == "CASH_FLOWS" and field_name not in CASH_FLOW_FIELDS:
+                            continue
 
-                    if matched:
-                        # Extract amounts on this line
-                        nums = re.findall(r"\(?-?[0-9]{1,3}(?:[.,][0-9]{3})*(?:[.,][0-9]+)?\)?", clean_line)
-                        if nums:
-                            # In two-period comparative tables, current period is nums[-2] if >= 2 amounts
-                            target_num_str = nums[-2] if len(nums) >= 2 else nums[-1]
-                            val = _clean_numeric_value(target_num_str, is_id_locale=(stmt.currency == "IDR"))
-                            if val is not None:
-                                if field_name in {"cost_of_revenue", "operating_expenses", "finance_costs", "tax_expense", "capex_ppe", "capex_intangibles", "capital_expenditures"}:
-                                    val = abs(val)
-                                setattr(stmt, field_name, val)
-                                citations[field_name] = SourceCitation(
-                                    statement_type=current_section,
-                                    page_number=page_num,
-                                    row_label=clean_line[:60],
-                                    raw_reported_text=target_num_str,
-                                    file_path=str(path),
-                                )
-                                break
+                        if getattr(stmt, field_name, None) is not None:
+                            continue
 
-        # Scanned PDF detection: if very few characters extracted across multiple pages
+                        if field_name == "net_income_attributable" and current_section != "INCOME_STATEMENT":
+                            continue
+                        if field_name == "equity_attributable_to_owners" and current_section != "BALANCE_SHEET":
+                            continue
+
+                        matched = any(re.search(p, clean_line, re.I) for p in patterns)
+                        if not matched:
+                            if current_section == "INCOME_STATEMENT":
+                                if field_name == "net_income_attributable" and re.search(r"^\s*pemilik\s+entitas\s+induk\b", clean_line, re.I):
+                                    matched = True
+                                elif field_name == "net_income_non_controlling" and re.search(r"^\s*kepentingan\s+non-?pengendali\b", clean_line, re.I):
+                                    matched = True
+
+                        if matched:
+                            matches = re.findall(r"\(?-?[0-9]{1,3}(?:[.,][0-9]{3})+(?:[.,][0-9]+)?\)?|\([0-9]+\)|[0-9]+[.,][0-9]{2,4}|(?<=\s)-{1}(?=\s|$)", clean_line)
+                            if matches:
+                                if col_order == "DATE_NOTE_DATE":
+                                    target_num_str = matches[0]
+                                else:
+                                    target_num_str = matches[-2] if len(matches) >= 2 else matches[-1]
+
+                                val = _clean_numeric_value(target_num_str, is_id_locale=(stmt.currency == "IDR"))
+                                if val is not None:
+                                    if field_name in {"cost_of_revenue", "operating_expenses", "finance_costs", "tax_expense", "capex_ppe", "capex_intangibles", "capital_expenditures"}:
+                                        val = abs(val)
+                                    setattr(stmt, field_name, val)
+                                    citations[field_name] = SourceCitation(
+                                        statement_type=current_section,
+                                        page_number=page_num,
+                                        row_label=clean_line[:60],
+                                        raw_reported_text=target_num_str,
+                                        file_path=str(path),
+                                    )
+                                    break
+
+        # Reconcile mathematical invariants
+        # 1. Cost of Revenue vs Revenue and Gross Profit
+        if stmt.revenue is not None and stmt.gross_profit is not None:
+            calc_cogs = stmt.revenue - stmt.gross_profit
+            if stmt.cost_of_revenue is not None and abs(stmt.cost_of_revenue - calc_cogs) > max(100.0, stmt.revenue * 0.01):
+                stmt.cost_of_revenue = abs(calc_cogs)
+            elif stmt.cost_of_revenue is None and calc_cogs > 0:
+                stmt.cost_of_revenue = abs(calc_cogs)
+
+        # 2. Attributable net income + NCI == Total Net Income reconciliation
+        if stmt.net_income_total is not None:
+            if stmt.net_income_attributable is not None and stmt.net_income_non_controlling is not None:
+                calc_sum = stmt.net_income_attributable + stmt.net_income_non_controlling
+                if abs(calc_sum - stmt.net_income_total) > max(100.0, abs(stmt.net_income_total) * 0.01):
+                    if abs(stmt.net_income_attributable - stmt.net_income_non_controlling - stmt.net_income_total) < 10.0:
+                        stmt.net_income_non_controlling = -abs(stmt.net_income_non_controlling)
+                    elif abs((stmt.net_income_total - stmt.net_income_non_controlling) - stmt.net_income_total) > 0:
+                        stmt.net_income_attributable = stmt.net_income_total - stmt.net_income_non_controlling
+
+        # Scanned PDF detection
         if total_extracted_text_chars < 500:
             stmt.validation_status = "REVIEW_REQUIRED"
             stmt.validation_notes.append("Dokumen PDF terindikasi hasil scan/gambar; diperlukan konfirmasi manual.")

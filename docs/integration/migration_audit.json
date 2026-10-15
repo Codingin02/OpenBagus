@@ -1,0 +1,1092 @@
+{
+  "timestamp": "2026-10-15T04:51:52.704865+00:00",
+  "source": "E:\\Projects\\OpenBagus-Data\\data",
+  "target": "C:\\Users\\bagus\\AppData\\Local\\OpenBagus\\data",
+  "dry_run": false,
+  "backup_created": null,
+  "files_scanned": 178,
+  "files_copied": 178,
+  "files_skipped_identical": 0,
+  "bytes_migrated": 30841035,
+  "sqlite_checks": {
+    "source:financial_facts.db": {
+      "ok": true,
+      "status": "ok"
+    },
+    "target:financial_facts.db": {
+      "ok": true,
+      "status": "ok"
+    }
+  },
+  "file_details": [
+    {
+      "path": "dataset_coverage_metrics.json",
+      "action": "COPIED",
+      "size_bytes": 2648,
+      "sha256": "dec906df3be69998257767712590cad3132260ee74a0756c99abd7516817d5a2"
+    },
+    {
+      "path": "idx_download_probe.json",
+      "action": "COPIED",
+      "size_bytes": 1995,
+      "sha256": "b0cc9f281467285bf42c71916a255ef9e2256e4009c61057c4192d94e7500337"
+    },
+    {
+      "path": "idx_probe_audit.json",
+      "action": "COPIED",
+      "size_bytes": 17209,
+      "sha256": "e2a6500a93eb35c7af0bfebf6c7bc5bc01ae03e451bf87c5077dbbcda0fea464"
+    },
+    {
+      "path": "issuer_ir_probe.json",
+      "action": "COPIED",
+      "size_bytes": 25933,
+      "sha256": "dd04a84e7acd146b76466fa52f54d28d2fb5ab3deadfb8ea93b94454fcc27326"
+    },
+    {
+      "path": "quarantine_manifest.json",
+      "action": "COPIED",
+      "size_bytes": 23792,
+      "sha256": "22beb4937e22c32825ff68ed9ab4b471c03cb1fb08b648eaaf2fe54dedc2c69e"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financial_facts.db",
+      "action": "COPIED",
+      "size_bytes": 368640,
+      "sha256": "0b4b33f8a88526edd7749b181515fa5427172be6e83fb26de51fb6ad2f15186d"
+    },
+    {
+      "path": "equities\\ASII.json",
+      "action": "COPIED",
+      "size_bytes": 317950,
+      "sha256": "af21b9caad4b45a921e6429d30e8ea524d2c1220ef5c153e951a52975912112d"
+    },
+    {
+      "path": "equities\\BBCA.json",
+      "action": "COPIED",
+      "size_bytes": 322605,
+      "sha256": "5ece3771d37119bef1db83a8067bfb74059b91926d53b5de41d0e467df635642"
+    },
+    {
+      "path": "equities\\DATA.json",
+      "action": "COPIED",
+      "size_bytes": 151280,
+      "sha256": "60e5be28c309b12fb43bae312232a5dff4698b2aca337e51671583ac66683e29"
+    },
+    {
+      "path": "equities\\financial_facts.db",
+      "action": "COPIED",
+      "size_bytes": 417792,
+      "sha256": "361598e31d632c5d417709cf7478b2282e4e8c04c99a8222f2e9d684850a1512"
+    },
+    {
+      "path": "equities\\ISAT.json",
+      "action": "COPIED",
+      "size_bytes": 317333,
+      "sha256": "a00e644d452a5a3e07c4a6220ff5aaa82713783d1cc9109fa18419316aa60c83"
+    },
+    {
+      "path": "equities\\RATU.json",
+      "action": "COPIED",
+      "size_bytes": 110791,
+      "sha256": "a19972b8196b68be550a100401cff7e0e8eef0a8a28285ea1dbee0310168806a"
+    },
+    {
+      "path": "equities\\TLKM.json",
+      "action": "COPIED",
+      "size_bytes": 324069,
+      "sha256": "2c5f043f082ab178a8b6bd4521bfa1d09a6117f170a519e308d5ce16a0da2bf0"
+    },
+    {
+      "path": "events\\events.json",
+      "action": "COPIED",
+      "size_bytes": 3260,
+      "sha256": "95ad7f07f50aafac2fdf1565f97d4d0f307c23768ee50366d2960810871d08af"
+    },
+    {
+      "path": "local_ai\\bagusmax_preferences.json",
+      "action": "COPIED",
+      "size_bytes": 403,
+      "sha256": "e498de8b186c4d67ab3d801087b686a9683bf67a74ce193ceefa823ccd19b1b3"
+    },
+    {
+      "path": "local_ai\\voice_preferences.json",
+      "action": "COPIED",
+      "size_bytes": 388,
+      "sha256": "d09f78b531313b8ed5cddbc8f50e158617ddcea972f30478ecfca535d03a95d7"
+    },
+    {
+      "path": "processed\\.gitkeep",
+      "action": "COPIED",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "raw\\.gitkeep",
+      "action": "COPIED",
+      "size_bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "path": "quarantine\\financials\\BBCA\\2023-FY.json",
+      "action": "COPIED",
+      "size_bytes": 785,
+      "sha256": "93a957856ac80f8ffb826e7f5a76e07640c1dfbb3470a5b73bcb590b207e0383"
+    },
+    {
+      "path": "quarantine\\financials\\BBCA\\2024-FY.json",
+      "action": "COPIED",
+      "size_bytes": 785,
+      "sha256": "7557a56f3125e49e0066c5c089f9bf0e277310452218e57c3e217e3a35b2b326"
+    },
+    {
+      "path": "quarantine\\financials\\RATU\\2023-FY.json",
+      "action": "COPIED",
+      "size_bytes": 786,
+      "sha256": "9647f10ffe71b7df2e78593e71fc24bd6d4462261fa45a266474eb27ae5fea8e"
+    },
+    {
+      "path": "quarantine\\financials\\RATU\\2024-FY.json",
+      "action": "COPIED",
+      "size_bytes": 786,
+      "sha256": "022b9b6f911673dec81c78447d38b931eaa58a3a96a7705bd40e5ce9f4827a82"
+    },
+    {
+      "path": "equities\\sec\\companyfacts_CIK0000320193.json",
+      "action": "COPIED",
+      "size_bytes": 7961464,
+      "sha256": "da6ece210e686c8cbd50d380abd6cb56e9423f3b1b86840826a24b566bde7c26"
+    },
+    {
+      "path": "equities\\sec\\company_tickers.json",
+      "action": "COPIED",
+      "size_bytes": 1113457,
+      "sha256": "4d5845084fa8378c53358508a6f330702bf067e9e8d06a6ca79b9f1b1f15007f"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2009-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6588,
+      "sha256": "5aa23a32f3d8f1f337cab19b98f963a9da82f881a71ff94a20596ff4a8ebb5aa"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2009-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6246,
+      "sha256": "e93d9dc3752b9f12bce1c00e980b0b720659ee02b7fc5d1079f98d852062db26"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2010-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6385,
+      "sha256": "a1a38334a84e44ff589212e2d0f1f1f972ce3ad548233e850e2c6378ba67b650"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2010-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6443,
+      "sha256": "6fac9e8d9599bdf948804e486db0e0900fa5dc0f5a9cb66d2566b9a6ef81f2c3"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2010-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6441,
+      "sha256": "4e5d0cd5414756c1642962d94338c7032dfa5353e39e59ec102ae7527c0a116b"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2010-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6229,
+      "sha256": "05293db14fc3de6e835d5fe3f3b636e9dc50cc92923bc88f72cf9aafc62d12e6"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2011-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6606,
+      "sha256": "d9d57421b3a54a1304c6ccbf0130ca4be41b08fa3ba122f371c95864cda79cf5"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2011-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6232,
+      "sha256": "31ad00ca5f9df8cba327604dc0caff92e7b477b00092abac4643417a20d2ceb7"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2011-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6231,
+      "sha256": "01429c3d37fec791f7c03be2c79edce5f2e6ed2369b130eee2671c9212d2990a"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2011-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6450,
+      "sha256": "9ef495d387b236a98db2afc24a6e8b7d1b4ce433e37b7ce9299a8781336450f9"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2012-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6791,
+      "sha256": "b52dfc5ae7d41af911a27ce4aad3d0bc96eadffae8e6b76a12c4a8ed9bc2ef0a"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2012-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6454,
+      "sha256": "ba5c5c0345ac6c9a74afb9650d22c87e44ec90b8026305171124ad47cdb5bde0"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2012-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6456,
+      "sha256": "28c102e62d09f685cecdf55b24dca0c14d7f223ebb1d7c65fe7eb0e20888f01f"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2012-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6457,
+      "sha256": "2d0458e7247f3c4b0653174c1885d1f52ce9f38d533dcf9db00cc2199fbeb1da"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2013-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7568,
+      "sha256": "470b89914f7140d9dcf707efd81622e50b3f64f26a160f78251e296971a69021"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2013-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6850,
+      "sha256": "d09117a2c587ab198e83b7afdbc6982fc75e675f5a745b6f00f9b1c62398e130"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2013-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6842,
+      "sha256": "d2980629cf0bd240a046fba7ac6527b8ab17aed4febb5bca8998b8615e111a2b"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2013-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7223,
+      "sha256": "9d58cb966ea8338a2bf1cdc392b527de7744e873212af28a7c47fba508a4f26b"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2014-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7357,
+      "sha256": "e5145fd295e052c9b9de79abd646460433769f4c916bd2cb0c0ea50c5f0aa4fd"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2014-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7258,
+      "sha256": "74bd3d716f174d8aa9ae0eb85c497edea35fdc7c06c303cfb7491dc6916fa6e6"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2014-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6841,
+      "sha256": "85f6e3472fc37240e13c6f103b9cc43ccbaf447b31194281222393dfc540d0fc"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2014-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7227,
+      "sha256": "68394ea6dd98eb2c9acb407f0cc8245eb365a0147f19ab284234083684c8f3e8"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2015-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7422,
+      "sha256": "a2dcebaa23485644e505397b445e43973345097ff4b948da23b1cf917735dac8"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2015-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7242,
+      "sha256": "8032a894e228d1a6bc104884f5dd6461a4defc9b8446e9597ad3fc7eed0c2b7a"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2015-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7243,
+      "sha256": "a6a7f8482d843c2675a91c8c1cb7978bc121387916d419e457799fb70a435f82"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2015-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7260,
+      "sha256": "e7567579f9b4a23292d2871140a4ef7bdc2af2d4cd985551a451218755ada31e"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2016-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7606,
+      "sha256": "62808d3296778b83921668649160a8984f7a5f4cd9ff1e86b009baa8a3e702c0"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2016-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7262,
+      "sha256": "00cebf033c069d7371578bca4e08566f420c85626027a09817f7733b3e538a50"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2016-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7264,
+      "sha256": "d4fcded287684893636bcfc5a2e824f93d2371db3e72d710c34436ca2f725ad2"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2016-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7448,
+      "sha256": "465993bd561341a78508963a5bf90fe8e36347557de381837e50c1016ef53bb4"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2017-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8024,
+      "sha256": "ac11e82984e9c4de8e4555ef82ccffc6d8d4c16199bb8ba30601fa8f2d58da3d"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2017-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7062,
+      "sha256": "102110d7902f0a00fd0dd2f38c96e3ce175b4e6f555c565451803258dc0d98b8"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2017-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7678,
+      "sha256": "840279099527618c136a0528d8fc5e559f3a9413121e5cb16d499d7820249daa"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2017-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7868,
+      "sha256": "5fe46dbd4cabb19f438d2dc7b7c12c4fe405e3c0824306020f95eddac2674585"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2018-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8427,
+      "sha256": "8776f5977177708d73ddce435ed7520b822b07c43929098f845d79219c53d85b"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2018-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7672,
+      "sha256": "155b29b9348d57f5ca6829a75d728ad1876ccebc881533221b0d5b72d42d008e"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2018-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7866,
+      "sha256": "2076eda4c9b37e91a3e43b786a722a7bd9b148e8dfdfd98b7c59c86ac502ffd7"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2018-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7871,
+      "sha256": "8810b8073e10772b77a88220e8e1f9d153627a6780861c756aa15512bccc9dc2"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2019-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8464,
+      "sha256": "878e41b7d8eefaa98cce7908ac3fd9a7f189742a686477ebe56bc55b050ec5da"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2019-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8258,
+      "sha256": "97d7b879de3fa4ee0dafc6e7a938d39388fe79b5c4c449779728226731056487"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2019-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8450,
+      "sha256": "af9dc263a9d51eaaf92d316f096fbad03884cb00a53e671bd6bdf05560d32031"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2019-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8454,
+      "sha256": "5eeb0e5352d2fe57cf641fc4518b503595c31e7bf7af0f0b8171e98e85170508"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2020-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8667,
+      "sha256": "ae77972a601fc3f159ac8377b19e7c8ee63d37210e29beac74fc344b05a0e574"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2020-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8429,
+      "sha256": "0413ad792a5ed6ba03323ae62d06256fbdca5a493e23f7ce3271a1de66ab85f5"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2020-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8447,
+      "sha256": "455299720cf9d25584ad53befd36a010bd5a789952260f2ea93892a402189d18"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2020-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8447,
+      "sha256": "708624208b9d379441e1227bea25524ea1b541247dc4508e5ee08bdce443a52e"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2021-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8666,
+      "sha256": "c5c08500806a1cbc7a96439fc7c5e7ee5a958704afc7c90942b868b67d2414f3"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2021-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8447,
+      "sha256": "739400fbe49df6ccfae63c5b53f0d130e8a6a66dd707cad83152e6020ee7e82a"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2021-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8446,
+      "sha256": "285c718a4a024677a9426de73328607379e135529883caf80988dda0acea61d1"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2021-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8449,
+      "sha256": "b8274c59144fe05529dc30eb4964ba5ac3e877c9721ff6f1fea0ea4f9825d749"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2022-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8662,
+      "sha256": "76ca3fa1f725d53efc89487d124548c7d2cc61d5081d1dff38f60e78d95b6e12"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2022-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8247,
+      "sha256": "93ab115aa08d95fc6a0b092580b6347acb895fb9836e2eb9e2ee42f7fecd62ec"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2022-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8448,
+      "sha256": "1d0d3472c7777234ed95a7b070738eb54a5cc797c2e73f421181596d7e44fdd1"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2022-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8449,
+      "sha256": "d44c7fbf1415a06e9cbd3c7aa74496251109d3864e5454044ec634dcc1f535a2"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2023-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8670,
+      "sha256": "54575c2302084bad91ef3b629dbe21a38d09be4b9716de5a4de3691cd1f644cd"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2023-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8240,
+      "sha256": "d3bfd916330ea546bd27577a94ec24a0d844bf0eeb65662696e56296e0e86aee"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2023-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8247,
+      "sha256": "16119237483d6a92ae5ea2cfda86cb9cd522eff145bc5ae1632d8e39e060b0b1"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2023-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8440,
+      "sha256": "a292bde921c65ed4019307cf3c8e71d390ea242aeae45082311893459a7c69c3"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2024-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8477,
+      "sha256": "75165d2df82061f3e134cc1bdeb81edef852391247bf58b42e882ca7440778ef"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2024-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8059,
+      "sha256": "0d30136832fb675c8f83a3f17bb5d1cda2da1d0226ff11e3ca20286d3a196369"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2024-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8055,
+      "sha256": "01d7aff9ced4d05dad06fe4fde26cc33106e0d51683018a9c993227a6c2fd2d8"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2024-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8259,
+      "sha256": "82488b646f63ec59a0170796caea61bb6718223b724dcbc57fcbfa316f7499bb"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2025-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8479,
+      "sha256": "f6dad8115d01cd514dc9e0190c9af29410c82934093f4d426b17ddaad860d147"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2025-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8049,
+      "sha256": "7de713383267484dc5abbbfd77ce0a7cf6f34437ea62f3eb39f2d45746664b07"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2025-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8056,
+      "sha256": "28d3d403ae3ba4665fc1b9d9a41b8f3adc9eb4c1ce545183a9357c93597701d4"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2025-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8249,
+      "sha256": "5f55f89eec6f7d37a80bb3436917cc04f2e512e35d8b06e5d04c9a90fc88f22d"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2026-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8059,
+      "sha256": "8b9a8c5b7042453a6e40f502d65f7bb6a403bba8a723cd42f933129b9a634804"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2026-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8058,
+      "sha256": "1a3239061263a8d75c65e207d6b8fed3a7dc74ce5670104583ca31987df88439"
+    },
+    {
+      "path": "equities\\financials\\AAPL\\2026-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8260,
+      "sha256": "0c5ed7f3617793416b9b5a3605f55d602c0a0ac4f10443b21c15863e71e6e2a2"
+    },
+    {
+      "path": "equities\\financials\\BBCA\\2025-FY.json",
+      "action": "COPIED",
+      "size_bytes": 4042,
+      "sha256": "bf2b3bb0752dc8949d3d57522d60da8c29f6c70012a28dac0ec58f6b84dec4ab"
+    },
+    {
+      "path": "equities\\financials\\BBCA\\2026-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 4074,
+      "sha256": "eef1dcebd7d67360ca84379a370be2411cfcaf37e0273854ac5272c91594350d"
+    },
+    {
+      "path": "equities\\financials\\RATU\\2025-FY.json",
+      "action": "COPIED",
+      "size_bytes": 5369,
+      "sha256": "b5f9538da59ac94aefaa9caf9afc77f95fce6295921e8ba24516ae3174b03539"
+    },
+    {
+      "path": "equities\\financials\\RATU\\2026-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 5852,
+      "sha256": "06a98eb704068bac58396ab0d631d2462bb2a75638cea7cc40a869d08b4df120"
+    },
+    {
+      "path": "equities\\financials\\TLKM\\2025-FY.json",
+      "action": "COPIED",
+      "size_bytes": 5497,
+      "sha256": "7119c5880e3c3d1992d16da610761069acecbd32018e0cbd74b1e6b19510a0f6"
+    },
+    {
+      "path": "equities\\financials\\TLKM\\2026-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 5352,
+      "sha256": "3b4370cdeed60b5c6781dd49d67c1eac54728ff553229a0f66062e5b7a2f324c"
+    },
+    {
+      "path": "equities\\downloads\\BBCA\\20260127-audited-financial-statement-bca-31-december-2025-indonesia-combined.pdf",
+      "action": "COPIED",
+      "size_bytes": 4869203,
+      "sha256": "4ad4429143bd02606c8548283bfed7054125abc27998635b7c74baf67a6369c4"
+    },
+    {
+      "path": "equities\\downloads\\BBCA\\20260423-laporan-keuangan-konsolidasi-pt-bca-tbk-periode-31-maret-2026-billingual.pdf",
+      "action": "COPIED",
+      "size_bytes": 2713904,
+      "sha256": "4c7e60003600d5588b69b605c2136f9e3491b29b37fca542b0c5a63773b7b2ee"
+    },
+    {
+      "path": "equities\\downloads\\RATU\\RATU_Q1_2026.pdf",
+      "action": "COPIED",
+      "size_bytes": 1728779,
+      "sha256": "3da275945eb99885ade3431c87fcd1d5fd4476b9674367825cf5ffcc38ec19dd"
+    },
+    {
+      "path": "equities\\downloads\\RATU\\RATU_Q4_2025.pdf",
+      "action": "COPIED",
+      "size_bytes": 3995263,
+      "sha256": "3281c7d264d6096e6f927035a3600265dd886075290b39868da6297962fb68b0"
+    },
+    {
+      "path": "equities\\downloads\\TLKM\\LK-Konsolidasian-Telkom-Tahun-2025-Audited-Bahasa.pdf",
+      "action": "COPIED",
+      "size_bytes": 2678144,
+      "sha256": "aa74ace935097be5f4b012009b23db6e1715edbb6a11cc885a03afdeab28b9ca"
+    },
+    {
+      "path": "equities\\downloads\\TLKM\\TW-I-2026-FS-Konsolidasian-Telkom-Bahasa.pdf",
+      "action": "COPIED",
+      "size_bytes": 2287518,
+      "sha256": "853342ab1464ff6e69c98a63c99bcfc160a1208f7b3c21a3324fa7dd07e7feba"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2009-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6527,
+      "sha256": "61caa76d6ea1262dbb8b5d223206c0021b6eaf1957e33d9b69c98ce56e13330d"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2009-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6185,
+      "sha256": "60494f9587c19a0c9cd628816ad414cc57c63ce504c059ac8d81bc4063fae71a"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2010-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6324,
+      "sha256": "9e0c6f392dbdbf10fbaccc1bf77e4eba9aef4171b2d53622152a6379224dc390"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2010-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6382,
+      "sha256": "e75361a51033e51796037481aadc8d5397170cf3be2e8082cd2323d6b1e0b10c"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2010-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6380,
+      "sha256": "6df943ee8cb4f0d0ab6b3cab3e3de2fc6c01859bf545a31e4c2611d0f309f44b"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2010-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6168,
+      "sha256": "68dd825aba88e3ea77c97f93bf9fb0017937340209d4d15c4c59e46f05577742"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2011-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6545,
+      "sha256": "075156fd85b7ee788a6e488ebdf325c6ac159f8440d4dbf5bd7e827430681dd6"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2011-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6171,
+      "sha256": "2e5a32e29622792d4c90c924a3616e00b383bc0971a41c42a7aad4888daf44d4"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2011-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6170,
+      "sha256": "0b5641bed19f172062bbafe8b8bbf211965d0f4b0380ab68f2e300a7a2e137c5"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2011-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6389,
+      "sha256": "179578d8846ccea8c077533827dd4719eed2cbc3967ad5e1a90d992de01aac98"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2012-FY.json",
+      "action": "COPIED",
+      "size_bytes": 6730,
+      "sha256": "0624558df825e333580ca6028a22b008fbf46f2be3ebb6e5b931bf1ed015aff4"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2012-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6393,
+      "sha256": "421799f51a81e081560bb993d8dc5c897757e17c8ea61a3e58d07ba2db1d46cc"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2012-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6395,
+      "sha256": "1d992434d289acdf98b12eb5bc0f94cd748a787754ad30923edd0aef75f97085"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2012-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 6396,
+      "sha256": "13b90c5e595b2d626be82e3495cb7af1a3b2d10c0a85c946dde4516291ebb94f"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2013-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7507,
+      "sha256": "8ae265089e03883ab26e73edb3e7825f5798ade8290e596d7941ac08fc1df680"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2013-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 6789,
+      "sha256": "8e4885e46a8cf2c22af6277c1aab7a859e0120cf0da5864b568206fa2b605c55"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2013-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6781,
+      "sha256": "4e0fa9ee6f8affa3958d8e8c22dfcd43cf14f055f697a59823387112f029e838"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2013-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7162,
+      "sha256": "85c91959547f6005991203d2093faad7f947f6f5a6d14c76e22fbe2624a17723"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2014-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7296,
+      "sha256": "795b2ee2204d0e52c28d6149787ec37e0cc4d051abbd5a9f984c44908e5c6653"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2014-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7197,
+      "sha256": "790518082c1c9856274c764058f019ab241dffa149e919db8b29fc45611179ad"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2014-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 6780,
+      "sha256": "1323cf71d3fc980bb431e28f0bb0d9dc6ddd4e961ff2692c1491e1d6f620a897"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2014-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7166,
+      "sha256": "e35819cf6e00e7fde872017177a4fbf81c3785a243a4df0f5cfc2d15e593e094"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2015-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7361,
+      "sha256": "4f1623d59af7a4c9e3c5140373d968ea3d8e68830d9c9aadbe432e66f2308060"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2015-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7181,
+      "sha256": "22d1d3707586ef6e77284547562a4cfdd3b53b0669c40e7f47e398b39145be04"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2015-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7182,
+      "sha256": "de3f247eda17a0b02eeb8185eaeb1429040655ba282fa47038a94f225019b159"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2015-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7199,
+      "sha256": "76d90ce593963aa0ba4bd708cd3c61e10712e060c8f1a7485d3c687fb581b250"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2016-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7545,
+      "sha256": "2a25d8395e54545b9dd503ebdfe1f6adb58b0abffe746d9b81baedadc8757823"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2016-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7201,
+      "sha256": "47b748a6843d157eda4a05b1185eb831b4b9b7e535143732aa07a25afbb2f92a"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2016-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7203,
+      "sha256": "94b69be1a61538e8272ee756c5446610c24b88311d6bfa4567568645e1ef9773"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2016-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7387,
+      "sha256": "f44bdd1be8c5d3ac77f8d33efecab086405c6652555952b1e7abda33c73f7b30"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2017-FY.json",
+      "action": "COPIED",
+      "size_bytes": 7963,
+      "sha256": "6668249a43904e1bc7fb6a747af2e290280c3670ce17d40f3a53e20c1caea76a"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2017-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7001,
+      "sha256": "4371d6d508c1a144d27744c8b3e6191267aea33005fe8c2c26ccf11252e786af"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2017-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7617,
+      "sha256": "5d371a678f314e619c58cc5e6b02520e85502e28da820a2c2bce69f42fcaf6b7"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2017-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7807,
+      "sha256": "bf54e3cac356c13c958536f8328ce5e6da1666665211f145033b131a0ee1a690"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2018-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8366,
+      "sha256": "89c0f7bb0e35ab22f9596212485e6ebdc71883d98e00965bdb90aba0afb7c846"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2018-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7611,
+      "sha256": "034cf3aeceba01cdcd43be8ccc582c008f07d0d52e30485291c28ff367a45311"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2018-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7805,
+      "sha256": "ccd1571f1b404f3326e84bca9b300754e1f0929ae4d08f5218404921d6b18625"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2018-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 7810,
+      "sha256": "7a9108d1e6587c2207328bb9d0e44a1dae674fc6c1f3009f606bcffd1c5afe39"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2019-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8403,
+      "sha256": "66b5ffe72eabeb2888e3b2ba790994841581204bc9298ace48db1a81e84bd57c"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2019-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8197,
+      "sha256": "26099c245e190b7454fb3199efd012b4abf0181701ed6c8cc8e50402c2be3af7"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2019-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8389,
+      "sha256": "59b73df061466421ea39a9c11bd9557e9b2f5e15238c5cb078649c15adeac599"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2019-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8393,
+      "sha256": "9b4b37a01a1274a660dbb8a7247a22e8faf2afa325f806d990e7b81a7478720b"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2020-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8606,
+      "sha256": "ec7cae27e3305f345861ab2122ac9dd07a0d84ff06568082cbc0c7c08d0f1f82"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2020-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8368,
+      "sha256": "af6d540801df6567d9974f4ff71ac907d4ccd72a66bc4fb0ad253ce1b3a6c3b3"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2020-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8386,
+      "sha256": "e51bfc1c28c171d38bb5824f328ce0b740aaa6ac0babb1edd02827cd5b70844e"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2020-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8386,
+      "sha256": "8b6d12f6c25dd3eb26e289a1c86844f10f571c2143c9943167e25c7dadb099f5"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2021-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8605,
+      "sha256": "c3314eb8cd62d63229fb627e34cab36d513636a7eb7f4957f725d1079067b48b"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2021-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8386,
+      "sha256": "c125c0042320dcec10429c45ccf0eb8bc559ce121200754063a4e9ed97766e62"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2021-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8385,
+      "sha256": "2fb83d3f20c78acc6374e58467d77d9a004115c04165129e571cfddabff4e43f"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2021-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8388,
+      "sha256": "d63ce9a9de600f5c5c2751ee27af55700f5b24d4d240bcc41a98084077efdb5f"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2022-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8601,
+      "sha256": "9abd7c72c76e14806101327a04f80fcce863ba887d94e370ca68590b42d03623"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2022-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8186,
+      "sha256": "3416ccc6e4edd8fb7d0a7402397c21df7f9df1f702a46b149a9164eb8c5e7413"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2022-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8387,
+      "sha256": "c96a69c9dbfc9ba58ac7f753742fb7beae8f37c7720f89658c8721f6d8c10d9e"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2022-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8388,
+      "sha256": "04e949f32336e94e7d9f248287d58849514e18a32f5c39b538b190d2eaa16d96"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2023-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8609,
+      "sha256": "20a74307d5275661373856092b8e0607f01351dab219f010fec238d18c3dcd2f"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2023-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 8179,
+      "sha256": "97c951bb56f14810ea9b71f6abcc828450c96bfad7f7cbcbadcf3b7c8496115a"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2023-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 8186,
+      "sha256": "895baa1aecf710c0abc065ff4fbbcb4dbdc70db312993fad254e4e7f25c7d512"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2023-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8379,
+      "sha256": "4922734234a7b1d779a656afefead4eafac7742369b9ef0d369deaaf294babfd"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2024-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8416,
+      "sha256": "30f64bffdc4d217eaba806be2cd567468c1aa96b6df768c122e8310ab6aa8e6c"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2024-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7998,
+      "sha256": "75922c17f7a46ebbf1665c805505bc82a41991218f0bd0a80f39fd254fa3886d"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2024-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7994,
+      "sha256": "2e4c29bc054a1861f5d4b7bf8f3da555291ff31e7576b2952388cc5d589a8bec"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2024-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8198,
+      "sha256": "83e0b8946e7b6cf1f6cbc9e9e5ff0eb5985bdf6001e7035007b0f0629dabcd40"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2025-FY.json",
+      "action": "COPIED",
+      "size_bytes": 8418,
+      "sha256": "8489054edf28dd16c2abadcd95ed05c080d8a693fb431963443c20460f0e8910"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2025-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7988,
+      "sha256": "36778887d5fde703847fedfdd62ac940e93a2b1154a612da28bbbcede9df4d35"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2025-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7995,
+      "sha256": "ca642922792d749e44b181b3ee615746c1ef306c103809286fbf99d377f9bf83"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2025-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8188,
+      "sha256": "601a83ec3dc061a4bd37018c0144e2ba31d696a19f827f462199fa07bb1b2a09"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2026-Q1.json",
+      "action": "COPIED",
+      "size_bytes": 7998,
+      "sha256": "27f2f7b9f63542f4db7864548d9243b065f5ef9c7ebf27d63f4705784639c64d"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2026-Q2.json",
+      "action": "COPIED",
+      "size_bytes": 7997,
+      "sha256": "f7b9de237d470ba593c2f289dacb01f4720746335881cb3af6f50c73b8db7ad8"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\AAPL\\2026-Q3.json",
+      "action": "COPIED",
+      "size_bytes": 8199,
+      "sha256": "65967648838ff587cbf3ab28bd9bc5e59254879ef25a5d36324ca12bf29a31d6"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\BBCA\\2023-FY.json",
+      "action": "COPIED",
+      "size_bytes": 785,
+      "sha256": "93a957856ac80f8ffb826e7f5a76e07640c1dfbb3470a5b73bcb590b207e0383"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\BBCA\\2024-FY.json",
+      "action": "COPIED",
+      "size_bytes": 785,
+      "sha256": "7557a56f3125e49e0066c5c089f9bf0e277310452218e57c3e217e3a35b2b326"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\RATU\\2023-FY.json",
+      "action": "COPIED",
+      "size_bytes": 786,
+      "sha256": "9647f10ffe71b7df2e78593e71fc24bd6d4462261fa45a266474eb27ae5fea8e"
+    },
+    {
+      "path": "backup_pre_quarantine_20261015\\financials\\RATU\\2024-FY.json",
+      "action": "COPIED",
+      "size_bytes": 786,
+      "sha256": "022b9b6f911673dec81c78447d38b931eaa58a3a96a7705bd40e5ce9f4827a82"
+    }
+  ],
+  "errors": []
+}

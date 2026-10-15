@@ -43,6 +43,7 @@ PRINSIP UTAMA:
 2. Anda TIDAK PERNAH memalsukan (hallucinate) harga saham, rasio keuangan, atau berita keterbukaan informasi. Setiap angka harus berasal dari data/tool terverifikasi.
 3. Jika data EOD atau laporan keuangan belum tersedia secara lokal, sampaikan secara jujur sebagai 'DATA_GAP / OFFLINE_UNAVAILABLE' tanpa mengarang nilai fiktif.
 4. Gunakan alat analitis (tools) yang disediakan untuk mengambil data dan memverifikasi fakta sebelum memberikan kesimpulan.
+5. Untuk pertanyaan analisis fundamental atau kinerja emiten, utamakan memanggil 'calculate_financial_ratios' atau 'get_financial_statement' untuk menyajikan metrik keuangan faktual.
 
 KONTEKS AKTIF SAAT INI:
 - Emiten Aktif        : {active_ticker}
@@ -739,13 +740,28 @@ class AgentHarness:
             liq = r_data.get("liquidity", {})
             bank = r_data.get("reported_banking_ratios")
 
+            der = r_data.get("der") if r_data.get("der") is not None else solv.get("debt_to_equity")
+            cr = r_data.get("current_ratio") if r_data.get("current_ratio") is not None else liq.get("current_ratio")
+            roe = r_data.get("roe_pct") if r_data.get("roe_pct") is not None else prof.get("return_on_equity_pct", 0.0)
+            npm = r_data.get("net_margin_pct") if r_data.get("net_margin_pct") is not None else prof.get("net_profit_margin_pct", 0.0)
+            gm = r_data.get("gross_margin_pct")
+            curr = r_data.get("currency", "IDR")
+            rev = r_data.get("revenue")
+            ni = r_data.get("net_income")
+
             if bank:
                 nim = bank.get("nim_net_interest_margin_pct", "-")
                 car = bank.get("car_capital_adequacy_ratio_pct", "-")
                 npl = bank.get("npl_gross_pct", "-")
-                lines.append(f"- **Rasio Finansial Perbankan ({per}):** NIM: {nim}%, CAR: {car}%, NPL Gross: {npl}%, ROE: {prof.get('return_on_equity_pct', 0.0):.2f}%, ROA: {prof.get('return_on_assets_pct', 0.0):.2f}%.")
+                lines.append(f"- **Rasio Finansial Perbankan ({per}):** NIM: {nim}%, CAR: {car}%, NPL Gross: {npl}%, ROE: {roe:.2f}%.")
             else:
-                lines.append(f"- **Rasio Finansial ({per}):** DER: {solv.get('debt_to_equity', 0.0):.2f}x | CR: {liq.get('current_ratio', 0.0):.2f}x | ROE: {prof.get('return_on_equity_pct', 0.0):.2f}% | NPM: {prof.get('net_profit_margin_pct', 0.0):.2f}%. Status Solvabilitas: {r_data.get('accounting_health', 'Normal')}.")
+                curr_sym = "$" if curr == "USD" else "Rp"
+                der_str = f"{der:.2f}x" if der is not None else "Unverified"
+                cr_str = f"{cr:.2f}x" if cr is not None else "Unverified"
+                gm_str = f" | Gross Margin: {gm:.2f}%" if gm is not None else ""
+                rev_str = f" | Pendapatan: {curr_sym} {rev:,.0f}" if rev is not None else ""
+                ni_str = f" | Laba Bersih: {curr_sym} {ni:,.0f}" if ni is not None else ""
+                lines.append(f"- **Rasio & Kinerja Finansial ({per}, {curr}):** DER: {der_str} | Current Ratio: {cr_str} | ROE: {roe:.2f}% | Net Margin: {npm:.2f}%{gm_str}{rev_str}{ni_str}. Status Solvabilitas: {r_data.get('accounting_health', 'Normal')}.")
 
         if val_tool and val_tool.get("success"):
             v_data = val_tool.get("data") or {}

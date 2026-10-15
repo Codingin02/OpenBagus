@@ -52,7 +52,7 @@ class ResolveSecurityTool(BaseFinancialTool):
             target_query = next((str(v) for v in kwargs.values() if isinstance(v, str)), "")
         root = get_repo_root()
         catalog = EquityCatalog(root)
-        asset = catalog.resolve(target_query)
+        asset = catalog.resolve(target_query, allow_us=True)
         if asset:
             return {
                 "symbol": asset.symbol,
@@ -529,6 +529,13 @@ class CalculateFinancialRatiosTool(BaseFinancialTool):
         return {
             "symbol": ticker.upper(),
             "period": stmt.get("period"),
+            "currency": stmt.get("currency", "IDR"),
+            "unit": stmt.get("unit", "million_IDR"),
+            "revenue": rev,
+            "gross_profit": gp,
+            "net_income": ni,
+            "total_assets": vals.get("total_assets"),
+            "total_equity": equity,
             "der": der,
             "debt_verified": debt_verified,
             "gross_margin_pct": gm,

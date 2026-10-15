@@ -134,8 +134,12 @@ def _clean_numeric_value(raw: Any, is_id_locale: bool = True) -> float | None:
     if not val_str:
         return None
 
-    # Handle Indonesian vs English number formats
-    if "." in val_str and "," in val_str:
+    # Handle multiple separators (e.g. 76.019.502 or 82,848,162)
+    if val_str.count(".") > 1:
+        val_str = val_str.replace(".", "")
+    elif val_str.count(",") > 1:
+        val_str = val_str.replace(",", "")
+    elif "." in val_str and "," in val_str:
         first_dot = val_str.find(".")
         first_comma = val_str.find(",")
         if first_dot < first_comma:
@@ -152,11 +156,9 @@ def _clean_numeric_value(raw: Any, is_id_locale: bool = True) -> float | None:
         else:
             val_str = val_str.replace(",", "")
     elif "." in val_str:
-        if is_id_locale:
-            parts = val_str.split(".")
-            # If all parts after first dot have exactly 3 digits, treat dot as thousand separator
-            if len(parts) > 1 and all(len(p) == 3 for p in parts[1:]):
-                val_str = val_str.replace(".", "")
+        parts = val_str.split(".")
+        if len(parts) == 2 and len(parts[1]) == 3 and int(parts[0]) > 0:
+            val_str = val_str.replace(".", "")
 
     try:
         num = float(val_str)
