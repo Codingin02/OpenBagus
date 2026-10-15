@@ -174,8 +174,8 @@ class AgentHarness:
         corrections = ctx.handle_corrections(user_query)
         cand_ref = ctx.resolve_candidate_reference(user_query)
 
-        # Disambiguate "reset saham RATU ..." from 3D companion reset
-        if "reset" in lower_q and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q):
+        # Disambiguate "reset/riset saham RATU timeframe ..." from 3D companion reset
+        if any(k in lower_q for k in ("reset", "riset", "timeframe")) and ("saham" in lower_q or "emiten" in lower_q or "timeframe" in lower_q):
             ctx.explicit_constraints.clear()
             if "satu hari" in lower_q or "1 hari" in lower_q or "harian" in lower_q:
                 ctx.time_horizon = "1 hari"

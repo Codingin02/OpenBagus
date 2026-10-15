@@ -1,0 +1,76 @@
+{
+  "active_profiles": {
+    "llm_fast": "qwen3_4b_fast",
+    "llm_deep": "qwen3_4b_fast",
+    "llm_english_tutor": "qwen3_4b_tutor",
+    "tts_indonesian": "piper_id_news_bagusmax",
+    "tts_english": "piper_en_norman",
+    "asr": "faster_whisper_large_v3",
+    "vad": "silero_vad_v6"
+  },
+  "profiles": {
+    "qwen3_4b_fast": {
+      "type": "llm",
+      "format": "GGUF",
+      "model_path": "models/llm/fast/Qwen3-4B-Q4_K_M.gguf",
+      "context_window": 4096,
+      "temperature": 0.3,
+      "max_tokens": 1024,
+      "backend": "llama.cpp",
+      "hardware_target": "cuda",
+      "threads": 8
+    },
+    "qwen3_4b_tutor": {
+      "type": "llm",
+      "format": "GGUF",
+      "model_path": "models/llm/fast/Qwen3-4B-Q4_K_M.gguf",
+      "context_window": 4096,
+      "temperature": 0.4,
+      "max_tokens": 768,
+      "backend": "llama.cpp",
+      "hardware_target": "cuda",
+      "threads": 8
+    },
+    "piper_id_news_bagusmax": {
+      "type": "tts",
+      "format": "ONNX",
+      "model_path": "models/tts/indonesian/id_ID-news_tts-medium.onnx",
+      "config_path": "models/tts/indonesian/id_ID-news_tts-medium.onnx.json",
+      "sample_rate": 22050,
+      "default_preset": "BAGUSMAX_GENTLE_ID",
+      "available_presets": [
+        "BAGUSMAX_GENTLE_ID",
+        "BAGUSMAX_CALM",
+        "BAGUSMAX_SOFT",
+        "NATURAL"
+      ]
+    },
+    "piper_en_norman": {
+      "type": "tts",
+      "format": "ONNX",
+      "model_path": "models/tts/english/norman-medium/en_US-norman-medium.onnx",
+      "config_path": "models/tts/english/norman-medium/en_US-norman-medium.onnx.json",
+      "sample_rate": 22050,
+      "voice_register": "MASCULINE_BARITONE",
+      "measured_f0_hz": 106.5
+    },
+    "faster_whisper_large_v3": {
+      "type": "asr",
+      "format": "CTranslate2",
+      "model_dir": "models/asr/faster_whisper",
+      "device": "cuda",
+      "compute_type": "float16",
+      "beam_size": 2,
+      "language": "id",
+      "local_files_only": true
+    },
+    "silero_vad_v6": {
+      "type": "vad",
+      "format": "ONNX",
+      "model_path": "models/vad/silero/silero_vad_v6.onnx",
+      "sample_rate": 16000,
+      "threshold": 0.5,
+      "neg_threshold": 0.35
+    }
+  }
+}

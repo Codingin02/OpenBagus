@@ -522,5 +522,123 @@ class TestVoiceRuntimeV5(unittest.TestCase):
         self.assertIn("Faster-Whisper Large-v3 Acoustic Alignment", PRONUNCIATION_DISCLAIMER)
 
 
+    # -------------------------------------------------------------------------
+    # T27: Repository-local storage audit
+    # -------------------------------------------------------------------------
+    def test_t27_repository_local_storage_audit(self) -> None:
+        """Semua model aktif (ONNX, GGUF, Faster-Whisper, Silero) berada di E:\\Projects\\OpenBagus\\models."""
+        from openbagus.core.model_resolver import get_model_resolver
+        from openbagus.voice.tts_engine import LocalTTSEngine
+        from openbagus.voice.asr_engine import LocalASREngine
+        from openbagus.voice.vad import VoiceActivityDetector
+        from openbagus.intelligence.local_language import MODEL_FILE
+
+        resolver = get_model_resolver()
+        self.assertEqual(resolver.models_dir.name, "models")
+        self.assertIn("OpenBagus", str(resolver.models_dir))
+
+        # 1. TTS Indonesian & English
+        tts = LocalTTSEngine()
+        self.assertTrue(str(tts._model_path).startswith(str(resolver.models_dir)))
+        self.assertTrue(str(tts._en_model_path).startswith(str(resolver.models_dir)))
+        self.assertNotIn("AppData", str(tts._model_path))
+        self.assertNotIn("AppData", str(tts._en_model_path))
+
+        # 2. ASR Faster-Whisper
+        asr = LocalASREngine()
+        self.assertTrue(str(asr._model_path).startswith(str(resolver.models_dir)))
+        self.assertNotIn("AppData", str(asr._model_path))
+
+        # 3. Silero VAD
+        vad_path = resolver.get_silero_vad_path()
+        self.assertTrue(str(vad_path).startswith(str(resolver.models_dir)))
+        self.assertTrue(vad_path.is_file())
+
+        # 4. GGUF LLM
+        self.assertTrue(str(MODEL_FILE).startswith(str(resolver.models_dir)))
+        self.assertTrue(MODEL_FILE.is_file())
+
+    # -------------------------------------------------------------------------
+    # T28: Manifest checksum integrity
+    # -------------------------------------------------------------------------
+    def test_t28_manifest_checksum_integrity(self) -> None:
+        """Integritas SHA-256 dari seluruh model terdaftar di manifest.json terverifikasi bit-exact."""
+        from openbagus.core.model_resolver import get_model_resolver
+        resolver = get_model_resolver()
+        manifest = resolver.load_manifest()
+        self.assertIn("models", manifest)
+
+        # Verify key models exist and checksums match
+        m_tts = manifest["models"]["tts_indonesian"]
+        m_tts_path = resolver.repo_root / m_tts["file_path"]
+        self.assertTrue(m_tts_path.is_file())
+        self.assertEqual(m_tts_path.stat().st_size, m_tts["size_bytes"])
+        self.assertTrue(resolver.verify_file_hash(m_tts_path, m_tts["sha256"]))
+
+        m_en = manifest["models"]["tts_english"]
+        m_en_path = resolver.repo_root / m_en["file_path"]
+        self.assertTrue(m_en_path.is_file())
+        self.assertEqual(m_en_path.stat().st_size, m_en["size_bytes"])
+        self.assertTrue(resolver.verify_file_hash(m_en_path, m_en["sha256"]))
+
+        m_vad = manifest["models"]["vad_silero"]
+        m_vad_path = resolver.repo_root / m_vad["file_path"]
+        self.assertTrue(m_vad_path.is_file())
+        self.assertEqual(m_vad_path.stat().st_size, m_vad["size_bytes"])
+        self.assertTrue(resolver.verify_file_hash(m_vad_path, m_vad["sha256"]))
+
+    # -------------------------------------------------------------------------
+    # T29: Offline model loading no downloads
+    # -------------------------------------------------------------------------
+    def test_t29_offline_model_loading_no_downloads(self) -> None:
+        """Pemuatan model berlangsung offline tanpa melakukan panggilan jaringan eksternal."""
+        from openbagus.voice.asr_engine import LocalASREngine
+        from openbagus.voice.tts_engine import LocalTTSEngine
+        from openbagus.core.model_resolver import get_model_resolver
+
+        asr_dir = get_model_resolver().get_asr_model_dir()
+        self.assertTrue(asr_dir.is_dir())
+        self.assertTrue((asr_dir / "model.bin").is_file())
+
+        asr = LocalASREngine()
+        self.assertIsNotNone(asr._model)
+        tts = LocalTTSEngine()
+        self.assertTrue(tts.is_available())
+        self.assertTrue(tts.is_english_available())
+
+    # -------------------------------------------------------------------------
+    # T30: Cache environment isolation
+    # -------------------------------------------------------------------------
+    def test_t30_cache_environment_isolation(self) -> None:
+        """Cache Hugging Face, Torch, dan Ollama terisolasi di dalam direktori repository OpenBagus."""
+        from openbagus.core.model_resolver import get_model_resolver
+        resolver = get_model_resolver()
+        env_updates = resolver.configure_environment_caches()
+
+        self.assertIn("OPENBAGUS_MODEL_DIR", env_updates)
+        self.assertIn("HF_HOME", env_updates)
+        self.assertIn("TORCH_HOME", env_updates)
+        self.assertIn("OLLAMA_MODELS", env_updates)
+
+        self.assertTrue(os.environ["HF_HOME"].startswith(str(resolver.repo_root)))
+        self.assertTrue(os.environ["TORCH_HOME"].startswith(str(resolver.repo_root)))
+        self.assertTrue(os.environ["OLLAMA_MODELS"].startswith(str(resolver.models_dir)))
+
+    # -------------------------------------------------------------------------
+    # T31: Conversation routing RATU disambiguation
+    # -------------------------------------------------------------------------
+    def test_t31_conversation_routing_ratu_disambiguation(self) -> None:
+        """Kueri 'Riset saham RATU timeframe satu hari' terarah ke emiten RATU tanpa reset karakter 3D."""
+        from openbagus.ai.harness.orchestrator import AgentHarness
+        harness = AgentHarness()
+        ctx = WorkingContext()
+        resp = harness.run("Riset saham RATU timeframe satu hari", context=ctx)
+        self.assertEqual(ctx.active_ticker, "RATU")
+        self.assertEqual(ctx.time_horizon, "1 hari")
+        self.assertIsNotNone(resp.content)
+        self.assertIn("RATU", resp.content.upper())
+
+
 if __name__ == "__main__":
     unittest.main()
+

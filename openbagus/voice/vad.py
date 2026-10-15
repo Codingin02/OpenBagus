@@ -60,6 +60,16 @@ class VoiceActivityDetector:
 
 
     def _init_model(self) -> None:
+        try:
+            from openbagus.core.model_resolver import get_model_resolver
+            vad_path = get_model_resolver().get_silero_vad_path()
+            if SileroVADModel is not None and vad_path.is_file():
+                self._model = SileroVADModel(str(vad_path))
+                logger.info("Silero VAD loaded from canonical repository path: %s", vad_path)
+                return
+        except Exception as e:
+            logger.debug("Falling back to standard get_vad_model: %s", e)
+
         if get_vad_model is not None:
             try:
                 self._model = get_vad_model()

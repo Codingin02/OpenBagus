@@ -111,9 +111,14 @@ class LocalTTSEngine:
         self.active_language: str = "id-ID"
         self._en_voice: Any = None
         self._en_sample_rate: int = 22050
-        base_dir = Path(os.environ.get("LOCALAPPDATA", "C:/Users/bagus/AppData/Local")) / "OpenBagus" / "models" / "tts"
-        self._en_model_path = base_dir / "en_US-norman-medium.onnx"
-        self._en_config_path = base_dir / "en_US-norman-medium.onnx.json"
+        
+        try:
+            from openbagus.core.model_resolver import get_model_resolver
+            self._en_model_path, self._en_config_path = get_model_resolver().get_english_tts_paths()
+        except Exception:
+            base_dir = Path(os.environ.get("OPENBAGUS_MODEL_DIR", "E:/Projects/OpenBagus/models")) / "tts" / "english" / "norman-medium"
+            self._en_model_path = base_dir / "en_US-norman-medium.onnx"
+            self._en_config_path = base_dir / "en_US-norman-medium.onnx.json"
 
         # Real-time voice profile processor (gentle warmth, high smoothing, robot resonance)
         from openbagus.voice.voice_processor import VoiceProfileProcessor
@@ -212,10 +217,19 @@ class LocalTTSEngine:
         }
 
     def _resolve_model_paths(self, m_path: str | Path | None, c_path: str | Path | None) -> tuple[Path, Path]:
-        base_dir = Path(os.environ.get("LOCALAPPDATA", "C:/Users/bagus/AppData/Local")) / "OpenBagus" / "models" / "tts"
-        m = Path(m_path) if m_path else (base_dir / "id_ID-news_tts-medium.onnx")
-        c = Path(c_path) if c_path else (base_dir / "id_ID-news_tts-medium.onnx.json")
-        return m, c
+        if m_path and c_path:
+            return Path(m_path), Path(c_path)
+        try:
+            from openbagus.core.model_resolver import get_model_resolver
+            canon_m, canon_c = get_model_resolver().get_indonesian_tts_paths()
+            m = Path(m_path) if m_path else canon_m
+            c = Path(c_path) if c_path else canon_c
+            return m, c
+        except Exception:
+            base_dir = Path(os.environ.get("OPENBAGUS_MODEL_DIR", "E:/Projects/OpenBagus/models")) / "tts" / "indonesian"
+            m = Path(m_path) if m_path else (base_dir / "id_ID-news_tts-medium.onnx")
+            c = Path(c_path) if c_path else (base_dir / "id_ID-news_tts-medium.onnx.json")
+            return m, c
 
     def _get_synthesis_config(self) -> Any:
         if SynthesisConfig is not None:

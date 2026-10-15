@@ -102,7 +102,16 @@ class LocalASREngine:
         if custom:
             return str(custom)
 
-        # Check local huggingface snapshot first (offline guarantee)
+        # 1. Check canonical repository model directory via ModelResolver
+        try:
+            from openbagus.core.model_resolver import get_model_resolver
+            canon_dir = get_model_resolver().get_asr_model_dir()
+            if canon_dir.is_dir() and (canon_dir / "model.bin").is_file():
+                return str(canon_dir)
+        except Exception:
+            pass
+
+        # 2. Check local huggingface snapshot fallback
         hf_base = Path(os.environ.get("USERPROFILE", "C:/Users/bagus")) / ".cache" / "huggingface" / "hub" / "models--Systran--faster-whisper-large-v3" / "snapshots"
         if hf_base.exists():
             snapshots = list(hf_base.glob("*"))
@@ -136,10 +145,12 @@ class LocalASREngine:
 
         try:
             logger.info("Loading Whisper model from %s on %s (%s)...", self._model_path, self._device, self._compute_type)
+            is_local = Path(self._model_path).is_dir()
             self._model = faster_whisper.WhisperModel(
                 self._model_path,
                 device=self._device,
                 compute_type=self._compute_type,
+                local_files_only=is_local,
             )
             logger.info("Whisper model successfully loaded on %s", self._device)
             _SHARED_WHISPER_MODEL = self._model
