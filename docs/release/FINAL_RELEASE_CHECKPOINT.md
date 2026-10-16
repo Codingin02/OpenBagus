@@ -12,36 +12,38 @@
 - **Standalone Windows Installer:** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
   - **Size:** 1,106,581,428 bytes (1.10 GB)
   - **SHA-256:** `dac18e4fb38e8c89674d5bc09c527d14a1ce6f5f5d0a9c753ff7edec611a0aa6`
-- **Standalone Frozen Executable:** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe`
-  - **Size:** 24,845,588 bytes (24.8 MB)
+- **Standalone Frozen Executable (Updated):** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe` & `_installed\OpenBagus\OpenBagus.exe`
+  - **Size:** 24,853,692 bytes (24.8 MB)
+  - **Diagnostics:** Verified `--diagnostics` returns State `READY`, GPU detected, Ollama fast provider responsive.
 - **Local Model Storage:** `E:\Projects\OpenBagus\models\` (external to installer bundle; zero duplicate model weights in Git)
 - **Single Worktree Status:** Verified single root (`git worktree list --porcelain` shows strictly `E:/Projects/OpenBagus`). Obsolete worktrees `OpenBagus-Voice`, `OpenBagus-ChatTest`, `OpenBagus-Data`, and `OpenBagus-3D` have been safely deleted from disk.
 
 ---
 
-## 2. P0 Voice False-Transcription Recovery
+## 2. P0 Voice False-Transcription & Audio Hardware Recovery
 
-- **Problem Addressed:** Spontaneous detection of "Sampai jumpa di video selanjutnya." and "Terima kasih telah menonton." in quiet rooms.
-- **Root Cause:** Stateless wrapper resets in Silero VAD, conflation of total buffer length with active speech duration, flawed Whisper outro hallucination acceptance logic, and un-drained post-playback acoustic feedback.
+- **Problem Addressed:** Spontaneous detection of "Sampai jumpa di video selanjutnya." and "Terima kasih telah menonton." in quiet rooms, along with stream deadlock on native Windows hardware.
+- **Root Cause:** Stateless wrapper resets in Silero VAD, conflation of total buffer length with active speech duration, flawed Whisper outro hallucination acceptance logic, MME device lockup on Windows, and lock re-entrancy deadlock in `AudioCaptureStream`.
 - **Implemented Fixes:**
   1. Stateful direct ONNX streaming Silero VAD with persistent LSTM hidden states (`h` and `c`).
   2. Mandatory Silence Invariant: Discards buffers lacking genuine vocal speech duration prior to invoking ASR.
   3. Multi-signal outro speech evidence filtering: Requires vocal acoustic energy (`rms >= 0.012`, `peak >= 0.045`, `snr >= 8.5dB`, `speech_duration >= 0.70s`).
   4. Mute cancellation callback immediately terminating in-flight ASR workers.
   5. 350ms post-playback acoustic drain and VAD state reset.
-  6. 22-field event-based telemetry recording.
+  6. Re-entrant `threading.RLock()` and unlocked buffer clearing in `AudioCaptureStream` eliminating PortAudio start deadlock.
+  7. WASAPI device priority in `AudioDeviceManager` on Windows ensuring non-blocking audio capture and playback.
+  8. 22-field event-based telemetry recording in `VoiceDiagnostics`.
 - **Verification Evidence:**
-  - V01 (60s quiet room): 0 false transcripts.
-  - V02 (5m quiet room): 0 phantom turns.
-  - V03 (Fan noise): Gated by adaptive floor.
-  - V05 (Outro phrases): Low-evidence noise rejected; genuine vocal speech accepted.
-  - Test Suite `tests/test_voice_p0_acceptance.py`: **14/14 PASS** (57.0s).
+  - Physical Microphone: Stream opened and frames read from Realtek WASAPI Device 9 without deadlock (`PASS_REAL_MICROPHONE`).
+  - Physical Speakers: Enumerated and verified via WASAPI Device 8 (`PASS_REAL_SPEAKER`).
+  - Unit/Simulation Suite `tests/test_voice_p0_acceptance.py`: **14/14 PASS_SIMULATED** (74.8s).
+  - Audio Privacy: Zero audio files on disk (`PASS_INSTALLED_EXE`).
 
 ---
 
 ## 3. Full System Acceptance Suite
 
-- **P0 Voice Acceptance Suite (`tests/test_voice_p0_acceptance.py`):** **14/14 PASS**
+- **P0 Voice Acceptance Suite (`tests/test_voice_p0_acceptance.py`):** **14/14 PASS_SIMULATED**
 - **Conversational Recovery Regression (`tests/test_conversational_recovery_regression.py`):** **34/34 PASS**
 - **V5 Voice Runtime Suite (`tests/test_voice_runtime_v5.py`):** **31/31 PASS**
 - **Live Financial Data Intelligence (`tests/test_data_intelligence_live.py`):** **17/17 PASS**
@@ -61,8 +63,8 @@
 
 ---
 
-## 5. Honest Status & Remaining Limitations
+## 5. Honest Status & Next User Step
 
-1. **User Listening Approval:** While automated tests pass and noise immunity is proven, final user auditory approval of the voice persona and conversational demeanor remains pending (`USER_LISTENING_APPROVAL_PENDING`).
+1. **User Acceptance Testing (Scenarios A–G):** Ready for direct human execution in `_installed\OpenBagus\OpenBagus.exe` (`USER_APPROVED` pending).
 2. **Armored V1.2 Collision Mechanism:** The V1.2 mechanical elbow prototype remains an unfinished checkpoint (`REVIEW_REQUIRED`).
 3. **Installer Digital Signature:** The trial installer is unsigned; standard Windows SmartScreen notification appears on first launch.

@@ -1,20 +1,15 @@
-"""Comprehensive P0 Voice Acceptance Test Suite covering V01 - V14.
+"""Simulated Voice Pipeline Regression Suite covering V01 - V14.
 
-Validates:
-V01 — Quiet room 60 seconds (zero false accepted transcripts)
-V02 — Quiet room extended (zero phantom responses on ambient intervals)
-V03 — Fan/noise environment (noise rejected by Silence Invariant without ASR)
-V04 — Real Indonesian speech (authentic speech processed accurately)
-V05 — Genuine outro phrase (authentic speech with high acoustic evidence accepted)
-V06 — Pause continuation (natural user pauses do not cause premature cutoff)
-V07 — Echo-only (speaker bleed does not trigger self-conversation loop)
-V08 — Genuine interruption (barge-in immediately stops playback and cancels stale turn)
-V09 — Repeated interruption (3 consecutive interruptions without deadlock or stale leak)
-V10 — Microphone reconnect (clean recovery without unhandled exception)
-V11 — Preset switching (presets affect TTS runtime and persist)
-V12 — Audio privacy (strictly zero raw audio files on disk)
-V13 — Financial speech (context switching from RATU to BBCA)
-V14 — English Tutor speech (bilingual mode switching without financial contamination)
+IMPORTANT EVIDENCE BOUNDARY:
+This test suite uses synthetic audio buffers, mathematical formulations, and mocked subsystems
+to verify pipeline logic, threshold computations, and stateful invariant enforcement in automated CI.
+
+Taxonomy:
+- PASS_SIMULATED: Synthetic waveforms, simulated noise frames, or mocked I/O.
+- PASS_INSTALLED_EXE: File-system and privacy audits on installed application binaries.
+- PASS_REAL_MICROPHONE: Evaluated exclusively with live physical microphone input (Realtek USB/WASAPI).
+- PASS_REAL_SPEAKER: Evaluated exclusively with physical speaker/headphone rendering.
+- USER_APPROVED: Human auditory satisfaction of voice persona, demeanor, and real conversational flow.
 """
 
 from __future__ import annotations
@@ -54,10 +49,14 @@ class TestVoiceP0Acceptance(unittest.TestCase):
         gc.collect()
 
     # -------------------------------------------------------------------------
-    # V01: Quiet room 60 seconds
+    # V01: Quiet room 60 seconds (PASS_SIMULATED)
     # -------------------------------------------------------------------------
     def test_v01_quiet_room_60_seconds(self) -> None:
-        """Simulates 60 seconds of quiet ambient room (1875 frames). Zero false transcripts."""
+        """Simulates 60 seconds of quiet ambient room (1875 synthetic frames) (PASS_SIMULATED).
+        
+        Verifies stateful Silero VAD invariance on synthetic low-level noise.
+        Live 5-minute quiet room microphone immunity is evaluated in Scenario A (PASS_REAL_MICROPHONE / USER_APPROVED).
+        """
         vad = VoiceActivityDetector()
         np.random.seed(101)
         # Room ambient RMS ~ 0.0018
@@ -77,10 +76,14 @@ class TestVoiceP0Acceptance(unittest.TestCase):
         self.assertEqual(endpoints, 0, "60s of quiet room noise must produce zero endpoints")
 
     # -------------------------------------------------------------------------
-    # V02: Quiet room extended (5 minutes)
+    # V02: Quiet room extended 5 minutes (PASS_SIMULATED)
     # -------------------------------------------------------------------------
     def test_v02_quiet_room_extended(self) -> None:
-        """Simulates 300 seconds (9375 frames) of quiet room with occasional micro-transients."""
+        """Simulates 300 seconds (9375 synthetic frames) of quiet room with micro-transients (PASS_SIMULATED).
+        
+        Verifies that transient spikes on ambient noise do not trigger speech onsets in simulation.
+        Physical microphone verification is evaluated in Scenario A (PASS_REAL_MICROPHONE).
+        """
         vad = VoiceActivityDetector()
         np.random.seed(202)
         frames_300s = 9375
@@ -99,10 +102,10 @@ class TestVoiceP0Acceptance(unittest.TestCase):
         self.assertEqual(speech_onsets, 0, "5 minutes of quiet room with micro-transients must not trigger speech onset")
 
     # -------------------------------------------------------------------------
-    # V03: Fan / noise environment
+    # V03: Fan / noise environment (PASS_SIMULATED)
     # -------------------------------------------------------------------------
     def test_v03_fan_noise_environment(self) -> None:
-        """Continuous fan hum (120Hz + broadband noise, RMS ~ 0.005) rejected without ASR."""
+        """Continuous fan hum (120Hz + broadband noise, RMS ~ 0.005) rejected without ASR (PASS_SIMULATED)."""
         vad = VoiceActivityDetector()
         t = np.linspace(0, 0.032, 512, endpoint=False)
         fan_hum = (0.004 * np.sin(2 * np.pi * 120 * t)).astype(np.float32)
@@ -120,10 +123,16 @@ class TestVoiceP0Acceptance(unittest.TestCase):
         self.assertEqual(norm_res.normalized_text, "", "Fan noise must yield empty transcript")
 
     # -------------------------------------------------------------------------
-    # V04: Real Indonesian speech recognition
+    # V04: Simulated speech acoustic pipeline test (PASS_SIMULATED)
     # -------------------------------------------------------------------------
-    def test_v04_real_indonesian_speech(self) -> None:
-        """Genuine vocal speech with sufficient duration and acoustic energy is processed."""
+    def test_v04_simulated_speech_acoustic_pipeline(self) -> None:
+        """Simulated speech acoustic formant pipeline test (PASS_SIMULATED).
+        
+        Verifies that high-energy speech-like formant signals with valid VAD evidence
+        pass acoustic filtering without premature hallucination suppression.
+        NOTE: This test validates acoustic pipeline flow only. Real human Indonesian
+        speech transcription is evaluated via live microphone in Scenario B (USER_APPROVED / PENDING_USER_MIC).
+        """
         asr = LocalASREngine()
         # Synthetic speech formant signal with pitch 180Hz and realistic amplitude
         t = np.linspace(0, 1.8, 16000 * int(1.8), endpoint=False)
@@ -228,10 +237,14 @@ class TestVoiceP0Acceptance(unittest.TestCase):
         self.assertFalse(is_speech, "Speaker bleed must not satisfy render-reference barge-in threshold")
 
     # -------------------------------------------------------------------------
-    # V08: Genuine interruption (Barge-in)
+    # V08: Genuine interruption (Barge-in) (PASS_SIMULATED)
     # -------------------------------------------------------------------------
     def test_v08_genuine_interruption(self) -> None:
-        """Loud near-end speech while assistant is speaking triggers immediate playback stop and turn cancellation."""
+        """Simulated mathematical barge-in threshold and state transition test (PASS_SIMULATED).
+        
+        Verifies that loud near-end speech overcomes render-reference coupling and triggers interruption coordinator.
+        NOTE: Real hardware speaker playback cessation and acoustic barge-in are evaluated in Scenario E (PASS_REAL_SPEAKER / USER_APPROVED).
+        """
         controller = VoiceTurnController()
         controller.state = VoiceState.SPEAKING
         controller.playback_manager._is_playing = True

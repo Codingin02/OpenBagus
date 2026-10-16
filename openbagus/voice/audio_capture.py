@@ -43,7 +43,7 @@ class AudioCaptureStream:
         self._stream: Any = None
         self._is_capturing = False
         self._is_muted = False
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
         # Circular buffer for pre-roll to prevent clipping the first syllable
         self._pre_roll_buffer: collections.deque[np.ndarray] = collections.deque(maxlen=self.pre_roll_chunks)
@@ -72,17 +72,21 @@ class AudioCaptureStream:
     def is_muted(self) -> bool:
         return self._is_muted
 
+    def _clear_buffers_unlocked(self) -> None:
+        """Internal buffer purge without locking."""
+        self._pre_roll_buffer.clear()
+        self._active_utterance_frames.clear()
+        self._is_utterance_active = False
+        while not self._frame_queue.empty():
+            try:
+                self._frame_queue.get_nowait()
+            except Exception:
+                break
+
     def clear_buffers(self) -> None:
         """Purges pre-roll, active utterance frames, and drains the frame queue."""
         with self._lock:
-            self._pre_roll_buffer.clear()
-            self._active_utterance_frames.clear()
-            self._is_utterance_active = False
-            while not self._frame_queue.empty():
-                try:
-                    self._frame_queue.get_nowait()
-                except Exception:
-                    break
+            self._clear_buffers_unlocked()
 
     def set_muted(self, muted: bool) -> None:
         self._is_muted = muted
@@ -148,7 +152,7 @@ class AudioCaptureStream:
 
             import uuid
             self.stream_id = f"stream_{uuid.uuid4().hex[:8]}"
-            self.clear_buffers()
+            self._clear_buffers_unlocked()
 
             dev = None
             if self.device_id is not None:
@@ -173,7 +177,7 @@ class AudioCaptureStream:
             blocksize = int(self._device_sample_rate * CHUNK_DURATION_MS / 1000)
 
             try:
-                self._stream = sd.InputStream(
+                stream = sd.InputStream(
                     device=self.device_id,
                     channels=self._device_channels,
                     samplerate=self._device_sample_rate,
@@ -181,15 +185,29 @@ class AudioCaptureStream:
                     dtype="float32",
                     callback=self._audio_callback,
                 )
-                self._stream.start()
+                self._stream = stream
                 self._is_capturing = True
-                logger.info("Microphone stream started on device %s (%d Hz)", self.device_id, self._device_sample_rate)
-                return True
             except Exception as e:
-                logger.error("Failed to start microphone stream: %s", e)
+                logger.error("Failed to create microphone stream: %s", e)
                 self._stream = None
                 self._is_capturing = False
                 return False
+
+        # Start stream outside self._lock to avoid deadlock with PortAudio callback thread
+        try:
+            stream.start()
+            logger.info("Microphone stream started on device %s (%d Hz)", self.device_id, self._device_sample_rate)
+            return True
+        except Exception as e:
+            logger.error("Failed to start microphone stream: %s", e)
+            with self._lock:
+                self._stream = None
+                self._is_capturing = False
+            try:
+                stream.close()
+            except Exception:
+                pass
+            return False
 
     def stop(self) -> None:
         """Stops microphone stream safely."""

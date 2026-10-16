@@ -155,23 +155,30 @@ class AudioDeviceManager:
     @classmethod
     def get_default_input_device(cls) -> AudioDeviceInfo | None:
         inputs = cls.list_input_devices()
+        # On Windows, prefer WASAPI default device for lowest latency and zero blocking
+        for d in inputs:
+            if "WASAPI" in d.hostapi:
+                return d
         for d in inputs:
             if d.is_default:
                 return d
-        # Fallback to prefer WASAPI or DirectSound default
         for d in inputs:
-            if "WASAPI" in d.hostapi or "DirectSound" in d.hostapi:
+            if "DirectSound" in d.hostapi:
                 return d
         return inputs[0] if inputs else None
 
     @classmethod
     def get_default_output_device(cls) -> AudioDeviceInfo | None:
         outputs = cls.list_output_devices()
+        # On Windows, prefer WASAPI default device for lowest latency and zero blocking
+        for d in outputs:
+            if "WASAPI" in d.hostapi:
+                return d
         for d in outputs:
             if d.is_default:
                 return d
         for d in outputs:
-            if "WASAPI" in d.hostapi or "DirectSound" in d.hostapi:
+            if "DirectSound" in d.hostapi:
                 return d
         return outputs[0] if outputs else None
 
