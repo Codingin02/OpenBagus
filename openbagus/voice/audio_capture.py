@@ -48,8 +48,14 @@ class AudioCaptureStream:
         # Circular buffer for pre-roll to prevent clipping the first syllable
         self._pre_roll_buffer: collections.deque[np.ndarray] = collections.deque(maxlen=self.pre_roll_chunks)
 
-        # Synchronized frame queue to prevent duplicate frame processing in turn controller loop
+        # Queues and metrics
+        self._raw_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=120)
         self._frame_queue: queue.Queue[np.ndarray] = queue.Queue(maxsize=120)
+        self._overflow_count: int = 0
+        self._dropped_frames_count: int = 0
+
+        self._worker_thread: threading.Thread | None = None
+        self._stop_worker_event = threading.Event()
 
         # Active speech frames buffer for current utterance
         self._active_utterance_frames: list[np.ndarray] = []
@@ -82,9 +88,14 @@ class AudioCaptureStream:
                 self._frame_queue.get_nowait()
             except Exception:
                 break
+        while not self._raw_queue.empty():
+            try:
+                self._raw_queue.get_nowait()
+            except Exception:
+                break
 
     def clear_buffers(self) -> None:
-        """Purges pre-roll, active utterance frames, and drains the frame queue."""
+        """Purges pre-roll, active utterance frames, and drains queues."""
         with self._lock:
             self._clear_buffers_unlocked()
 
@@ -111,6 +122,11 @@ class AudioCaptureStream:
                     self._frame_queue.get_nowait()
                 except Exception:
                     break
+            while not self._raw_queue.empty():
+                try:
+                    self._raw_queue.get_nowait()
+                except Exception:
+                    break
 
     @staticmethod
     def resample_audio(audio: np.ndarray, orig_sr: int, target_sr: int = TARGET_SAMPLE_RATE) -> np.ndarray:
@@ -120,7 +136,7 @@ class AudioCaptureStream:
             mono = audio.flatten().astype(np.float32)
         if orig_sr == target_sr:
             return mono
-        target_len = int(len(mono) * target_sr / orig_sr)
+        target_len = int(round(len(mono) * target_sr / orig_sr))
         if target_len <= 0:
             return np.empty(0, dtype=np.float32)
         return np.interp(
@@ -140,8 +156,24 @@ class AudioCaptureStream:
     def get_current_level_db(self) -> float:
         return self._current_level_db
 
+    def get_telemetry(self) -> dict[str, Any]:
+        """Returns real-time audio capture health metrics."""
+        return {
+            "device_id": self.device_id,
+            "device_sample_rate": self._device_sample_rate,
+            "device_channels": self._device_channels,
+            "target_sample_rate": self.target_sample_rate,
+            "is_capturing": self._is_capturing,
+            "is_muted": self._is_muted,
+            "overflow_count": self._overflow_count,
+            "dropped_frames_count": self._dropped_frames_count,
+            "raw_queue_size": self._raw_queue.qsize(),
+            "frame_queue_size": self._frame_queue.qsize(),
+            "current_level_db": round(self._current_level_db, 2),
+        }
+
     def start(self) -> bool:
-        """Starts real-time microphone stream."""
+        """Starts real-time microphone stream with decoupled worker thread."""
         if not AudioDeviceManager.is_available():
             logger.error("Sounddevice not available for audio capture")
             return False
@@ -176,6 +208,15 @@ class AudioCaptureStream:
             # Buffer size matching ~32ms on native device
             blocksize = int(self._device_sample_rate * CHUNK_DURATION_MS / 1000)
 
+            # Start background processing worker thread
+            self._stop_worker_event.clear()
+            self._worker_thread = threading.Thread(
+                target=self._processing_worker,
+                daemon=True,
+                name="AudioCaptureWorker",
+            )
+            self._worker_thread.start()
+
             try:
                 stream = sd.InputStream(
                     device=self.device_id,
@@ -191,6 +232,7 @@ class AudioCaptureStream:
                 logger.error("Failed to create microphone stream: %s", e)
                 self._stream = None
                 self._is_capturing = False
+                self._stop_worker_event.set()
                 return False
 
         # Start stream outside self._lock to avoid deadlock with PortAudio callback thread
@@ -203,6 +245,7 @@ class AudioCaptureStream:
             with self._lock:
                 self._stream = None
                 self._is_capturing = False
+            self._stop_worker_event.set()
             try:
                 stream.close()
             except Exception:
@@ -218,7 +261,12 @@ class AudioCaptureStream:
             stream = self._stream
             self._stream = None
 
-        # PortAudio waits for callbacks, which also acquire self._lock.
+        self._stop_worker_event.set()
+        if self._worker_thread and self._worker_thread.is_alive():
+            self._worker_thread.join(timeout=0.5)
+        self._worker_thread = None
+
+        # PortAudio waits for callbacks, which acquire no locks.
         if stream:
             try:
                 stream.stop()
@@ -231,74 +279,106 @@ class AudioCaptureStream:
                     logger.debug("Error closing audio input stream: %s", e)
 
         with self._lock:
-            self._pre_roll_buffer.clear()
-            self._active_utterance_frames.clear()
-            self._is_utterance_active = False
-            while not self._frame_queue.empty():
-                try:
-                    self._frame_queue.get_nowait()
-                except Exception:
-                    break
+            self._clear_buffers_unlocked()
 
     def _audio_callback(self, indata: np.ndarray, frames: int, time_info: Any, status: Any) -> None:
-        """PortAudio real-time callback processing incoming microphone audio."""
-        if not self._is_capturing or self._is_muted or time.monotonic() < self._suppress_until:
+        """Ultra-fast real-time callback (<100 µs): non-blocking push only, zero locks, zero resampling."""
+        if status and status.input_overflow:
+            self._overflow_count += 1
+
+        if not self._is_capturing or self._is_muted:
             return
 
-        # Convert to mono if multi-channel
-        if indata.ndim > 1 and indata.shape[1] > 1:
-            mono = np.mean(indata, axis=1, dtype=np.float32)
-        else:
-            mono = indata.flatten().astype(np.float32)
-
-        # Compute RMS and peak level for meter
-        rms = float(np.sqrt(np.mean(mono ** 2))) if len(mono) > 0 else 0.0
-        db = 20.0 * math.log10(rms + 1e-9)
-        self._current_level_db = max(-100.0, min(0.0, db))
-        if self.level_callback:
-            try:
-                self.level_callback(self._current_level_db)
-            except Exception:
-                pass
-
-        # Resample to target 16 kHz if device sample rate differs
-        if self._device_sample_rate != self.target_sample_rate:
-            target_len = int(len(mono) * self.target_sample_rate / self._device_sample_rate)
-            if target_len <= 0:
-                return
-            resampled = np.interp(
-                np.linspace(0, len(mono), target_len, endpoint=False),
-                np.arange(len(mono)),
-                mono,
-            ).astype(np.float32)
-        else:
-            resampled = mono
-
-        # Normalise size to exact TARGET_CHUNK_SAMPLES (512 samples)
-        if len(resampled) != TARGET_CHUNK_SAMPLES:
-            if len(resampled) > TARGET_CHUNK_SAMPLES:
-                resampled = resampled[:TARGET_CHUNK_SAMPLES]
-            else:
-                resampled = np.pad(resampled, (0, TARGET_CHUNK_SAMPLES - len(resampled)), mode="constant")
-
-        # Update buffers
-        with self._lock:
-            self._pre_roll_buffer.append(resampled)
-            if self._is_utterance_active:
-                self._active_utterance_frames.append(resampled)
-
-        # Enqueue to synchronized frame queue for single-pass consumption
         try:
-            self._frame_queue.put_nowait(resampled)
+            self._raw_queue.put_nowait(indata.copy())
         except queue.Full:
-            try:
-                self._frame_queue.get_nowait()
-            except Exception:
-                pass
-            try:
-                self._frame_queue.put_nowait(resampled)
-            except Exception:
-                pass
+            self._dropped_frames_count += 1
+
+    def _processing_worker(self) -> None:
+        """Offloads resampling, level metering, and frame queuing from the PortAudio audio callback thread."""
+        import ctypes
+        co_initialized = False
+        try:
+            if hasattr(ctypes, "windll") and hasattr(ctypes.windll, "ole32"):
+                ctypes.windll.ole32.CoInitialize(None)
+                co_initialized = True
+        except Exception:
+            pass
+
+        try:
+            while not self._stop_worker_event.is_set():
+                try:
+                    raw_chunk = self._raw_queue.get(timeout=0.05)
+                except queue.Empty:
+                    continue
+
+                if self._is_muted or time.monotonic() < self._suppress_until:
+                    self._raw_queue.task_done()
+                    continue
+
+                # Convert to mono if multi-channel
+                if raw_chunk.ndim > 1 and raw_chunk.shape[1] > 1:
+                    mono = np.mean(raw_chunk, axis=1, dtype=np.float32)
+                else:
+                    mono = raw_chunk.flatten().astype(np.float32)
+
+                # Compute RMS and peak level for meter
+                rms = float(np.sqrt(np.mean(mono ** 2))) if len(mono) > 0 else 0.0
+                db = 20.0 * math.log10(rms + 1e-9)
+                self._current_level_db = max(-100.0, min(0.0, db))
+                if self.level_callback:
+                    try:
+                        self.level_callback(self._current_level_db)
+                    except Exception:
+                        pass
+
+                # Resample to target 16 kHz if device sample rate differs
+                if self._device_sample_rate != self.target_sample_rate:
+                    target_len = int(round(len(mono) * self.target_sample_rate / self._device_sample_rate))
+                    if target_len <= 0:
+                        self._raw_queue.task_done()
+                        continue
+                    resampled = np.interp(
+                        np.linspace(0, len(mono), target_len, endpoint=False),
+                        np.arange(len(mono)),
+                        mono,
+                    ).astype(np.float32)
+                else:
+                    resampled = mono
+
+                # Normalise size to exact TARGET_CHUNK_SAMPLES (512 samples)
+                if len(resampled) != TARGET_CHUNK_SAMPLES:
+                    if len(resampled) > TARGET_CHUNK_SAMPLES:
+                        resampled = resampled[:TARGET_CHUNK_SAMPLES]
+                    else:
+                        resampled = np.pad(resampled, (0, TARGET_CHUNK_SAMPLES - len(resampled)), mode="constant")
+
+                # Update buffers
+                with self._lock:
+                    self._pre_roll_buffer.append(resampled)
+                    if self._is_utterance_active:
+                        self._active_utterance_frames.append(resampled)
+
+                # Enqueue to synchronized frame queue for single-pass consumption
+                try:
+                    self._frame_queue.put_nowait(resampled)
+                except queue.Full:
+                    try:
+                        self._frame_queue.get_nowait()
+                    except Exception:
+                        pass
+                    try:
+                        self._frame_queue.put_nowait(resampled)
+                    except Exception:
+                        pass
+
+                self._raw_queue.task_done()
+        finally:
+            if co_initialized:
+                try:
+                    ctypes.windll.ole32.CoUninitialize()
+                except Exception:
+                    pass
 
     def start_utterance(self, utterance_id: str = "") -> None:
         """Triggered when VAD detects speech onset. Includes pre-roll buffer."""

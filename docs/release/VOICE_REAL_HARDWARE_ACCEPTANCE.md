@@ -26,17 +26,18 @@ To prevent conflation between synthetic algorithmic simulations and physical hum
 | Gate | Scenario | Status | Evidence Category | Real Hardware / Simulation Verification Detail |
 |---|---|---|---|---|
 | **D01** | Microphone Stream Open | **PASS_REAL_MICROPHONE** | Physical Hardware | `AudioCaptureStream` opened WASAPI stream on physical Realtek device 9; non-blocking capture confirmed with `RLock`. |
-| **D02** | Output Device Detection | **PASS_INSTALLED_APP** | Installed Binary | `AudioPlaybackManager` queries native WASAPI device 8 (Speakers Realtek Audio, 48kHz, 2ch). |
+| **D02** | Output Device Detection & Selection | **PASS_REAL_SPEAKER** / **PASS_INSTALLED_EXE** | Physical Hardware | `AudioDeviceManager` resolves native WASAPI device 8 (Speakers Realtek Audio, 48kHz, 2ch) honoring default WASAPI endpoint policy. |
 | **D03** | Indonesian Test Sentence Transcription | **NOT_TESTED** | Live Human Mic | Automated pipeline tested with synthetic formant in V04; live human speech transcription awaiting user execution in Scenario B. |
 | **D04** | Quiet Room Silence Immunity (P0 Bug) | **PASS_SIMULATED** / **NOT_TESTED** (5m Live) | Simulation / Live Mic | Silence Invariant gates 1875 synthetic frames (V01) and 9375 frames (V02) with 0 false transcripts. Physical 5-minute quiet room awaiting Scenario A. |
 | **D05** | Natural Pause Continuation | **PASS_SIMULATED** / **NOT_TESTED** (Live) | Simulation / Live Mic | 700ms silence does not trigger premature endpoint in V06. Real human hesitation pause awaiting Scenario C. |
 | **D06** | Speaker Echo Rejection | **PASS_SIMULATED** / **NOT_TESTED** (Live) | Simulation / Live Spk | Render-reference coupling threshold math verified in V07. Physical room speaker bleed awaiting Scenario D. |
-| **D07** | Audible Response & Voice Demeanor | **NOT_TESTED** | Human Auditory | Local Piper TTS generates natural wav; aesthetic evaluation of tone and warmth reserved for user in Scenario B/D. |
+| **D07** | Audible Response & Speaker Playback | **PASS_REAL_SPEAKER** / **NOT_TESTED** (Aesthetic) | Physical Hardware | Audio rendered to physical Realtek WASAPI Device 8 with Windows COM initialization (`CoInitialize(None)`); 0 WDM-KS errors; human aesthetic evaluation reserved for Scenario B/D. |
 | **D08** | Real Full-Duplex Barge-In | **PASS_SIMULATED** / **NOT_TESTED** (Live) | Simulation / Live Mic | Strong near-end speech condition and cancellation token trigger verified in V08. Physical speaker abort awaiting Scenario E. |
 | **D09** | Repeated Rapid Interruption | **PASS_SIMULATED** | Simulation | 3 successive cancellation tokens processed without deadlock or state leakage in V09. |
 | **D10** | Voice Preset Switching | **PASS_SIMULATED** | Simulation | Dynamic switching between `BAGUSMAX_GENTLE_ID` and `BAGUSMAX_CALM_ID` verified in V11. |
 | **D11** | Zero-Disk Audio Privacy | **PASS_INSTALLED_EXE** | Installed Binary | `PrivacyGuard.verify_zero_persistent_audio()`: 0 violations, 0 persistent audio files found. |
-| **D12** | Microphone Disconnect / Reconnect | **PASS_REAL_MICROPHONE** | Physical Hardware | Buffer clear and stream restart handle cleanly without unhandled exception or lock inversion. |
+| **D12** | Microphone Disconnect / Reconnect | **PASS_REAL_MICROPHONE** | Physical Hardware | Buffer clear, queue drain, and stream restart handle cleanly without unhandled exception or lock inversion. |
+| **D13** | Real-Time Callback Decoupling | **PASS_REAL_MICROPHONE** | Physical Hardware | PortAudio callback execution offloaded to background worker (<100 µs queue push); 0 overflows, 0 dropped frames during active capture. |
 
 ---
 

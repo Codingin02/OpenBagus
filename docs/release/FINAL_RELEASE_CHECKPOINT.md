@@ -9,21 +9,22 @@
 
 ## 1. Application Deliverables
 
-- **Standalone Windows Installer:** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
-  - **Size:** 1,106,581,428 bytes (1.10 GB)
-  - **SHA-256:** `dac18e4fb38e8c89674d5bc09c527d14a1ce6f5f5d0a9c753ff7edec611a0aa6`
-- **Standalone Frozen Executable (Updated):** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe` & `_installed\OpenBagus\OpenBagus.exe`
-  - **Size:** 24,853,692 bytes (24.8 MB)
+- **Standalone Windows Installer (Recompiled):** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
+  - **Size:** 1,106,594,769 bytes (1.10 GB)
+  - **SHA-256:** `135615717a9f2b98b770757e19d03b2de16a2d58dd0e330c39aaa222bc63281c`
+  - **Build Timestamp (UTC):** `2026-10-16T10:40:36Z`
+- **Standalone Frozen Executable (Updated & Synced):** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe` & `_installed\OpenBagus\OpenBagus.exe`
+  - **Size:** 24,854,062 bytes (24.8 MB)
   - **Diagnostics:** Verified `--diagnostics` returns State `READY`, GPU detected, Ollama fast provider responsive.
 - **Local Model Storage:** `E:\Projects\OpenBagus\models\` (external to installer bundle; zero duplicate model weights in Git)
 - **Single Worktree Status:** Verified single root (`git worktree list --porcelain` shows strictly `E:/Projects/OpenBagus`). Obsolete worktrees `OpenBagus-Voice`, `OpenBagus-ChatTest`, `OpenBagus-Data`, and `OpenBagus-3D` have been safely deleted from disk.
 
 ---
 
-## 2. P0 Voice False-Transcription & Audio Hardware Recovery
+## 2. P0 Voice False-Transcription, Audio Hardware & Real-Time Worker Decoupling
 
-- **Problem Addressed:** Spontaneous detection of "Sampai jumpa di video selanjutnya." and "Terima kasih telah menonton." in quiet rooms, along with stream deadlock on native Windows hardware.
-- **Root Cause:** Stateless wrapper resets in Silero VAD, conflation of total buffer length with active speech duration, flawed Whisper outro hallucination acceptance logic, MME device lockup on Windows, and lock re-entrancy deadlock in `AudioCaptureStream`.
+- **Problems Addressed:** Spontaneous false transcription in quiet rooms, stream deadlock on Windows MME/WDM-KS, PortAudio callback timing contention, and `[Windows WDM-KS error -9999]` on playback stream startup.
+- **Root Causes:** Stateless wrapper resets in Silero VAD, conflation of total buffer length with active speech duration, Whisper outro hallucination acceptance logic, PortAudio callback doing heavy numpy resampling under lock, missing COM initialization on secondary audio threads, and channel mismatch on WASAPI output.
 - **Implemented Fixes:**
   1. Stateful direct ONNX streaming Silero VAD with persistent LSTM hidden states (`h` and `c`).
   2. Mandatory Silence Invariant: Discards buffers lacking genuine vocal speech duration prior to invoking ASR.
@@ -31,12 +32,18 @@
   4. Mute cancellation callback immediately terminating in-flight ASR workers.
   5. 350ms post-playback acoustic drain and VAD state reset.
   6. Re-entrant `threading.RLock()` and unlocked buffer clearing in `AudioCaptureStream` eliminating PortAudio start deadlock.
-  7. WASAPI device priority in `AudioDeviceManager` on Windows ensuring non-blocking audio capture and playback.
-  8. 22-field event-based telemetry recording in `VoiceDiagnostics`.
+  7. Decoupled PortAudio Callback: `_audio_callback` performs non-blocking raw queue push (< 100 µs), offloading resampling, level metering, and frame slicing to dedicated worker thread `_processing_worker`.
+  8. Real-time Telemetry: Tracks `overflow_count`, `dropped_frames_count`, `raw_queue_size`, `frame_queue_size` via `get_telemetry()`.
+  9. Robust Device Selection Policy in `AudioDeviceManager`: Queries `sd.query_hostapis()` for WASAPI default endpoints, respects explicit user overrides, safely falls back to Windows system default communication devices, and provides `validate_device()` and `get_device_report()`.
+  10. Windows COM Thread Safety: Calls `CoInitialize(None)` on audio worker threads, resolving `[Windows WDM-KS error -9999]` and enabling bit-perfect audible playback on WASAPI Device 8.
+  11. Native Sample-Rate & Channel Formatting: Automatically resamples 22050 Hz TTS to 48000 Hz and shapes mono 1D arrays into 2D stereo columns (`np.column_stack`).
 - **Verification Evidence:**
   - Physical Microphone: Stream opened and frames read from Realtek WASAPI Device 9 without deadlock (`PASS_REAL_MICROPHONE`).
-  - Physical Speakers: Enumerated and verified via WASAPI Device 8 (`PASS_REAL_SPEAKER`).
-  - Unit/Simulation Suite `tests/test_voice_p0_acceptance.py`: **14/14 PASS_SIMULATED** (74.8s).
+  - Physical Speakers: Audio rendered audibly and level metering confirmed through Realtek WASAPI Device 8 (`PASS_REAL_SPEAKER`).
+  - Device Selection & Validation: 7/7 unit tests PASS (`tests/test_audio_device_selection.py`).
+  - Real-time Capture & Decoupling: 4/4 unit tests PASS (`tests/test_audio_capture_realtime.py`).
+  - Voice P0 Pipeline Suite: **14/14 PASS_SIMULATED** (`tests/test_voice_p0_acceptance.py`).
+  - Conversational Recovery Suite: **34/34 PASS** (`tests/test_conversational_recovery_regression.py`).
   - Audio Privacy: Zero audio files on disk (`PASS_INSTALLED_EXE`).
 
 ---

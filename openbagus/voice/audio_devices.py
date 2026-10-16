@@ -153,33 +153,129 @@ class AudioDeviceManager:
         return devices
 
     @classmethod
-    def get_default_input_device(cls) -> AudioDeviceInfo | None:
+    def validate_device(cls, device_id: int, kind: str = "input") -> bool:
+        """Validates that a device index exists, has positive channels for the given kind, and settings pass."""
+        if not cls.is_available() or device_id < 0:
+            return False
+        try:
+            raw_devs = sd.query_devices()
+            if device_id >= len(raw_devs):
+                return False
+            dev = raw_devs[device_id]
+            if kind == "input":
+                if int(dev.get("max_input_channels", 0)) <= 0:
+                    return False
+                sd.check_input_settings(device=device_id)
+            else:
+                if int(dev.get("max_output_channels", 0)) <= 0:
+                    return False
+                sd.check_output_settings(device=device_id)
+            return True
+        except Exception:
+            return False
+
+    @classmethod
+    def get_default_input_device(cls, preferred: int | str | None = None) -> AudioDeviceInfo | None:
+        """Finds the optimal input device honoring manual preference, WASAPI endpoint, or system default."""
         inputs = cls.list_input_devices()
-        # On Windows, prefer WASAPI default device for lowest latency and zero blocking
+        if not inputs:
+            return None
+
+        # 1. Honor explicit manual override if provided and valid
+        if preferred is not None:
+            if isinstance(preferred, int):
+                for d in inputs:
+                    if d.id == preferred and cls.validate_device(d.id, kind="input"):
+                        return d
+            elif isinstance(preferred, str) and preferred.strip():
+                clean_pref = preferred.strip().lower()
+                for d in inputs:
+                    if clean_pref in d.name.lower() and cls.validate_device(d.id, kind="input"):
+                        return d
+
+        # 2. Prefer Windows WASAPI default input endpoint (lowest latency, bit-perfect, zero blocking)
+        try:
+            hostapis = sd.query_hostapis()
+            for api in hostapis:
+                if "wasapi" in str(api.get("name", "")).lower():
+                    wasapi_def_in = int(api.get("default_input_device", -1))
+                    if wasapi_def_in >= 0 and cls.validate_device(wasapi_def_in, kind="input"):
+                        for d in inputs:
+                            if d.id == wasapi_def_in:
+                                return d
+        except Exception as e:
+            logger.debug("Error probing WASAPI default input endpoint: %s", e)
+
+        # 3. Prefer Windows system default communication/multimedia endpoint
+        try:
+            sys_def_in = int(sd.default.device[0])
+            if sys_def_in >= 0 and cls.validate_device(sys_def_in, kind="input"):
+                for d in inputs:
+                    if d.id == sys_def_in:
+                        return d
+        except Exception as e:
+            logger.debug("Error probing system default input endpoint: %s", e)
+
+        # 4. Fallback: First valid DirectSound device, then first valid device of any API
         for d in inputs:
-            if "WASAPI" in d.hostapi:
+            if "DirectSound" in d.hostapi and cls.validate_device(d.id, kind="input"):
                 return d
         for d in inputs:
-            if d.is_default:
+            if cls.validate_device(d.id, kind="input"):
                 return d
-        for d in inputs:
-            if "DirectSound" in d.hostapi:
-                return d
+
         return inputs[0] if inputs else None
 
     @classmethod
-    def get_default_output_device(cls) -> AudioDeviceInfo | None:
+    def get_default_output_device(cls, preferred: int | str | None = None) -> AudioDeviceInfo | None:
+        """Finds the optimal output device honoring manual preference, WASAPI endpoint, or system default."""
         outputs = cls.list_output_devices()
-        # On Windows, prefer WASAPI default device for lowest latency and zero blocking
+        if not outputs:
+            return None
+
+        # 1. Honor explicit manual override if provided and valid
+        if preferred is not None:
+            if isinstance(preferred, int):
+                for d in outputs:
+                    if d.id == preferred and cls.validate_device(d.id, kind="output"):
+                        return d
+            elif isinstance(preferred, str) and preferred.strip():
+                clean_pref = preferred.strip().lower()
+                for d in outputs:
+                    if clean_pref in d.name.lower() and cls.validate_device(d.id, kind="output"):
+                        return d
+
+        # 2. Prefer Windows WASAPI default output endpoint (lowest latency, no WDM-KS conflict)
+        try:
+            hostapis = sd.query_hostapis()
+            for api in hostapis:
+                if "wasapi" in str(api.get("name", "")).lower():
+                    wasapi_def_out = int(api.get("default_output_device", -1))
+                    if wasapi_def_out >= 0 and cls.validate_device(wasapi_def_out, kind="output"):
+                        for d in outputs:
+                            if d.id == wasapi_def_out:
+                                return d
+        except Exception as e:
+            logger.debug("Error probing WASAPI default output endpoint: %s", e)
+
+        # 3. Prefer Windows system default communication/multimedia endpoint
+        try:
+            sys_def_out = int(sd.default.device[1])
+            if sys_def_out >= 0 and cls.validate_device(sys_def_out, kind="output"):
+                for d in outputs:
+                    if d.id == sys_def_out:
+                        return d
+        except Exception as e:
+            logger.debug("Error probing system default output endpoint: %s", e)
+
+        # 4. Fallback: First valid DirectSound device, then first valid device of any API
         for d in outputs:
-            if "WASAPI" in d.hostapi:
+            if "DirectSound" in d.hostapi and cls.validate_device(d.id, kind="output"):
                 return d
         for d in outputs:
-            if d.is_default:
+            if cls.validate_device(d.id, kind="output"):
                 return d
-        for d in outputs:
-            if "DirectSound" in d.hostapi:
-                return d
+
         return outputs[0] if outputs else None
 
     @classmethod
@@ -193,13 +289,43 @@ class AudioDeviceManager:
 
     @classmethod
     def check_device_available(cls, device_id: int) -> bool:
-        if not cls.is_available():
+        if not cls.is_available() or device_id < 0:
             return False
         try:
             info = sd.query_devices(device_id)
             return bool(info)
         except Exception:
             return False
+
+    @classmethod
+    def get_device_report(cls, device_id: int | None = None, kind: str = "input") -> dict[str, Any]:
+        """Provides a complete diagnostics report for an audio device."""
+        if not cls.is_available():
+            return {"available": False, "error": "sounddevice unavailable"}
+        target_id = device_id
+        if target_id is None:
+            dev_obj = cls.get_default_input_device() if kind == "input" else cls.get_default_output_device()
+            target_id = dev_obj.id if dev_obj else None
+        if target_id is None:
+            return {"available": False, "device_id": None, "error": "No matching device found"}
+        try:
+            info = sd.query_devices(target_id)
+            hostapis = sd.query_hostapis()
+            api_idx = info.get("hostapi", 0)
+            api_name = hostapis[api_idx]["name"] if api_idx < len(hostapis) else "Unknown"
+            valid = cls.validate_device(target_id, kind=kind)
+            return {
+                "available": True,
+                "device_id": target_id,
+                "name": info.get("name", "Unknown"),
+                "kind": kind,
+                "hostapi": api_name,
+                "channels": int(info.get("max_input_channels" if kind == "input" else "max_output_channels", 0)),
+                "default_samplerate": float(info.get("default_samplerate", 0.0)),
+                "valid": valid,
+            }
+        except Exception as e:
+            return {"available": False, "device_id": target_id, "error": str(e)}
 
     @classmethod
     def get_audio_system_summary(cls) -> dict[str, Any]:

@@ -136,114 +136,131 @@ class AudioPlaybackManager:
         ).astype(np.float32)
 
     def _playback_loop(self) -> None:
-        """Sequential playback loop processing audio chunks with sample-rate negotiation."""
-        while not self._stop_event.is_set():
-            try:
-                audio, sr, chunk_gen = self._queue.get(timeout=0.1)
-            except queue.Empty:
-                if self._is_playing:
-                    self._is_playing = False
-                    if self.on_finish:
+        """Sequential playback loop processing audio chunks with sample-rate negotiation and Windows COM safety."""
+        import ctypes
+        co_initialized = False
+        try:
+            if hasattr(ctypes, "windll") and hasattr(ctypes.windll, "ole32"):
+                ctypes.windll.ole32.CoInitialize(None)
+                co_initialized = True
+        except Exception:
+            pass
+
+        try:
+            while not self._stop_event.is_set():
+                try:
+                    audio, sr, chunk_gen = self._queue.get(timeout=0.1)
+                except queue.Empty:
+                    if self._is_playing:
+                        self._is_playing = False
+                        if self.on_finish:
+                            try:
+                                self.on_finish()
+                            except Exception:
+                                pass
+                    continue
+
+                # Drop chunk if invalidated by barge-in or stop
+                if self._stop_event.is_set() or self._is_muted or chunk_gen != self._current_generation_id:
+                    self._queue.task_done()
+                    continue
+
+                if not self._is_playing:
+                    self._is_playing = True
+                    if self.on_start:
                         try:
-                            self.on_finish()
+                            self.on_start()
                         except Exception:
                             pass
-                continue
 
-            # Drop chunk if invalidated by barge-in or stop
-            if self._stop_event.is_set() or self._is_muted or chunk_gen != self._current_generation_id:
-                self._queue.task_done()
-                continue
+                try:
+                    dev_out = self.device_id
+                    if dev_out is None:
+                        d = AudioDeviceManager.get_default_output_device()
+                        dev_out = d.id if d else None
 
-            if not self._is_playing:
-                self._is_playing = True
-                if self.on_start:
-                    try:
-                        self.on_start()
-                    except Exception:
-                        pass
+                    play_audio = audio
+                    play_sr = sr
 
-            try:
-                dev_out = self.device_id
-                if dev_out is None:
-                    d = AudioDeviceManager.get_default_output_device()
-                    dev_out = d.id if d else None
-
-                play_audio = audio
-                play_sr = sr
-
-                # Safe sample-rate negotiation with output device (WASAPI/DirectSound compatibility)
-                if dev_out is not None and sd is not None:
-                    try:
-                        sd.check_output_settings(device=dev_out, samplerate=sr)
-                    except Exception:
+                    # Safe sample-rate and channel negotiation with output device (WASAPI/DirectSound compatibility)
+                    if dev_out is not None and sd is not None:
                         try:
                             info = sd.query_devices(dev_out)
                             native_sr = int(info.get("default_samplerate", 48000))
+                            max_ch = int(info.get("max_output_channels", 2))
                             if native_sr != sr:
                                 play_audio = self._resample_audio(audio, sr, native_sr)
                                 play_sr = native_sr
+                            # Convert mono 1D array to 2D multi-channel array matching device capability
+                            if play_audio.ndim == 1 and max_ch >= 2:
+                                play_audio = np.column_stack([play_audio] * min(2, max_ch))
                         except Exception as e_negotiate:
-                            logger.debug("Playback sample rate negotiation fallback: %s", e_negotiate)
+                            logger.debug("Playback sample rate/channel negotiation fallback: %s", e_negotiate)
 
-                sd.play(play_audio, samplerate=play_sr, device=dev_out)
+                    sd.play(play_audio, samplerate=play_sr, device=dev_out)
 
-                # Check stop event during chunk duration and emit synchronized playback levels
-                chunk_dur = len(play_audio) / play_sr
-                chunk_start = time.time()
-                deadline = chunk_start + chunk_dur
-                last_level_emit = 0.0
-                last_rms = 0.0
+                    # Check stop event during chunk duration and emit synchronized playback levels
+                    chunk_dur = len(play_audio) / play_sr
+                    chunk_start = time.time()
+                    deadline = chunk_start + chunk_dur
+                    last_level_emit = 0.0
+                    last_rms = 0.0
 
-                while time.time() < deadline:
-                    if self._stop_event.is_set() or chunk_gen != self._current_generation_id:
-                        sd.stop()
-                        break
-                    now = time.time()
-                    if self.on_playback_level and (now - last_level_emit >= 0.033):
-                        last_level_emit = now
-                        elapsed = now - chunk_start
-                        curr_s = int(elapsed * play_sr)
-                        w_len = int(0.04 * play_sr)
-                        start_i = max(0, min(len(play_audio) - 1, curr_s))
-                        end_i = max(0, min(len(play_audio), start_i + w_len))
-                        if end_i > start_i:
-                            sub = play_audio[start_i:end_i]
-                            curr_rms = float(np.sqrt(np.mean(np.square(sub))))
-                            self._current_render_rms = curr_rms
-                            self._render_energy_timestamp = now
-                            smoothed = 0.60 * last_rms + 0.40 * curr_rms
-                            last_rms = smoothed
-                            amp = min(1.0, max(0.0, smoothed * 3.5))
-                            try:
-                                self.on_playback_level(amp)
-                            except Exception:
-                                pass
-                    time.sleep(0.01)
+                    while time.time() < deadline:
+                        if self._stop_event.is_set() or chunk_gen != self._current_generation_id:
+                            sd.stop()
+                            break
+                        now = time.time()
+                        if self.on_playback_level and (now - last_level_emit >= 0.033):
+                            last_level_emit = now
+                            elapsed = now - chunk_start
+                            curr_s = int(elapsed * play_sr)
+                            w_len = int(0.04 * play_sr)
+                            start_i = max(0, min(len(play_audio) - 1, curr_s))
+                            end_i = max(0, min(len(play_audio), start_i + w_len))
+                            if end_i > start_i:
+                                sub = play_audio[start_i:end_i]
+                                curr_rms = float(np.sqrt(np.mean(np.square(sub))))
+                                self._current_render_rms = curr_rms
+                                self._render_energy_timestamp = now
+                                smoothed = 0.60 * last_rms + 0.40 * curr_rms
+                                last_rms = smoothed
+                                amp = min(1.0, max(0.0, smoothed * 3.5))
+                                try:
+                                    self.on_playback_level(amp)
+                                except Exception:
+                                    pass
+                        time.sleep(0.01)
 
-                self._current_render_rms = 0.0
-                self._render_energy_timestamp = 0.0
-                if self.on_playback_level:
-                    try:
-                        self.on_playback_level(0.0)
-                    except Exception:
-                        pass
+                    self._current_render_rms = 0.0
+                    self._render_energy_timestamp = 0.0
+                    if self.on_playback_level:
+                        try:
+                            self.on_playback_level(0.0)
+                        except Exception:
+                            pass
 
-            except Exception as e:
-                logger.warning("Error during audio chunk playback: %s", e)
-            finally:
-                self._current_render_rms = 0.0
-                self._render_energy_timestamp = 0.0
-                self._queue.task_done()
+                except Exception as e:
+                    logger.warning("Error during audio chunk playback: %s", e)
+                finally:
+                    self._current_render_rms = 0.0
+                    self._render_energy_timestamp = 0.0
+                    self._queue.task_done()
 
-        self._is_playing = False
-        self._current_render_rms = 0.0
-        self._render_energy_timestamp = 0.0
-        if self.on_playback_level:
-            try:
-                self.on_playback_level(0.0)
-            except Exception:
-                pass
+            self._is_playing = False
+            self._current_render_rms = 0.0
+            self._render_energy_timestamp = 0.0
+            if self.on_playback_level:
+                try:
+                    self.on_playback_level(0.0)
+                except Exception:
+                    pass
+        finally:
+            if co_initialized:
+                try:
+                    ctypes.windll.ole32.CoUninitialize()
+                except Exception:
+                    pass
 
     def stop_playback(self, interrupted: bool = True) -> None:
         """Instantly aborts audio playback, bumps generation, and drains queue (Barge-In support)."""
