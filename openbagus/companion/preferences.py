@@ -69,9 +69,26 @@ class CompanionPreferences:
         return obj.clamp()
 
 
+def _get_target_path(config_path: Path | str | None = None) -> Path:
+    if config_path:
+        return Path(config_path)
+    import sys
+    if getattr(sys, "frozen", False):
+        return Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OpenBagus" / "bagusmax_preferences.json"
+    try:
+        from openbagus.core.env import get_repo_root
+        repo_file = get_repo_root() / "data/local_ai/bagusmax_preferences.json"
+        if repo_file.parent.exists():
+            return repo_file
+    except Exception:
+        pass
+    local_app_data = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OpenBagus"
+    return local_app_data / "bagusmax_preferences.json"
+
+
 def load_preferences(config_path: Path | str | None = None) -> CompanionPreferences:
     """Load preferences from disk with automatic fallback on corruption."""
-    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+    path = _get_target_path(config_path)
     if not path.exists():
         return CompanionPreferences()
 
@@ -89,7 +106,7 @@ def save_preferences(
     config_path: Path | str | None = None,
 ) -> bool:
     """Atomically save preferences to disk."""
-    path = Path(config_path) if config_path else DEFAULT_CONFIG_PATH
+    path = _get_target_path(config_path)
     try:
         path.parent.mkdir(parents=True, exist_ok=True)
         prefs.clamp()

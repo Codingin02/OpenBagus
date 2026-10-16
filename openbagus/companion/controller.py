@@ -372,25 +372,36 @@ class CompanionController:
 
     def _launch(self) -> bool:
         """Start the companion renderer subprocess."""
-        renderer_path = Path(__file__).parent / "renderer.py"
-        if not renderer_path.exists():
-            logger.error("Companion renderer not found at %s", renderer_path)
-            return False
+        frozen = bool(getattr(sys, "frozen", False))
+        if frozen:
+            user_dir = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "OpenBagus"
+            log_dir = user_dir / "logs"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file_path = log_dir / "companion.log"
+            cmd = [sys.executable, "--internal-companion-renderer", "--port", str(IPC_PORT)]
+            launch_cwd = str(user_dir)
+        else:
+            renderer_path = Path(__file__).parent / "renderer.py"
+            if not renderer_path.exists():
+                logger.error("Companion renderer not found at %s", renderer_path)
+                return False
 
-        repo_root = Path(__file__).parents[2]
-        log_dir = repo_root / "reports" / "runtime"
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_file_path = log_dir / "companion.log"
+            repo_root = Path(__file__).parents[2]
+            log_dir = repo_root / "reports" / "runtime"
+            log_dir.mkdir(parents=True, exist_ok=True)
+            log_file_path = log_dir / "companion.log"
+            cmd = [sys.executable, "-m", "openbagus.companion.renderer", "--port", str(IPC_PORT)]
+            launch_cwd = str(repo_root)
 
         try:
             self._close_socket()
             with open(log_file_path, "a", encoding="utf-8") as lf:
                 lf.write(f"\n--- Companion launch at {time.strftime('%Y-%m-%d %H:%M:%S')} ---\n")
                 self._process = subprocess.Popen(
-                    [sys.executable, "-m", "openbagus.companion.renderer", "--port", str(IPC_PORT)],
+                    cmd,
                     stdout=lf,
                     stderr=subprocess.STDOUT,
-                    cwd=str(repo_root),
+                    cwd=launch_cwd,
                 )
             logger.info("SHOW OPENBAGUS companion launched (PID %d)", self._process.pid)
 

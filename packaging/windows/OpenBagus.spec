@@ -7,7 +7,7 @@ datas = [(str(root / "LICENSE"), ".")]
 datas += collect_data_files("openbagus.domains.equities", includes=["idx_universe.json"])
 binaries = []
 hidden = collect_submodules("openbagus") + collect_submodules("openbagus_finance")
-for package in ("piper", "faster_whisper", "onnxruntime", "ctranslate2", "sounddevice"):
+for package in ("piper", "faster_whisper", "onnxruntime", "ctranslate2", "sounddevice", "glfw", "moderngl", "pyrr", "glcontext"):
     data, libs, imports = collect_all(package)
     datas += data
     binaries += libs

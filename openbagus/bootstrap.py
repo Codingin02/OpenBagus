@@ -23,6 +23,19 @@ def _get_json(url, body=None, timeout=3):
 
 
 def main() -> int:
+    if "--internal-companion-renderer" in sys.argv:
+        port = 7432
+        if "--port" in sys.argv:
+            idx = sys.argv.index("--port")
+            if idx + 1 < len(sys.argv):
+                try:
+                    port = int(sys.argv[idx + 1])
+                except ValueError:
+                    pass
+        from openbagus.companion.renderer import run_renderer
+        run_renderer(port=port)
+        return 0
+
     print("OpenBagus | STARTING", flush=True)
     frozen = bool(getattr(sys, "frozen", False))
     resources = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[1]))

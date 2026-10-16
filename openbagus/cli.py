@@ -14,6 +14,7 @@ import shutil
 import smtplib
 import sys
 import tempfile
+import threading
 import traceback
 import contextlib
 import io
@@ -94,6 +95,104 @@ BANNER = r"""
 | |_| |  __/| |___| |\  | |_) / ___ \ |_| | |_| |___) |
  \___/|_|   |_____|_| \_|____/_/   \_\____|\___/|____/
 """.strip("\n")
+
+
+def render_startup_banner(
+    startup_report: dict[str, Any] | None = None,
+    current_mode: str = "FAST",
+    voice_active: bool = False,
+    companion_active: bool = False,
+    stream: Any = None,
+) -> str:
+    """Renders the canonical big OpenBagus startup ASCII banner and runtime readiness summary.
+
+    Supports Windows Terminal, PowerShell consoles, and narrow screens (< 60 cols) with clean fallback.
+    Respects NO_COLOR and terminal capabilities.
+    """
+    if stream is None:
+        stream = sys.stdout
+
+    term_cols = 80
+    try:
+        term_cols = shutil.get_terminal_size((80, 24)).columns
+    except Exception:
+        term_cols = 80
+
+    use_color = getattr(stream, "isatty", lambda: False)() and not os.environ.get("NO_COLOR")
+
+    lines: list[str] = []
+
+    # Large ASCII wordmark if terminal width allows (>= 58 cols), otherwise compact wordmark
+    if term_cols >= 58:
+        ascii_logo = BANNER
+        if use_color:
+            ascii_logo = f"\033[1;36m{ascii_logo}\033[0m"
+        lines.append("")
+        lines.append(ascii_logo)
+    else:
+        box_bar = "=" * min(term_cols, 44)
+        wordmark = "               OPENBAGUS"
+        if use_color:
+            lines.append(f"\033[1;36m{box_bar}\n{wordmark}\n{box_bar}\033[0m")
+        else:
+            lines.append(f"{box_bar}\n{wordmark}\n{box_bar}")
+
+    # Subtitle
+    subtitle = "  LOCAL AI • FINANCIAL INTELLIGENCE • VOICE • BAGUSMAX 3D"
+    if use_color:
+        lines.append(f"\033[2m{subtitle}\033[0m")
+    else:
+        lines.append(subtitle)
+    lines.append("")
+
+    # Resolve runtime information
+    model_name = "qwen3.5:2b-q4_K_M"
+    gpu_label = "NVIDIA GPU"
+    mode_label = current_mode
+
+    if startup_report:
+        model_name = startup_report.get("model", model_name)
+        hw = startup_report.get("hardware", {})
+        gpu_name = hw.get("gpu_name")
+        if gpu_name:
+            gpu_label = gpu_name
+        elif hw.get("cuda_available"):
+            gpu_label = "NVIDIA RTX (CUDA)"
+        else:
+            gpu_label = "CPU"
+    else:
+        try:
+            from openbagus.ai.runtime.hardware import HardwareDetector
+            hw_info = HardwareDetector.detect().to_dict()
+            gpu_name = hw_info.get("gpu_name")
+            if gpu_name:
+                gpu_label = gpu_name
+            elif hw_info.get("cuda_available"):
+                gpu_label = "NVIDIA RTX (CUDA)"
+            else:
+                gpu_label = "CPU"
+        except Exception:
+            gpu_label = "Detected Hardware"
+
+    voice_status = "LIVE" if voice_active else "STANDBY"
+    comp_status = "ACTIVE" if companion_active else "STANDBY"
+
+    fmt_key = "\033[1m{: <14}\033[0m" if use_color else "{: <14}"
+    lines.append(f"  {fmt_key.format('Model')} {model_name}")
+    lines.append(f"  {fmt_key.format('Mode')} {mode_label}")
+    lines.append(f"  {fmt_key.format('GPU')} {gpu_label}")
+    lines.append(f"  {fmt_key.format('Voice')} {voice_status}")
+    lines.append(f"  {fmt_key.format('Companion')} {comp_status}")
+    lines.append("")
+
+    prompt_hint = "  Ketik /bagusmax untuk memulai sesi live (suara + 3D)."
+    if use_color:
+        lines.append(f"\033[1;32m{prompt_hint}\033[0m")
+    else:
+        lines.append(prompt_hint)
+    lines.append("")
+
+    return "\n".join(lines)
 
 
 def _utc_now() -> str:
@@ -1162,140 +1261,38 @@ class OpenBagusShell(cmd.Cmd):
         # Companion: lazy-loaded, None if companion not available
         self._companion: Any = None
         self._companion_available: bool | None = None  # None = untested
+        from openbagus.companion.live_session import BagusmaxLiveSessionCoordinator
+        self.bagusmax_coordinator = BagusmaxLiveSessionCoordinator(self)
+        self._voice_lock = threading.Lock()
+
+    def _print_voice_output(self, text: str) -> None:
+        """Thread-safe terminal output for asynchronous voice events without corrupting prompt."""
+        with self._voice_lock:
+            sys.stdout.write(text + "\n")
+            sys.stdout.flush()
+
+    def precmd(self, line: str) -> str:
+        """Normalizes commands, mapping /bagus max aliases to /bagusmax."""
+        stripped = line.strip()
+        lowered = stripped.lower()
+        if lowered.startswith("/bagus max"):
+            return "/bagusmax " + stripped[10:].strip()
+        if lowered.startswith("bagus max"):
+            return "/bagusmax " + stripped[9:].strip()
+        return line
 
     def preloop(self) -> None:
-        if hasattr(self, "startup_report"):
-            info = self.startup_report
-            print(f"\nOPENBAGUS | {info['state']}\nLocal AI Research & Conversation")
-            print(f"Provider: {info['provider']} | Model: {info['model']} | Mode: {self.current_mode}")
-            print(f"Microphone: {info['microphone']} | Speaker: {info['speaker']} | Financial Data: {info['financial_data']}")
-            print("Privacy: LOCAL-FIRST | English Tutor: AVAILABLE | Companion: INACTIVE")
-            from openbagus.voice.preferences import load_voice_preferences
-            prefs = load_voice_preferences()
-            if prefs.voice_enabled and prefs.auto_start_on_cli and info['microphone'] == 'READY':
-                import threading
-                threading.Thread(target=self.do_voice, args=("on",), daemon=True).start()
-            else:
-                print("Voice: OFF. /voice on untuk mengaktifkan. Ketik pesan untuk mulai.\n")
-            return
-        color = sys.stdout.isatty() and not os.environ.get("NO_COLOR")
-        banner = f"\033[36m{BANNER}\033[0m" if color else BANNER
-        print(banner)
-
-        # --- Runtime status detection ---
-        try:
-            mgr_status = self.provider_mgr.get_status()
-            hw = mgr_status.get("hardware", {})
-            model_info = mgr_status.get("model_info", {})
-            model_name = model_info.get("model_name", "qwen3.5:2b-q4_K_M")
-            provider_type = mgr_status.get("active_type", "OLLAMA_FAST")
-
-            if "OLLAMA" in provider_type:
-                provider_label = "OLLAMA_LOCAL"
-            elif "LLAMA" in provider_type:
-                provider_label = "LLAMA_CPP_LOCAL"
-            elif "CUSTOM" in provider_type:
-                provider_label = "CUSTOM_REMOTE"
-            else:
-                provider_label = "FALLBACK"
-
-            cuda_ok = hw.get("cuda_available", False)
-            gpu_name = hw.get("gpu_name")
-            if cuda_ok and gpu_name:
-                backend_label = "CUDA"
-                gpu_short = "RTX 3050 6GB" if "3050" in gpu_name else gpu_name
-            elif cuda_ok:
-                backend_label = "CUDA"
-                gpu_short = "NVIDIA GPU"
-            else:
-                backend_label = "CPU"
-                gpu_short = "None"
-
-            # GPU inference residency / readiness
-            if model_info.get("is_warm"):
-                gpu_infer_status = "ACTIVE"
-            elif cuda_ok and mgr_status.get("is_available"):
-                gpu_infer_status = "READY"
-            elif cuda_ok:
-                gpu_infer_status = "STANDBY"
-            else:
-                gpu_infer_status = "UNAVAILABLE"
-        except Exception:
-            model_name = "UNAVAILABLE"
-            provider_label = "UNAVAILABLE"
-            backend_label = "UNKNOWN"
-            gpu_short = "UNKNOWN"
-            gpu_infer_status = "BLOCKED"
-
-        mic_status = "UNAVAILABLE"
-        try:
-            from openbagus.voice.audio_devices import AudioDeviceManager
-            code, detail = AudioDeviceManager.get_microphone_status()
-            if code == "READY":
-                mic_status = f"READY ({detail})" if detail else "READY"
-            elif code == "PERMISSION_REQUIRED":
-                mic_status = "PERMISSION_REQUIRED"
-            elif code == "NO_DEVICE":
-                mic_status = "NO_DEVICE"
-            else:
-                mic_status = code
-        except Exception:
-            pass
-
-        comp_status = "INACTIVE"
-        if self._companion is not None:
-            try:
-                s = self._companion.get_status()
-                comp_status = f"ACTIVE (PID {s.get('pid')})" if s.get("running") and s.get("pid") else ("ACTIVE" if s.get("running") else "INACTIVE")
-            except Exception:
-                pass
-
-        # Auto-start voice session if configured in persistent preferences and microphone is ready
-        voice_live = False
-        voice_preset_label = "BAGUSMAX_CALM_ID"
-        try:
-            from openbagus.voice.preferences import load_voice_preferences
-            voice_prefs = load_voice_preferences()
-            voice_preset_label = voice_prefs.voice_preset
-            if voice_prefs.voice_enabled and voice_prefs.auto_start_on_cli and "READY" in mic_status:
-                from openbagus.voice.voice_session import VoiceSession
-                self.voice_session = VoiceSession(
-                    agent_harness=self.agent_harness,
-                    working_context=self.working_context,
-                    preferences=voice_prefs,
-                )
-                voice_live = self.voice_session.start(hands_free=voice_prefs.hands_free)
-        except Exception:
-            pass
-
-        w = 46
-        sep = "-" * w
-        def row(label: str, val: str) -> str:
-            space_avail = w - 4 - len(label)
-            if len(val) > space_avail:
-                val = val[:space_avail - 3] + "..."
-            pad = space_avail - len(val)
-            return f"|  {label} {val}{' ' * max(pad, 0)}  |"
-
-        backend_desc = f"{backend_label} ({gpu_short})" if backend_label == "CUDA" else backend_label
-
-        lines = [
-            f"+{sep}+",
-            f"|{'OpenBagus AI Research Terminal':^{w}}|",
-            f"+{sep}+",
-            row("Model        :", model_name),
-            row("AI Provider  :", provider_label),
-            row("AI Backend   :", backend_desc),
-            row("GPU Inference:", gpu_infer_status),
-            row("Mode         :", self.current_mode),
-            row("Microphone   :", f"LIVE ({voice_preset_label})" if voice_live else mic_status),
-            row("Companion    :", comp_status),
-            f"+{sep}+",
-        ]
-        print("\n".join(lines))
-        if voice_live:
-            print("[Voice Assistant Aktif: Percakapan Hands-Free Siap — Silakan bicara langsung]")
-        print("Type any ticker (BTC, ETH, BBCA), research query, or '/help' for commands.\n")
+        report = getattr(self, "startup_report", None)
+        voice_active = bool(getattr(self, "voice_session", None) and self.voice_session._active)
+        comp_active = bool(getattr(self, "_companion", None) and self._companion._is_running())
+        banner_text = render_startup_banner(
+            startup_report=report,
+            current_mode=self.current_mode,
+            voice_active=voice_active,
+            companion_active=comp_active,
+            stream=sys.stdout,
+        )
+        print(banner_text)
         if self.session.last_asset:
             print(f"[Restored persistent session context: {self.session.last_asset} ({self.session.timeframe or '1d'})]")
             print(f"Type 'lanjutkan {self.session.last_asset} tadi' to continue or switch to a new asset.\n")
@@ -3527,6 +3524,8 @@ class OpenBagusShell(cmd.Cmd):
     def do_new(self, _arg: str) -> None:
         from openbagus.ai.memory.working_context import WorkingContext
         self.working_context = WorkingContext()
+        if hasattr(self, "bagusmax_coordinator"):
+            self.bagusmax_coordinator.sync_context()
         print("Sesi percakapan baru dimulai. Konteks emiten dan kandidat telah direset.\n")
 
     def do_sessions(self, _arg: str) -> None:
@@ -3551,6 +3550,8 @@ class OpenBagusShell(cmd.Cmd):
         store = SessionStore()
         ctx = store.load(s_id)
         self.working_context = ctx
+        if hasattr(self, "bagusmax_coordinator"):
+            self.bagusmax_coordinator.sync_context()
         print(f"Sesi '{s_id}' berhasil dimuat. Emiten aktif: {ctx.active_ticker or '-'}, Strategi: {ctx.strategy}.\n")
 
     def do_mode(self, arg: str) -> None:
@@ -3603,6 +3604,8 @@ class OpenBagusShell(cmd.Cmd):
         preferences = self.voice_session.preferences if self.voice_session else load_voice_preferences()
         preferences.default_mode = self.current_mode
         save_voice_preferences(preferences)
+        if hasattr(self, "bagusmax_coordinator"):
+            self.bagusmax_coordinator.sync_mode(self.current_mode)
 
 
     def do_model(self, arg: str) -> None:
@@ -4042,12 +4045,58 @@ class OpenBagusShell(cmd.Cmd):
 
 
     def do_bagusmax(self, arg: str) -> None:
-        """Alias untuk /show-openbagus (Kontrol jendela 3D Companion BAGUSMAX)."""
+        """Satu perintah untuk memulai atau mengontrol sesi interaktif BAGUSMAX Live (3D Companion + Suara Hands-free).
+
+        Penggunaan:
+          /bagusmax          -> Memulai atau memfokuskan sesi live 3D + mikrofon hands-free
+          /bagusmax status   -> Menampilkan status live 3D, mikrofon, speaker, dan AI
+          /bagusmax close    -> Menutup companion, menghentikan suara, dan melepas audio
+          /bagusmax restart  -> Merestart sesi live secara bersih
+          /bagusmax hide     -> Menyembunyikan companion dan me-mute mikrofon untuk privasi
+          /bagusmax show     -> Menampilkan kembali companion dan mengaktifkan mikrofon
+          /bagusmax <cmd>    -> Kontrol transform jendela 3D (position, size, rotate, view, dll.)
+        """
+        cleaned = arg.strip()
+        tokens = cleaned.split()
+        subcmd = tokens[0].lower() if tokens else ""
+
+        if subcmd in ("", "start", "on", "live", "buka"):
+            res = self.bagusmax_coordinator.start()
+            print(res.message)
+            return
+
+        if subcmd in ("status", "info"):
+            st = self.bagusmax_coordinator.status()
+            print(st.format_card())
+            print()
+            return
+
+        if subcmd in ("close", "stop", "exit", "quit", "tutup", "off"):
+            res = self.bagusmax_coordinator.stop()
+            print(res.message)
+            return
+
+        if subcmd in ("restart", "reset-session"):
+            res = self.bagusmax_coordinator.restart()
+            print(res.message)
+            return
+
+        if subcmd in ("hide", "sembunyikan"):
+            res = self.bagusmax_coordinator.hide()
+            print(res.message)
+            return
+
+        if subcmd in ("show", "tampilkan"):
+            res = self.bagusmax_coordinator.show()
+            print(res.message)
+            return
+
+        # Pass through to companion transform/animation commands
         self.do_show_openbagus(arg)
 
     def do_show(self, arg: str) -> None:
-        """Alias untuk /show-openbagus."""
-        self.do_show_openbagus(arg)
+        """Alias untuk /bagusmax."""
+        self.do_bagusmax(arg)
 
 
     def do_cancel(self, _arg: str) -> None:
@@ -4124,12 +4173,23 @@ class OpenBagusShell(cmd.Cmd):
             print(f"Verbose trace: {'Aktif' if self.trace_enabled else 'Nonaktif'}.\n")
 
     def do_exit(self, _arg: str) -> bool:
-        if getattr(self, "voice_session", None):
+        if hasattr(self, "bagusmax_coordinator"):
+            try:
+                self.bagusmax_coordinator.stop()
+            except Exception:
+                pass
+        elif getattr(self, "voice_session", None):
             try:
                 self.voice_session.stop()
             except Exception:
                 pass
             self.voice_session = None
+        if getattr(self, "_companion", None):
+            try:
+                self._companion.close()
+            except Exception:
+                pass
+            self._companion = None
         if sys.stdin.isatty():
             try:
                 choice = self._ask("End session: [S] Save context  [C] Clear conversation  [X] Cancel: ").strip().lower()
@@ -4164,12 +4224,23 @@ class OpenBagusShell(cmd.Cmd):
         return self.do_exit(_arg)
 
     def do_EOF(self, _arg: str) -> bool:
-        if getattr(self, "voice_session", None):
+        if hasattr(self, "bagusmax_coordinator"):
+            try:
+                self.bagusmax_coordinator.stop()
+            except Exception:
+                pass
+        elif getattr(self, "voice_session", None):
             try:
                 self.voice_session.stop()
             except Exception:
                 pass
             self.voice_session = None
+        if getattr(self, "_companion", None):
+            try:
+                self._companion.close()
+            except Exception:
+                pass
+            self._companion = None
         if self.session.is_persistence_enabled():
             self.session.save_persistent()
         else:

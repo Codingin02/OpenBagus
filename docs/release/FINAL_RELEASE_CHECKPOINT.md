@@ -9,15 +9,17 @@
 
 ## 1. Application Deliverables
 
-- **Standalone Windows Installer (Recompiled V5.3):** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
-  - **Size:** 1,106,595,915 bytes (1.10 GB)
-  - **SHA-256:** `4bb95f1efb267f001225ea021657b4da6e5fca6e19cd94fb8c41b537618c2dd2`
-  - **Build Timestamp (UTC):** `2026-10-16T13:18:37Z`
+- **Standalone Windows Installer (Recompiled V5.4):** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
+  - **Size:** 1,107,147,593 bytes (1.10 GB)
+  - **SHA-256:** `06bb7df95903fee08bf3ff8a61374d0df891a892a47615a72e4178254e28e461`
+  - **Build Timestamp (UTC):** `2026-10-16T17:09:40Z`
 - **Standalone Frozen Executable (Updated & Synced):** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe` & `_installed\OpenBagus\OpenBagus.exe`
-  - **Size:** 24,854,062 bytes (24.8 MB)
+  - **Size:** 24,881,260 bytes (24.8 MB)
   - **Diagnostics:** Verified `--diagnostics` returns State `READY`, GPU detected, Ollama fast provider responsive.
+  - **Companion Dispatcher:** Verified `--internal-companion-renderer` successfully initializes GLFW3, ModernGL, and IPC on port 7432.
 - **Local Model Storage:** `E:\Projects\OpenBagus\models\` (external to installer bundle; zero duplicate model weights in Git)
 - **Single Worktree Status:** Verified single root (`git worktree list --porcelain` shows strictly `E:/Projects/OpenBagus`). Obsolete worktrees `OpenBagus-Voice`, `OpenBagus-ChatTest`, `OpenBagus-Data`, and `OpenBagus-3D` have been safely deleted from disk.
+- **V5.4 Acceptance Report:** Documented in `docs/release/BAGUSMAX_V5_4_ONE_COMMAND_ACCEPTANCE.md`.
 
 ---
 
