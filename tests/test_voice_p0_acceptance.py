@@ -126,35 +126,36 @@ class TestVoiceP0Acceptance(unittest.TestCase):
     # V04: Simulated speech acoustic pipeline test (PASS_SIMULATED)
     # -------------------------------------------------------------------------
     def test_v04_simulated_speech_acoustic_pipeline(self) -> None:
-        """Simulated speech acoustic formant pipeline test (PASS_SIMULATED).
+        """Simulated speech acoustic pipeline test (PASS_SIMULATED).
         
-        Verifies that high-energy speech-like formant signals with valid VAD evidence
-        pass acoustic filtering without premature hallucination suppression.
+        Verifies that high-energy speech with valid VAD evidence
+        passes acoustic filtering and transcribes cleanly without hallucination suppression.
         NOTE: This test validates acoustic pipeline flow only. Real human Indonesian
         speech transcription is evaluated via live microphone in Scenario B (USER_APPROVED / PENDING_USER_MIC).
         """
         asr = LocalASREngine()
-        # Synthetic speech formant signal with pitch 180Hz and realistic amplitude
-        t = np.linspace(0, 1.8, 16000 * int(1.8), endpoint=False)
-        f0 = 180
-        formant = (
-            0.04 * np.sin(2 * np.pi * f0 * t)
-            + 0.03 * np.sin(2 * np.pi * 2 * f0 * t)
-            + 0.02 * np.sin(2 * np.pi * 3 * f0 * t)
-        )
-        envelope = np.sin(np.pi * t / 1.8) ** 2
-        speech_audio = (formant * envelope).astype(np.float32)
+        tts = LocalTTSEngine()
+
+        # Synthesize real vocal speech acoustics
+        audio_native = tts.synthesize_sentence("Bagusmax, bagaimana analisa saham BBCA hari ini?")
+        target_len = int(len(audio_native) * 16000 / tts.sample_rate)
+        speech_audio = np.interp(
+            np.linspace(0, len(audio_native), target_len, endpoint=False),
+            np.arange(len(audio_native)),
+            audio_native,
+        ).astype(np.float32)
 
         vad_evidence = {
-            "speech_duration_s": 1.4,
-            "speech_ratio": 0.78,
-            "max_prob": 0.88,
-            "mean_speech_prob": 0.82,
+            "speech_duration_s": 2.0,
+            "speech_ratio": 0.85,
+            "max_prob": 0.95,
+            "mean_speech_prob": 0.90,
         }
 
         # Transcribe with genuine VAD evidence
         norm_res, tele = asr.transcribe(speech_audio, sample_rate=16000, vad_evidence=vad_evidence)
         self.assertFalse(tele.get("hallucination_suppressed", False))
+        self.assertIn("bbca", norm_res.normalized_text.lower())
         self.assertIn(tele.get("device"), ("cpu", "cuda"))
 
     # -------------------------------------------------------------------------

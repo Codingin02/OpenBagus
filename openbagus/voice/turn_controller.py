@@ -286,13 +286,14 @@ class VoiceTurnController:
                 if self.state == VoiceState.SPEAKING:
                     render_rms = getattr(self.playback_manager, "get_current_render_energy", lambda: 0.0)()
                     if render_rms > 0.003:
-                        # Speaker actively rendering: require near-end user speech clearly above speaker bleed envelope
-                        coupling_thresh = max(0.012, render_rms * 0.70 + 0.008)
-                        is_speech = (prob >= 0.75) and (frame_rms >= coupling_thresh)
+                        # Attenuated echo estimate: laptop microphone picks up ~15-25% of speaker output
+                        expected_echo = render_rms * 0.25
+                        coupling_thresh = max(0.010, min(0.032, expected_echo + 0.005))
+                        is_speech = (prob >= 0.62) and (frame_rms >= coupling_thresh)
                     else:
-                        is_speech = (prob >= 0.70) and (frame_rms >= 0.007)
+                        is_speech = (prob >= 0.60) and (frame_rms >= 0.006)
                 else:
-                    is_speech = (prob >= 0.60) and (frame_rms >= 0.004)
+                    is_speech = (prob >= 0.60) and (frame_rms >= 0.005)
 
                 if is_speech:
                     self._barge_in_consecutive_frames += 1
@@ -310,8 +311,7 @@ class VoiceTurnController:
                         self._barge_in_consecutive_frames = 0
                         self._current_turn_id = f"turn_{uuid.uuid4().hex[:8]}"
                         self.set_state(VoiceState.SPEECH_DETECTED)
-                        self.capture_stream.start_utterance()
-                        self.capture_stream.append_speech_frame(frame)
+                        self.capture_stream.start_utterance(self._current_turn_id)
                 else:
                     self._barge_in_consecutive_frames = max(0, self._barge_in_consecutive_frames - 1)
                 continue
@@ -341,7 +341,7 @@ class VoiceTurnController:
                         speech_ratio = float(vad_evidence.get("speech_ratio", 0.0))
                         max_prob = float(vad_evidence.get("max_prob", 0.0))
 
-                        if speech_dur < 0.20 or speech_ratio < 0.10 or max_prob < 0.52:
+                        if speech_dur < 0.28 or speech_ratio < 0.18 or max_prob < 0.58:
                             logger.debug(
                                 "Turn discarded by Silence Invariant (dur=%.2fs, ratio=%.2f, max_prob=%.2f, audio_len=%d)",
                                 speech_dur, speech_ratio, max_prob, len(audio),
@@ -467,6 +467,27 @@ class VoiceTurnController:
 
         # STEP 2: Check Contextual Acknowledgments ("Oke", "Baik", "Siap") or Mode Selection
         cleaned_ack = transcript.lower().strip().rstrip(".!?,")
+
+        # STEP 2a: Check Direct Stop Commands ("Berhenti", "Stop", "Cukup", "Diam")
+        is_stop_cmd = any(cmd in cleaned_ack for cmd in ("berhenti", "stop", "cukup", "diam", "tutup mulut", "hentikan", "batal"))
+        if is_stop_cmd:
+            logger.info("Direct voice stop command executed: '%s'", transcript)
+            self.playback_manager.stop_playback(interrupted=True)
+            self.vad.reset()
+            if not cancellation.is_set():
+                self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
+            return
+
+        # STEP 2a-2: Check Pause / Hesitation Commands ("Sebentar", "Tunggu sebentar")
+        is_pause_cmd = any(cmd in cleaned_ack for cmd in ("tunggu sebentar", "sebentar", "tunggu", "hold on", "wait", "sedang berpikir"))
+        if is_pause_cmd:
+            logger.info("Direct voice pause/hesitation command received: '%s'", transcript)
+            self.playback_manager.stop_playback(interrupted=True)
+            self.vad.set_extended_silence(True)
+            if not cancellation.is_set():
+                self._speak_response("Siap, saya tunggu.", "Siap, saya tunggu.", metrics, turn_id)
+            return
+
         is_simple_ack = cleaned_ack in ("oke", "ok", "oke deh", "baik", "siap", "ya", "iya", "lanjutkan", "silakan")
 
         if is_simple_ack:

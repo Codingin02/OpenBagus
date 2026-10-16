@@ -11,6 +11,7 @@ KNOWN_IDX_TICKERS = {
     "BBCA", "BBRI", "BMRI", "BBNI", "TLKM", "ASII", "ANTM", "ISAT", "UNTR", "KLBF",
     "ADRO", "PTBA", "ICBP", "INDF", "GOTO", "BUKA", "BRIS", "AMMN", "BREN", "CUAN",
     "HGII", "YOII", "BRRC", "DGWG", "CBDK", "OBAT", "PGAS", "SMGR", "INCO", "MDKA",
+    "RATU", "MEDC", "ACES", "CPIN", "JPFA", "TPIA", "INKP", "TKIM",
 }
 
 FINANCIAL_ACRONYMS = {

@@ -36,9 +36,7 @@ try:
 except ImportError:
     faster_whisper = None
 
-DEFAULT_INITIAL_PROMPT = (
-    "Percakapan santai, asisten komputer, dan riset pasar modal Indonesia dalam Bahasa Indonesia."
-)
+DEFAULT_INITIAL_PROMPT = ""
 
 
 
@@ -128,22 +126,23 @@ class LocalASREngine:
             logger.error("Local ASR model directory unavailable; automatic downloads are disabled")
             return
 
-        # Determine target device (CUDA preferred if available)
+        # Determine target device (CUDA preferred with int8_float16 for fast, low-VRAM inference)
         if self._device == "auto":
             try:
                 import ctranslate2
                 cuda_count = ctranslate2.get_cuda_device_count()
-                self._device = "cuda" if cuda_count > 0 else "cpu"
-                if self._device == "cuda":
-                    from openbagus.voice.gpu_scheduler import GPUScheduler
-                    status = GPUScheduler.get_instance().query_gpu_status()
-                    if status.vram_total_mb <= 8192:
-                        self._device = "cpu"
-                        logger.warning("ASR uses CPU int8 to reserve the limited GPU budget for FAST/DEEP")
+                if cuda_count > 0:
+                    self._device = "cuda"
+                    self._compute_type = "int8_float16"
+                else:
+                    self._device = "cpu"
+                    self._compute_type = "int8"
             except Exception:
                 self._device = "cpu"
-
-        if self._device == "cpu":
+                self._compute_type = "int8"
+        elif self._device == "cuda" and (self._compute_type == "auto" or not self._compute_type):
+            self._compute_type = "int8_float16"
+        elif self._device == "cpu":
             self._compute_type = "int8"
 
         global _SHARED_WHISPER_MODEL, _SHARED_MODEL_KEY
@@ -339,25 +338,20 @@ class LocalASREngine:
             segments, info = self._model.transcribe(
                 audio,
                 language=language or self.language,
-                initial_prompt=self.initial_prompt,
-                beam_size=5,
+                initial_prompt=self.initial_prompt or None,
+                beam_size=1,
                 temperature=0.0,
-                vad_filter=True,
-                vad_parameters={"min_speech_duration_ms": 180, "min_silence_duration_ms": 400},
-                no_speech_threshold=0.45,
-                log_prob_threshold=-1.0,
-                compression_ratio_threshold=2.4,
+                vad_filter=False,
                 condition_on_previous_text=False,
-                hallucination_silence_threshold=1.5,
             )
             discarded_segments = 0
             for seg in segments:
                 # Filter out segments where Whisper detected silence/no-speech
-                if getattr(seg, "no_speech_prob", 0.0) > 0.45:
+                if getattr(seg, "no_speech_prob", 0.0) > 0.40:
                     logger.debug("Ignoring segment with high no_speech_prob: %.3f", seg.no_speech_prob)
                     discarded_segments += 1
                     continue
-                if getattr(seg, "avg_logprob", 0.0) < -1.35:
+                if getattr(seg, "avg_logprob", 0.0) < -1.25:
                     logger.debug("Ignoring segment with low avg_logprob: %.3f", seg.avg_logprob)
                     discarded_segments += 1
                     continue
@@ -382,22 +376,22 @@ class LocalASREngine:
 
             # Genuine human vocalization of outro phrases requires:
             # 1. Physical speech duration: "Terima kasih..." / "Sampai jumpa..." takes >= 0.85s of vocal effort
-            # 2. Strong vocal acoustic energy: rms >= 0.012 or peak >= 0.045
-            # 3. High SNR (>= 8.5 dB above ambient noise floor)
-            # 4. If VAD evidence available: active speech ratio >= 0.40 and speech duration >= 0.70s
-            # 5. Decoder confidence: avg_logprob >= -0.70 and no_speech_prob <= 0.18
+            # 2. Strong vocal acoustic energy: rms >= 0.010 or peak >= 0.040
+            # 3. High SNR (>= 6.0 dB above ambient noise floor)
+            # 4. If VAD evidence available: active speech ratio >= 0.30 and speech duration >= 0.50s
+            # 5. Decoder confidence: avg_logprob >= -0.70 and no_speech_prob <= 0.25
             vad_allows = True
             if vad_evidence is not None:
                 vad_speech_s = float(vad_evidence.get("speech_duration_s", 0.0))
                 vad_ratio = float(vad_evidence.get("speech_ratio", 0.0))
-                vad_allows = (vad_speech_s >= 0.70) and (vad_ratio >= 0.35)
+                vad_allows = (vad_speech_s >= 0.50) and (vad_ratio >= 0.30)
 
             is_genuine_speech = (
                 audio_duration >= 0.85
                 and vad_allows
-                and (rms >= 0.012 or (peak >= 0.045 and rms >= 0.008))
-                and snr_db >= 8.5
-                and avg_no_speech <= 0.18
+                and (rms >= 0.010 or (peak >= 0.040 and rms >= 0.007))
+                and snr_db >= 6.0
+                and avg_no_speech <= 0.25
                 and avg_logprob >= -0.70
                 and crest_factor >= 1.4
             )
@@ -422,10 +416,10 @@ class LocalASREngine:
         if raw_text and not has_outro_marker:
             vad_lacks_speech = False
             if vad_evidence is not None:
-                if float(vad_evidence.get("speech_duration_s", 0.0)) < 0.22 or float(vad_evidence.get("speech_ratio", 0.0)) < 0.12:
+                if float(vad_evidence.get("speech_duration_s", 0.0)) < 0.25 or float(vad_evidence.get("speech_ratio", 0.0)) < 0.15:
                     vad_lacks_speech = True
 
-            if (rms < 0.0035 and snr_db < 3.5 and crest_factor < 2.5) or (audio_duration < 0.35 and rms < 0.006) or vad_lacks_speech:
+            if (rms < 0.0030 and snr_db < 3.0 and crest_factor < 2.5) or (audio_duration < 0.35 and rms < 0.006) or vad_lacks_speech:
                 logger.info(
                     "Suppressed acoustic hallucination on low energy noise: '%s' (dur=%.2fs, rms=%.5f, snr=%.1fdB, crest=%.2f)",
                     raw_text, audio_duration, rms, snr_db, crest_factor,
@@ -433,6 +427,12 @@ class LocalASREngine:
                 raw_text = ""
                 outro_suppressed = True
                 rejection_reason = "LOW_ENERGY_ACOUSTIC_HALLUCINATION"
+
+        if not raw_text and not rejection_reason:
+            if discarded_segments > 0:
+                rejection_reason = "ASR_LOW_CONFIDENCE"
+            else:
+                rejection_reason = "NO_SPEECH_DETECTED"
 
         hallucination_suppressed = outro_suppressed or (discarded_segments > 0 and not raw_text)
 

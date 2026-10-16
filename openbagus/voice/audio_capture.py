@@ -25,6 +25,64 @@ CHUNK_DURATION_MS = 32      # 32 ms frame (512 samples at 16 kHz)
 TARGET_CHUNK_SAMPLES = int(TARGET_SAMPLE_RATE * CHUNK_DURATION_MS / 1000)  # 512 samples
 
 
+class AudioStreamResampler:
+    """Continuous streaming resampler with anti-aliasing low-pass FIR filter and sample accumulator."""
+
+    def __init__(self, in_rate: int, out_rate: int = TARGET_SAMPLE_RATE, chunk_size: int = TARGET_CHUNK_SAMPLES) -> None:
+        self.in_rate = in_rate
+        self.out_rate = out_rate
+        self.chunk_size = chunk_size
+        self._raw_buffer = np.zeros(0, dtype=np.float32)
+
+        if in_rate > out_rate:
+            cutoff = (out_rate * 0.45) / in_rate
+            taps = 27
+            n = np.arange(taps) - (taps - 1) / 2
+            h = 2 * cutoff * np.sinc(2 * cutoff * n) * np.hamming(taps)
+            self._fir = (h / np.sum(h)).astype(np.float32)
+            self._overlap = np.zeros(taps - 1, dtype=np.float32)
+        else:
+            self._fir = None
+            self._overlap = None
+
+        self._ratio = in_rate / out_rate
+
+    def reset(self) -> None:
+        self._raw_buffer = np.zeros(0, dtype=np.float32)
+        if self._overlap is not None:
+            self._overlap.fill(0.0)
+
+    def feed(self, incoming: np.ndarray) -> list[np.ndarray]:
+        if self.in_rate == self.out_rate:
+            self._raw_buffer = np.concatenate([self._raw_buffer, incoming])
+            chunks = []
+            while len(self._raw_buffer) >= self.chunk_size:
+                chunks.append(self._raw_buffer[:self.chunk_size])
+                self._raw_buffer = self._raw_buffer[self.chunk_size:]
+            return chunks
+
+        if self._fir is not None:
+            ext = np.concatenate([self._overlap, incoming])
+            self._overlap = ext[-(len(self._fir) - 1):].copy()
+            filtered = np.convolve(ext, self._fir, mode="valid").astype(np.float32)
+        else:
+            filtered = incoming
+
+        self._raw_buffer = np.concatenate([self._raw_buffer, filtered])
+
+        chunks = []
+        needed = self.chunk_size * self._ratio
+        while len(self._raw_buffer) >= needed + 1:
+            idx = np.arange(self.chunk_size) * self._ratio
+            idx_floor = idx.astype(int)
+            frac = (idx - idx_floor).astype(np.float32)
+            resampled = self._raw_buffer[idx_floor] * (1.0 - frac) + self._raw_buffer[idx_floor + 1] * frac
+            chunks.append(resampled.astype(np.float32))
+            advance = int(np.floor(needed))
+            self._raw_buffer = self._raw_buffer[advance:]
+        return chunks
+
+
 class AudioCaptureStream:
     """Manages low-latency native microphone capture, resampling, and audio queueing."""
 
@@ -44,6 +102,7 @@ class AudioCaptureStream:
         self._is_capturing = False
         self._is_muted = False
         self._lock = threading.RLock()
+        self._resampler: AudioStreamResampler | None = None
 
         # Circular buffer for pre-roll to prevent clipping the first syllable
         self._pre_roll_buffer: collections.deque[np.ndarray] = collections.deque(maxlen=self.pre_roll_chunks)
@@ -83,6 +142,8 @@ class AudioCaptureStream:
         self._pre_roll_buffer.clear()
         self._active_utterance_frames.clear()
         self._is_utterance_active = False
+        if self._resampler is not None:
+            self._resampler.reset()
         while not self._frame_queue.empty():
             try:
                 self._frame_queue.get_nowait()
@@ -208,6 +269,13 @@ class AudioCaptureStream:
             # Buffer size matching ~32ms on native device
             blocksize = int(self._device_sample_rate * CHUNK_DURATION_MS / 1000)
 
+            # Initialize streaming resampler for exact 512-sample continuous frame delivery
+            self._resampler = AudioStreamResampler(
+                self._device_sample_rate,
+                self.target_sample_rate,
+                TARGET_CHUNK_SAMPLES,
+            )
+
             # Start background processing worker thread
             self._stop_worker_event.clear()
             self._worker_thread = threading.Thread(
@@ -332,45 +400,31 @@ class AudioCaptureStream:
                     except Exception:
                         pass
 
-                # Resample to target 16 kHz if device sample rate differs
-                if self._device_sample_rate != self.target_sample_rate:
-                    target_len = int(round(len(mono) * self.target_sample_rate / self._device_sample_rate))
-                    if target_len <= 0:
-                        self._raw_queue.task_done()
-                        continue
-                    resampled = np.interp(
-                        np.linspace(0, len(mono), target_len, endpoint=False),
-                        np.arange(len(mono)),
-                        mono,
-                    ).astype(np.float32)
-                else:
-                    resampled = mono
+                # Continuous stream resampling and exact 512-sample chunk emission
+                if self._resampler is None:
+                    self._resampler = AudioStreamResampler(self._device_sample_rate, self.target_sample_rate, TARGET_CHUNK_SAMPLES)
 
-                # Normalise size to exact TARGET_CHUNK_SAMPLES (512 samples)
-                if len(resampled) != TARGET_CHUNK_SAMPLES:
-                    if len(resampled) > TARGET_CHUNK_SAMPLES:
-                        resampled = resampled[:TARGET_CHUNK_SAMPLES]
-                    else:
-                        resampled = np.pad(resampled, (0, TARGET_CHUNK_SAMPLES - len(resampled)), mode="constant")
+                resampled_chunks = self._resampler.feed(mono)
 
-                # Update buffers
-                with self._lock:
-                    self._pre_roll_buffer.append(resampled)
-                    if self._is_utterance_active:
-                        self._active_utterance_frames.append(resampled)
+                for resampled in resampled_chunks:
+                    # Update buffers atomically
+                    with self._lock:
+                        self._pre_roll_buffer.append(resampled)
+                        if self._is_utterance_active:
+                            self._active_utterance_frames.append(resampled)
 
-                # Enqueue to synchronized frame queue for single-pass consumption
-                try:
-                    self._frame_queue.put_nowait(resampled)
-                except queue.Full:
-                    try:
-                        self._frame_queue.get_nowait()
-                    except Exception:
-                        pass
+                    # Enqueue to synchronized frame queue for single-pass consumption
                     try:
                         self._frame_queue.put_nowait(resampled)
-                    except Exception:
-                        pass
+                    except queue.Full:
+                        try:
+                            self._frame_queue.get_nowait()
+                        except Exception:
+                            pass
+                        try:
+                            self._frame_queue.put_nowait(resampled)
+                        except Exception:
+                            pass
 
                 self._raw_queue.task_done()
         finally:

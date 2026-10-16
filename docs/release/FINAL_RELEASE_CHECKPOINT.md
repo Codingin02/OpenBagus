@@ -9,10 +9,10 @@
 
 ## 1. Application Deliverables
 
-- **Standalone Windows Installer (Recompiled):** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
-  - **Size:** 1,106,594,769 bytes (1.10 GB)
-  - **SHA-256:** `135615717a9f2b98b770757e19d03b2de16a2d58dd0e330c39aaa222bc63281c`
-  - **Build Timestamp (UTC):** `2026-10-16T10:40:36Z`
+- **Standalone Windows Installer (Recompiled V5.3):** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
+  - **Size:** 1,106,595,915 bytes (1.10 GB)
+  - **SHA-256:** `4bb95f1efb267f001225ea021657b4da6e5fca6e19cd94fb8c41b537618c2dd2`
+  - **Build Timestamp (UTC):** `2026-10-16T13:18:37Z`
 - **Standalone Frozen Executable (Updated & Synced):** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe` & `_installed\OpenBagus\OpenBagus.exe`
   - **Size:** 24,854,062 bytes (24.8 MB)
   - **Diagnostics:** Verified `--diagnostics` returns State `READY`, GPU detected, Ollama fast provider responsive.
@@ -42,6 +42,9 @@
   - Physical Speakers: Audio rendered audibly and level metering confirmed through Realtek WASAPI Device 8 (`PASS_REAL_SPEAKER`).
   - Device Selection & Validation: 7/7 unit tests PASS (`tests/test_audio_device_selection.py`).
   - Real-time Capture & Decoupling: 4/4 unit tests PASS (`tests/test_audio_capture_realtime.py`).
+  - Indonesian Speech Benchmark: **19/20 (95.0%) Semantic Accuracy**, Mean CER 0.080, Latency 669.5 ms (`tests/test_indonesian_speech_recognition.py`).
+  - Quiet Room 5-Minute Immunity: **2/2 PASS** (`tests/test_quiet_room_5min.py`, physical Realtek WASAPI Device 9 + 300s noise).
+  - Barge-In Interruption Suite: **3/3 PASS** (`tests/test_barge_in_acceptance.py`, <150ms abort + echo rejection + stop command).
   - Voice P0 Pipeline Suite: **14/14 PASS_SIMULATED** (`tests/test_voice_p0_acceptance.py`).
   - Conversational Recovery Suite: **34/34 PASS** (`tests/test_conversational_recovery_regression.py`).
   - Audio Privacy: Zero audio files on disk (`PASS_INSTALLED_EXE`).
@@ -50,11 +53,15 @@
 
 ## 3. Full System Acceptance Suite
 
+- **Indonesian Speech Benchmark (`tests/test_indonesian_speech_recognition.py`):** **95.0% Semantic Pass (19/20), CER 0.080, Latency 669.5ms on CUDA**
+- **Quiet Room 5-Minute Silence Test (`tests/test_quiet_room_5min.py`):** **2/2 PASS (Physical WASAPI Mic Array + 9,375 frames)**
+- **Barge-In Acceptance Suite (`tests/test_barge_in_acceptance.py`):** **3/3 PASS**
 - **P0 Voice Acceptance Suite (`tests/test_voice_p0_acceptance.py`):** **14/14 PASS_SIMULATED**
 - **Conversational Recovery Regression (`tests/test_conversational_recovery_regression.py`):** **34/34 PASS**
 - **V5 Voice Runtime Suite (`tests/test_voice_runtime_v5.py`):** **31/31 PASS**
 - **Live Financial Data Intelligence (`tests/test_data_intelligence_live.py`):** **17/17 PASS**
 - **Windows Packaging & Standalone CLI Diagnostics:** **State READY, Exit Code 0**
+- **Comprehensive V5.3 Acceptance Report:** `docs/release/VOICE_V5_3_LIVE_ACCEPTANCE.md`
 
 ---
 
