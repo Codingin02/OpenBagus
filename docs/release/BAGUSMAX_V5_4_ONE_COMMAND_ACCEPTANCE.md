@@ -5,6 +5,7 @@
 **Target Environment:** Windows 11 x64, Intel Core i5-13450HX, NVIDIA GeForce RTX 3050 6GB Laptop GPU, 12GB RAM  
 **Canonical Repository:** `E:\Projects\OpenBagus`  
 **Baseline Git Commit:** `dfc8a5e948f3ff82e7ec5f4766270996c85ee7fc`  
+**Final Release Commit:** `ea81239`  
 
 ---
 
