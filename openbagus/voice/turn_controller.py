@@ -243,6 +243,9 @@ class VoiceTurnController:
     def start_voice_loop(self, hands_free: bool = True) -> bool:
         """Starts real-time microphone capture and voice listening loop."""
         self._hands_free = hands_free
+        self.interruption.start_turn("")
+        self.vad.reset()
+        self._barge_in_consecutive_frames = 0
         if not self.capture_stream.start():
             self.set_state(VoiceState.ERROR)
             return False

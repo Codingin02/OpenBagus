@@ -82,8 +82,12 @@ class CompanionController:
             if self._process and self._process.poll() is None:
                 try:
                     self._process.terminate()
+                    self._process.wait(timeout=1.0)
                 except Exception:
-                    pass
+                    try:
+                        self._process.kill()
+                    except Exception:
+                        pass
             self._process = None
         self._close_socket()
         logger.info("SHOW OPENBAGUS companion closed")
@@ -428,6 +432,16 @@ class CompanionController:
                 time.sleep(0.15)
 
             logger.warning("Companion started (PID %d) but IPC connection timed out", self._process.pid)
+            try:
+                self._process.terminate()
+                self._process.wait(timeout=1.0)
+            except Exception:
+                try:
+                    self._process.kill()
+                except Exception:
+                    pass
+            self._process = None
+            self._close_socket()
             return False
         except Exception as e:
             logger.error("Failed to launch companion: %s", e)
@@ -445,17 +459,44 @@ class CompanionController:
         except OSError:
             return False
 
+    def _verify_handshake(self) -> bool:
+        """Verifies connected socket actually belongs to OpenBagus companion renderer."""
+        if self._sock is None:
+            return False
+        try:
+            req = json.dumps({"version": IPC_VERSION, "type": "companion.ping", "payload": {}, "ts": time.time()}) + "\n"
+            self._sock.sendall(req.encode("utf-8"))
+            self._sock.settimeout(1.0)
+            data = b""
+            while b"\n" not in data:
+                chunk = self._sock.recv(1024)
+                if not chunk:
+                    break
+                data += chunk
+            self._sock.settimeout(None)
+            if data:
+                line = data.split(b"\n")[0].decode("utf-8", errors="replace")
+                resp = json.loads(line)
+                return resp.get("status") == "ok" and resp.get("app") == "openbagus_companion"
+        except Exception:
+            pass
+        return False
+
     def _connect(self) -> bool:
-        """Attempt to connect IPC socket to companion."""
+        """Attempt to connect IPC socket to companion, validating handshake to avoid attaching to unrelated processes."""
         self._close_socket()
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(0.5)
             s.connect((IPC_HOST, IPC_PORT))
-            s.settimeout(None)
             self._sock = s
+            if not self._verify_handshake():
+                logger.warning("Process on port %d failed companion handshake; rejecting connection", IPC_PORT)
+                self._close_socket()
+                return False
             return True
         except (ConnectionRefusedError, TimeoutError, OSError):
+            self._sock = None
             return False
 
     def _close_socket(self) -> None:

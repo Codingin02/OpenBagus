@@ -172,3 +172,34 @@ Bagusmax siap mendengarkan. Silakan bicara langsung dalam Bahasa Indonesia.
 - `/bagusmax close`: Shuts down companion window and releases audio streams; CLI stays active.
 - `/mode deep`: Automatically transitions LLM to deep reasoning and 3D form to `ARMORED`.
 - `/mode fast`: Automatically transitions LLM to fast mode and 3D form to `WHITE`.
+
+---
+
+## 8. OpenBagus V5.4.1 Targeted Correctness & Evidence Taxonomy
+
+### 8.1 Targeted Defect Corrections
+1. **P0-1 — Live Session Incomplete State Separation & Safe Reconciliation:**
+   - Separated runtime coordinator predicates in `openbagus/companion/live_session.py`: `has_active_components()`, `is_fully_ready()`, `is_listening()`, and `is_hidden()`.
+   - Reconciled partial states: if voice is running alone, `/bagusmax` launches 3D companion; if companion is running alone, it activates voice capture; if hidden, it resumes without duplicating streams.
+2. **P0-2 — Truthful Status Representation:**
+   - Replaced speculative READY labels with verified states: `NOT_STARTED`, `STARTING`, `READY`, `LISTENING`, `SPEAKING`, `DEGRADED`, `FAILED`, `STOPPED`.
+   - Validates physical audio devices via `AudioDeviceManager.validate_device()`, verifies active capture stream state, confirms ASR model loaded state, and catches offline AI providers.
+3. **P0-3 & P0-4 — Resource Lifecycle, Recovery, and Handshake:**
+   - Handshake validation: Port 7432 connections now verify `companion.ping` returning `app: openbagus_companion` to prevent attaching to unrelated localhost processes.
+   - Subprocess cleanup: Terminates companion subprocess on IPC startup timeout or crash.
+   - Clean restart: Clears stale cancellation tokens via `interruption.start_turn("")` and `vad.reset()`.
+   - `/exit` cancellation preservation: Aborting exit prompt (`[X]`) keeps the active live session running.
+   - Real microphone capture fix: Fixed missing `self._is_capturing = True` in `AudioCaptureStream.start()`, restoring real-time frame queuing from PortAudio callbacks.
+4. **P1 — Console Output Synchronization:**
+   - Asynchronous voice announcements now write directly to `sys.__stdout__`, preventing capture or corruption by `onecmd()`'s `redirect_stdout` buffer.
+
+### 8.2 Evidence Taxonomy & Verification Matrix
+
+| Category | Definition | Verified Tests |
+|---|---|---|
+| `PASS_UNIT` | Mocked unit tests verifying coordinator logic, state transitions, IPC handshake, and exit cancellation. | `tests/test_bagusmax_v5_4_1_live_correctness.py` (9/9 PASS) |
+| `PASS_SIMULATED` | Algorithmic tests using synthesized waveforms or multi-signal synthetic noise. | `test_t12` (1,875 quiet frames), `test_t13` (TTS Piper resampled) |
+| `PASS_REAL_DEVICE` | Verification executing directly against physical laptop hardware (WASAPI audio devices, NVIDIA RTX 3050 Laptop GPU, CUDA Whisper ASR). | `test_real_microphone_quiet_room_sampling` (5s live mic frames captured, RMS < 0.040), `test_t13` (CUDA Whisper ASR), `test_barge_in_acceptance.py` (3/3 PASS) |
+| `PASS_INSTALLED_EXE` | Standalone verification of the packaged, installed Windows binary. | `_installed\OpenBagus\OpenBagus.exe --diagnostics` (STATE: READY, GPU: RTX 3050, CUDA: true, Mic: READY, Spk: READY) |
+| `USER_APPROVAL_PENDING` | End-user interactive conversational validation on live microphone & speakers in real acoustic environment. | Live user acceptance testing |
+

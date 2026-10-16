@@ -1266,10 +1266,14 @@ class OpenBagusShell(cmd.Cmd):
         self._voice_lock = threading.Lock()
 
     def _print_voice_output(self, text: str) -> None:
-        """Thread-safe terminal output for asynchronous voice events without corrupting prompt."""
+        """Thread-safe terminal output for asynchronous voice events without corrupting prompt or onecmd capture."""
         with self._voice_lock:
-            sys.stdout.write(text + "\n")
-            sys.stdout.flush()
+            dest = sys.__stdout__ if sys.__stdout__ is not None else sys.stdout
+            try:
+                dest.write(text + "\n")
+                dest.flush()
+            except Exception:
+                pass
 
     def precmd(self, line: str) -> str:
         """Normalizes commands, mapping /bagus max aliases to /bagusmax."""
@@ -4172,7 +4176,8 @@ class OpenBagusShell(cmd.Cmd):
             self.trace_enabled = not self.trace_enabled
             print(f"Verbose trace: {'Aktif' if self.trace_enabled else 'Nonaktif'}.\n")
 
-    def do_exit(self, _arg: str) -> bool:
+    def _shutdown_live_services(self) -> None:
+        """Safely shuts down live coordinator, voice session, and companion upon confirmed exit."""
         if hasattr(self, "bagusmax_coordinator"):
             try:
                 self.bagusmax_coordinator.stop()
@@ -4190,6 +4195,8 @@ class OpenBagusShell(cmd.Cmd):
             except Exception:
                 pass
             self._companion = None
+
+    def do_exit(self, _arg: str) -> bool:
         if sys.stdin.isatty():
             try:
                 choice = self._ask("End session: [S] Save context  [C] Clear conversation  [X] Cancel: ").strip().lower()
@@ -4198,6 +4205,7 @@ class OpenBagusShell(cmd.Cmd):
             if choice == "x" or choice not in {"s", "c"}:
                 print("Sesi dilanjutkan.")
                 return False
+            self._shutdown_live_services()
             if choice == "c":
                 if not self.session.clear_persistent():
                     print("Clear conversation gagal; sesi tetap aktif.")
@@ -4213,6 +4221,7 @@ class OpenBagusShell(cmd.Cmd):
                 return True
             else:
                 print("Persistence belum diizinkan; konteks tidak ditulis ke disk. Gunakan /harness on untuk opt-in.")
+        self._shutdown_live_services()
         if self.session.is_persistence_enabled():
             self.session.save_persistent()
         else:
@@ -4224,23 +4233,9 @@ class OpenBagusShell(cmd.Cmd):
         return self.do_exit(_arg)
 
     def do_EOF(self, _arg: str) -> bool:
-        if hasattr(self, "bagusmax_coordinator"):
-            try:
-                self.bagusmax_coordinator.stop()
-            except Exception:
-                pass
-        elif getattr(self, "voice_session", None):
-            try:
-                self.voice_session.stop()
-            except Exception:
-                pass
-            self.voice_session = None
-        if getattr(self, "_companion", None):
-            try:
-                self._companion.close()
-            except Exception:
-                pass
-            self._companion = None
+        self._shutdown_live_services()
+        print()
+        return True
         if self.session.is_persistence_enabled():
             self.session.save_persistent()
         else:

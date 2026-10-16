@@ -1608,7 +1608,10 @@ class IPCServer:
         event = msg.get("type", "")
         payload = msg.get("payload", {})
 
-        if event == "companion.conversation_event":
+        if event == "companion.ping":
+            return {"status": "ok", "app": "openbagus_companion", "version": IPC_VERSION}
+
+        elif event == "companion.conversation_event":
             try:
                 ev = CompanionEvent.from_dict(payload)
                 cs, anim_st, changed = self.animator.bridge.process_event(ev)

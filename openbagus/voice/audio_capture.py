@@ -295,17 +295,21 @@ class AudioCaptureStream:
                     callback=self._audio_callback,
                 )
                 self._stream = stream
-                self._is_capturing = True
             except Exception as e:
                 logger.error("Failed to create microphone stream: %s", e)
                 self._stream = None
                 self._is_capturing = False
                 self._stop_worker_event.set()
+                if self._worker_thread and self._worker_thread.is_alive():
+                    self._worker_thread.join(timeout=0.5)
+                self._worker_thread = None
                 return False
 
         # Start stream outside self._lock to avoid deadlock with PortAudio callback thread
         try:
             stream.start()
+            with self._lock:
+                self._is_capturing = True
             logger.info("Microphone stream started on device %s (%d Hz)", self.device_id, self._device_sample_rate)
             return True
         except Exception as e:
@@ -314,6 +318,9 @@ class AudioCaptureStream:
                 self._stream = None
                 self._is_capturing = False
             self._stop_worker_event.set()
+            if self._worker_thread and self._worker_thread.is_alive():
+                self._worker_thread.join(timeout=0.5)
+            self._worker_thread = None
             try:
                 stream.close()
             except Exception:
