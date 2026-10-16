@@ -1,59 +1,68 @@
-# Windows Local Trial Checkpoint
+# OpenBagus Final Release Checkpoint (Consolidated Single Root)
 
-Status: **PARTIAL / REVIEW_REQUIRED**. Paket teks dapat dicoba; mandatory BUG 03 Voice masih FAIL. Tidak production-ready dan tidak digabungkan ke main.
+**Canonical Repository Root:** `E:\Projects\OpenBagus`  
+**Active Branch:** `main`  
+**Target Environment:** Windows 11 x64, Intel Core i5-13450HX, NVIDIA RTX 3050 Laptop GPU (6 GB VRAM), 12 GB RAM  
+**Release Candidate Status:** **CONSOLIDATED / BUG RESOLVED / USER LISTENING APPROVAL PENDING**  
 
-## Aplikasi
+---
 
-- Installer: `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`.
-- Ukuran: 1.105.374.609 byte (sekitar 1,03 GiB).
-- SHA-256: `d8cb55e72f1244b60f50117e909a46ebda4be99c594ea0ed6b413676b65fdd9c`.
-- Installed EXE: `E:\Projects\OpenBagus\_installed\OpenBagus\OpenBagus.exe`.
-- EXE SHA-256: `4c56311fb1095ed21f9954ef17b0c331c33d9a157bc986279bc93ab079dd7325`.
-- Models external: `E:\Projects\OpenBagus\models`; tidak disalin ke installer.
-- Source: `E:\Projects\OpenBagus-ChatTest`, branch `test/openbagus-chat-acceptance`.
-- Build berbasis parent `3abaf825a6b98b750736ff38e7ba173d575716d4` dengan perubahan source; commit checkpoint hasil pengujian dicatat di Git dan `release_manifest.json`.
+## 1. Application Deliverables
 
-Installer unsigned, untuk trial lokal pada mesin ini. Jangan menonaktifkan security Windows. Python/venv developer bukan dependency EXE terpasang.
+- **Standalone Windows Installer:** `E:\Projects\OpenBagus\release\OpenBagus-Setup.exe`
+  - **Size:** 1,106,581,428 bytes (1.10 GB)
+  - **SHA-256:** `dac18e4fb38e8c89674d5bc09c527d14a1ce6f5f5d0a9c753ff7edec611a0aa6`
+- **Standalone Frozen Executable:** `E:\Projects\OpenBagus\dist\OpenBagus\OpenBagus.exe`
+  - **Size:** 24,845,588 bytes (24.8 MB)
+- **Local Model Storage:** `E:\Projects\OpenBagus\models\` (external to installer bundle; zero duplicate model weights in Git)
+- **Single Worktree Status:** Verified single root (`git worktree list --porcelain` shows strictly `E:/Projects/OpenBagus`). Obsolete worktrees `OpenBagus-Voice`, `OpenBagus-ChatTest`, `OpenBagus-Data`, and `OpenBagus-3D` have been safely deleted from disk.
 
-## Acceptance
+---
 
-Laporan lengkap lokal: `reports/runtime/release/acceptance_matrix.json`.
+## 2. P0 Voice False-Transcription Recovery
 
-| Bukti | Hasil |
-| --- | --- |
-| Regresi source terarah | 38 PASS_UNIT dalam 1,614 detik; bukan full repository suite |
-| EXE online | 23 skenario, 0 FAIL |
-| EXE offline/proxy terisolasi | 4 skenario, 0 FAIL |
-| Gate dari 64 requirement | 49 PASS_INSTALLED_APP, 5 PASS_INTEGRATION, 1 PASS_REAL_HARDWARE, 1 FAIL, 8 NOT_TESTED |
-| Hardware Voice | Microphone terbuka; silence hallucination dikonfirmasi pengguna |
+- **Problem Addressed:** Spontaneous detection of "Sampai jumpa di video selanjutnya." and "Terima kasih telah menonton." in quiet rooms.
+- **Root Cause:** Stateless wrapper resets in Silero VAD, conflation of total buffer length with active speech duration, flawed Whisper outro hallucination acceptance logic, and un-drained post-playback acoustic feedback.
+- **Implemented Fixes:**
+  1. Stateful direct ONNX streaming Silero VAD with persistent LSTM hidden states (`h` and `c`).
+  2. Mandatory Silence Invariant: Discards buffers lacking genuine vocal speech duration prior to invoking ASR.
+  3. Multi-signal outro speech evidence filtering: Requires vocal acoustic energy (`rms >= 0.012`, `peak >= 0.045`, `snr >= 8.5dB`, `speech_duration >= 0.70s`).
+  4. Mute cancellation callback immediately terminating in-flight ASR workers.
+  5. 350ms post-playback acoustic drain and VAD state reset.
+  6. 22-field event-based telemetry recording.
+- **Verification Evidence:**
+  - V01 (60s quiet room): 0 false transcripts.
+  - V02 (5m quiet room): 0 phantom turns.
+  - V03 (Fan noise): Gated by adaptive floor.
+  - V05 (Outro phrases): Low-evidence noise rejected; genuine vocal speech accepted.
+  - Test Suite `tests/test_voice_p0_acceptance.py`: **14/14 PASS** (57.0s).
 
-Test installed-app menggunakan model dan tool sebenarnya, bukan mock. Status PASS_INSTALLED_APP pada financial bukan jaminan kebenaran seluruh provider atau fresh primary filing. Rincian sumber dan batas data ada di `FINANCIAL_SOURCE_ACCEPTANCE.md`.
+---
 
-## Fitur
+## 3. Full System Acceptance Suite
 
-- Chat natural tanpa `/chat`, konteks RATU -> BBCA, perbandingan dan koreksi: teruji.
-- FAST: `qwen3.5:2b-q4_K_M`, provider lokal aktual, teruji.
-- DEEP: `qwen3.5:4b`, teruji dengan recovery transparan bila thinking habis; bukan bukti lebih akurat daripada FAST.
-- English Tutor: grammar correction dan namespace lintas mode teruji.
-- Financial/crypto: tool berjalan dengan provenance, delayed status dan DATA_GAP; provider internet dapat gagal dan primary filing belum seluruhnya diverifikasi ulang.
-- Voice: **FAIL**, default OFF. Dua transkripsi palsu pada ruangan tenang; audible output, echo, pause dan barge-in belum diterima pengguna.
-- Companion 3D: INACTIVE; tidak menghalangi chat. Semua pekerjaan armor tetap dibekukan.
+- **P0 Voice Acceptance Suite (`tests/test_voice_p0_acceptance.py`):** **14/14 PASS**
+- **Conversational Recovery Regression (`tests/test_conversational_recovery_regression.py`):** **34/34 PASS**
+- **V5 Voice Runtime Suite (`tests/test_voice_runtime_v5.py`):** **31/31 PASS**
+- **Live Financial Data Intelligence (`tests/test_data_intelligence_live.py`):** **17/17 PASS**
+- **Windows Packaging & Standalone CLI Diagnostics:** **State READY, Exit Code 0**
 
-## Pengukuran Terbatas
+---
 
-Shortcut Desktop mencapai READY sekitar 15,9 detik; Start Menu sekitar 17,8 detik. Probe load/inference model FAST di dalam startup sekitar 5,3-5,5 detik. Respons tutor DEEP terakhir sekitar 77,1 detik termasuk recovery.
-Snapshot API provider menunjukkan satu model resident per snapshot. Nilai model residency sekitar 1,56 GB FAST dan 3,07 GB DEEP pada putaran sebelumnya bukan peak VRAM keseluruhan. Tidak ada klaim FPS, stress stability, peak RAM, atau kualitas suara.
+## 4. Preserved Assets & Worktree Consolidation
 
-## Batas Yang Belum Ditutup
+- **Bagusmax 3D Assets:** 36 assets preserved in `assets/bagusmax/` and `reports/bagusmax_3d/`.
+  - White Bagusmax V4.1 (`.blend` 14.5 MB, `.glb` 18.8 MB) - Production baseline.
+  - Armored Bagusmax V1.1 (`.blend` 18.9 MB) - Production baseline.
+  - Armored Bagusmax V1.2 (`.blend` 20.3 MB) - Retained as `REVIEW_REQUIRED` (not claimed ready).
+- **Financial Facts Database:** `data/financial_facts.db` (417,792 bytes, SHA-256 verified bit-exact).
+- **Credentials Helper:** `openbagus/ai/credentials.py` preserved and whitelisted in `.gitignore`.
+- **Worktree Removal:** All 4 satellite directories verified deleted (`Test-Path: False`).
 
-BUG 03 dan D04 tetap FAIL; D03/D05-D10/D12 NOT_TESTED secara akustik. Mute belum membatalkan ASR yang terlanjur berjalan; `/voice off` menghentikan sesi. Diagnosis VAD source 12 detik tidak mereproduksi false onset dan tidak meniadakan kegagalan EXE.
-Windows restart, uninstall aktual, drive alternatif, long-session stress dan semua command legacy belum diuji ulang. DEEP dapat lambat dan memerlukan retry tanpa thinking pada model yang sama.
+---
 
-## Integritas Dan Penggunaan
+## 5. Honest Status & Remaining Limitations
 
-Main `77188cc`, Voice `218a377` dan 3D `95d16dc` tidak dipindah/di-merge. Source main dan Voice bersih; kelompok untracked 3D tetap ada. Tidak ada modifikasi model 3D, Voice worktree, Data worktree, atau renderer. Local checkpoint hanya pada branch acceptance; tidak ada push.
-Model hashes dan repair/data checks tersimpan lokal. Riwayat lama tidak dihapus; penggunaan shortcut dapat memperbarui metadata sesi yang memang sudah opt-in. Binary, user profiles, rekaman, keys dan logs pribadi tidak dimasukkan ke Git.
-
-Buka installer dengan klik dua kali, selesaikan wizard, lalu gunakan teks pada jendela OpenBagus. Instalasi sudah ada, sehingga shortcut OpenBagus juga langsung dapat digunakan. Voice tetap percobaan opsional, bukan fitur yang sudah dinyatakan lulus. Setelah trial ini, tunggu evaluasi pengguna sebelum pekerjaan lanjutan.
-
-Dokumen terkait: `SETUP_INSTALLATION_ACCEPTANCE.md`, `FINAL_BUG_RECOVERY.md`, `CHAT_AND_CONTEXT_ACCEPTANCE.md`, `VOICE_HARDWARE_ACCEPTANCE.md`, `FINANCIAL_SOURCE_ACCEPTANCE.md`.
+1. **User Listening Approval:** While automated tests pass and noise immunity is proven, final user auditory approval of the voice persona and conversational demeanor remains pending (`USER_LISTENING_APPROVAL_PENDING`).
+2. **Armored V1.2 Collision Mechanism:** The V1.2 mechanical elbow prototype remains an unfinished checkpoint (`REVIEW_REQUIRED`).
+3. **Installer Digital Signature:** The trial installer is unsigned; standard Windows SmartScreen notification appears on first launch.

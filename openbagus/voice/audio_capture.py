@@ -60,6 +60,10 @@ class AudioCaptureStream:
         self._current_level_db = -100.0
         self._suppress_until: float = 0.0
 
+        self.stream_id: str = ""
+        self._active_utterance_id: str = ""
+        self.on_mute_callback: Callable[[], None] | None = None
+
     @property
     def is_capturing(self) -> bool:
         return self._is_capturing
@@ -68,8 +72,27 @@ class AudioCaptureStream:
     def is_muted(self) -> bool:
         return self._is_muted
 
+    def clear_buffers(self) -> None:
+        """Purges pre-roll, active utterance frames, and drains the frame queue."""
+        with self._lock:
+            self._pre_roll_buffer.clear()
+            self._active_utterance_frames.clear()
+            self._is_utterance_active = False
+            while not self._frame_queue.empty():
+                try:
+                    self._frame_queue.get_nowait()
+                except Exception:
+                    break
+
     def set_muted(self, muted: bool) -> None:
         self._is_muted = muted
+        if muted:
+            self.clear_buffers()
+            if self.on_mute_callback:
+                try:
+                    self.on_mute_callback()
+                except Exception as e:
+                    logger.debug("Mute callback error: %s", e)
 
     def suppress_input(self, duration_ms: int = 250) -> None:
         """Temporarily suppresses microphone capture to guard against acoustic echo and room reverberation."""
@@ -122,6 +145,10 @@ class AudioCaptureStream:
         with self._lock:
             if self._is_capturing:
                 return True
+
+            import uuid
+            self.stream_id = f"stream_{uuid.uuid4().hex[:8]}"
+            self.clear_buffers()
 
             dev = None
             if self.device_id is not None:
@@ -255,9 +282,10 @@ class AudioCaptureStream:
             except Exception:
                 pass
 
-    def start_utterance(self) -> None:
+    def start_utterance(self, utterance_id: str = "") -> None:
         """Triggered when VAD detects speech onset. Includes pre-roll buffer."""
         with self._lock:
+            self._active_utterance_id = utterance_id
             self._active_utterance_frames = list(self._pre_roll_buffer)
             self._is_utterance_active = True
 
@@ -274,7 +302,6 @@ class AudioCaptureStream:
             return np.concatenate(self._active_utterance_frames)
 
     def end_utterance(self) -> np.ndarray:
-
         """Triggered when VAD detects speech end. Returns contiguous float32 16kHz audio."""
         with self._lock:
             self._is_utterance_active = False
@@ -283,6 +310,25 @@ class AudioCaptureStream:
             audio = np.concatenate(self._active_utterance_frames)
             self._active_utterance_frames.clear()
             return audio
+
+    def end_utterance_with_meta(self) -> tuple[np.ndarray, dict[str, Any]]:
+        """Returns contiguous float32 16kHz audio along with stream and utterance provenance metadata."""
+        with self._lock:
+            self._is_utterance_active = False
+            if not self._active_utterance_frames:
+                return np.zeros(0, dtype=np.float32), {
+                    "stream_id": self.stream_id,
+                    "utterance_id": self._active_utterance_id,
+                    "duration_s": 0.0,
+                }
+            audio = np.concatenate(self._active_utterance_frames)
+            self._active_utterance_frames.clear()
+            meta = {
+                "stream_id": self.stream_id,
+                "utterance_id": self._active_utterance_id,
+                "duration_s": round(len(audio) / self.target_sample_rate, 3),
+            }
+            return audio, meta
 
     def get_next_frame(self, timeout: float = 0.05) -> np.ndarray | None:
         """Pulls the next unique audio frame from the synchronized queue (blocking up to timeout)."""

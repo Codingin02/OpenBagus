@@ -237,8 +237,9 @@ class LocalASREngine:
         sample_rate: int = 16000,
         language: str | None = None,
         utterance_id: str | None = None,
+        vad_evidence: dict[str, Any] | None = None,
     ) -> tuple[NormalizedASRResult, dict[str, Any]]:
-        """Transcribes float32 16kHz audio with multi-signal acoustic gating.
+        """Transcribes float32 16kHz audio with multi-signal acoustic and VAD evidence gating.
 
         Returns:
             (NormalizedASRResult, telemetry: dict)
@@ -271,9 +272,35 @@ class LocalASREngine:
         crest_factor = peak / (rms + 1e-9)
         snr_db = self.estimate_snr_db(audio)
 
-        # Dynamic floor with hysteresis:
-        # Rejects pure digital silence or flat noise without energy contrast.
-        # But if crest_factor is high (> 3.2) and peak > 0.015, allow quiet speech through.
+        # 1. Physical VAD evidence gate (Silence Invariant)
+        if vad_evidence is not None:
+            speech_dur = float(vad_evidence.get("speech_duration_s", 0.0))
+            speech_ratio = float(vad_evidence.get("speech_ratio", 0.0))
+            max_prob = float(vad_evidence.get("max_prob", 0.0))
+
+            if speech_dur < 0.20 or speech_ratio < 0.10 or max_prob < 0.52:
+                logger.debug(
+                    "Audio rejected prior to ASR by VAD evidence (speech_dur=%.2fs, ratio=%.2f, max_prob=%.2f)",
+                    speech_dur, speech_ratio, max_prob,
+                )
+                empty = NormalizedASRResult("", "", [], None, None, [])
+                res = (empty, {
+                    "latency_ms": 0.0,
+                    "audio_duration_s": round(audio_duration, 2),
+                    "device": self._device,
+                    "rms": round(rms, 5),
+                    "snr_db": round(snr_db, 1),
+                    "crest_factor": round(crest_factor, 2),
+                    "rejected": "INSUFFICIENT_VAD_SPEECH",
+                    "gate": "vad_speech_evidence",
+                    "deduplicated": False,
+                })
+                if utterance_id:
+                    self._last_utterance_id = utterance_id
+                    self._last_result = res
+                return res
+
+        # 2. Dynamic acoustic floor gate
         dynamic_floor = max(0.0035, self._noise_floor_rms * 1.35)
         is_silence = (rms < 0.0035 and peak < 0.025) or (rms < 0.0018) or (rms < dynamic_floor and snr_db < 3.0 and crest_factor < 3.2)
 
@@ -342,27 +369,37 @@ class LocalASREngine:
             raw_text = ""
             discarded_segments = 0
 
-        # YouTube / Outro phantom hallucination gate
+        # YouTube / Outro phantom hallucination gate with rigorous speech-evidence requirement
         lower_raw = raw_text.lower().strip()
         has_outro_marker = any(marker in lower_raw for marker in self.PHANTOM_OUTRO_MARKERS)
         outro_suppressed = False
         outro_accepted_as_genuine = False
+        rejection_reason = ""
 
         if has_outro_marker and valid_segments:
             avg_no_speech = float(np.mean([getattr(s, "no_speech_prob", 0.0) for s in valid_segments]))
             avg_logprob = float(np.mean([getattr(s, "avg_logprob", 0.0) for s in valid_segments]))
 
-            # Genuine user speech has:
-            # 1. Substantial duration (>= 0.70s)
-            # 2. Measurable speech energy (rms >= 0.007 or peak >= 0.035)
-            # 3. Confident logprob (>= -0.95) and low no_speech_prob (<= 0.35)
-            # 4. Natural crest factor (>= 1.6)
+            # Genuine human vocalization of outro phrases requires:
+            # 1. Physical speech duration: "Terima kasih..." / "Sampai jumpa..." takes >= 0.85s of vocal effort
+            # 2. Strong vocal acoustic energy: rms >= 0.012 or peak >= 0.045
+            # 3. High SNR (>= 8.5 dB above ambient noise floor)
+            # 4. If VAD evidence available: active speech ratio >= 0.40 and speech duration >= 0.70s
+            # 5. Decoder confidence: avg_logprob >= -0.70 and no_speech_prob <= 0.18
+            vad_allows = True
+            if vad_evidence is not None:
+                vad_speech_s = float(vad_evidence.get("speech_duration_s", 0.0))
+                vad_ratio = float(vad_evidence.get("speech_ratio", 0.0))
+                vad_allows = (vad_speech_s >= 0.70) and (vad_ratio >= 0.35)
+
             is_genuine_speech = (
-                audio_duration >= 0.70
-                and (rms >= 0.007 or peak >= 0.035)
-                and avg_no_speech <= 0.35
-                and avg_logprob >= -0.95
-                and (crest_factor >= 1.2 or rms >= 0.015)
+                audio_duration >= 0.85
+                and vad_allows
+                and (rms >= 0.012 or (peak >= 0.045 and rms >= 0.008))
+                and snr_db >= 8.5
+                and avg_no_speech <= 0.18
+                and avg_logprob >= -0.70
+                and crest_factor >= 1.4
             )
 
             if is_genuine_speech:
@@ -378,17 +415,24 @@ class LocalASREngine:
                 )
                 raw_text = ""
                 outro_suppressed = True
+                rejection_reason = "PHANTOM_OUTRO_HALLUCINATION"
 
         # General acoustic evidence gate:
         # If text was decoded, but the physical audio lacks speech energy (e.g. ambient fan noise / hiss)
         if raw_text and not has_outro_marker:
-            if (rms < 0.0035 and snr_db < 3.5 and crest_factor < 2.5) or (audio_duration < 0.35 and rms < 0.006):
+            vad_lacks_speech = False
+            if vad_evidence is not None:
+                if float(vad_evidence.get("speech_duration_s", 0.0)) < 0.22 or float(vad_evidence.get("speech_ratio", 0.0)) < 0.12:
+                    vad_lacks_speech = True
+
+            if (rms < 0.0035 and snr_db < 3.5 and crest_factor < 2.5) or (audio_duration < 0.35 and rms < 0.006) or vad_lacks_speech:
                 logger.info(
                     "Suppressed acoustic hallucination on low energy noise: '%s' (dur=%.2fs, rms=%.5f, snr=%.1fdB, crest=%.2f)",
                     raw_text, audio_duration, rms, snr_db, crest_factor,
                 )
                 raw_text = ""
                 outro_suppressed = True
+                rejection_reason = "LOW_ENERGY_ACOUSTIC_HALLUCINATION"
 
         hallucination_suppressed = outro_suppressed or (discarded_segments > 0 and not raw_text)
 
@@ -407,6 +451,7 @@ class LocalASREngine:
             "crest_factor": round(crest_factor, 2),
             "hallucination_suppressed": hallucination_suppressed,
             "outro_accepted_as_genuine": outro_accepted_as_genuine,
+            "rejection_reason": rejection_reason,
             "detected_language": getattr(info, "language", self.language) if "info" in locals() else self.language,
             "deduplicated": False,
         }

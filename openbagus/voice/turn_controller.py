@@ -16,7 +16,7 @@ from openbagus.ai.memory.working_context import WorkingContext
 from openbagus.voice.audio_capture import AudioCaptureStream
 from openbagus.voice.audio_playback import AudioPlaybackManager
 from openbagus.voice.asr_engine import LocalASREngine
-from openbagus.voice.diagnostics import VoiceDiagnostics, VoiceTurnMetrics
+from openbagus.voice.diagnostics import VoiceDiagnostics, VoiceEventRecord, VoiceTurnMetrics
 from openbagus.voice.interruption import InterruptionCoordinator
 from openbagus.voice.mode_controller import VoiceModeController
 from openbagus.voice.speech_normalizer import SpeechTextNormalizer
@@ -127,6 +127,7 @@ class VoiceTurnController:
         self.vad = VoiceActivityDetector()
         self.diagnostics = VoiceDiagnostics()
         self.interruption = InterruptionCoordinator(on_interruption_callback=self._handle_interruption)
+        self.capture_stream.on_mute_callback = self._handle_mic_muted
         self.ask_mode_confirmation = ask_mode_confirmation
 
         self.on_state_change = on_state_change
@@ -233,6 +234,12 @@ class VoiceTurnController:
                 pass
         self.set_state(VoiceState.INTERRUPTED)
 
+    def _handle_mic_muted(self) -> None:
+        """Called immediately when microphone is muted to cancel any active turn in flight."""
+        logger.info("Microphone muted; cancelling any in-flight voice turn")
+        self.interruption.trigger_interruption(reason="MICROPHONE_MUTED")
+        self.playback_manager.stop_playback(interrupted=True)
+
     def start_voice_loop(self, hands_free: bool = True) -> bool:
         """Starts real-time microphone capture and voice listening loop."""
         self._hands_free = hands_free
@@ -320,18 +327,46 @@ class VoiceTurnController:
                 if is_active and self.state == VoiceState.LISTENING:
                     self._current_turn_id = f"turn_{uuid.uuid4().hex[:8]}"
                     self.set_state(VoiceState.SPEECH_DETECTED)
-                    self.capture_stream.start_utterance()
+                    self.capture_stream.start_utterance(self._current_turn_id)
 
                 elif self.state in (VoiceState.SPEECH_DETECTED, VoiceState.ENDPOINTING):
                     if is_endpoint:
                         self.set_state(VoiceState.ENDPOINTING)
-                        audio = self.capture_stream.end_utterance()
+                        vad_evidence = self.vad.get_utterance_evidence()
+                        audio, audio_meta = self.capture_stream.end_utterance_with_meta()
                         self.vad.reset()
 
-                        if len(audio) < 16000 * 0.4:  # Ignore clicks / noise shorter than 400ms
+                        # Silence Invariant: require verified physical speech evidence before invoking ASR
+                        speech_dur = float(vad_evidence.get("speech_duration_s", 0.0))
+                        speech_ratio = float(vad_evidence.get("speech_ratio", 0.0))
+                        max_prob = float(vad_evidence.get("max_prob", 0.0))
+
+                        if speech_dur < 0.20 or speech_ratio < 0.10 or max_prob < 0.52:
+                            logger.debug(
+                                "Turn discarded by Silence Invariant (dur=%.2fs, ratio=%.2f, max_prob=%.2f, audio_len=%d)",
+                                speech_dur, speech_ratio, max_prob, len(audio),
+                            )
+                            self.diagnostics.record_event(VoiceEventRecord(
+                                session_id=getattr(self.working_context, "session_id", "default"),
+                                turn_id=self._current_turn_id,
+                                audio_stream_id=audio_meta.get("stream_id", "") if audio_meta else "",
+                                device_id=str(self.capture_stream.device_id),
+                                event_type="UTTERANCE_REJECTED",
+                                sample_rate=16000,
+                                frame_count=len(audio),
+                                rms=float(np.sqrt(np.mean(audio**2))) if len(audio) > 0 else 0.0,
+                                peak=float(np.max(np.abs(audio))) if len(audio) > 0 else 0.0,
+                                vad_probability=max_prob,
+                                vad_active=False,
+                                speech_segment_duration=speech_dur,
+                                asr_invoked=False,
+                                transcript_accepted=False,
+                                rejection_reason="SILENCE_INVARIANT_LOW_SPEECH_EVIDENCE",
+                                playback_active=self.playback_manager.is_playing,
+                            ))
                             self.set_state(VoiceState.LISTENING)
                         else:
-                            self._start_turn_worker(audio)
+                            self._start_turn_worker(audio, audio_meta, vad_evidence)
 
                     elif not is_active:
                         self.set_state(VoiceState.ENDPOINTING)
@@ -348,7 +383,12 @@ class VoiceTurnController:
                             except Exception:
                                 pass
 
-    def _start_turn_worker(self, audio: np.ndarray) -> None:
+    def _start_turn_worker(
+        self,
+        audio: np.ndarray,
+        audio_meta: dict[str, Any] | None = None,
+        vad_evidence: dict[str, Any] | None = None,
+    ) -> None:
         """Dispatches utterance processing to a separate thread so _run_loop remains responsive."""
         if self._turn_worker is not None and self._turn_worker.is_alive():
             self.interruption.trigger_interruption(reason="SUPERSEDED_BY_NEW_TURN")
@@ -356,31 +396,67 @@ class VoiceTurnController:
 
         self._turn_worker = threading.Thread(
             target=self._process_completed_utterance,
-            args=(audio,),
+            args=(audio, audio_meta, vad_evidence),
             daemon=True,
             name=f"TurnWorker_{self._current_turn_id}",
         )
         self._turn_worker.start()
 
-    def _process_completed_utterance(self, audio: np.ndarray) -> None:
+    def _process_completed_utterance(
+        self,
+        audio: np.ndarray,
+        audio_meta: dict[str, Any] | None = None,
+        vad_evidence: dict[str, Any] | None = None,
+    ) -> None:
         """Triggered once silence endpointing confirms the user finished their utterance."""
         turn_id = self._current_turn_id or f"turn_{uuid.uuid4().hex[:8]}"
         self._current_turn_id = turn_id
         self.interruption.start_turn(turn_id)
         cancellation = self.interruption.get_cancellation_event()
+
+        if cancellation.is_set() or self.capture_stream.is_muted:
+            logger.info("Turn %s cancelled before ASR start (muted=%s)", turn_id, self.capture_stream.is_muted)
+            return
+
         metrics = VoiceTurnMetrics(turn_id=turn_id, user_speech_duration_s=len(audio) / 16000.0)
 
-        # STEP 1: Speech-to-Text (ASR)
+        # STEP 1: Speech-to-Text (ASR) with VAD Evidence Validation
         self.set_state(VoiceState.TRANSCRIBING)
         t_asr_start = time.perf_counter()
-        normalized_res, asr_telemetry = self.asr_engine.transcribe(audio, sample_rate=16000, utterance_id=turn_id)
+        normalized_res, asr_telemetry = self.asr_engine.transcribe(
+            audio,
+            sample_rate=16000,
+            utterance_id=turn_id,
+            vad_evidence=vad_evidence,
+        )
         metrics.asr_latency_ms = asr_telemetry.get("latency_ms", (time.perf_counter() - t_asr_start) * 1000.0)
 
-        if cancellation.is_set():
-            logger.info("Turn %s cancelled during/after ASR", turn_id)
+        if cancellation.is_set() or self.capture_stream.is_muted:
+            logger.info("Turn %s cancelled during/after ASR (muted=%s)", turn_id, self.capture_stream.is_muted)
             return
 
         transcript = normalized_res.normalized_text
+
+        # Record comprehensive telemetry event
+        self.diagnostics.record_event(VoiceEventRecord(
+            session_id=getattr(self.working_context, "session_id", "default"),
+            turn_id=turn_id,
+            audio_stream_id=audio_meta.get("stream_id", "") if audio_meta else "",
+            device_id=str(self.capture_stream.device_id),
+            event_type="ASR_COMPLETED",
+            sample_rate=16000,
+            frame_count=len(audio),
+            rms=float(asr_telemetry.get("rms", 0.0)),
+            peak=float(asr_telemetry.get("peak", 0.0)),
+            vad_probability=float(vad_evidence.get("max_prob", 0.0)) if vad_evidence else 0.0,
+            vad_active=True,
+            speech_segment_duration=float(vad_evidence.get("speech_duration_s", 0.0)) if vad_evidence else 0.0,
+            asr_invoked=True,
+            transcript_accepted=bool(transcript),
+            rejection_reason=str(asr_telemetry.get("rejection_reason", asr_telemetry.get("rejected", ""))),
+            playback_active=self.playback_manager.is_playing,
+        ))
+
         if not transcript:
             if not cancellation.is_set() and self.state == VoiceState.TRANSCRIBING:
                 self.set_state(VoiceState.LISTENING)
@@ -532,7 +608,8 @@ class VoiceTurnController:
 
         # Only transition back to LISTENING if the turn completed naturally and was NOT interrupted
         if not cancellation.is_set() and self.state == VoiceState.SPEAKING:
-            self.capture_stream.suppress_input(250)
+            self.capture_stream.suppress_input(350)
+            self.vad.reset()
             self.set_state(VoiceState.LISTENING if self._hands_free else VoiceState.IDLE)
 
     def process_direct_utterance(self, audio: np.ndarray) -> tuple[str, str, VoiceTurnMetrics]:
