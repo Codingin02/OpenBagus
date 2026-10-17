@@ -7,7 +7,7 @@ datas = [(str(root / "LICENSE"), ".")]
 datas += collect_data_files("openbagus.domains.equities", includes=["idx_universe.json"])
 binaries = []
 hidden = collect_submodules("openbagus") + collect_submodules("openbagus_finance")
-for package in ("piper", "faster_whisper", "onnxruntime", "ctranslate2", "sounddevice", "glfw", "moderngl", "pyrr", "glcontext"):
+for package in ("piper", "faster_whisper", "onnxruntime", "ctranslate2", "sounddevice", "glfw", "moderngl", "pyrr", "glcontext", "pygltflib"):
     data, libs, imports = collect_all(package)
     datas += data
     binaries += libs
@@ -18,6 +18,10 @@ for directory in ("config", "schemas"):
             if item.is_file() and not any(word in item.name for word in (".local.", "_local.json", "_local.env")):
                 datas.append((str(item), str(item.parent.relative_to(root))))
 datas.append((str(root / "data/local_ai/voice_preferences.json"), "data/local_ai"))
+runtime_assets = root / "assets" / "bagusmax" / "runtime"
+if runtime_assets.is_dir():
+    for glb_file in runtime_assets.glob("*.glb"):
+        datas.append((str(glb_file), "assets/bagusmax/runtime"))
 ollama = Path.home() / "AppData/Local/Programs/Ollama"
 binaries.append((str(ollama / "ollama.exe"), "ollama"))
 for item in (ollama / "lib/ollama").rglob("*"):

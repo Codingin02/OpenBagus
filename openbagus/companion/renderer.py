@@ -35,6 +35,8 @@ import threading
 import time
 from typing import Any
 
+IPC_VERSION = "1.0"
+
 # Try to import rendering dependencies
 try:
     import glfw
@@ -1518,12 +1520,12 @@ class IPCServer:
         self,
         port: int,
         animator: CharacterAnimator,
-        running_flag: list[bool],
+        running_flag: list[bool] | None = None,
         interaction: InteractionManager | None = None,
     ) -> None:
         self.port = port
         self.animator = animator
-        self.running_flag = running_flag
+        self.running_flag = running_flag if running_flag is not None else [True]
         self.interaction = interaction
         self._window_should_show: bool = True
         self._window_should_hide: bool = False
@@ -1599,17 +1601,44 @@ class IPCServer:
                         except Exception:
                             pass
 
-    def _dispatch(self, raw: str) -> dict[str, Any] | None:
-        try:
-            msg: dict[str, Any] = json.loads(raw)
-        except json.JSONDecodeError:
-            return None
+    def _dispatch(self, raw: str | dict[str, Any]) -> dict[str, Any] | None:
+        if isinstance(raw, dict):
+            msg = raw
+        else:
+            try:
+                msg = json.loads(raw)
+            except (json.JSONDecodeError, TypeError):
+                return None
 
         event = msg.get("type", "")
         payload = msg.get("payload", {})
 
         if event == "companion.ping":
-            return {"status": "ok", "app": "openbagus_companion", "version": IPC_VERSION}
+            diag = {}
+            try:
+                from openbagus.companion.model_loader import get_asset_diagnostics
+                diag = get_asset_diagnostics(self.animator.character_form)
+            except Exception:
+                pass
+            return {
+                "status": "ok",
+                "app": "openbagus_companion",
+                "version": IPC_VERSION,
+                "pid": os.getpid(),
+                "model_source": "CODEX_GLB",
+                "model_loaded": True,
+                "form": self.animator.character_form,
+                "diagnostics": diag,
+            }
+
+        elif event == "companion.diagnostics":
+            diag = {}
+            try:
+                from openbagus.companion.model_loader import get_asset_diagnostics
+                diag = get_asset_diagnostics(self.animator.character_form)
+            except Exception as e:
+                diag = {"error": str(e)}
+            return {"status": "ok", "diagnostics": diag}
 
         elif event == "companion.conversation_event":
             try:
@@ -1787,7 +1816,7 @@ def run_renderer(port: int) -> None:
     ipc = IPCServer(port=port, animator=animator, running_flag=running_flag, interaction=interaction)
     ipc.start()
 
-    # Build geometry for specific form
+    # Build geometry for specific form using authentic Codex GLB assets
     def rebuild_mesh(form: str, params: dict[str, float]) -> tuple[moderngl.VertexArray, moderngl.Buffer]:
         try:
             from openbagus.companion.model_loader import build_articulated_mesh
@@ -1800,45 +1829,20 @@ def run_renderer(port: int) -> None:
                 index_buffer=ibo,
             )
             return vao, ibo
-        except Exception:
-            builder = build_bagusmax_armored if form == BagusmaxForm.ARMORED else build_bagusmax_white
-            verts, idxs = builder(
-                blink=params.get("blink", 0.0),
-                head_tilt=params.get("head_tilt", 0.0),
-                breath=params.get("breath_scale", 1.0),
-                head_nod=params.get("head_nod", 0.0),
-                head_turn=params.get("head_turn", 0.0),
-                l_arm_pitch=params.get("l_arm_pitch", 0.0),
-                l_arm_roll=params.get("l_arm_roll", 0.0),
-                l_arm_yaw=params.get("l_arm_yaw", 0.0),
-                r_arm_pitch=params.get("r_arm_pitch", 0.0),
-                r_arm_roll=params.get("r_arm_roll", 0.0),
-                r_arm_yaw=params.get("r_arm_yaw", 0.0),
-                torso_lean_z=params.get("torso_lean_z", 0.0),
-                torso_twist_y=params.get("torso_twist_y", 0.0),
-            )
-            raw_v = np.array(verts, dtype="f4").reshape(-1, 9)
-            is_arm = (form == BagusmaxForm.ARMORED)
-            mat = np.tile(np.array([0.35 if is_arm else 0.0, 0.18 if is_arm else 0.35], dtype="f4"), (len(raw_v), 1))
-            v_comb = np.hstack([raw_v, mat]).astype("f4")
-            vbo = ctx.buffer(v_comb.tobytes())
-            ibo = ctx.buffer(np.array(idxs, dtype="i4").tobytes())
-            vao = ctx.vertex_array(
-                prog,
-                [(vbo, "3f 3f 3f 2f", "in_position", "in_normal", "in_color", "in_material")],
-                index_buffer=ibo,
-            )
-            return vao, ibo
+        except Exception as exc:
+            err_msg = f"CODEX_GLB_LOAD_FAILED: {exc}"
+            print(f"[{err_msg}] Form: {form}", file=sys.stderr, flush=True)
+            raise RuntimeError(err_msg) from exc
 
     params = animator.get_params()
     last_rendered_form = animator.character_form
     vao, ibo = rebuild_mesh(last_rendered_form, params)
 
-    # Camera: centered on BAGUSMAX body (head to feet)
-    cam_pos = Vector3([0.0, 0.76, 2.75])
+    # Camera: centered on authentic Codex BAGUSMAX body (center Y=0.85, height 1.68m)
+    cam_pos = Vector3([0.0, 0.85, 2.85])
     last_fb_w, last_fb_h = glfw.get_framebuffer_size(window)
     proj = Matrix44.perspective_projection(38.0, last_fb_w / last_fb_h if last_fb_h else 1.0, 0.1, 50.0, dtype="f4")
-    view = Matrix44.look_at(cam_pos, Vector3([0.0, 0.76, 0.0]), Vector3([0.0, 1.0, 0.0]), dtype="f4")
+    view = Matrix44.look_at(cam_pos, Vector3([0.0, 0.85, 0.0]), Vector3([0.0, 1.0, 0.0]), dtype="f4")
 
     # Studio 3-point lighting & PBR Environment
     prog["proj"].write(proj)
@@ -1932,15 +1936,15 @@ def run_renderer(port: int) -> None:
             vao, ibo = rebuild_mesh(current_form, params)
 
         # Decouple User Transform (scale, yaw, pitch around body center) from Local Animation Transform
-        T_pivot_inv = Matrix44.from_translation([0.0, -0.76, 0.0], dtype="f4")
-        T_pivot = Matrix44.from_translation([0.0, 0.76, 0.0], dtype="f4")
+        T_pivot_inv = Matrix44.from_translation([0.0, -0.85, 0.0], dtype="f4")
+        T_pivot = Matrix44.from_translation([0.0, 0.85, 0.0], dtype="f4")
         S_user = Matrix44.from_scale(
             [interaction.character_scale, interaction.character_scale, interaction.character_scale], dtype="f4"
         )
         R_pitch = Matrix44.from_x_rotation(math.radians(interaction.user_pitch), dtype="f4")
         R_yaw = Matrix44.from_y_rotation(math.radians(interaction.user_yaw), dtype="f4")
 
-        # Stable user orientation around center (0, 0.76, 0)
+        # Stable user orientation around center (0, 0.85, 0)
         user_transform = T_pivot_inv @ S_user @ R_pitch @ R_yaw @ T_pivot
 
         # Local animation pose (breath, bob, lean, subtle ambient rotation)

@@ -410,7 +410,7 @@ class CompanionController:
             logger.info("SHOW OPENBAGUS companion launched (PID %d)", self._process.pid)
 
             # Wait for companion to start accepting IPC connections
-            deadline = time.monotonic() + 6.0
+            deadline = time.monotonic() + 10.0
             while time.monotonic() < deadline:
                 if self._process.poll() is not None:
                     exit_code = self._process.returncode
@@ -480,7 +480,7 @@ class CompanionController:
         try:
             req = json.dumps({"version": IPC_VERSION, "type": "companion.ping", "payload": {}, "ts": time.time()}) + "\n"
             self._sock.sendall(req.encode("utf-8"))
-            self._sock.settimeout(1.0)
+            self._sock.settimeout(1.5)
             data = b""
             while b"\n" not in data:
                 chunk = self._sock.recv(1024)
@@ -491,9 +491,14 @@ class CompanionController:
             if data:
                 line = data.split(b"\n")[0].decode("utf-8", errors="replace")
                 resp = json.loads(line)
-                return resp.get("status") == "ok" and resp.get("app") == "openbagus_companion"
-        except Exception:
-            pass
+                ok = resp.get("status") == "ok" and resp.get("app") == "openbagus_companion"
+                if ok:
+                    resp_pid = resp.get("pid")
+                    if self._process is not None and resp_pid is not None and resp_pid != self._process.pid:
+                        logger.warning("Port %d has companion PID %s, but we spawned PID %s", IPC_PORT, resp_pid, self._process.pid)
+                    return True
+        except Exception as e:
+            logger.debug("Companion handshake failed: %s", e)
         return False
 
     def _connect(self) -> bool:

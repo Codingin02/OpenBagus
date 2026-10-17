@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "voice_enabled": false,
+  "voice_enabled": true,
   "hands_free": true,
   "microphone_device_id": null,
   "speaker_device_id": null,
