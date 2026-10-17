@@ -1510,6 +1510,151 @@ class InteractionManager:
 
 
 # ---------------------------------------------------------------------------
+# GPU Buffer Ownership & Truthful Readiness
+# ---------------------------------------------------------------------------
+
+class RendererReadiness:
+    """Tracks truthful readiness of the 3D companion renderer."""
+
+    def __init__(self) -> None:
+        self.gl_context_operational: bool = False
+        self.glb_hash_verified: bool = False
+        self.buffers_created: bool = False
+        self.first_frame_rendered: bool = False
+        self.error: str | None = None
+
+    @property
+    def is_fully_ready(self) -> bool:
+        return (
+            self.gl_context_operational
+            and self.glb_hash_verified
+            and self.buffers_created
+            and self.first_frame_rendered
+            and self.error is None
+        )
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "gl_context_operational": self.gl_context_operational,
+            "glb_hash_verified": self.glb_hash_verified,
+            "buffers_created": self.buffers_created,
+            "first_frame_rendered": self.first_frame_rendered,
+            "is_fully_ready": self.is_fully_ready,
+            "error": self.error,
+        }
+
+
+class GPUModelBuffers:
+    """Manages persistent GPU buffers (VBO, IBO, VAO) for a specific character form.
+
+    Eliminates 33ms reallocation cycle by reusing static index buffer (IBO) and
+    updating dynamic vertex buffer (VBO) in-place via ModernGL buffer.write()
+    only when genuine mesh articulation occurs.
+    """
+
+    def __init__(self, ctx: Any, prog: Any, form: str) -> None:
+        self.ctx = ctx
+        self.prog = prog
+        self.form = form
+        self.vbo: Any = None
+        self.ibo: Any = None
+        self.vao: Any = None
+        self.last_params: dict[str, float] = {}
+        self.is_rest_pose: bool = True
+        self._allocate()
+
+    def _allocate(self) -> None:
+        try:
+            from openbagus.companion.model_loader import get_model_asset
+            asset = get_model_asset(self.form)
+            v_data = asset._neutral_vdata
+            i_data = asset._neutral_idata
+
+            # Static IBO: topology is fixed, never reallocated or modified
+            self.ibo = self.ctx.buffer(i_data.astype("i4").tobytes())
+            # Dynamic VBO: sized for full model vertex data, allows dynamic in-place updates via vbo.write()
+            self.vbo = self.ctx.buffer(v_data.astype("f4").tobytes(), dynamic=True)
+            # Persistent VAO
+            self.vao = self.ctx.vertex_array(
+                self.prog,
+                [(self.vbo, "3f 3f 3f 2f", "in_position", "in_normal", "in_color", "in_material")],
+                index_buffer=self.ibo,
+            )
+            self.is_rest_pose = True
+            self.last_params = {}
+        except Exception as exc:
+            err_msg = f"CODEX_GLB_LOAD_FAILED: {exc}"
+            print(f"[{err_msg}] Form: {self.form}", file=sys.stderr, flush=True)
+            self.release()
+            raise RuntimeError(err_msg) from exc
+
+    def update_if_needed(self, params: dict[str, float]) -> None:
+        """Update dynamic VBO in-place only when genuine deformation occurs."""
+        blink = max(0.0, min(1.0, float(params.get("blink", 0.0))))
+        head_nod = float(params.get("head_nod", 0.0))
+        head_turn = float(params.get("head_turn", 0.0))
+        head_tilt = float(params.get("head_tilt", 0.0))
+
+        has_deformation = (
+            blink > 1e-4
+            or abs(head_nod) > 1e-4
+            or abs(head_turn) > 1e-4
+            or abs(head_tilt) > 1e-4
+        )
+
+        if not has_deformation:
+            if not self.is_rest_pose:
+                # Return to rest pose: restore neutral vertices once
+                from openbagus.companion.model_loader import get_model_asset
+                asset = get_model_asset(self.form)
+                if self.vbo is not None:
+                    self.vbo.write(asset._neutral_vdata.astype("f4").tobytes())
+                self.is_rest_pose = True
+                self.last_params = {}
+            return
+
+        # Check if deformation parameters changed significantly from last frame
+        changed = False
+        for k, v in [("blink", blink), ("head_nod", head_nod), ("head_turn", head_turn), ("head_tilt", head_tilt)]:
+            if abs(v - self.last_params.get(k, 0.0)) > 1e-3:
+                changed = True
+                break
+
+        if changed:
+            from openbagus.companion.model_loader import build_articulated_mesh
+            v_data, _ = build_articulated_mesh(self.form, params)
+            if self.vbo is not None:
+                self.vbo.write(v_data.astype("f4").tobytes())
+            self.is_rest_pose = False
+            self.last_params = {"blink": blink, "head_nod": head_nod, "head_turn": head_turn, "head_tilt": head_tilt}
+
+    def render(self) -> None:
+        if self.vao is not None:
+            self.vao.render()
+
+    def release(self) -> None:
+        """Explicitly release all GPU resources."""
+        if self.vao is not None:
+            try:
+                self.vao.release()
+            except Exception:
+                pass
+            self.vao = None
+        if self.vbo is not None:
+            try:
+                self.vbo.release()
+            except Exception:
+                pass
+            self.vbo = None
+        if self.ibo is not None:
+            try:
+                self.ibo.release()
+            except Exception:
+                pass
+            self.ibo = None
+
+
+# ---------------------------------------------------------------------------
 # IPC Server (runs in background thread, feeds command queue to main thread)
 # ---------------------------------------------------------------------------
 
@@ -1522,11 +1667,13 @@ class IPCServer:
         animator: CharacterAnimator,
         running_flag: list[bool] | None = None,
         interaction: InteractionManager | None = None,
+        readiness: RendererReadiness | None = None,
     ) -> None:
         self.port = port
         self.animator = animator
         self.running_flag = running_flag if running_flag is not None else [True]
         self.interaction = interaction
+        self.readiness = readiness
         self._window_should_show: bool = True
         self._window_should_hide: bool = False
         self._window_should_close: bool = False
@@ -1615,19 +1762,47 @@ class IPCServer:
 
         if event == "companion.ping":
             diag = {}
+            glb_verified = False
             try:
                 from openbagus.companion.model_loader import get_asset_diagnostics
                 diag = get_asset_diagnostics(self.animator.character_form)
-            except Exception:
-                pass
+                glb_verified = bool(diag.get("sha256_verified", False))
+                if self.readiness is not None:
+                    self.readiness.glb_hash_verified = glb_verified
+            except Exception as e:
+                diag = {"error": str(e)}
+                if self.readiness is not None:
+                    self.readiness.glb_hash_verified = False
+                    self.readiness.error = str(e)
+
+            if self.readiness is not None:
+                is_ready = self.readiness.is_fully_ready
+                status_str = "ok" if is_ready else ("error" if self.readiness.error else "initializing")
+                readiness_dict = self.readiness.to_dict()
+                first_frame = self.readiness.first_frame_rendered
+            else:
+                is_ready = True
+                status_str = "ok"
+                readiness_dict = {
+                    "gl_context_operational": True,
+                    "glb_hash_verified": glb_verified,
+                    "buffers_created": True,
+                    "first_frame_rendered": True,
+                    "is_fully_ready": True,
+                    "error": None,
+                }
+                first_frame = True
+
             return {
-                "status": "ok",
+                "status": status_str,
                 "app": "openbagus_companion",
                 "version": IPC_VERSION,
                 "pid": os.getpid(),
                 "model_source": "CODEX_GLB",
-                "model_loaded": True,
+                "model_loaded": glb_verified,
                 "form": self.animator.character_form,
+                "readiness": readiness_dict,
+                "first_frame_rendered": first_frame,
                 "diagnostics": diag,
             }
 
@@ -1806,37 +1981,40 @@ def run_renderer(port: int) -> None:
     glfw.set_scroll_callback(window, interaction.handle_scroll)
     glfw.set_cursor_enter_callback(window, interaction.handle_cursor_enter)
 
+    readiness = RendererReadiness()
+
     ctx = moderngl.create_context()
     ctx.enable(moderngl.DEPTH_TEST)
+    readiness.gl_context_operational = True
 
     prog = ctx.program(vertex_shader=VERT_SHADER, fragment_shader=FRAG_SHADER)
 
     animator = CharacterAnimator()
     running_flag: list[bool] = [True]
-    ipc = IPCServer(port=port, animator=animator, running_flag=running_flag, interaction=interaction)
+    ipc = IPCServer(port=port, animator=animator, running_flag=running_flag, interaction=interaction, readiness=readiness)
     ipc.start()
 
-    # Build geometry for specific form using authentic Codex GLB assets
-    def rebuild_mesh(form: str, params: dict[str, float]) -> tuple[moderngl.VertexArray, moderngl.Buffer]:
-        try:
-            from openbagus.companion.model_loader import build_articulated_mesh
-            v_data, i_data = build_articulated_mesh(form, params)
-            vbo = ctx.buffer(v_data.astype("f4").tobytes())
-            ibo = ctx.buffer(i_data.astype("i4").tobytes())
-            vao = ctx.vertex_array(
-                prog,
-                [(vbo, "3f 3f 3f 2f", "in_position", "in_normal", "in_color", "in_material")],
-                index_buffer=ibo,
-            )
-            return vao, ibo
-        except Exception as exc:
-            err_msg = f"CODEX_GLB_LOAD_FAILED: {exc}"
-            print(f"[{err_msg}] Form: {form}", file=sys.stderr, flush=True)
-            raise RuntimeError(err_msg) from exc
+    # Pre-verify GLB asset
+    try:
+        from openbagus.companion.model_loader import get_asset_diagnostics
+        diag = get_asset_diagnostics(animator.character_form)
+        readiness.glb_hash_verified = bool(diag.get("sha256_verified", False))
+    except Exception as e:
+        readiness.error = f"GLB_VERIFICATION_FAILED: {e}"
+        print(f"[BAGUSMAX] {readiness.error}", file=sys.stderr, flush=True)
 
-    params = animator.get_params()
+    # Persistent GPU buffers for active form
     last_rendered_form = animator.character_form
-    vao, ibo = rebuild_mesh(last_rendered_form, params)
+    try:
+        model_buffers: GPUModelBuffers | None = GPUModelBuffers(ctx, prog, last_rendered_form)
+        readiness.buffers_created = True
+    except Exception as exc:
+        err_msg = f"CODEX_GLB_LOAD_FAILED: {exc}"
+        print(f"[{err_msg}] Form: {last_rendered_form}", file=sys.stderr, flush=True)
+        model_buffers = None
+        readiness.error = err_msg
+        readiness.buffers_created = False
+        raise RuntimeError(err_msg) from exc
 
     # Camera: centered on authentic Codex BAGUSMAX body (center Y=0.85, height 1.68m)
     cam_pos = Vector3([0.0, 0.85, 2.85])
@@ -1870,7 +2048,6 @@ def run_renderer(port: int) -> None:
         prog["light_pos"].write(np.array([2.5, 4.0, 3.5], dtype="f4"))
 
     last_time = glfw.get_time()
-    mesh_rebuild_timer = 0.0
 
     print("[BAGUSMAX] Interactive Render loop started", file=sys.stderr)
 
@@ -1923,17 +2100,26 @@ def run_renderer(port: int) -> None:
         interaction.flush_save_if_needed()
 
         animator.update(dt)
-        mesh_rebuild_timer += dt
-
         params = animator.get_params()
         current_form = animator.character_form
 
-        # Rebuild mesh on form switch or every ~33ms for smooth animation
-        if mesh_rebuild_timer >= 0.033 or current_form != last_rendered_form:
-            mesh_rebuild_timer = 0.0
+        # Handle form switch: release previous GPU buffers and allocate new persistent buffers
+        if current_form != last_rendered_form:
             last_rendered_form = current_form
-            vao.release()
-            vao, ibo = rebuild_mesh(current_form, params)
+            if model_buffers is not None:
+                model_buffers.release()
+            try:
+                model_buffers = GPUModelBuffers(ctx, prog, current_form)
+                readiness.buffers_created = True
+            except Exception as exc:
+                model_buffers = None
+                readiness.error = str(exc)
+                readiness.buffers_created = False
+                print(f"[BAGUSMAX] Form switch failed: {exc}", file=sys.stderr)
+
+        # In-place dynamic buffer update only when genuine mesh articulation occurs
+        if model_buffers is not None:
+            model_buffers.update_if_needed(params)
 
         # Decouple User Transform (scale, yaw, pitch around body center) from Local Animation Transform
         T_pivot_inv = Matrix44.from_translation([0.0, -0.85, 0.0], dtype="f4")
@@ -1962,7 +2148,8 @@ def run_renderer(port: int) -> None:
 
         # Render
         ctx.clear(0.0, 0.0, 0.0, 0.0)  # transparent desktop background
-        vao.render()
+        if model_buffers is not None:
+            model_buffers.render()
 
         # Capture live popup screenshot if requested via IPC
         if ipc._screenshot_queue:
@@ -1978,6 +2165,7 @@ def run_renderer(port: int) -> None:
                 print(f"[BAGUSMAX] Screenshot error: {_err}", file=sys.stderr)
 
         glfw.swap_buffers(window)
+        readiness.first_frame_rendered = True
 
         # Handle IPC-driven show/hide
         if ipc.should_hide():
@@ -1990,7 +2178,9 @@ def run_renderer(port: int) -> None:
     # Flush final preferences before exit
     interaction.save_now()
     running_flag[0] = False
-    vao.release()
+    if model_buffers is not None:
+        model_buffers.release()
+        model_buffers = None
     ctx.release()
     glfw.terminate()
     print("[BAGUSMAX] Companion closed", file=sys.stderr)

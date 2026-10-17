@@ -495,7 +495,17 @@ class CompanionController:
                 if ok:
                     resp_pid = resp.get("pid")
                     if self._process is not None and resp_pid is not None and resp_pid != self._process.pid:
-                        logger.warning("Port %d has companion PID %s, but we spawned PID %s", IPC_PORT, resp_pid, self._process.pid)
+                        logger.warning(
+                            "Port %d has companion PID %s, but we spawned PID %s; rejecting unowned process",
+                            IPC_PORT,
+                            resp_pid,
+                            self._process.pid,
+                        )
+                        return False
+                    readiness = resp.get("readiness")
+                    if readiness is not None and not readiness.get("is_fully_ready", True):
+                        logger.debug("Companion PID %s not yet fully ready: %s", resp_pid, readiness)
+                        return False
                     return True
         except Exception as e:
             logger.debug("Companion handshake failed: %s", e)

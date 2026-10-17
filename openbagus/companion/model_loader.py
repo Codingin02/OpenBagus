@@ -201,6 +201,8 @@ class BagusmaxModelAsset:
         self._neutral_vdata: np.ndarray | None = None
         self._neutral_idata: np.ndarray | None = None
         self._eye_vert_mask: np.ndarray | None = None
+        self._head_vert_mask: np.ndarray | None = None
+        self._neck_pivot: np.ndarray = np.array([0.0, 1.37, 0.0], dtype=np.float32)
 
         self._load()
 
@@ -231,6 +233,13 @@ class BagusmaxModelAsset:
             raw_inv = decode_accessor(glb, blob, skin.inverseBindMatrices)
             if raw_inv is not None:
                 self.inv_bind_matrices = np.array([m.T for m in raw_inv], dtype=np.float32)
+                # Compute rest neck pivot if Neck joint exists in skeleton
+                if "Neck" in self.joint_names:
+                    neck_idx = self.joint_names.index("Neck")
+                    try:
+                        self._neck_pivot = np.linalg.inv(self.inv_bind_matrices[neck_idx])[:3, 3]
+                    except Exception:
+                        self._neck_pivot = np.array([0.0, 1.37, 0.0], dtype=np.float32)
 
         # Helper to compute local node transform
         def get_node_local_transform(node: pygltflib.Node) -> np.ndarray:
@@ -359,6 +368,7 @@ class BagusmaxModelAsset:
         all_v = []
         all_i = []
         all_eyes = []
+        all_heads = []
         v_offset = 0
 
         for p in self.primitives:
@@ -377,15 +387,43 @@ class BagusmaxModelAsset:
             v_comb = np.hstack([pos, norm, p.colors, p.materials]).astype(np.float32)
             all_v.append(v_comb)
             all_i.append(p.indices + v_offset)
+
+            # Eye vertices
             if p.is_eyes is not None:
                 all_eyes.append(p.is_eyes)
             else:
                 all_eyes.append(np.zeros(len(pos), dtype=bool))
+
+            # Head vertices identification for restrained head attention
+            name_lower = (p.node_name + " " + p.mesh_name).lower()
+            if self.form == "white":
+                is_head = p.mesh_name in ("White_Head", "Eye_ContourBridge", "Eye_L", "Eye_R")
+            else:
+                is_head = any(
+                    k in name_lower
+                    for k in (
+                        "helmet",
+                        "visor",
+                        "chin",
+                        "crown",
+                        "ear_l",
+                        "ear_r",
+                        "fin_l",
+                        "fin_r",
+                        "gasket",
+                        "face_frame",
+                    )
+                ) or (pos[:, 1].min() > 1.35 and p.weights is None and "arm" not in name_lower)
+
+            head_mask = np.full(len(pos), is_head, dtype=bool)
+            all_heads.append(head_mask)
+
             v_offset += len(pos)
 
         self._neutral_vdata = np.vstack(all_v)
         self._neutral_idata = np.concatenate(all_i)
         self._eye_vert_mask = np.concatenate(all_eyes)
+        self._head_vert_mask = np.concatenate(all_heads)
 
 
 # Model cache for runtime reuse
@@ -423,11 +461,26 @@ def get_asset_diagnostics(form: str = "white") -> dict[str, Any]:
     }
 
 
+def _euler_rotation_matrix(rot_x: float, rot_y: float, rot_z: float) -> np.ndarray:
+    """Build 3x3 Euler rotation matrix (YXZ order)."""
+    cx, sx = math.cos(rot_x), math.sin(rot_x)
+    cy, sy = math.cos(rot_y), math.sin(rot_y)
+    cz, sz = math.cos(rot_z), math.sin(rot_z)
+
+    Rx = np.array([[1.0, 0.0, 0.0], [0.0, cx, -sx], [0.0, sx, cx]], dtype=np.float32)
+    Ry = np.array([[cy, 0.0, sy], [0.0, 1.0, 0.0], [-sy, 0.0, cy]], dtype=np.float32)
+    Rz = np.array([[cz, -sz, 0.0], [sz, cz, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32)
+    return Ry @ Rx @ Rz
+
+
 def build_articulated_mesh(
     form: str,
     params: dict[str, float],
 ) -> tuple[np.ndarray, np.ndarray]:
     """Generate transformed vertex and index buffers for the active frame.
+
+    Applies restrained, safe gestures (breathing, head attention nod/tilt/turn,
+    and eye blink) using the authentic Codex glTF joint/mesh structure.
 
     Output vertex layout (11 floats per vertex = 44 bytes):
       [0:3] in_position  (vec3)
@@ -436,18 +489,36 @@ def build_articulated_mesh(
       [9:11] in_material (vec2: metallic, roughness)
     """
     asset = get_model_asset(form)
-    blink = max(0.0, min(1.0, params.get("blink", 0.0)))
 
-    # Zero-latency fast path: neutral rest pose
-    if blink <= 0.0 or asset._eye_vert_mask is None or not np.any(asset._eye_vert_mask):
+    head_nod = float(params.get("head_nod", 0.0))
+    head_turn = float(params.get("head_turn", 0.0))
+    head_tilt = float(params.get("head_tilt", 0.0))
+    blink = max(0.0, min(1.0, float(params.get("blink", 0.0))))
+
+    has_head_rot = abs(head_nod) > 1e-4 or abs(head_turn) > 1e-4 or abs(head_tilt) > 1e-4
+    has_blink = blink > 1e-4 and asset._eye_vert_mask is not None and np.any(asset._eye_vert_mask)
+
+    # Zero-latency fast path: neutral rest pose (zero copy, returns cached array)
+    if not has_head_rot and not has_blink:
         return asset._neutral_vdata, asset._neutral_idata
 
-    # Eye blink squash
     vdata = asset._neutral_vdata.copy()
-    eye_mask = asset._eye_vert_mask
-    squash = 1.0 - (blink * 0.85)
-    # Eye center Y is ~1.46
-    eye_center_y = 1.46
-    vdata[eye_mask, 1] = (vdata[eye_mask, 1] - eye_center_y) * squash + eye_center_y
+
+    # 1. Restrained Head Attention (nod, turn, tilt pivoting around authentic Neck joint)
+    if has_head_rot and asset._head_vert_mask is not None and np.any(asset._head_vert_mask):
+        R_head = _euler_rotation_matrix(head_nod, head_turn, head_tilt)
+        mask = asset._head_vert_mask
+        p_head = vdata[mask, 0:3]
+        vdata[mask, 0:3] = (p_head - asset._neck_pivot) @ R_head.T + asset._neck_pivot
+        vdata[mask, 3:6] = vdata[mask, 3:6] @ R_head.T
+
+    # 2. Eye blink squash
+    if has_blink:
+        eye_mask = asset._eye_vert_mask
+        squash = 1.0 - (blink * 0.85)
+        # Eye center Y is ~1.46m
+        eye_center_y = 1.46
+        vdata[eye_mask, 1] = (vdata[eye_mask, 1] - eye_center_y) * squash + eye_center_y
 
     return vdata, asset._neutral_idata
+
