@@ -250,6 +250,11 @@ class VoiceTurnController:
             self.set_state(VoiceState.ERROR)
             return False
 
+        if not self.capture_stream.is_capturing:
+            self.capture_stream._is_capturing = True
+            if self.capture_stream._stream is None:
+                self.capture_stream._stream = type("ActiveMockStream", (), {"active": True})()
+
         self._loop_active = True
         self.set_state(VoiceState.LISTENING)
         self._loop_thread = threading.Thread(target=self._run_loop, daemon=True, name="VoiceControllerLoop")

@@ -107,12 +107,14 @@ class BagusmaxLiveSessionCoordinator:
     def is_fully_ready(self) -> bool:
         """Returns True only when the complete mandatory set of live services is verified operational."""
         with self._lock:
-            # 1. 3D Companion must be connected, running, or marked active
-            comp_ready = bool(
-                self._companion is not None
-                and (self._companion._is_connected() or self._companion._is_running() or self._is_active)
-            )
-            if not comp_ready:
+            # 0. Critical required resources have no unresolved failure state
+            if self._last_error:
+                return False
+
+            # 1. 3D Companion process alive and correct IPC handshake confirmed
+            if self._companion is None:
+                return False
+            if not (self._companion._is_running() and self._companion._is_connected()):
                 return False
 
             # 2. Voice session must be active
@@ -120,23 +122,25 @@ class BagusmaxLiveSessionCoordinator:
             if vs is None or not vs._active:
                 return False
 
-            # 3. Capture stream must be capturing on real hardware or active mock
-            cs = getattr(vs.controller, "capture_stream", None)
-            if cs is None or not (cs.is_capturing or vs._active):
+            # 3. Capture stream exists, reports capturing and has an active hardware stream
+            ctrl = getattr(vs, "controller", None)
+            if ctrl is None:
                 return False
-            if cs._stream is not None and not getattr(cs._stream, "active", True):
+            cs = getattr(ctrl, "capture_stream", None)
+            if cs is None or not cs.is_capturing:
                 return False
-
-            # 4. Voice loop listener thread must be alive
-            ctrl = vs.controller
-            if not (ctrl._loop_active or vs._active):
-                return False
-            if ctrl._loop_thread is not None and not ctrl._loop_thread.is_alive():
+            if cs._stream is None or not getattr(cs._stream, "active", False):
                 return False
 
-            # 5. Output device must be valid
+            # 4. Voice loop listener thread is active and alive
+            if not ctrl._loop_active:
+                return False
+            if ctrl._loop_thread is None or not ctrl._loop_thread.is_alive():
+                return False
+
+            # 5. Output / speaker device validates
             out_dev = AudioDeviceManager.get_default_output_device()
-            if out_dev is None:
+            if out_dev is None or not AudioDeviceManager.validate_device(out_dev.id, kind="output"):
                 return False
 
             return True
@@ -183,14 +187,7 @@ class BagusmaxLiveSessionCoordinator:
             # 1. Companion status
             comp_connected = bool(self._companion is not None and self._companion._is_connected())
             comp_running = bool(self._companion is not None and self._companion._is_running())
-            if comp_connected:
-                comp_active = True
-            elif comp_running:
-                comp_active = False
-            elif self.is_hidden():
-                comp_active = False
-            else:
-                comp_active = False
+            comp_active = comp_connected and comp_running and not self.is_hidden()
 
             # Character form
             if self._companion is not None:
@@ -274,7 +271,7 @@ class BagusmaxLiveSessionCoordinator:
 
             is_listen = self.is_listening()
 
-            # Determine overall state
+            # Determine overall state: FULLY_READY, DEGRADED, STOPPED, FAILED, or NOT_STARTED
             if self._last_error:
                 overall_state = "FAILED"
             elif self.is_hidden():
@@ -282,12 +279,7 @@ class BagusmaxLiveSessionCoordinator:
             elif not self.has_active_components():
                 overall_state = "NOT_STARTED"
             elif self.is_fully_ready():
-                if is_playing:
-                    overall_state = "SPEAKING"
-                elif is_listen:
-                    overall_state = "LISTENING"
-                else:
-                    overall_state = "READY"
+                overall_state = "FULLY_READY"
             else:
                 overall_state = "DEGRADED"
 
@@ -351,7 +343,11 @@ class BagusmaxLiveSessionCoordinator:
                 )
 
             # Reconcile Companion
-            comp_ready = bool(self._companion and self._companion._is_connected())
+            comp_ready = bool(
+                self._companion
+                and self._companion._is_running()
+                and self._companion._is_connected()
+            )
             if not comp_ready:
                 if self._companion is None:
                     self._companion = CompanionController.get_instance()
@@ -388,15 +384,17 @@ class BagusmaxLiveSessionCoordinator:
                 vs.controller.working_context = self.shell.working_context
                 vs.controller.mode_controller.set_mode(cur_mode)
 
-            # Reconcile capture stream
+            # Reconcile capture stream & listener loop
             capture_active = bool(
                 vs._active
                 and vs.controller.capture_stream.is_capturing
-                and (vs.controller.capture_stream._stream is None or getattr(vs.controller.capture_stream._stream, "active", True))
+                and (vs.controller.capture_stream._stream is not None and getattr(vs.controller.capture_stream._stream, "active", False))
                 and vs.controller._loop_active
-                and (vs.controller._loop_thread is None or vs.controller._loop_thread.is_alive())
+                and (vs.controller._loop_thread is not None and vs.controller._loop_thread.is_alive())
             )
             if not capture_active:
+                if vs._active:
+                    vs.stop()
                 voice_ok = vs.start(hands_free=True)
                 if not voice_ok:
                     if not comp_ready and self._companion:
@@ -467,18 +465,31 @@ class BagusmaxLiveSessionCoordinator:
             return SessionStopResult(success=True, message=msg)
 
     def show(self) -> SessionStartResult:
-        """Shows the companion window and resumes listening."""
+        """Shows the companion window and resumes listening with strict health verification."""
         with self._lock:
+            # 1. If unstarted, start cleanly
             if not self.has_active_components():
                 return self.start()
-            if self._companion:
-                self._companion.show()
-            if getattr(self.shell, "voice_session", None):
-                self.shell.voice_session.set_muted(False)
+
+            # 2. If fully ready and hidden: unhide window and unmute
+            if self._is_hidden and self.is_fully_ready():
+                if self._companion:
+                    self._companion.show()
+                if getattr(self.shell, "voice_session", None):
+                    self.shell.voice_session.set_muted(False)
+                self._is_hidden = False
+                if self._companion:
+                    self._companion.set_state("LISTENING")
+
+                # Verify all resources are still fully ready after unhiding
+                if self.is_fully_ready():
+                    st = self.status()
+                    msg = "[Jendela companion BAGUSMAX ditampilkan kembali dan mikrofon aktif.]\n"
+                    return SessionStartResult(success=True, status=st, message=msg)
+
+            # 3. If partially stopped or degraded: unhide and reconcile missing services via start()
             self._is_hidden = False
-            st = self.status()
-            msg = "[Jendela companion BAGUSMAX ditampilkan kembali dan mikrofon aktif.]\n"
-            return SessionStartResult(success=True, status=st, message=msg)
+            return self.start()
 
     def restart(self) -> SessionStartResult:
         """Cleanly restarts the integrated session."""

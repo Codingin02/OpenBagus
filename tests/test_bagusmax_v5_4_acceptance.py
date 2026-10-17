@@ -54,8 +54,14 @@ class TestBagusmaxV54Acceptance(unittest.TestCase):
     def setUp(self):
         self.shell = OpenBagusShell()
         self.shell.current_mode = "FAST"
+        self._dev_val_patcher = patch(
+            "openbagus.voice.audio_devices.AudioDeviceManager.validate_device",
+            return_value=True,
+        )
+        self._dev_val_patcher.start()
 
     def tearDown(self):
+        self._dev_val_patcher.stop()
         if hasattr(self.shell, "bagusmax_coordinator"):
             try:
                 self.shell.bagusmax_coordinator.stop()

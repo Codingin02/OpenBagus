@@ -203,3 +203,46 @@ Bagusmax siap mendengarkan. Silakan bicara langsung dalam Bahasa Indonesia.
 | `PASS_INSTALLED_EXE` | Standalone verification of the packaged, installed Windows binary. | `_installed\OpenBagus\OpenBagus.exe --diagnostics` (STATE: READY, GPU: RTX 3050, CUDA: true, Mic: READY, Spk: READY) |
 | `USER_APPROVAL_PENDING` | End-user interactive conversational validation on live microphone & speakers in real acoustic environment. | Live user acceptance testing |
 
+---
+
+## 9. OpenBagus V5.4.2 Live-Session Integrity Patch
+
+### 9.1 Root-Cause Integrity Corrections
+1. **P0 — Strict Readiness Conjunction (`is_fully_ready`):**
+   - Eliminated fallbacks (`or vs._active`, `or self._is_active`, `comp_active` cheats) in `openbagus/companion/live_session.py`.
+   - Requires strict conjunction of all mandatory subsystems:
+     1. Companion process running and active IPC socket handshake verified (`_is_running()` and `_is_connected()`).
+     2. Voice session active (`vs._active`).
+     3. Audio capture stream capturing with active hardware stream (`cs.is_capturing and cs._stream.active`).
+     4. Voice loop active and listener thread alive (`ctrl._loop_active and ctrl._loop_thread.is_alive()`).
+     5. Speaker device verified via `AudioDeviceManager.validate_device(out_dev.id, kind="output")`.
+     6. Zero unresolved failure states (`self._last_error is None`).
+   - Defined strict overall status taxonomy: `NOT_STARTED`, `FULLY_READY`, `DEGRADED`, `STOPPED`, `FAILED`.
+
+2. **P0 — Strict `/bagusmax show` Health Verification & Reconciliation:**
+   - In `BagusmaxLiveSessionCoordinator.show()`, verifies full operational readiness before reporting success.
+   - If degraded or audio stream was stopped while hidden, safely delegates to `start()` for automated non-destructive reconciliation without stream duplication.
+
+3. **P1 — Reachable EOF Graceful Shutdown:**
+   - In `openbagus/cli.py::do_EOF()`, removed premature `return True`.
+   - Ensures `self._shutdown_live_services()`, session persistence/clear handling, and `LocalLanguageEngine.shutdown_runtime()` are executed cleanly upon EOF (Ctrl+D / Ctrl+Z).
+   - Preserves `/exit` cancellation behavior.
+
+4. **P1 — Non-Destructive Installed Deployment:**
+   - Deployed without destructive `/MIR` flag using:
+     `robocopy dist\OpenBagus _installed\OpenBagus /E /XF openbagus.json unins000.* *.db *.log`
+   - Preserves user configuration (`openbagus.json`), local databases, logs, and InnoSetup uninstaller files.
+
+### 9.2 V5.4.2 Verification Matrix
+
+| Suite / Artifact | Test Count | Classification | Result |
+|---|---|---|---|
+| `tests/test_bagusmax_v5_4_1_live_correctness.py` | 15 / 15 | `PASS_UNIT` | **PASS (56.90s)** |
+| `tests/test_bagusmax_v5_4_acceptance.py` | 15 / 15 | `PASS_UNIT` & `PASS_SIMULATED` | **PASS (152.27s)** |
+| `tests/test_barge_in_acceptance.py` | 3 / 3 | `PASS_REAL_DEVICE` | **PASS (66.53s)** |
+| `tests/test_quiet_room_5min.py` | 2 / 2 | `PASS_REAL_DEVICE` & `PASS_SIMULATED` | **PASS (21.85s)** |
+| `OpenBagus-Setup.exe` (1.1 GB) | Checksum | `PASS_PRODUCTION_PIPELINE` | **SHA256: `e6abd48180e33a896c63da10ca15269e6bd17d46cd434aea3b1946b09a9aca11`** |
+| `_installed\OpenBagus\OpenBagus.exe --diagnostics` | Diagnostic probe | `PASS_INSTALLED_EXE` | **STATE: READY, GPU: RTX 3050 (5814MB free), Mic: READY, Spk: READY** |
+| Human Live Voice Interaction | End-user acoustic test | `USER_APPROVAL_PENDING` | Ready for interactive user validation |
+
+

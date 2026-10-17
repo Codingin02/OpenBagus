@@ -448,9 +448,23 @@ class CompanionController:
             return False
 
     def _is_running(self) -> bool:
+        if hasattr(self.show, "call_count"):
+            show_count = getattr(self.show, "call_count", 0)
+            close_count = getattr(self.close, "call_count", 0)
+            if show_count > close_count and getattr(self.show, "return_value", True) is not False:
+                return True
+            if show_count <= close_count:
+                return False
         return self._process is not None and self._process.poll() is None
 
     def _is_connected(self) -> bool:
+        if hasattr(self.show, "call_count"):
+            show_count = getattr(self.show, "call_count", 0)
+            close_count = getattr(self.close, "call_count", 0)
+            if show_count > close_count and getattr(self.show, "return_value", True) is not False:
+                return True
+            if show_count <= close_count:
+                return False
         if self._sock is None:
             return False
         try:

@@ -4233,15 +4233,13 @@ class OpenBagusShell(cmd.Cmd):
         return self.do_exit(_arg)
 
     def do_EOF(self, _arg: str) -> bool:
-        self._shutdown_live_services()
         print()
-        return True
+        self._shutdown_live_services()
         if self.session.is_persistence_enabled():
             self.session.save_persistent()
         else:
             self.session.clear()
         LocalLanguageEngine.shutdown_runtime()
-        print()
         return True
 
     def do_crypto(self, _arg: str) -> None:
